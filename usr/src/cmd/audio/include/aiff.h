@@ -25,6 +25,10 @@
  */
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * This header file defines the .aiff audio file format.
  */
 
@@ -150,7 +154,7 @@ typedef struct aiff_ssnd_chunk aiff_ssnd_chunk_t;
 		*((int *)(to)) = *((int *)(from))
 #define	AUDIO_AIFF_HOST2FILE_SHORT(from, to)				\
 		*((short *)(to)) = *((short *)(from))
-#elif defined(__i386) || defined(__amd64)	/* little endian */
+#elif defined(__i386) || defined(__amd64) || defined(__arm) /* little endian */
 #define	AUDIO_AIFF_FILE2HOST_INT(from, to)				\
 		(*to) = ((((*from) >> 24) & 0xff) | (((*from) & 0xff) << 24) | \
 		(((*from) >> 8) & 0xff00) | (((*from) & 0xff00) << 8))

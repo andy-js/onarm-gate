@@ -25,7 +25,13 @@
 #
 #ident	"%Z%%M%	%I%	%E% SMI"
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 include $(SRC)/Makefile.master
 
 SUBDIRS = scripts baddof badioctl chkargs jdtrace
+$(ARM_BLD)SUBDIRS	= scripts baddof badioctl chkargs
+
 include ../Makefile.subdirs

@@ -25,10 +25,16 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 SUBDIRS=	nwamd
 MSGSUBDIRS=	nwamd
 
 include 	../../Makefile.cmd
+
+$(ARM_BLD)SUBDIRS=
 
 POFILES=	$(MSGSUBDIRS:%=%/%.po)
 POFILE=		lib.po
@@ -45,6 +51,9 @@ all install clean clobber lint: $(SUBDIRS)
 
 $(SUBDIRS): FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)
+
+$(ARM_BLD)$(MSGSUBDIRS):	FRC
+$(ARM_BLD)	@cd $@; pwd; $(MAKE) $(TARGET)
 
 FRC:
 

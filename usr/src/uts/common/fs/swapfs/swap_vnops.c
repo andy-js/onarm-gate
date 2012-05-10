@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -41,6 +45,8 @@
 #include <sys/debug.h>
 #include <sys/sysmacros.h>
 #include <sys/vm.h>
+#include <sys/mem_cage.h>
+#include <sys/lpg_config.h>
 
 #include <sys/fs/swapnode.h>
 
@@ -68,10 +74,12 @@ static int	swap_getapage(struct vnode *vp, u_offset_t off, size_t len,
     uint_t *protp, page_t **plarr, size_t plsz,
     struct seg *seg, caddr_t addr, enum seg_rw rw, struct cred *cr);
 
+#ifndef	LPG_DISABLE
 int	swap_getconpage(struct vnode *vp, u_offset_t off, size_t len,
     uint_t *protp, page_t **plarr, size_t plsz, page_t *conpp,
     uint_t *pszc, spgcnt_t *nreloc, struct seg *seg, caddr_t addr,
     enum seg_rw rw, struct cred *cr);
+#endif	/* !LPG_DISABLE */
 
 static int 	swap_putapage(struct vnode *vp, page_t *pp, u_offset_t *off,
     size_t *lenp, int flags, struct cred *cr);
@@ -163,7 +171,6 @@ swap_getapage(
 	u_offset_t poff;
 	int flag_noreloc;
 	se_t lock;
-	extern int kcage_on;
 	int upgrade = 0;
 
 	SWAPFS_PRINT(SWAP_VOPS, "swap_getapage: vp %p, off %llx, len %lx\n",
@@ -301,6 +308,8 @@ again:
 		"swapfs getapage:pp %p vp %p off %llx", pp, vp, off);
 	return (err);
 }
+
+#ifndef	LPG_DISABLE
 
 /*
  * Called from large page anon routines only! This is an ugly hack where
@@ -441,6 +450,8 @@ swap_getconpage(
 	pl[1] = NULL;
 	return (err);
 }
+
+#endif	/* !LPG_DISABLE */
 
 /* Async putpage klustering stuff */
 int sw_pending_size;
@@ -756,7 +767,8 @@ swap_dispose(
 	 * The caller will free/invalidate large page in one shot instead of
 	 * one small page at a time.
 	 */
-	if (pp->p_szc != 0) {
+	SZC_ASSERT(pp->p_szc);
+	if (SZC_EVAL(pp->p_szc) != 0) {
 		page_unlock(pp);
 		return;
 	}

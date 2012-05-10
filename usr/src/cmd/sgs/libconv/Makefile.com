@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 LIBRARY =	libconv.a
 
 COMOBJS32 =	cap32.o			dynamic32.o \
@@ -34,7 +38,8 @@ COMOBJS32 =	cap32.o			dynamic32.o \
 		relocate_i38632.o	relocate_amd6432.o \
 		relocate_sparc32.o	sections32.o \
 		symbols32.o		symbols_sparc32.o \
-		syminfo32.o
+		syminfo32.o		elf_arm32.o \
+		relocate_arm32.o
 
 COMOBJS64 =	cap64.o			dynamic64.o \
 		elf64.o			globals64.o \
@@ -42,7 +47,8 @@ COMOBJS64 =	cap64.o			dynamic64.o \
 		relocate_i38664.o	relocate_amd6464.o \
 		relocate_sparc64.o	sections64.o \
 		symbols64.o		symbols_sparc64.o \
-		syminfo64.o
+		syminfo64.o		elf_arm64.o \
+		relocate_arm64.o
 
 COMOBJS=	arch.o			config.o \
 		data.o			deftag.o \

@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -37,6 +40,7 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/dmu_zfetch.h>
+#include <zfs_types.h>
 
 static int free_range_compar(const void *node1, const void *node2);
 
@@ -100,7 +104,7 @@ dnode_dest(void *arg, void *unused)
 void
 dnode_init(void)
 {
-	dnode_cache = kmem_cache_create("dnode_t",
+	dnode_cache = kmem_cache_create(KMEM_DNODE_T,
 	    sizeof (dnode_t),
 	    0, dnode_cons, dnode_dest, NULL, NULL, NULL, 0);
 }
@@ -166,6 +170,7 @@ dnode_verify(dnode_t *dn)
 }
 #endif
 
+#ifndef ZFS_COMPACT
 void
 dnode_byteswap(dnode_phys_t *dnp)
 {
@@ -210,6 +215,7 @@ dnode_byteswap(dnode_phys_t *dnp)
 		dmu_ot[dnp->dn_bonustype].ot_byteswap(dnp->dn_bonus + off, len);
 	}
 }
+#endif	/* ZFS_COMPACT */
 
 void
 dnode_buf_byteswap(void *vbuf, size_t size)
@@ -272,7 +278,7 @@ dnode_setdblksz(dnode_t *dn, int size)
 
 static dnode_t *
 dnode_create(objset_impl_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
-    uint64_t object)
+    objid_t object)
 {
 	dnode_t *dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
 	(void) dnode_cons(dn, NULL, 0); /* XXX */
@@ -357,7 +363,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 
 	ibs = MIN(MAX(ibs, DN_MIN_INDBLKSHIFT), DN_MAX_INDBLKSHIFT);
 
-	dprintf("os=%p obj=%llu txg=%llu blocksize=%d ibs=%d\n", dn->dn_objset,
+	dprintf("os=%p obj=%" PRIuOBJID " txg=%" PRIuTXG
+	    " blocksize=%d ibs=%d\n", dn->dn_objset,
 	    dn->dn_object, tx->tx_txg, blocksize, ibs);
 
 	ASSERT(dn->dn_type == DMU_OT_NONE);
@@ -504,7 +511,7 @@ dnode_special_close(dnode_t *dn)
 }
 
 dnode_t *
-dnode_special_open(objset_impl_t *os, dnode_phys_t *dnp, uint64_t object)
+dnode_special_open(objset_impl_t *os, dnode_phys_t *dnp, objid_t object)
 {
 	dnode_t *dn = dnode_create(os, dnp, NULL, object);
 	DNODE_VERIFY(dn);
@@ -551,7 +558,7 @@ dnode_buf_pageout(dmu_buf_t *db, void *arg)
  * succeeds even for free dnodes.
  */
 int
-dnode_hold_impl(objset_impl_t *os, uint64_t object, int flag,
+dnode_hold_impl(objset_impl_t *os, objid_t object, int flag,
     void *tag, dnode_t **dnp)
 {
 	int epb, idx, err;
@@ -643,7 +650,7 @@ dnode_hold_impl(objset_impl_t *os, uint64_t object, int flag,
  * Return held dnode if the object is allocated, NULL if not.
  */
 int
-dnode_hold(objset_impl_t *os, uint64_t object, void *tag, dnode_t **dnp)
+dnode_hold(objset_impl_t *os, objid_t object, void *tag, dnode_t **dnp)
 {
 	return (dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED, tag, dnp));
 }
@@ -683,7 +690,7 @@ void
 dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 {
 	objset_impl_t *os = dn->dn_objset;
-	uint64_t txg = tx->tx_txg;
+	txg_t txg = tx->tx_txg;
 
 	if (dn->dn_object == DMU_META_DNODE_OBJECT)
 		return;
@@ -712,7 +719,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT3U(dn->dn_next_bonuslen[txg&TXG_MASK], ==, 0);
 	ASSERT3U(dn->dn_next_blksz[txg&TXG_MASK], ==, 0);
 
-	dprintf_ds(os->os_dsl_dataset, "obj=%llu txg=%llu\n",
+	dprintf_ds(os->os_dsl_dataset, "obj=%" PRIuOBJID " txg=%" PRIuTXG "\n",
 	    dn->dn_object, txg);
 
 	if (dn->dn_free_txg > 0 && dn->dn_free_txg <= txg) {
@@ -744,7 +751,7 @@ dnode_free(dnode_t *dn, dmu_tx_t *tx)
 {
 	int txgoff = tx->tx_txg & TXG_MASK;
 
-	dprintf("dn=%p txg=%llu\n", dn, tx->tx_txg);
+	dprintf("dn=%p txg=%" PRIuTXG "\n", dn, tx->tx_txg);
 
 	/* we should be the only holder... hopefully */
 	/* ASSERT3U(refcount_count(&dn->dn_holds), ==, 1); */
@@ -846,7 +853,7 @@ fail:
 void
 dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx)
 {
-	uint64_t txgoff = tx->tx_txg & TXG_MASK;
+	txg_t txgoff = tx->tx_txg & TXG_MASK;
 	int drop_struct_lock = FALSE;
 	int epbs, new_nlevels;
 	uint64_t sz;
@@ -923,7 +930,7 @@ dnode_clear_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 	ASSERT(MUTEX_HELD(&dn->dn_mtx));
 	ASSERT(nblks <= UINT64_MAX - blkid); /* no overflow */
 
-	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
+	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%" PRIuTXG "\n",
 	    blkid, nblks, tx->tx_txg);
 	rp_tofind.fr_blkid = blkid;
 	rp = avl_find(tree, &rp_tofind, &where);
@@ -1122,7 +1129,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		found = avl_find(tree, rp, &where);
 		ASSERT(found == NULL);
 		avl_insert(tree, rp, where);
-		dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
+		dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%" PRIuTXG "\n",
 		    blkid, nblks, tx->tx_txg);
 	}
 	mutex_exit(&dn->dn_mtx);
@@ -1230,16 +1237,16 @@ dnode_willuse_space(dnode_t *dn, int64_t space, dmu_tx_t *tx)
 
 static int
 dnode_next_offset_level(dnode_t *dn, boolean_t hole, uint64_t *offset,
-	int lvl, uint64_t blkfill, uint64_t txg)
+	int lvl, objid_t blkfill, txg_t txg)
 {
 	dmu_buf_impl_t *db = NULL;
 	void *data = NULL;
 	uint64_t epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	uint64_t epb = 1ULL << epbs;
-	uint64_t minfill, maxfill;
+	objid_t minfill, maxfill;
 	int i, error, span;
 
-	dprintf("probing object %llu offset %llx level %d of %u\n",
+	dprintf("probing object %" PRIuOBJID " offset %llx level %d of %u\n",
 	    dn->dn_object, *offset, lvl, dn->dn_phys->dn_nlevels);
 
 	if (lvl == dn->dn_phys->dn_nlevels) {
@@ -1340,7 +1347,7 @@ dnode_next_offset_level(dnode_t *dn, boolean_t hole, uint64_t *offset,
  */
 int
 dnode_next_offset(dnode_t *dn, boolean_t hole, uint64_t *offset,
-    int minlvl, uint64_t blkfill, uint64_t txg)
+    int minlvl, objid_t blkfill, txg_t txg)
 {
 	int lvl, maxlvl;
 	int error = 0;

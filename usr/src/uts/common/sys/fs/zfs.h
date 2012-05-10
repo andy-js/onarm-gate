@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_ZFS_H
 #define	_SYS_FS_ZFS_H
 
@@ -31,6 +35,10 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	ZFS_MODNAME		"ZFS"
+#define	ZFS_MODULE		"zfs"
+#define	ZFS_BOOTFS		"zfs-bootfs"
 
 /*
  * Types and constants shared between userland and the kernel.
@@ -132,6 +140,7 @@ typedef enum {
 
 #define	ZPROP_VALUE		"value"
 #define	ZPROP_SOURCE		"source"
+#define	ZPROP_ISMOUNTED		"ismounted"
 
 typedef enum {
 	ZPROP_SRC_NONE = 0x1,

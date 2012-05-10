@@ -26,6 +26,10 @@
 /*	Copyright (c) 1983, 1984, 1985, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_NFS_NFS_H
 #define	_NFS_NFS_H
 
@@ -34,6 +38,7 @@
 
 #include <sys/isa_defs.h>
 #include <sys/vfs.h>
+#include <sys/vfs_opreg.h>
 #include <sys/stream.h>
 #include <rpc/types.h>
 #include <sys/types32.h>

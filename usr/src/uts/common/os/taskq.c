@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -873,7 +877,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	} else {
 		int loopcount;
 		taskq_bucket_t *b;
-		uintptr_t h = ((uintptr_t)CPU + (uintptr_t)arg) >> 3;
+		uintptr_t h = ((uintptr_t)CPU_GLOBAL + (uintptr_t)arg) >> 3;
 
 		h = TQ_HASH(h);
 

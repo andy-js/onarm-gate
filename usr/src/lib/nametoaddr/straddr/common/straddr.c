@@ -26,6 +26,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	 All Rights Reserved 	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -75,14 +79,23 @@ static int searchhost(struct netconfig *, char *, int, char *);
 static int searchserv(struct netconfig *, char *, int, char *);
 static const char *nodename(void);
 
+#ifdef STATIC_LINK
+extern char *_taddr2uaddr_straddr(struct netconfig *, struct netbuf *);
+#endif
+
 /*
  *	_netdir_getbyname() returns all of the addresses for
  *	a specified host and service.
  */
 
 struct nd_addrlist *
+#ifdef STATIC_LINK
+_netdir_getbyname_straddr(struct netconfig *netconfigp,
+    struct nd_hostserv *nd_hostservp)
+#else
 _netdir_getbyname(struct netconfig *netconfigp,
     struct nd_hostserv *nd_hostservp)
+#endif
 {
 	char   fulladdr[BUFSIZ];   /* holds the full address string	   */
 	struct nd_addrlist *retp;  /* the return structure		   */
@@ -169,7 +182,11 @@ _netdir_getbyname(struct netconfig *netconfigp,
  */
 
 struct nd_hostservlist *
+#ifdef STATIC_LINK
+_netdir_getbyaddr_straddr(struct netconfig *netconfigp, struct netbuf *netbufp)
+#else
 _netdir_getbyaddr(struct netconfig *netconfigp, struct netbuf *netbufp)
+#endif
 {
 	char   fulladdr[BUFSIZ];	  /* a copy of the address string   */
 	char   servbuf[BUFSIZ];		  /* a buffer for service string    */
@@ -218,7 +235,11 @@ _netdir_getbyaddr(struct netconfig *netconfigp, struct netbuf *netbufp)
 	servbuf[0] = '\0';
 	serv = servbuf;
 	if (searchserv(netconfigp, servname, FIELD2, servbuf) == 0) {
+#ifdef STATIC_LINK
+		serv = _taddr2uaddr_straddr(netconfigp, netbufp);
+#else
 		serv = _taddr2uaddr(netconfigp, netbufp);
+#endif
 		(void) strcpy(servbuf, serv);
 		free(serv);
 		serv = servbuf;
@@ -277,7 +298,11 @@ _netdir_getbyaddr(struct netconfig *netconfigp, struct netbuf *netbufp)
 
 /* ARGSUSED */
 char *
+#ifdef STATIC_LINK
+_taddr2uaddr_straddr(struct netconfig *netconfigp, struct netbuf *netbufp)
+#else
 _taddr2uaddr(struct netconfig *netconfigp, struct netbuf *netbufp)
+#endif
 {
 	char *retp;	/* pointer the return string			*/
 	char *to;	/* traverses and populates the return string	*/
@@ -322,7 +347,11 @@ _taddr2uaddr(struct netconfig *netconfigp, struct netbuf *netbufp)
 
 /* ARGSUSED */
 struct netbuf *
+#ifdef STATIC_LINK
+_uaddr2taddr_straddr(struct netconfig *netconfigp, char *uaddr)
+#else
 _uaddr2taddr(struct netconfig *netconfigp, char *uaddr)
+#endif
 {
 	struct netbuf *retp;	/* the return structure			   */
 	char *holdp;		/* holds the converted address		   */
@@ -373,7 +402,11 @@ _uaddr2taddr(struct netconfig *netconfigp, char *uaddr)
 
 /* ARGSUSED */
 int
+#ifdef STATIC_LINK
+_netdir_options_straddr(struct netconfig *netconfigp, int option, int fd, void *par)
+#else
 _netdir_options(struct netconfig *netconfigp, int option, int fd, void *par)
+#endif
 {
 	struct nd_mergearg *argp;  /* the argument for mergeaddr */
 

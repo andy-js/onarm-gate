@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_SYS_CONSDEV_H
 #define	_SYS_CONSDEV_H
 
@@ -67,7 +71,9 @@ extern struct vnode *fbvp;	/* pointer to vnode for that device */
 extern dev_info_t *fbdip;	/* pointer to dev_info for fbdev (optional) */
 
 extern int	consmode;	/* CONS_FW or CONS_KFB */
+#ifndef NO_TEM_FRAMEWORK
 extern int	cons_tem_disable;
+#endif /* NO_TEM_FRAMEWORK */
 #define	CONS_FW		0
 #define	CONS_KFB	1
 

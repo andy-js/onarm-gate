@@ -26,6 +26,10 @@
 #
 
 #
+# Copyright (c) 2008 NEC Corporation
+#
+
+#
 # The build process for libdisasm is sightly different from that used by other
 # libraries, because libdisasm must be built in two flavors - as a standalone
 # for use by kmdb and as a normal library.  We use $(CURTYPE) to indicate the
@@ -51,10 +55,12 @@ COMDIR=		$(SRC)/lib/libdisasm/common
 #
 OBJECTS_common_i386 = dis_i386.o dis_tables.o
 OBJECTS_common_sparc = dis_sparc.o instr.o dis_sparc_fmt.o
+OBJECTS_common_arm	= dis_arm.o dis_string.o
 
 SRCS_common_i386 = $(ISASRCDIR)/dis_i386.c $(SRC)/common/dis/i386/dis_tables.c
 SRCS_common_sparc = $(ISASRCDIR)/dis_sparc.c $(ISASRCDIR)/instr.c \
 	$(ISASRCDIR)/dis_sparc_fmt.c
+SRCS_common_arm	= $(ISASRCDIR)/dis_arm.c $(SRC)/common/dis/arm/dis_string.c
 
 #
 # Architecture-independent files common to both version of libdisasm

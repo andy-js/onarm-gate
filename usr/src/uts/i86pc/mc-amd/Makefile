@@ -19,6 +19,11 @@
 #
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
@@ -68,7 +73,10 @@ $(LINTS): $(MCAMD_OFF_H)
 #
 # Create mcamd_off.h
 #
-$(MCAMD_OFF_H): $(MCAMD_OFF_SRC)
+MCAMD_OFF_H_DEP			= $(MCAMD_OFF_SRC)
+$(USE_UTSTUNE)MCAMD_OFF_H_DEP	+= $(MODTUNE_H)
+
+$(MCAMD_OFF_H): $(MCAMD_OFF_H_DEP)
 	$(OFFSETS_CREATE) <$(MCAMD_OFF_SRC) >$@
 
 #

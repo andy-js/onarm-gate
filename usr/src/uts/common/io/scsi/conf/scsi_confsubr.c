@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -176,7 +180,7 @@ int scsi_sgl_size = 0xFF;
 
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	scsi_initialize_hba_interface();
 	scsi_watch_init();
@@ -202,7 +206,7 @@ _init()
  */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

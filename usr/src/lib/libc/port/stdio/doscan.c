@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "synonyms.h"
@@ -673,7 +677,7 @@ number(int *chcount, int *flag_eof, int stow, int type, int len, int size,
 					    va_arg(*listp, quadruple *),
 					    &dm, &dr, &efs);
 			}
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 			dm.rd = __xgetRD();
 			if (size == 'L') {		/* long double */
 				if ((int)form < 0)

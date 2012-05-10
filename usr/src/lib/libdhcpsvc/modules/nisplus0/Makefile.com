@@ -23,6 +23,11 @@
 # Copyright (c) 2001 by Sun Microsystems, Inc.
 # All rights reserved.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 # lib/libdhcpsvc/modules/nisplus0/Makefile.com
@@ -47,6 +52,6 @@ all:	$(LIBS)
 # include library targets
 include $(SRC)/lib/libdhcpsvc/modules/Makefile.targ
 
-pics/%.o: $(COMMON_DIR)/%.c
+objs/%.o pics/%.o: $(COMMON_DIR)/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)

@@ -23,6 +23,11 @@
 # Copyright 1998-2002 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # cmd/sort/Makefile
@@ -65,8 +70,8 @@ clean clobber lint : $(SUBDIRS)
 debug convert invoke stats : $(SUBDIRS)
 
 install : $(SUBDIRS)
-	-$(RM) $(ROOTPROG)
-	-$(LN) $(ISAEXEC) $(ROOTPROG)
+	-$(USE_ISAEXEC)$(RM) $(ROOTPROG)
+	-$(USE_ISAEXEC)$(LN) $(ISAEXEC) $(ROOTPROG)
 
 $(POFILE) : $(POFILES)
 	echo $(SRCS)

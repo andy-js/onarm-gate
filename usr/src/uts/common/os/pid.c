@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -395,11 +398,23 @@ sprtrylock_proc(proc_t *p)
 {
 	ASSERT(MUTEX_HELD(&p->p_lock));
 
+#ifdef	DUMP_ALL_CURPROC
+	if (p->p_stat == SZOMB || p->p_stat == SIDL) {
+		return (-1);
+	}
+	if (panicstr) {
+		return (1);
+	}
+	if (p->p_flag & (SSYS | SEXITING | SEXITLWPS)) {
+		return (-1);
+	}
+#else	/* !DUMP_ALL_CURPROC */
 	/* skip system and incomplete processes */
 	if (p->p_stat == SIDL || p->p_stat == SZOMB ||
 	    (p->p_flag & (SSYS | SEXITING | SEXITLWPS))) {
 		return (-1);
 	}
+#endif	/* DUMP_ALL_CURPROC */
 
 	if (p->p_proc_flag & P_PR_LOCK)
 		return (1);

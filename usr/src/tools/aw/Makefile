@@ -24,6 +24,11 @@
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
+
+#
+# Copyright (c) 2006 NEC Corporation
+#
+
 #
 # tools/aw/Makefile
 #
@@ -36,11 +41,7 @@ CFLAGS += $(CCVERBOSE)
 
 LINTFLAGS += -ux -Xa -errchk=locfmtchk,parentheses
 
-CPPFLAGS +=	-DDEFAULT_AS_DIR='"$(GNU_ROOT)/bin"'
-CPPFLAGS +=	-DDEFAULT_AS64_DIR='"$(GNU_ROOT)/bin"'
-CPPFLAGS +=	-DDEFAULT_M4_DIR='"/usr/ccs/bin"'
-CPPFLAGS +=	-DDEFAULT_M4LIB_DIR='"/usr/ccs/lib"'
-CPPFLAGS +=	-DDEFAULT_CPP_DIR='"/usr/ccs/lib"'
+include Makefile.$(TARGET_MACH)
 
 .KEEP_STATE:
 

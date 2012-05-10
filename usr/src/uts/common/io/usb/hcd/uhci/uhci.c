@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -135,7 +139,7 @@ static int	uhci_cpr_resume(uhci_state_t *uhcip);
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int error;
 	ushort_t i, j, k, *temp, num_of_nodes;
@@ -179,14 +183,15 @@ _init(void)
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int error;
 
@@ -199,6 +204,7 @@ _fini(void)
 
 	return (error);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * The following simulated polling is for debugging purposes only.

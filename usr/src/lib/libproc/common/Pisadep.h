@@ -23,6 +23,9 @@
  * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
 
 #ifndef	_PISADEP_H
 #define	_PISADEP_H
@@ -68,6 +71,10 @@ extern int Pissyscall_text(struct ps_prochandle *, const void *buf,
 #define	PSTACK_ALIGN64(sp)	ALIGN32(sp)
 #elif defined(__sparc)
 /* sparc stack is doubleword aligned for 64-bit values */
+#define	PSTACK_ALIGN32(sp)	((sp) & ~(2 * sizeof (int32_t) - 1))
+#define	PSTACK_ALIGN64(sp)	((sp) & ~(2 * sizeof (int64_t) - 1))
+#elif defined(__arm)
+/* arm stack is doubleword aligned */
 #define	PSTACK_ALIGN32(sp)	((sp) & ~(2 * sizeof (int32_t) - 1))
 #define	PSTACK_ALIGN64(sp)	((sp) & ~(2 * sizeof (int64_t) - 1))
 #else

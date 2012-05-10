@@ -25,6 +25,10 @@
 # Copyright 1990,2002 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+#
 # cmd/prtvtoc/Makefile
 #
 
@@ -36,7 +40,12 @@ RELUSRSBIN=     ../usr/sbin
 ROOTSYMLINK=    $(ROOTETC)/$(PROG)
 OWNER=		root
 GROUP=		sys
-LDLIBS +=	-ladm -lefi
+
+LIBEFI =	-lefi
+LDLIBS +=	-ladm $(LIBEFI)
+
+$(ARM_BLD)LIBEFI =
+$(ARM_BLD)CFLAGS +=	-DNO_SUPPORT_EFI
 
 .KEEP_STATE:
 

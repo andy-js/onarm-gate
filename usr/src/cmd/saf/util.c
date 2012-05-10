@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -36,10 +40,10 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "extern.h"
 #include "misc.h"
 #include <sac.h>
 #include "structs.h"
+#include "extern.h"
 #ifdef SAC
 #include "msgs.h"
 #endif

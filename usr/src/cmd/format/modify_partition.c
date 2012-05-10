@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -186,7 +189,7 @@ Warning: Fix, or select a different partition table.\n");
 		}
 		map[C_PARTITION].dkl_nblk = ncyl * spc();
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 		/*
 		 * Adjust for the boot and possibly alternates partitions
 		 */
@@ -196,7 +199,7 @@ Warning: Fix, or select a different partition table.\n");
 			map[J_PARTITION].dkl_nblk = 2 * spc();
 			map[J_PARTITION].dkl_cylno = spc() / spc();
 		}
-#endif			/* defined(i386) */
+#endif			/* defined(i386) || defined(__arm) */
 	    }
 	    break;
 	case L_TYPE_EFI:
@@ -245,13 +248,13 @@ Warning: Fix, or select a different partition table.\n");
 		 */
 		if (sel_type == 1) {
 			map[free_hog].dkl_nblk = map[C_PARTITION].dkl_nblk;
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 			map[free_hog].dkl_nblk -= map[I_PARTITION].dkl_nblk;
 			if (cur_ctype->ctype_ctype != DKC_SCSI_CCS) {
 				map[free_hog].dkl_nblk -=
 					map[J_PARTITION].dkl_nblk;
 			}
-#endif			/* defined(i386) */
+#endif			/* defined(i386) || defined(__arm) */
 			break;
 		}
 		/*
@@ -319,7 +322,7 @@ Okay to make this the current partition table", '?',
 		for (i = 0; i < NDKMAP; i++) {
 			cur_parts->pinfo_map[i].dkl_nblk = map[i].dkl_nblk;
 			cur_parts->pinfo_map[i].dkl_cylno = map[i].dkl_cylno;
-#ifdef i386
+#if defined(i386) || defined(__arm)
 			cur_parts->vtoc.v_part[i].p_start =
 				map[i].dkl_cylno * nhead * nsect;
 			cur_parts->vtoc.v_part[i].p_size =
@@ -400,7 +403,7 @@ check_map(map)
 	int	cyloffset = 0;
 	int	tot_blks = 0;
 
-#ifdef i386
+#if defined(i386) || defined(__arm)
 	/*
 	 * On x86, we must account for the boot and alternates
 	 */
@@ -428,7 +431,7 @@ Warning: Partition %c, specified # of blocks, %d, is out of range.\n",
 			return (-1);
 		}
 		if (i != C_PARTITION && map[i].dkl_nblk) {
-#ifdef	i386
+#if defined(i386) || defined(__arm)
 			if (i == I_PARTITION || i == J_PARTITION)
 				continue;
 #endif

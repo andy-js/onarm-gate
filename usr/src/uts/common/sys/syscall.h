@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_SYSCALL_H
 #define	_SYS_SYSCALL_H
 
@@ -129,6 +133,7 @@ extern "C" {
 	 *	see <sys/msg.h>
 	 */
 #define	SYS_sysi86	50
+#define	SYS_sysarm	50
 	/*
 	 * subcodes:
 	 *	sysi86(code, ...)
@@ -156,6 +161,7 @@ extern "C" {
 	 */
 #define	SYS_ioctl	54
 #define	SYS_uadmin	55
+#define	SYS_pspawn	56
 #define	SYS_utssys	57
 	/*
 	 * subcodes (third argument):

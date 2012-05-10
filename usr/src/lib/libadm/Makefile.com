@@ -24,11 +24,16 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
+include	../../../Makefile.master
 
 LIBRARY=	libadm.a
 VERS=		.1
 
-OBJECTS= \
+ALLOBJ= \
 ckdate.o     ckgid.o      ckint.o      ckitem.o     ckkeywd.o    ckpath.o  \
 ckrange.o    ckstr.o      cktime.o     ckuid.o      ckyorn.o     data.o  \
 devattr.o    devreserv.o  devtab.o     dgrpent.o    getdev.o     getdgrp.o  \
@@ -36,12 +41,19 @@ getinput.o   getvol.o     listdev.o    listdgrp.o   pkginfo.o  \
 pkgnmchk.o   pkgparam.o   putdev.o     putdgrp.o    puterror.o   puthelp.o  \
 putprmpt.o   puttext.o    rdwr_vtoc.o  regexp.o     space.o      fulldevnm.o
 
+COMPACTOBJ= \
+rdwr_vtoc.o  fulldevnm.o
+
+$(SPARC_BLD)OBJECTS =	$(ALLOBJ)
+$(INTEL_BLD)OBJECTS =	$(ALLOBJ)
+$(ARM_BLD)OBJECTS =	$(COMPACTOBJ)
+
 include	../../Makefile.lib
 
 # install this library in the root filesystem
 include ../../Makefile.rootfs
 
-LIBS=		$(DYNLIB) $(LINTLIB)
+LIBS=		$(ARLIB) $(DYNLIB) $(LINTLIB)
 SRCDIR=		../common
 
 MAPFILES +=	mapfile-vers

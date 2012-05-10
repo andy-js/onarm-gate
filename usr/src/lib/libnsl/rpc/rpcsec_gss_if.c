@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "mt.h"
@@ -31,7 +35,9 @@
 #include <stdio.h>
 #include <atomic.h>
 #include <sys/errno.h>
+#ifndef STATIC_LINK
 #include <dlfcn.h>
+#endif
 #include <rpc/rpc.h>
 
 #define	RPCSEC	"rpcsec.so.1"
@@ -67,6 +73,9 @@ rpcgss_calls_init(void)
 	void	*handle;
 	bool_t	ret = FALSE;
 
+#ifdef STATIC_LINK
+	return(ret);
+#else /* STATIC_LINK */
 	if (initialized) {
 		membar_consumer();
 		return (TRUE);
@@ -146,6 +155,7 @@ done:
 	initialized = ret;
 	(void) mutex_unlock(&rpcgss_calls_mutex);
 	return (ret);
+#endif /* STATIC_LINK */
 }
 
 AUTH *

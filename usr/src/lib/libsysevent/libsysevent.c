@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -1831,7 +1835,11 @@ sysevent_open_channel(const char *channel)
 
 	resetmnttab(fp);
 
+#ifdef MNTFS_DISABLE
+	while (getmntent(fp, (struct mnttab *)&m) == 0) {
+#else
 	while (getextmntent(fp, &m, sizeof (struct extmnttab)) == 0) {
+#endif	/* MNTFS_DISABLE */
 		if (strcmp(m.mnt_mountp, "/var/run") == 0 &&
 			strcmp(m.mnt_fstype, "tmpfs") == 0) {
 				(void) fclose(fp);

@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -1500,6 +1503,9 @@ c_label()
 		/*
 		 * SMI label to EFI label
 		 */
+#ifdef NO_SUPPORT_EFI
+		return(-1);
+#endif
 
 
 		fmt_print("Warning: This disk has an SMI label. Changing to "

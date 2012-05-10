@@ -28,12 +28,20 @@
 # cmd/devinfo/Makefile
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 PROG= devinfo
 
 include ../Makefile.cmd
 
-LDLIBS += -ladm -lefi
+LIBEFI	= -lefi
+LDLIBS += -ladm $(LIBEFI)
 CFLAGS += $(CCVERBOSE)
+
+$(ARM_BLD)CPPFLAGS	+= -DNO_SUPPORT_EFI
+$(ARM_BLD)LIBEFI	=
 
 .KEEP_STATE:
 

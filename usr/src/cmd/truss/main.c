@@ -26,6 +26,10 @@
 
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -394,6 +398,13 @@ main(int argc, char *argv[])
 			if (fltlist(optarg, &flthang, &Mflag))
 				badname = TRUE;
 			break;
+#if defined(__arm)
+		case 'u':		/* user library functions to trace */
+		case 'U':		/* user library functions to hang */
+			(void)fprintf(stderr, "-u and -U options are not supported\n");
+			errflg = TRUE;
+			break;
+#else
 		case 'u':		/* user library functions to trace */
 			if (liblist(optarg, 0))
 				badname = TRUE;
@@ -402,6 +413,7 @@ main(int argc, char *argv[])
 			if (liblist(optarg, 1))
 				badname = TRUE;
 			break;
+#endif
 		case 'r':		/* show contents of read(fd) */
 			if (fdlist(optarg, &readfd))
 				badname = TRUE;
@@ -457,8 +469,13 @@ main(int argc, char *argv[])
 		(void) fprintf(stderr,
 	"usage:\t%s [-fcaeildDEF] [-[tTvx] [!]syscalls] [-[sS] [!]signals]\\\n",
 			command);
+#if defined(__arm)
+		(void) fprintf(stderr,
+	"\t[-[mM] [!]faults] [-[rw] [!]fds]\\\n");
+#else
 		(void) fprintf(stderr,
 	"\t[-[mM] [!]faults] [-[rw] [!]fds] [-[uU] [!]libs:[:][!]funcs]\\\n");
+#endif
 		(void) fprintf(stderr,
 	"\t[-o outfile]  command | -p pid[/lwps] ...\n");
 		exit(2);
@@ -688,6 +705,7 @@ main(int argc, char *argv[])
 	praddset(&traceeven, SYS_vfork);
 	praddset(&traceeven, SYS_fork1);
 	praddset(&traceeven, SYS_forksys);
+	praddset(&traceeven, SYS_pspawn);
 
 	/* for I/O buffer dumps, force tracing of read()s and write()s */
 	if (!isemptyset(&readfd)) {
@@ -1228,6 +1246,11 @@ worker_thread(void *arg)
 				(void) Pstopstatus(Proc, PCNULL, 0);
 				data_model = Psp->pr_dmodel;
 			}
+			if ((what == SYS_pspawn) &&
+			    pri->Errno == 0 && pri->Rval1 == 0) {
+				(void) Pstopstatus(Proc, PCNULL, 0);
+				data_model = Psp->pr_dmodel;
+			}
 			if (sysexit(pri, dotrace))
 				Flush();
 			if (what == SYS_lwp_create && pri->Rval1 != 0) {
@@ -1523,6 +1546,7 @@ out:
 			(void) Psysexit(Proc, SYS_vfork, FALSE);
 			(void) Psysexit(Proc, SYS_fork1, FALSE);
 			(void) Psysexit(Proc, SYS_forksys, FALSE);
+			(void) Psysexit(Proc, SYS_pspawn, FALSE);
 			(void) Punsetflags(Proc, PR_FORK);
 			Psync(Proc);
 			fflag = 0;

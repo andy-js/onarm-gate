@@ -27,6 +27,10 @@
 #
 
 #
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
+#
 # Makefile.master, global definitions for system source
 #
 ROOT=		/proto
@@ -65,6 +69,7 @@ ROOT=		/proto
 #
 # __GNUC toggles the building of ON components using gcc and related tools.
 # Normally set to `#', set it to `' to do gcc build.
+# And __GNU_LD does likewise.
 #
 # The declaration POUND_SIGN is always '#'. This is needed to get around the
 # make feature that '#' is always a comment delimiter, even when escaped or
@@ -90,18 +95,12 @@ CLOSED_BUILD=	$(CLOSED_BUILD_1:no=$(POUND_SIGN))
 EXPORT_RELEASE_BUILD=			$(POUND_SIGN)
 $(CLOSED_BUILD)EXPORT_RELEASE_BUILD=
 
-# SPARC_BLD is '#' for an Intel build.
-# INTEL_BLD is '#' for a Sparc build.
-SPARC_BLD_1=    $(MACH:i386=$(POUND_SIGN))
-SPARC_BLD=      $(SPARC_BLD_1:sparc=)
-INTEL_BLD_1=    $(MACH:sparc=$(POUND_SIGN))
-INTEL_BLD=      $(INTEL_BLD_1:i386=)
-
 STRIP_COMMENTS=	$(INTERNAL_RELEASE_BUILD)
 
 # set __GNUC= in the environment to build 32-bit with the gcc compiler.
 # The default is to use the Sun Studio compiler for all processor types.
 __GNUC=		$(POUND_SIGN)
+$(__GNUC)__NON_GNUC     = $(POUND_SIGN)
 
 # set __GNUC64= in the environment to build 64-bit with the gcc compiler.
 # Inherit the __GNUC value by default, and if that is set to $(POUND_SIGN)
@@ -112,6 +111,16 @@ __GNUC64=	$(__GNUC)
 # the Sun Studio compiler. This will cause command line options specific
 # to the 'next' version of the Sun Studio compiler to be used.
 __SSNEXT=	$(POUND_SIGN)
+
+# Set __GNU_LD= in the environment to build object using GNU linker.
+# This implies gcc is used as compiler.
+# The default is to use the Sun Studio 10 linker.
+# Note that $(__GNULD) should be used in Makefile instead of $(__GNU_LD)
+# to switch linker. This enables to overwrite linker configuration in Makefile.
+__GNU_LD=	$(POUND_SIGN)
+__GNULD=	$(POUND_SIGN)
+$(__GNU_LD)__GNULD=
+$(__GNULD)__NON_GNULD	= $(POUND_SIGN)
 
 # CLOSED is the root of the tree that contains source which isn't released
 # as open source
@@ -151,6 +160,7 @@ GREP=		/usr/bin/grep
 EGREP=		/usr/bin/egrep
 SED=		/usr/bin/sed
 NAWK=		/usr/bin/nawk
+DD=		/usr/bin/dd
 CP=		/usr/bin/cp -f
 MCS=		/usr/ccs/bin/mcs
 CAT=            /usr/bin/cat
@@ -170,10 +180,12 @@ CTFCONVERT=	$(ONBLD_TOOLS)/bin/$(MACH)/ctfconvert
 CTFMERGE=	$(ONBLD_TOOLS)/bin/$(MACH)/ctfmerge
 CTFSTABS=	$(ONBLD_TOOLS)/bin/$(MACH)/ctfstabs
 NDRGEN=		$(ONBLD_TOOLS)/bin/$(MACH)/ndrgen
+CTFDUMP=	$(ONBLD_TOOLS)/bin/$(MACH)/ctfdump
 GENOFFSETS=	$(ONBLD_TOOLS)/bin/genoffsets
 CTFCVTPTBL=	$(ONBLD_TOOLS)/bin/ctfcvtptbl
 CTFFINDMOD=	$(ONBLD_TOOLS)/bin/ctffindmod
 XREF=		$(ONBLD_TOOLS)/bin/xref
+ELFDATAMOD=	$(ONBLD_TOOLS)/bin/$(MACH)/elfdatamod
 FIND=		/usr/bin/find
 PERL=		/usr/bin/perl
 SORT=		/usr/bin/sort
@@ -184,6 +196,7 @@ ELFEDIT=	/usr/bin/elfedit
 ELFSIGN=	/usr/bin/elfsign
 DTRACE=		/usr/sbin/dtrace
 CHECK_FNAMES=	$(ONBLD_TOOLS)/bin/check_fnames
+CMP=		/usr/bin/cmp
 
 # Due to 6367203, objects built with gcc will fail the namespace checks.
 # Remove this override once the compiler bug is fixed.
@@ -245,24 +258,15 @@ INS.rename=	$(INS.file); $(MV) $(@D)/$(<F) $@
 INSLINKTARGET=	$<
 INS.link=	$(RM) $@; $(LN) $(INSLINKTARGET) $@
 
-# MACH must be set in the shell environment per uname -p on the build host
-# More specific architecture variables should be set in lower makefiles.
-#
-# MACH64 is derived from MACH, and BUILD64 is set to `#' for
-# architectures on which we do not build 64-bit versions.
-# (There are no such architectures at the moment.)
-#
+# Install file only if target and source differ.
+INS.file.cmp=							\
+	if $(CMP) $@ $< > /dev/null 2>&1; then :; else		\
+	    echo "-- Installing $< as $@";			\
+	    $(RM) $@; $(INS) -s -m $(FILEMODE) -f $(@D) $<;	\
+	fi
+
 # Set BUILD64=# in the environment to disable 64-bit amd64
 # builds on i386 machines.
-
-MACH64_1=	$(MACH:sparc=sparcv9)
-MACH64=		$(MACH64_1:i386=amd64)
-
-MACH32_1=	$(MACH:sparc=sparcv7)
-MACH32=		$(MACH32_1:i386=i86)
-
-sparc_BUILD64=
-i386_BUILD64=
 BUILD64=	$($(MACH)_BUILD64)
 
 #
@@ -315,6 +319,7 @@ CCABS32=		-Wc,-xcode=abs32
 # 
 sparc_CCUNBOUND	= -Wd,-xsafe=unboundsym
 i386_CCUNBOUND	=
+arm_CCUNBOUND	=
 CCUNBOUND	= $($(MACH)_CCUNBOUND)
 
 #
@@ -324,12 +329,18 @@ sparc_XARCH=		-xarch=v8
 sparcv9_XARCH=		-xarch=v9
 i386_XARCH=
 amd64_XARCH=		-xarch=amd64 -Ui386 -U__i386
+arm_XARCH_FPU	= -xarch=mpcore -_gcc=-mhard-float -_gcc=-mfpu=vfp
+arm_XARCH	= $(arm_XARCH_FPU) -D__arm
+
 
 # assembler '-xarch' flag.  Different from compiler '-xarch' flag.
 sparc_AS_XARCH=		-xarch=v8plus
 sparcv9_AS_XARCH=	-xarch=v9
 i386_AS_XARCH=
 amd64_AS_XARCH=		-xarch=amd64 -P -Ui386 -U__i386
+arm_AS_XARCH_FPU	= -xarch=mpcore -_gas=-mfpu=vfp
+arm_AS_XARCH		= $(arm_AS_XARCH_FPU)
+
 
 #
 # These flags define what we need to be 'standalone' i.e. -not- part
@@ -343,6 +354,8 @@ sparcv9_STAND_FLAGS=	-_gcc=-ffreestanding
 i386_STAND_FLAGS=	-_gcc=-ffreestanding
 amd64_STAND_FLAGS=	-Wu,-xmodel=kernel
 $(__SSNEXT)amd64_STAND_FLAGS=	-xmodel=kernel
+arm_STAND_FLAGS=	-_gcc=-ffreestanding
+
 
 SAVEARGS=		-Wu,-save_args
 amd64_STAND_FLAGS	+= $(SAVEARGS)
@@ -382,17 +395,23 @@ sparcv9_CFLAGS=	$(sparcv9_XARCH) -dalign $(CCVERBOSE) $(V9ABIWARN) $(CCREGSYM) \
 		$(CCSTATICSYM)
 i386_CFLAGS=	$(i386_XARCH)
 amd64_CFLAGS=	$(amd64_XARCH)
+arm_CFLAGS=	$(arm_XARCH) -_gcc=-fsigned-char -_gcc=-nostdinc	\
+		-_gcc=-mstructure-size-boundary=8
 
 sparc_ASFLAGS=	$(sparc_AS_XARCH)
 sparcv9_ASFLAGS=$(sparcv9_AS_XARCH)
 i386_ASFLAGS=	$(i386_AS_XARCH)
+$(__GNUC)i386_ASFLAGS	= $(i386_AS_XARCH) -P -\#
 amd64_ASFLAGS=	$(amd64_AS_XARCH)
+arm_ASFLAGS=	$(arm_AS_XARCH)
+$(__GNUC)arm_ASFLAGS	= $(arm_AS_XARCH) -P -_cpp=-nostdinc -\#
 
 #
 sparc_COPTFLAG=		-xO3
 sparcv9_COPTFLAG=	-xO3
 i386_COPTFLAG=		-O
 amd64_COPTFLAG=		-xO3
+arm_COPTFLAG=		-O
 
 COPTFLAG= $($(MACH)_COPTFLAG)
 COPTFLAG64= $($(MACH64)_COPTFLAG)
@@ -429,6 +448,7 @@ DEBUGFORMAT=	-xdebugformat=stabs
 #
 CTF_FLAGS_sparc	= -g -Wc,-Qiselect-T1 $(C99MODE) $(CNOGLOBAL) $(CDWARFSTR)
 CTF_FLAGS_i386	= -g $(C99MODE) $(CNOGLOBAL) $(CDWARFSTR)
+CTF_FLAGS_arm	= -g $(C99MODE) $(CNOGLOBAL) $(CDWARFSTR)
 CTF_FLAGS	= $(CTF_FLAGS_$(MACH)) $(DEBUGFORMAT)
 
 #
@@ -445,12 +465,34 @@ OFFSETS_CREATE64 = $(GENOFFSETS) -s $(CTFSTABS) -r $(CTFCONVERT) \
 	$(CC) $(GOFLAGS) $(CFLAGS64) $(CPPFLAGS)
 
 #
+# xheader is used to create data definitions for cross compile.
+#
+XHEADER			= $(ONBLD_TOOLS)/bin/xheader
+XHEADER_COMPILER	= $(CC) $(CTF_FLAGS) $(CDWARFSTR) $(CFLAGS) $(CPPFLAGS)
+XHEADER_CREATE		= $(XHEADER) -r $(CTFCONVERT) -d $(CTFDUMP)
+
+#
+# subdirfix is used to eliminated specified directories from SUBDIRS list.
+# If you want to use this script, you need to define the following macros:
+#
+#    SUBDIRFIX_SKIP:	Filename that contains directory names to be skipped.
+#    SUBDIRFIX_DIRS:	Sub directory list
+#
+# And define SUBDIRS as follows:
+#
+#  SUBDIRS   = $(SUBDIR_FIXUP:sh)
+#
+SUBDIRFIX		= $(ONBLD_TOOLS)/bin/subdirfix
+SUBDIR_FIXUP		= $(SUBDIRFIX) -f $(SUBDIRFIX_SKIP) $(SUBDIRFIX_DIRS)
+
+#
 # tradeoff time for space (smaller is better)
 #
 sparc_SPACEFLAG		= -xspace -W0,-Lt
 sparcv9_SPACEFLAG	= -xspace -W0,-Lt
 i386_SPACEFLAG		= -xspace
 amd64_SPACEFLAG		=
+arm_SPACEFLAG		=
 
 SPACEFLAG		= $($(MACH)_SPACEFLAG)
 SPACEFLAG64		= $($(MACH64)_SPACEFLAG)
@@ -464,6 +506,7 @@ sparc_IROPTFLAG		= -W2,-xwrap_int
 sparcv9_IROPTFLAG	= -W2,-xwrap_int
 i386_IROPTFLAG		=
 amd64_IROPTFLAG		=
+arm_IROPTFLAG		=
 
 IROPTFLAG		= $($(MACH)_IROPTFLAG)
 IROPTFLAG64		= $($(MACH64)_IROPTFLAG)
@@ -472,6 +515,7 @@ sparc_XREGSFLAG		= -xregs=no%appl
 sparcv9_XREGSFLAG	= -xregs=no%appl
 i386_XREGSFLAG		=
 amd64_XREGSFLAG		=
+arm_XREGSFLAG		=
 
 XREGSFLAG		= $($(MACH)_XREGSFLAG)
 XREGSFLAG64		= $($(MACH64)_XREGSFLAG)
@@ -486,9 +530,12 @@ CFLAGS64=       $(COPTFLAG64) $($(MACH64)_CFLAGS) $(SPACEFLAG64) $(CCMODE64) \
 # Flags that are used to build parts of the code that are subsequently
 # run on the build machine (also known as the NATIVE_BUILD).
 #
-NATIVE_CFLAGS=	$(COPTFLAG) $($(NATIVE_MACH)_CFLAGS) $(CCMODE) \
+# NATIVE_CFLAGS=	$(COPTFLAG) $($(NATIVE_MACH)_CFLAGS) $(CCMODE) \
+#		$(ILDOFF) $(CERRWARN) $(C99MODE) $($(NATIVE_MACH)_CCUNBOUND) \
+#		$(IROPTFLAG) $(CGLOBALSTATIC)
+NATIVE_CFLAGS=	$($(NATIVE_MACH)_COPTFLAG) $($(NATIVE_MACH)_CFLAGS) $(CCMODE) \
 		$(ILDOFF) $(CERRWARN) $(C99MODE) $($(NATIVE_MACH)_CCUNBOUND) \
-		$(IROPTFLAG) $(CGLOBALSTATIC)
+		$($(NATIVE_MACH)_IROPTFLAG) $(CGLOBALSTATIC)
 
 DTEXTDOM=-DTEXT_DOMAIN=\"$(TEXT_DOMAIN)\"	# For messaging.
 DTS_ERRNO=-D_TS_ERRNO
@@ -537,11 +584,16 @@ amd64_CCFLAGS=		$(amd64_XARCH) -compat=5 \
 			-Qoption ccfe -messages=no%anachronism \
 			-Qoption ccfe -features=no%conststrings \
 			$(CCERRWARN)
+arm_CCFLAGS=		$(arm_XARCH) -compat=4 \
+			-Qoption ccfe -messages=no%anachronism \
+			-Qoption ccfe -features=no%conststrings \
+			$(CCERRWARN)
 
 sparc_CCOPTFLAG=	-O
 sparcv9_CCOPTFLAG=	-O
 i386_CCOPTFLAG=		-O
 amd64_CCOPTFLAG=	-O
+arm_CCOPTFLAG=		-O
 
 CCOPTFLAG=	$($(MACH)_CCOPTFLAG)
 CCOPTFLAG64=	$($(MACH64)_CCOPTFLAG)
@@ -554,6 +606,7 @@ CCFLAGS64=	$(CCOPTFLAG64) $($(MACH64)_CCFLAGS)
 #
 MAPFILE.NED_i386 =	$(SRC)/common/mapfiles/i386/map.noexdata
 MAPFILE.NED_sparc =
+MAPFILE.NED_arm =	$(SRC)/common/mapfiles/arm/map.noexdata
 MAPFILE.NED =		$(MAPFILE.NED_$(MACH))
 MAPFILE.PGA =		$(SRC)/common/mapfiles/$(MACH)/map.pagealign
 MAPFILE.NES =		$(SRC)/common/mapfiles/common/map.noexstk
@@ -576,6 +629,7 @@ $(__GNUC64)MAPFILE.NGB_i386= \
 MAPFILE.NGB_amd64=	$(SRC)/common/mapfiles/gen/amd64_cc_map.noexeglobs
 $(__GNUC64)MAPFILE.NGB_amd64= \
 			$(SRC)/common/mapfiles/gen/amd64_gcc_map.noexeglobs
+MAPFILE.NGB_arm=	$(SRC)/common/mapfiles/arm/map.noexeglobs
 MAPFILE.NGB =		$(MAPFILE.NGB_$(MACH))
 
 #
@@ -602,7 +656,7 @@ COMPILE.c=	$(CC) $(CFLAGS) $(CPPFLAGS) -c
 COMPILE64.c=	$(CC) $(CFLAGS64) $(CPPFLAGS) -c
 COMPILE.cc=	$(CCC) $(CCFLAGS) $(CPPFLAGS) -c
 COMPILE64.cc=	$(CCC) $(CCFLAGS64) $(CPPFLAGS) -c
-COMPILE.s=	$(AS) $(ASFLAGS) $(AS_CPPFLAGS)
+COMPILE.s=	$(AS) $(ASFLAGS) $($(MACH)_AS_XARCH) $(AS_CPPFLAGS)
 COMPILE64.s=	$(AS) $(ASFLAGS) $($(MACH64)_AS_XARCH) $(AS_CPPFLAGS)
 COMPILE.d=	$(DTRACE) -G -32
 COMPILE64.d=	$(DTRACE) -G -64
@@ -653,12 +707,10 @@ LINT.c=		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(ALWAYS_LINT_DEFS)
 LINT64.c=	$(LINT) $(LINTFLAGS64) $(CPPFLAGS) $(ALWAYS_LINT_DEFS)
 LINT.s=		$(LINT.c)
 
-# For some future builds, NATIVE_MACH and MACH might be different.
+# NATIVE_MACH and MACH might be different.
 # Therefore, NATIVE_MACH needs to be redefined in the
 # environment as `uname -p` to override this macro.
-#
-# For now at least, we cross-compile amd64 on i386 machines.
-NATIVE_MACH=	$(MACH:amd64=i386)
+#NATIVE_MACH=	$(MACH:amd64=i386)
 
 # Define native compilation macros
 #
@@ -669,6 +721,7 @@ NATIVE_MACH=	$(MACH:amd64=i386)
 SPRO_ROOT=		$(BUILD_TOOLS)/SUNWspro
 SPRO_VROOT=		$(SPRO_ROOT)/SS11
 GNU_ROOT=		$(SFW_ROOT)
+NATIVE_GNU_ROOT=	$(SFW_ROOT)
 
 # Specify platform compiler versions for languages
 # that we use (currently only c and c++).
@@ -712,6 +765,25 @@ amd64_AS=		$(ONBLD_TOOLS)/bin/$(MACH)/aw
 amd64_LD=		/usr/ccs/bin/ld
 amd64_LINT=		$(SPRO_VROOT)/bin/lint
 
+# We compile ARM objects with gcc.
+GNUC_SYSROOT=		-_gcc=--sysroot=$(ROOT)
+CW_CC_SW=		-_gcc
+CW_CCC_SW=		-_g++
+$(__GNULD)CW_CC_SW=	-_gcc_gld
+$(__GNULD)CW_CCC_SW=	-_g++_gld
+CW_CC_OPT1		= $(CW_CC_SW) $(GNUC_SYSROOT)
+CW_CCC_OPT1		= $(CW_CCC_SW) $(GNUC_SYSROOT)
+arm_CC=
+$(__GNUC)arm_CC=	$(ONBLD_TOOLS)/bin/$(MACH)/cw $(CW_CC_OPT1)
+arm_CCC=
+$(__GNUC)arm_CCC=	$(ONBLD_TOOLS)/bin/$(MACH)/cw $(CW_CCC_OPT1)
+arm_CPP=		$(arm_CC) -E
+arm_AS=
+$(__GNUC)arm_AS=	$(ONBLD_TOOLS)/bin/$(MACH)/aw
+arm_LD=			$(LD_PREFIX)/ccs/bin/ld
+$(__GNULD)arm_LD=	$(GNU_ROOT)/bin/ld
+arm_LINT=
+
 NATIVECC=		$($(NATIVE_MACH)_CC)
 NATIVECCC=		$($(NATIVE_MACH)_CCC)
 NATIVECPP=		$($(NATIVE_MACH)_CPP)
@@ -745,6 +817,11 @@ BNODIRECT=	-Bnodirect
 BREDUCE=	-Breduce
 BSTATIC=	-Bstatic
 
+$(__GNULD)BDIRECT=
+$(__GNULD)BLOCAL=
+$(__GNULD)BNODIRECT=
+$(__GNULD)BREDUCE=
+
 ZCOMBRELOC=	-zcombreloc
 ZDEFS=		-zdefs
 ZDIRECT=	-zdirect
@@ -766,6 +843,7 @@ ZRECORD=	-zrecord
 ZREDLOCSYM=	-zredlocsym
 ZTEXT=		-ztext
 ZVERBOSE=	-zverbose
+ZNOLDYNSYM=	-znoldynsym
 
 GSHARED=	-G
 CCMT=		-mt
@@ -777,6 +855,8 @@ sparc_C_PICFLAGS =	-K pic
 sparcv9_C_PICFLAGS =	-K pic
 i386_C_PICFLAGS =	-K pic
 amd64_C_PICFLAGS =	-K pic
+arm_C_PICFLAGS	=	-K pic
+$(__GNUC)arm_C_PICFLAGS	=	-K PIC
 C_PICFLAGS =		$($(MACH)_C_PICFLAGS)
 C_PICFLAGS64 =		$($(MACH64)_C_PICFLAGS)
 
@@ -784,6 +864,7 @@ sparc_C_BIGPICFLAGS =	-K PIC
 sparcv9_C_BIGPICFLAGS =	-K PIC
 i386_C_BIGPICFLAGS =	-K PIC
 amd64_C_BIGPICFLAGS =	-K PIC
+arm_C_BIGPICFLAGS =	-K PIC
 C_BIGPICFLAGS =		$($(MACH)_C_BIGPICFLAGS)
 C_BIGPICFLAGS64 =	$($(MACH64)_C_BIGPICFLAGS)
 
@@ -792,6 +873,8 @@ sparc_CC_PICFLAGS =	-Kpic
 sparcv9_CC_PICFLAGS =	-KPIC
 i386_CC_PICFLAGS = 	-Kpic
 amd64_CC_PICFLAGS = 	-Kpic
+arm_CC_PICFLAGS	=	-Kpic
+$(__GNUC)arm_CC_PICFLAGS	=	-KPIC
 CC_PICFLAGS =		$($(MACH)_CC_PICFLAGS)
 CC_PICFLAGS64 =		$($(MACH64)_CC_PICFLAGS)
 
@@ -906,11 +989,16 @@ $(RELEASE_BUILD)PROCESS_COMMENT=   @?${MCS} -d -a $(RELEASE_CM)
 STRIP_STABS=			   :
 $(RELEASE_BUILD)STRIP_STABS=	   $(STRIP) -x $@
 
+LOCAL_POST_PROCESS_SO	= :
+LOCAL_POST_PROCESS	= :
+
 POST_PROCESS_O=		$(PROCESS_COMMENT) $@
 POST_PROCESS_A=
 POST_PROCESS_SO=	$(PROCESS_COMMENT) $@ ; $(STRIP_STABS) ; \
+			$(LOCAL_POST_PROCESS_SO); \
 			$(ELFSIGN_OBJECT)
 POST_PROCESS=		$(PROCESS_COMMENT) $@ ; $(STRIP_STABS) ; \
+			$(LOCAL_POST_PROCESS); \
 			$(ELFSIGN_OBJECT)
 
 #
@@ -1068,6 +1156,18 @@ CPPFORPO=$(COMPILE.cpp:\"$(TEXT_DOMAIN)\"=TEXT_DOMAIN)
 %_onc_plus:	%
 	@$(ECHO) "extracting code from $< ... "
 	sed -n -e '/ONC_PLUS EXTRACT START/,/ONC_PLUS EXTRACT END/p' $<  > $@
+
+STATIC_UNIX	= $(POUND_SIGN)
+USE_UTSTUNE	= $(POUND_SIGN)
+
+# gcc specific options
+GCC_ISYSTEM			= -isystem
+$(__NON_GNUC)GCC_ISYSTEM	= -I
+
+# Import machine-dependent definitions.
+include	$(SRC)/Makefile.master.$(MACH)
+
+$(STATIC_UNIX)NON_STATIC_UNIX	= $(POUND_SIGN)
 
 #
 # Include rules to render automated sccs get rules "safe".

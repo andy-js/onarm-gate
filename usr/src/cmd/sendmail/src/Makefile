@@ -23,6 +23,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # cmd/sendmail/src/Makefile
@@ -47,8 +52,10 @@ LDFLAGS +=	-R$(SFW_ROOT)/lib $(MAPFILES:%=-M%)
 # EXPORT DELETE START
 CRYPTOLIBS=	-lssl -lcrypto
 # EXPORT DELETE END
+LIBLDAP			= -lldap -lsldap
+$(ARM_BLD)LIBLDAP	=
 LDLIBS += 	../libsmutil/libsmutil.a ../libsm/libsm.a -lresolv -lsocket \
-		-lnsl ../db/libdb.a -lldap -lsldap -L$(ROOTSFWLIB) -lwrap \
+		-lnsl ../db/libdb.a $(LIBLDAP) -L$(ROOTSFWLIB) -lwrap \
 		$(CRYPTOLIBS)
 
 INCPATH=	-I. -I../include -I../db -I$(ROOTSFWINCLUDE)

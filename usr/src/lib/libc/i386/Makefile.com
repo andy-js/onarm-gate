@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 LIB_PIC= libc_pic.a
 VERS=	.1
 CPP=	/usr/lib/cpp
@@ -794,6 +798,7 @@ THREADSOBJS=			\
 	sema.o			\
 	sigaction.o		\
 	spawn.o			\
+	spawn_fast.o		\
 	synch.o			\
 	tdb_agent.o		\
 	thr.o			\
@@ -1092,6 +1097,7 @@ TIL=				\
 	sigaction.o		\
 	sigev_thread.o		\
 	spawn.o			\
+	spawn_fast.o		\
 	stack.o			\
 	synch.o			\
 	tdb_agent.o		\

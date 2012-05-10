@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	ZPOOL_UTIL_H
 #define	ZPOOL_UTIL_H
 
@@ -34,6 +38,8 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	ZPOOL_CMD_NAME		"zpool"
 
 /*
  * Basic utility functions

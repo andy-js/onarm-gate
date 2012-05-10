@@ -23,6 +23,10 @@
 # Copyright 2003 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2007 NEC Corporation
+#
+#
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 # cmd/newtask/Makefile
@@ -46,8 +50,8 @@ lint	:=	TARGET = lint
 all clean clobber lint:	$(SUBDIRS)
 
 install:	$(SUBDIRS)
-	-$(RM) $(ROOTPROG)
-	-$(LN) $(ISAEXEC) $(ROOTPROG)
+	-$(USE_ISAEXEC)$(RM) $(ROOTPROG)
+	-$(USE_ISAEXEC)$(LN) $(ISAEXEC) $(ROOTPROG)
 
 $(SUBDIRS):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)

@@ -23,6 +23,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #ifndef _ZIO_H
 #define	_ZIO_H
@@ -36,10 +39,15 @@
 #include <sys/dkio.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio_impl.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	KMEM_ZIO_CACHE			"zio_cache"
+#define	KMEM_ZIO_BUF_SIZE		"zio_buf_%lu"
+#define	KMEM_ZIO_DATA_BUF_SIZE		"zio_data_buf_%lu"
 
 #define	ZBT_MAGIC	0x210da7ab10c7a11ULL	/* zio data bloc tail */
 
@@ -92,6 +100,7 @@ enum zio_compress {
 	ZIO_COMPRESS_OFF,
 	ZIO_COMPRESS_LZJB,
 	ZIO_COMPRESS_EMPTY,
+#ifndef ZFS_COMPACT
 	ZIO_COMPRESS_GZIP_1,
 	ZIO_COMPRESS_GZIP_2,
 	ZIO_COMPRESS_GZIP_3,
@@ -101,6 +110,7 @@ enum zio_compress {
 	ZIO_COMPRESS_GZIP_7,
 	ZIO_COMPRESS_GZIP_8,
 	ZIO_COMPRESS_GZIP_9,
+#endif	/* ZFS_COMPACT */
 	ZIO_COMPRESS_FUNCTIONS
 };
 
@@ -110,6 +120,8 @@ enum zio_compress {
 #define	ZIO_FAILURE_MODE_WAIT		0
 #define	ZIO_FAILURE_MODE_CONTINUE	1
 #define	ZIO_FAILURE_MODE_PANIC		2
+#define	ZIO_FAILURE_MODE_ABORT		3
+#define	ZIO_FAILURE_MODE_DEFAULT	ZIO_FAILURE_MODE_WAIT
 
 #define	ZIO_PRIORITY_NOW		(zio_priority_table[0])
 #define	ZIO_PRIORITY_SYNC_READ		(zio_priority_table[1])
@@ -210,8 +222,8 @@ extern char *zio_type_name[ZIO_TYPES];
  * compilation options.
  */
 typedef struct zbookmark {
-	uint64_t	zb_objset;
-	uint64_t	zb_object;
+	objid_t		zb_objset;
+	objid_t		zb_object;
 	int64_t		zb_level;
 	uint64_t	zb_blkid;
 } zbookmark_t;
@@ -225,7 +237,7 @@ struct zio {
 	enum zio_checksum io_checksum;
 	enum zio_compress io_compress;
 	int		io_ndvas;
-	uint64_t	io_txg;
+	txg_t		io_txg;
 	blkptr_t	*io_bp;
 	blkptr_t	io_bp_copy;
 	zio_t		*io_child;
@@ -293,19 +305,19 @@ extern zio_t *zio_read(zio_t *pio, spa_t *spa, blkptr_t *bp, void *data,
     int priority, int flags, zbookmark_t *zb);
 
 extern zio_t *zio_write(zio_t *pio, spa_t *spa, int checksum, int compress,
-    int ncopies, uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
+    int ncopies, txg_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *ready, zio_done_func_t *done, void *private, int priority,
     int flags, zbookmark_t *zb);
 
 extern zio_t *zio_rewrite(zio_t *pio, spa_t *spa, int checksum,
-    uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
+    txg_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *done, void *private, int priority, int flags,
     zbookmark_t *zb);
 
-extern zio_t *zio_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+extern zio_t *zio_free(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private);
 
-extern zio_t *zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+extern zio_t *zio_claim(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private);
 
 extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
@@ -322,8 +334,8 @@ extern zio_t *zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
     boolean_t labels);
 
 extern int zio_alloc_blk(spa_t *spa, uint64_t size, blkptr_t *new_bp,
-    blkptr_t *old_bp, uint64_t txg);
-extern void zio_free_blk(spa_t *spa, blkptr_t *bp, uint64_t txg);
+    blkptr_t *old_bp, txg_t txg);
+extern void zio_free_blk(spa_t *spa, blkptr_t *bp, txg_t txg);
 extern void zio_flush(zio_t *zio, vdev_t *vd);
 
 extern int zio_wait(zio_t *zio);

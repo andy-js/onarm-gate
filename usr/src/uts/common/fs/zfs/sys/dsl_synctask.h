@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DSL_SYNCTASK_H
 #define	_SYS_DSL_SYNCTASK_H
 
@@ -30,6 +34,7 @@
 
 #include <sys/txg.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -54,7 +59,7 @@ typedef struct dsl_sync_task_group {
 	list_t dstg_tasks;
 	struct dsl_pool *dstg_pool;
 	cred_t *dstg_cr;
-	uint64_t dstg_txg;
+	txg_t dstg_txg;
 	int dstg_err;
 	int dstg_space;
 	boolean_t dstg_nowaiter;

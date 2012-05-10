@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -1149,6 +1152,7 @@ dls_devnet_phydev(datalink_id_t vlanid, dev_t *devp)
 	return (err);
 }
 
+#ifndef DLS_NOUSE_RENAME_IF
 /*
  * Handle the renaming requests.  There are two rename cases:
  *
@@ -1276,7 +1280,9 @@ done:
 	softmac_rele_device(ddh);
 	return (err);
 }
+#endif /* !DLS_NOUSE_RENAME_IF */
 
+#ifndef DLS_NOUSE_ZONE_IF
 int
 dls_devnet_setzid(const char *link, zoneid_t zid)
 {
@@ -1337,6 +1343,7 @@ dls_devnet_getzid(datalink_id_t linkid, zoneid_t *zidp)
 	dls_devnet_rele_tmp(ddp);
 	return (0);
 }
+#endif /* !DLS_NOUSE_ZONE_IF */
 
 /*
  * Access a vanity naming node.
@@ -1449,6 +1456,7 @@ dls_devnet_destroy(mac_handle_t mh, datalink_id_t *idp)
 	return (err);
 }
 
+#ifndef DLS_NOUSE_VLAN_IF
 int
 dls_devnet_create_vlan(datalink_id_t vlanid, datalink_id_t linkid,
     uint16_t vid, boolean_t force)
@@ -1536,6 +1544,7 @@ dls_devnet_destroy_vlan(datalink_id_t vlanid)
 	dls_vlan_rele(dvp);
 	return (0);
 }
+#endif /* !DLS_NOUSE_VLAN_IF */
 
 const char *
 dls_devnet_mac(dls_dl_handle_t ddh)

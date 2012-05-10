@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 include		../Makefile.com
 
 DYNFLAGS +=	-F /usr/lib/ld.so.1
@@ -36,9 +40,10 @@ include		../Makefile.targ
 
 all:		$(DYNLIB) $(LINTLIB)
 
+$(__LINT)LINT_TARGET	= $(ROOTFS_LINTLIB) $(ROOTFS_LIBDIR)/$(LINTLIBSRC)
+
 install:	all $(ROOTFS_DYNLIB) $(VAR_LIBDL_ETCDYNLIB) \
-		$(ROOTFS_LINKS) \
-		$(ROOTFS_LINTLIB) $(ROOTFS_LIBDIR)/$(LINTLIBSRC)
+		$(ROOTFS_LINKS) $(LINT_TARGET)
 
 $(VAR_POUND_1)$(ROOTFS_LIBDIR)/$(LINTLIBSRC): ../common/$(LINTLIBSRC)
 $(VAR_POUND_1)	$(INS.file) ../common/$(LINTLIBSRC)

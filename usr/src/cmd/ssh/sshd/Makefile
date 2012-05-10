@@ -22,6 +22,8 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+# Copyright (c) 2008 NEC Corporation
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # cmd/ssh/sshd/Makefile
@@ -70,6 +72,9 @@ SRCS	= $(OBJS:.o=.c)
 include ../../Makefile.cmd
 include ../Makefile.ssh-common
 
+CONTRACT_LDLIB = -lcontract
+$(ARM_BLD)CONTRACT_LDLIB =
+
 LDLIBS += $(SSH_COMMON_LDLIBS) -lsocket \
 	-lnsl \
 	-lz \
@@ -78,7 +83,7 @@ LDLIBS += $(SSH_COMMON_LDLIBS) -lsocket \
 	-L$(ROOTSFWLIB) -lwrap \
 	$(OPENSSL_LDFLAGS) -lcrypto \
 	-lgss \
-	-lcontract
+	$(CONTRACT_LDLIB)
 MAPFILES = $(MAPFILE.INT) $(MAPFILE.NGB)
 LDFLAGS += $(MAPFILES:%=-M%)
 
@@ -87,6 +92,7 @@ DYNFLAGS += $(OPENSSL_DYNFLAGS) $(C99_DISABLE)
 POFILE_DIR= ..
 
 CPPFLAGS += -I$(ROOTSFWINCLUDE)
+$(ARM_BLD)CPPFLAGS += -D__WITHOUT_CONTRACTS
 
 .KEEP_STATE:
 

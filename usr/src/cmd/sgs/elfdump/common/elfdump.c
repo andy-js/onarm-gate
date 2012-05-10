@@ -23,6 +23,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -32,6 +37,7 @@
 #include	<sys/elf_386.h>
 #include	<sys/elf_amd64.h>
 #include	<sys/elf_SPARC.h>
+#include 	<sys/elf_ARM.h>
 #include	<dwarf.h>
 #include	<stdio.h>
 #include	<unistd.h>
@@ -1944,6 +1950,12 @@ reloc(Cache *cache, Word shnum, Ehdr *ehdr, const char *file,
 					if ((reltype != R_AMD64_NONE) &&
 					    (reltype != R_AMD64_RELATIVE))
 						badrel++;
+				}
+				else if (mach == EM_ARM) {
+					if ((reltype != R_ARM_NONE) &&
+					    (reltype != R_ARM_RELATIVE)) {
+						badrel++;
+					}
 				}
 
 				if (badrel) {

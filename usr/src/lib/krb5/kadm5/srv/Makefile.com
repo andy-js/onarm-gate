@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -59,7 +64,7 @@ SRCS=		$(SRV_OBJS:%.o=../%.c) \
 		$(SHARED_OBJS:%.o=../../%.c)
 
 KRB5LIB= 	$(ROOT)/usr/lib/krb5
-LIBS=		$(DYNLIB)
+LIBS= 		$(ARLIB) $(DYNLIB)
 
 
 include $(SRC)/lib/gss_mechs/mech_krb5/Makefile.mech_krb5
@@ -97,7 +102,7 @@ lint:	lintcheck
 # include library targets
 include ../../../Makefile.targ
 
-pics/%.o: ../../%.c
+objs/%.o pics/%.o: ../../%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

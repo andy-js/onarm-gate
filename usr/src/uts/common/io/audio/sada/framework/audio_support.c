@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -174,7 +178,7 @@ static struct modlinkage audio_modlinkage =
  *	mod_install() status, see mod_install(9f)
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 
@@ -209,6 +213,7 @@ _init(void)
 
 }	/* _init() */
 
+#ifndef	STATIC_DRIVER
 /*
  * _fini()
  *
@@ -223,7 +228,7 @@ _init(void)
  *	mod_remove() status, see mod_remove(9f)
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -255,6 +260,7 @@ _fini(void)
 	return (0);
 
 }	/* _fini() */
+#endif	/* !STATIC_DRIVER */
 
 /*
  * _info()
@@ -269,7 +275,7 @@ _fini(void)
  *	mod_info() status, see mod_info(9f)
  */
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	int		rc;
 

@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef _SYS_BRAND_H
 #define	_SYS_BRAND_H
@@ -118,6 +121,8 @@ extern brand_t native_brand;
 #define	BROP(p)			((p)->p_brand->b_ops)
 #define	ZBROP(z)		((z)->zone_brand->b_ops)
 #define	BRMOP(p)		((p)->p_brand->b_machops)
+#define	ZBRINIT(z)		((z)->zone_brand = &native_brand)
+#define	ZBRNAME(z)		((z)->zone_brand->b_name)
 
 extern void	brand_init();
 extern int	brand_register(brand_t *);
@@ -127,6 +132,11 @@ extern brand_t	*brand_find_name(char *);
 extern void	brand_unregister_zone(brand_t *);
 extern int	brand_zone_count(brand_t *);
 extern void	brand_setbrand(proc_t *);
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <sys/brand_impl.h>
+#endif	/* defined(_KERNEL_BUILD_TREE) */
+
 #endif	/* _KERNEL */
 
 #ifdef	__cplusplus

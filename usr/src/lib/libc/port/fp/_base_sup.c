@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "synonyms.h"
@@ -40,8 +44,18 @@ static const union {
 	double		d;
 } C[] = {
 #ifdef _LITTLE_ENDIAN
+#if defined(__arm)
+#if (HIWORD)
 	{ 0x00000000u, 0x00100000u },
 	{ 0x00000001u, 0x7ff00000u }
+#else
+	{ 0x00100000u, 0x00000000u },
+	{ 0x7ff00000u, 0x00000001u }
+#endif
+#else
+	{ 0x00000000u, 0x00100000u },
+	{ 0x00000001u, 0x7ff00000u }
+#endif
 #else
 	{ 0x00100000u, 0x00000000u },
 	{ 0x7ff00000u, 0x00000001u }

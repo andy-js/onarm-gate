@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -83,19 +87,21 @@ static struct modlinkage modlinkage = {
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -528,7 +534,8 @@ tswtcl_statinit(ipp_action_id_t aid, tswtcl_data_t *tswtcl_data)
 	}
 
 	statsp = (meter_stat_t *)(tswtcl_data->stats)->ipps_data;
-	ASSERT(statsp != NULL);
+	if (statsp == NULL)
+		return (rc);
 
 	if ((rc = ipp_stat_named_init(tswtcl_data->stats, "red_packets",
 	    IPP_STAT_UINT64, &statsp->red_packets)) != 0) {
@@ -584,7 +591,10 @@ tswtcl_update_stats(ipp_stat_t *sp, void *args, int rw)
 	tswtcl_data_t *tswtcl_data = (tswtcl_data_t *)args;
 	meter_stat_t *stats = (meter_stat_t *)sp->ipps_data;
 
-	ASSERT((tswtcl_data != NULL) && (stats != NULL));
+	if (stats == NULL)
+		return (0);
+
+	ASSERT(tswtcl_data != NULL);
 
 	(void) ipp_stat_named_op(&stats->red_packets, &tswtcl_data->red_packets,
 	    rw);

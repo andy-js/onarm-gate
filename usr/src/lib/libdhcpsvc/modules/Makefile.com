@@ -22,13 +22,18 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
 include $(SRC)/lib/libdhcpsvc/Makefile.com
 
 # For all modules, we only want to build the shared objects.
-LIBS = $(DYNLIB)
+LIBS = $(ARLIB) $(DYNLIB)
 
 # Override ROOTLIBDIR.
 ROOTLIBDIR = $(ROOT)/usr/lib/inet/dhcp/svc

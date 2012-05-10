@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/atomic.h>
@@ -152,7 +156,8 @@ global_statinit(void)
 
 	ASSERT(ipgpc_global_stats != NULL);
 	gblsnames = (globalstats_t *)ipgpc_global_stats->ipps_data;
-	ASSERT(gblsnames != NULL);
+	if (gblsnames == NULL)
+		return (0);
 
 	/* add stat name entries */
 	if ((rc = ipp_stat_named_init(ipgpc_global_stats, "nfilters",
@@ -1319,7 +1324,8 @@ class_statinit(ipgpc_class_t *in_class, int in_class_id)
 
 	ASSERT(ipp_cl_stats != NULL);
 	clsnames = (classstats_t *)ipp_cl_stats->ipps_data;
-	ASSERT(clsnames != NULL);
+	if (clsnames == NULL)
+		return (rc);
 
 	/* create stats entry */
 	bzero(&ipgpc_cid_list[in_class_id].stats,
@@ -2711,7 +2717,9 @@ update_global_stats(ipp_stat_t *sp, void *arg, int rw)
 	uint32_t num_filters = (uint32_t)ipgpc_num_fltrs;
 	uint32_t num_classes = (uint32_t)ipgpc_num_cls;
 
-	ASSERT(gbl_stats != NULL);
+	if (gbl_stats == NULL)
+		return (0);
+
 	(void) ipp_stat_named_op(&gbl_stats->nfilters, &num_filters, rw);
 	(void) ipp_stat_named_op(&gbl_stats->nclasses, &num_classes, rw);
 	(void) ipp_stat_named_op(&gbl_stats->nbytes, &ipgpc_nbytes, rw);
@@ -2729,7 +2737,9 @@ update_class_stats(ipp_stat_t *sp, void *arg, int rw)
 	classstats_t *cl_stats = (classstats_t *)sp->ipps_data;
 
 	ASSERT(stats != NULL);
-	ASSERT(cl_stats != NULL);
+	if (cl_stats == NULL)
+		return (0);
+
 	(void) ipp_stat_named_op(&cl_stats->nbytes, &stats->nbytes, rw);
 	(void) ipp_stat_named_op(&cl_stats->npackets, &stats->npackets, rw);
 	(void) ipp_stat_named_op(&cl_stats->last_match, &stats->last_match, rw);

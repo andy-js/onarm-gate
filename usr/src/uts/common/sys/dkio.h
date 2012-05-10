@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_DKIO_H
 #define	_SYS_DKIO_H
 
@@ -303,6 +307,11 @@ struct	dk_temperature	{
 #define	DKT_BYPASS_PM		0x1
 #define	DKT_INVALID_TEMP	0xFFFF
 
+/*
+ * ioctls to read/write extended boot records info.
+ */
+#define	DKIOCGEBR	(DKIOC|48)	/* get extended boot records info */
+#define	DKIOCSEBR	(DKIOC|49)	/* set extended boot records info */
 
 /*
  * Used for Media info or the current profile info

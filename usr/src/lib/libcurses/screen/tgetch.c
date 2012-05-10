@@ -37,6 +37,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*LINTLIBRARY*/
@@ -59,6 +63,8 @@
 static	int _getkey(int, chtype *);
 static	int _fpk(void);
 static	int _pk(void);
+static	int get_xterm_mouse(int, int *);
+static	void _map_button(chtype *);
 
 chtype
 tgetch(int interpret)
@@ -266,7 +272,6 @@ _getkey(int blockpeek, chtype *inp)
 			if (kp[key]->_keyval == KEY_MOUSE) {
 				MOUSE_STATUS old_mouse;
 				int rc;
-				static int get_xterm_mouse(int, int *);
 
 				old_mouse = Mouse_status;
 
@@ -339,7 +344,6 @@ _getkey(int blockpeek, chtype *inp)
 			    (MOUSE_Y_POS == LINES) &&
 			    (SP->slk != (SLK_MAP *) NULL) &&
 			    (SP->_map_mbe_to_key  != 0)) {
-				static void _map_button(chtype *);
 				_map_button(inp);
 			}
 

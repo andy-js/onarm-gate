@@ -22,6 +22,11 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -136,7 +141,7 @@ usba_hcdi_register(usba_hcdi_register_args_t *args, uint_t flags)
 
 	/* add soft interrupt */
 	if (ddi_intr_add_softint(hcdi->hcdi_dip, &hcdi->hcdi_softint_hdl,
-	    DDI_INTR_SOFTPRI_MAX, hcdi_soft_intr, (caddr_t)hcdi) !=
+	    USBA_SOFTINTR_PRI, hcdi_soft_intr, (caddr_t)hcdi) !=
 	    DDI_SUCCESS) {
 		USB_DPRINTF_L2(DPRINT_MASK_HCDI, hcdi->hcdi_log_handle,
 		    "usba_hcd_register: add soft interrupt failed");

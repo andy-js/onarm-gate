@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_ZFS_ACL_H
 #define	_SYS_FS_ZFS_ACL_H
 
@@ -35,6 +39,7 @@
 #include <sys/acl.h>
 #include <sys/dmu.h>
 #include <sys/zfs_fuid.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -101,7 +106,7 @@ typedef struct zfs_oldace {
 } zfs_oldace_t;
 
 typedef struct zfs_acl_phys_v0 {
-	uint64_t	z_acl_extern_obj;	/* ext acl pieces */
+	objid_t		z_acl_extern_obj;	/* ext acl pieces */
 	uint32_t	z_acl_count;		/* Number of ACEs */
 	uint16_t	z_acl_version;		/* acl version */
 	uint16_t	z_acl_pad;		/* pad */
@@ -111,7 +116,7 @@ typedef struct zfs_acl_phys_v0 {
 #define	ZFS_ACE_SPACE	(sizeof (zfs_oldace_t) * ACE_SLOT_CNT)
 
 typedef struct zfs_acl_phys {
-	uint64_t	z_acl_extern_obj;	  /* ext acl pieces */
+	objid_t		z_acl_extern_obj;	  /* ext acl pieces */
 	uint32_t	z_acl_size;		  /* Number of bytes in ACL */
 	uint16_t	z_acl_version;		  /* acl version */
 	uint16_t	z_acl_count;		  /* ace count */

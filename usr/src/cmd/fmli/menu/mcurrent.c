@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<stdio.h>
@@ -45,6 +49,8 @@
 
 menu_id	MNU_curid = -1;
 void	menu_index();
+
+static void	menu_show();
 
 int
 menu_current(mid)
@@ -110,7 +116,6 @@ int	hcols;
 	int	scol;
 	int	sind;
 	struct menu_line	ml;
-	static void	menu_show();
 
 	vt_ctl(m->vid, CTGETSIZ, &rows, &cols);
 	huse = min(m->hwidth, cwidth = (cols - 1) / m->ncols);

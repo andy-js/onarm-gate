@@ -24,16 +24,25 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG= profile .login ksh.kshrc system
 PROGSKEL= local.login local.profile local.cshrc
 
 include ../Makefile.cmd
+
+$(ARM_BLD)PROG	= .login ksh.kshrc system
 
 ROOTETCSKEL= $(ROOTETC)/skel
 ROOTETCSKELPROG= $(PROGSKEL:%=$(ROOTETCSKEL)/%)
 FILEMODE= 0644
 OWNER= root
 GROUP= sys
+
+INST_ARM		=
+$(ARM_BLD)INST_ARM	= inst_ARM
 
 .login: login.csh
 	$(RM) .login; $(CP) login.csh .login
@@ -48,7 +57,11 @@ $(ROOTETCSKEL)/%: %
 $(ROOTETCSKEL):
 	$(INS.dir)
 
-install: all $(ROOTETCSKEL) $(ROOTETCPROG) $(ROOTETCSKELPROG)
+install: all $(ROOTETCSKEL) $(ROOTETCPROG) $(ROOTETCSKELPROG) $(INST_ARM)
+
+inst_ARM:	profile.arm
+	$(INS) -s -m $(FILEMODE) -f $(ROOTETC) profile.arm
+	$(MV) $(ROOTETC)/profile.arm $(ROOTETC)/profile
 
 clean:
 

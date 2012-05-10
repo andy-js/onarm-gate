@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 CRON_ENT= adm root sys
 CRON_LIB= .proto at.deny cron.deny queuedefs
 ETC_SCRIPT= group project ttysrch
@@ -65,6 +69,8 @@ all: $(CRON_ENT) $(CRON_LIB) $(ETC_SCRIPT) $(SUBDIRS)
 
 install: all $(DIRS) $(CRONTABS) $(CRONLIBS) $(ETCSCRIPTS) $(ETCZONESD) \
 	$(SUBDIRS) 
+
+$(ARM_BLD)include Makefile.$(MACH)
 
 $(CRONTABD)/% : %
 	$(INS.file)

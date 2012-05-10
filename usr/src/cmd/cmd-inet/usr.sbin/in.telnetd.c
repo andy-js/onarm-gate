@@ -39,6 +39,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -91,13 +95,19 @@
 #include <stropts.h>
 #include <termios.h>
 
+#ifdef USE_KERBEROS
 #include <com_err.h>
 #include <krb5.h>
 #include <krb5_repository.h>
+#endif
 #include <des/des.h>
 #include <rpc/des_crypt.h>
+#ifdef USE_ENCRYPTION
 #include <sys/cryptmod.h>
+#endif
 #include <bsm/adt.h>
+
+#define	STANDALONE
 
 #define	TELNETD_OPTS "Ss:a:dEXUhR:M:"
 #ifdef DEBUG
@@ -168,6 +178,7 @@ static int auth_level = 0;
 static char	*AuthenticatingUser = NULL;
 static char	*krb5_name = NULL;
 
+#ifdef USE_KERBEROS
 static krb5_address rsaddr = { 0, 0, 0, NULL };
 static krb5_address rsport = { 0, 0, 0, NULL };
 
@@ -178,6 +189,7 @@ static krb5_auth_context auth_context = 0;
 static krb5_ticket *ticket = NULL;
 static krb5_keyblock *session_key = NULL;
 static char *telnet_srvtab = NULL;
+#endif /* USE_KERBEROS */
 
 typedef struct {
 	uchar_t AuthName;
@@ -186,12 +198,14 @@ typedef struct {
 } AuthInfo;
 
 static AuthInfo auth_list[] = {
+#ifdef USE_KERBEROS
 	{AUTHTYPE_KERBEROS_V5, AUTH_WHO_CLIENT | AUTH_HOW_MUTUAL |
 	AUTH_ENCRYPT_ON, "KRB5 MUTUAL CRYPTO"},
 	{AUTHTYPE_KERBEROS_V5, AUTH_WHO_CLIENT | AUTH_HOW_MUTUAL,
 	"KRB5 MUTUAL" },
 	{AUTHTYPE_KERBEROS_V5,	AUTH_WHO_CLIENT | AUTH_HOW_ONE_WAY,
 	"KRB5 1-WAY" },
+#endif /* USE_KERBEROS */
 	{0, 0, "NONE"}
 };
 
@@ -218,11 +232,15 @@ static boolean_t sent_will_encrypt = B_FALSE;
 static boolean_t sent_do_encrypt = B_FALSE;
 static boolean_t enc_debug = 0;
 
+#ifdef USE_ENCRYPTION
 static void encrypt_session_key(Session_Key *key, cipher_info_t *cinfo);
 static int  encrypt_send_encrypt_is();
+#endif
 
 extern void mit_des_fixup_key_parity(Block);
+#ifdef USE_KERBEROS
 extern int krb5_setenv(const char *, const char *, int);
+#endif
 /* need to know what FD to use to talk to the crypto module */
 static int cryptmod_fd = -1;
 
@@ -364,6 +382,7 @@ auth_finished(AuthInfo *ap, int result)
 			send_wont(TELOPT_ENCRYPT);
 		myopts[TELOPT_ENCRYPT] = remopts[TELOPT_ENCRYPT] = OPT_NO;
 		encr_data.encrypt.autoflag = 0;
+#ifdef USE_ENCRYPTION
 	} else if (result != AUTH_REJECT &&
 		myopts[TELOPT_ENCRYPT] == OPT_YES &&
 		remopts[TELOPT_ENCRYPT] == OPT_YES) {
@@ -397,6 +416,7 @@ auth_finished(AuthInfo *ap, int result)
 			"SENT ENCRYPT SUPPORT\n");
 
 		(void) encrypt_send_encrypt_is();
+#endif /* USE_ENCRYPTION */
 	}
 
 	auth_status = result;
@@ -404,6 +424,7 @@ auth_finished(AuthInfo *ap, int result)
 	settimer(authdone);
 }
 
+#ifdef USE_KERBEROS
 static void
 reply_to_client(AuthInfo *ap, int type, void *data, int len)
 {
@@ -862,6 +883,7 @@ krb5_init()
 
 	return (code);
 }
+#endif /* USE_KERBEROS */
 
 static void
 auth_name(uchar_t *data, int cnt)
@@ -914,11 +936,14 @@ auth_is(uchar_t *data, int cnt)
 			(void) fprintf(stderr, "\t(auth_is) auth type is %s "
 				"(%d bytes)\n",	aptr->AuthString, cnt);
 
+#ifdef USE_KERBEROS
 		if (aptr->AuthName == AUTHTYPE_KERBEROS_V5)
 			kerberos5_is(aptr, data+2, cnt-2);
+#endif
 	}
 }
 
+#ifdef USE_KERBEROS
 static int
 krb5_user_status(char *name, int namelen, int level)
 {
@@ -947,6 +972,7 @@ krb5_user_status(char *name, int namelen, int level)
 		return (AUTH_USER);
 	}
 }
+#endif /* USE_KERBEROS */
 
 /*
  * Wrapper around /dev/urandom
@@ -987,6 +1013,7 @@ encrypt_init()
 	encr_data.decrypt.state = ENCR_STATE_NOT_READY;
 }
 
+#ifdef USE_ENCRYPTION
 /*
  * encrypt_send_request_start
  *
@@ -2082,6 +2109,7 @@ encrypt_session_key(Session_Key *key, cipher_info_t *cinfo)
 		}
 	}
 }
+#endif /* USE_ENCRYPTION */
 
 /*
  * new_env
@@ -2175,10 +2203,12 @@ main(int argc, char *argv[])
 	int on = 1;
 	socklen_t fromlen;
 	int issocket;
-#if	defined(DEBUG)
+#if	defined(DEBUG) || defined(STANDALONE)
 	ushort_t porttouse = 0;
 	boolean_t standalone = 0;
-#endif /* defined(DEBUG) */
+	pid_t pid;
+	int fd;
+#endif /* defined(DEBUG) || defined(STANDALONE) */
 	extern char *optarg;
 	char c;
 	int tos = -1;
@@ -2221,6 +2251,7 @@ main(int argc, char *argv[])
 			/* disable authentication negotiation */
 			negotiate_auth_krb5 = 0;
 			break;
+#ifdef USE_KERBEROS
 		case 'R':
 		case 'M':
 			if (optarg != NULL) {
@@ -2239,6 +2270,7 @@ main(int argc, char *argv[])
 		case 'S':
 			telnet_srvtab = (char *)strdup(optarg);
 			break;
+#endif /* USE_KERBEROS */
 		case 'E': /* disable automatic encryption */
 			negotiate_encrypt = B_FALSE;
 			break;
@@ -2258,6 +2290,11 @@ main(int argc, char *argv[])
 		case 'h':
 			show_hostinfo = 0;
 			break;
+#ifdef STANDALONE
+		case 'd':
+			standalone = 2;
+			break;
+#endif /* STANDALONE */
 		default:
 			syslog(LOG_ERR, "telnetd: illegal cmd line option %c",
 			    c);
@@ -2271,7 +2308,7 @@ main(int argc, char *argv[])
 	(void) memset(netibuf, 0, netibufsize);
 	netip = netibuf;
 
-#if	defined(DEBUG)
+#if	defined(DEBUG) || defined(STANDALONE)
 	if (standalone) {
 		int s, ns, foo;
 		struct servent *sp;
@@ -2308,6 +2345,27 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 
+		if (standalone > 1) {
+			pid = fork();
+			if (pid == -1) {
+				perror("fork");
+				exit(EXIT_FAILURE);
+			}
+			if (pid > 0) {
+				exit(EXIT_SUCCESS);
+			}
+			if (setsid() == -1) {
+				perror("setsid");
+				exit(EXIT_FAILURE);
+			}
+			if ((fd = open("/dev/null", O_RDWR)) != -1) {
+				dup2(fd, 0);
+				dup2(fd, 1);
+				dup2(fd, 2);
+				close(fd);
+			}
+		}
+
 		/* automatically reap all child processes */
 		(void) signal(SIGCHLD, SIG_IGN);
 
@@ -2327,6 +2385,7 @@ main(int argc, char *argv[])
 			}
 			if (pid == 0) {
 				(void) dup2(ns, 0);
+				(void) close(ns);
 				(void) close(s);
 				(void) signal(SIGCHLD, SIG_DFL);
 				break;
@@ -2334,7 +2393,7 @@ main(int argc, char *argv[])
 			(void) close(ns);
 		}
 	}
-#endif /* defined(DEBUG) */
+#endif /* defined(DEBUG) || defined(STANDALONE) */
 
 	openlog("telnetd", LOG_PID | LOG_ODELAY, LOG_DAEMON);
 
@@ -2447,16 +2506,19 @@ send_wont(int option)
 static int
 getauthtype(char *username, int *len)
 {
+#ifdef USE_KERBEROS
 	int init_status = -1;
 
 	init_status = krb5_init();
 
 	if (auth_level == -1 || init_status != 0) {
+#endif
 		remopts[TELOPT_AUTHENTICATION] = OPT_NO;
 		myopts[TELOPT_AUTHENTICATION] = OPT_NO;
 		negotiate_auth_krb5 = B_FALSE;
 		negotiate_encrypt = B_FALSE;
 		return (AUTH_REJECT);
+#ifdef USE_KERBEROS
 	}
 
 	if (init_status == 0 && auth_level != -1) {
@@ -2532,11 +2594,13 @@ getauthtype(char *username, int *len)
 		}
 	}
 	return (auth_status);
+#endif /* USE_KERBEROS */
 }
 
 static void
 getencrtype(void)
 {
+#if defined(USE_KERBEROS) && defined(USE_ENCRYPTION)
 	if (krb5_privacy_allowed() && negotiate_encrypt) {
 		if (myopts[TELOPT_ENCRYPT] != OPT_YES) {
 			if (!sent_will_encrypt) {
@@ -2586,11 +2650,15 @@ getencrtype(void)
 				ttloop();
 		}
 	} else {
+#endif /* defined(USE_KERBEROS) && defined(USE_ENCRYPTION) */
 		/* Dont need responses to these, so dont wait for them */
 		settimer(encropt);
 		remopts[TELOPT_ENCRYPT] = OPT_NO;
 		myopts[TELOPT_ENCRYPT] = OPT_NO;
+#if defined(USE_KERBEROS) && defined(USE_ENCRYPTION)
 	}
+#endif /* defined(USE_KERBEROS) && defined(USE_ENCRYPTION) */
+
 
 }
 
@@ -2745,8 +2813,9 @@ doit(int f, struct sockaddr_storage *who)
 		fatal(f, "could not grant slave pty");
 	if (unlockpt(p) == -1)
 		fatal(f, "could not unlock slave pty");
-	if ((slavename = ptsname(p)) == NULL)
+	if ((slavename = ptsname(p)) == NULL) {
 		fatal(f, "could not enable slave pty");
+	}
 	(void) dup2(f, 0);
 	if ((t = open(slavename, O_RDWR | O_NOCTTY)) == -1)
 		fatal(f, "could not open slave pty");
@@ -2795,6 +2864,7 @@ doit(int f, struct sockaddr_storage *who)
 		(void) memcpy(portbuf, (const void *)&sin->sin_port,
 			    sizeof (sin->sin_port));
 
+#ifdef USE_KERBEROS
 		if (rsaddr.contents != NULL)
 			free(rsaddr.contents);
 
@@ -2808,6 +2878,7 @@ doit(int f, struct sockaddr_storage *who)
 		rsport.contents = (krb5_octet *)portbuf;
 		rsport.length = sizeof (sin->sin_port);
 		rsport.addrtype = ADDRTYPE_IPPORT;
+#endif /* USE_KERBEROS */
 	} else if (who->ss_family == AF_INET6) {
 		struct in_addr ipv4_addr;
 		char *addrbuf = NULL;
@@ -2832,6 +2903,7 @@ doit(int f, struct sockaddr_storage *who)
 		(void) memcpy((void *) addrbuf,
 			    (const void *)&ipv4_addr,
 			    wholen);
+#ifdef USE_KERBEROS
 		/*
 		 * If we already used rsaddr.contents, free the previous
 		 * buffer.
@@ -2852,6 +2924,7 @@ doit(int f, struct sockaddr_storage *who)
 		rsport.contents = (krb5_octet *)portbuf;
 		rsport.length = sizeof (sin6->sin6_port);
 		rsport.addrtype = ADDRTYPE_IPPORT;
+#endif /* USE_KERBEROS */
 	} else {
 		syslog(LOG_ERR, "unknown address family %d\n",
 		    who->ss_family);
@@ -2899,6 +2972,7 @@ doit(int f, struct sockaddr_storage *who)
 
 	encrypt_init();
 
+#ifdef USE_ENCRYPTION
 	/*
 	 * Push the crypto module on the stream before 'telmod' so it
 	 * can encrypt/decrypt without interfering with telmod functionality
@@ -2907,6 +2981,7 @@ doit(int f, struct sockaddr_storage *who)
 	 */
 	if (ioctl(f, I_PUSH, "cryptmod") < 0)
 		fatalperror(f, "ioctl I_PUSH cryptmod", errno);
+#endif /* USE_ENCRYPTION */
 
 	cryptmod_fd = f;
 	/*
@@ -2938,6 +3013,7 @@ doit(int f, struct sockaddr_storage *who)
 	if (ioctl(f, I_PUSH, "telmod") < 0)
 		fatalperror(f, "ioctl I_PUSH telmod", errno);
 
+#ifdef USE_ENCRYPTION
 	/*
 	 * Make sure telmod will pass unrecognized IOCTLs to cryptmod
 	 */
@@ -2950,6 +3026,7 @@ doit(int f, struct sockaddr_storage *who)
 
 	if (ioctl(f, I_STR, &telnetmod) < 0)
 		fatal(f, "ioctl CRPASSTHRU failed\n");
+#endif /* USE_ENCRYPTION */
 
 	if (!ncc)
 		netip = netibuf;
@@ -3168,6 +3245,7 @@ doit(int f, struct sockaddr_storage *who)
 	 * make sure the krb5 authenticated user's name (krb5_name)
 	 * is in the PAM REPOSITORY for krb5.
 	 */
+#ifdef USE_KERBEROS
 	if (auth_level >= 0 &&
 	    (auth_status == AUTH_VALID || auth_status == AUTH_USER) &&
 	    ((krb5_name != NULL) && strlen(krb5_name)) &&
@@ -3180,7 +3258,9 @@ doit(int f, struct sockaddr_storage *who)
 			    "-s", pam_svc_name,
 			    "-R", KRB5_REPOSITORY_NAME,
 			    AuthenticatingUser, 0);
-	} else if (auth_level >= 0 &&
+	} else
+#endif /* USE_KERBEROS */
+	if (auth_level >= 0 &&
 		auth_status >= AUTH_USER &&
 		(((AuthenticatingUser != NULL) && strlen(AuthenticatingUser)) ||
 		getenv("USER"))) {
@@ -3699,6 +3779,7 @@ common:
 		if (enc_debug)
 			(void) fprintf(stderr,
 				    "RCVD IAC WILL TELOPT_ENCRYPT\n");
+#if defined(USE_KERBEROS) && defined(USE_ENCRYPTION)
 		if (krb5_privacy_allowed()) {
 			fmt = doopt;
 			if (sent_do_encrypt)
@@ -3708,6 +3789,9 @@ common:
 		} else {
 			fmt = dont;
 		}
+#else /* defined(USE_KERBEROS) && defined(USE_ENCRYPTION) */
+		fmt = dont;
+#endif /* defined(USE_KERBEROS) && defined(USE_ENCRYPTION) */
 		break;
 
 	default:
@@ -3781,7 +3865,9 @@ wontoption(int option)
 		 * Treat this as if "IAC SB ENCRYPT END IAC SE" were
 		 * received (RFC 2946) and disable crypto.
 		 */
+#ifdef USE_ENCRYPTION
 		encrypt_end(TELNET_DIR_DECRYPT);
+#endif
 		send_reply = 0;
 		break;
 	}
@@ -3843,6 +3929,7 @@ dooption(int option)
 		 * reply with "IAC WILL ENCRYPT" if we are able to send
 		 * encrypted data.
 		 */
+#if defined(USE_KERBEROS) && defined(USE_ENCRYPTION)
 		if (krb5_privacy_allowed() && negotiate_encrypt) {
 			fmt = will;
 			if (sent_will_encrypt)
@@ -3853,8 +3940,11 @@ dooption(int option)
 			if (myopts[option] == OPT_YES)
 				return;
 		} else {
+#endif /* defined(USE_KERBEROS) && defined(USE_ENCRYPTION) */
 			fmt = wont;
+#if defined(USE_KERBEROS) && defined(USE_ENCRYPTION)
 		}
+#endif /* defined(USE_KERBEROS) && defined(USE_ENCRYPTION) */
 		break;
 
 	case TELOPT_AUTHENTICATION:
@@ -4119,6 +4209,7 @@ suboption(void)
 		}
 		break;
 
+#ifdef USE_ENCRYPTION
 	case TELOPT_ENCRYPT: {
 		int c;
 		if (SB_EOF())
@@ -4167,6 +4258,7 @@ suboption(void)
 			break;
 		}
 	}
+#endif /* USE_ENCRYPTION */
 	break;
 
 	default:

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -864,15 +868,15 @@ fm_fmri_hc_set(nvlist_t *fmri, int version, const nvlist_t *auth,
 	nv_alloc_t *nva = nvlist_lookup_nv_alloc(fmri);
 	nvlist_t *pairs[HC_MAXPAIRS];
 	va_list ap;
-	int i;
+	int i, nps = npairs;
 
 	if (!fm_fmri_hc_set_common(fmri, version, auth))
 		return;
 
-	npairs = MIN(npairs, HC_MAXPAIRS);
+	nps = MIN(npairs, HC_MAXPAIRS);
 
 	va_start(ap, npairs);
-	for (i = 0; i < npairs; i++) {
+	for (i = 0; i < nps; i++) {
 		const char *name = va_arg(ap, const char *);
 		uint32_t id = va_arg(ap, uint32_t);
 		char idstr[11];
@@ -888,10 +892,10 @@ fm_fmri_hc_set(nvlist_t *fmri, int version, const nvlist_t *auth,
 	}
 	va_end(ap);
 
-	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST, pairs, npairs) != 0)
+	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST, pairs, nps) != 0)
 		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
 
-	for (i = 0; i < npairs; i++)
+	for (i = 0; i < nps; i++)
 		fm_nvlist_destroy(pairs[i], FM_NVA_RETAIN);
 
 	if (snvl != NULL) {

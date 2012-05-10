@@ -25,6 +25,10 @@
 
 /* Portions Copyright 2007 Jeremy Teo */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -74,6 +78,7 @@
 #include <sys/kidmap.h>
 #include <sys/cred_impl.h>
 #include <sys/attr.h>
+#include <zfs_types.h>
 
 /*
  * Programming rules.
@@ -473,8 +478,13 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 	/*
 	 * If we're in FRSYNC mode, sync out this znode before reading it.
 	 */
-	if (ioflag & FRSYNC)
-		zil_commit(zfsvfs->z_log, zp->z_last_itx, zp->z_id);
+	if (ioflag & FRSYNC) {
+		if (error = zil_commit(zfsvfs->z_log, zp->z_last_itx,
+		    zp->z_id)) {
+			ZFS_EXIT(zfsvfs);
+			return (error);
+		}
+	}
 
 	/*
 	 * Lock the range against changes.
@@ -827,8 +837,11 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 		return (error);
 	}
 
-	if (ioflag & (FSYNC | FDSYNC))
-		zil_commit(zilog, zp->z_last_itx, zp->z_id);
+	if (ioflag & (FSYNC | FDSYNC)) {
+		error = zil_commit(zilog, zp->z_last_itx, zp->z_id);
+		ZFS_EXIT(zfsvfs);
+		return (error);
+	}
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
@@ -1371,7 +1384,10 @@ zfs_remove(vnode_t *dvp, char *name, cred_t *cr, caller_context_t *ct,
 	vnode_t		*vp;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	zilog_t		*zilog;
-	uint64_t	acl_obj, xattr_obj;
+#ifndef ZFS_COMPACT
+	objid_t		acl_obj;
+#endif	/* ZFS_COMPACT */
+	objid_t		xattr_obj;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
 	boolean_t	may_delete_now, delete_now = FALSE;
@@ -1447,10 +1463,12 @@ top:
 		dmu_tx_hold_bonus(tx, xattr_obj);
 	}
 
+#ifndef ZFS_COMPACT
 	/* are there any additional acls */
 	if ((acl_obj = zp->z_phys->zp_acl.z_acl_extern_obj) != 0 &&
 	    may_delete_now)
 		dmu_tx_hold_free(tx, acl_obj, 0, DMU_OBJECT_END);
+#endif	/* ZFS_COMPACT */
 
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
@@ -1485,8 +1503,12 @@ top:
 		mutex_enter(&vp->v_lock);
 		delete_now = may_delete_now &&
 		    vp->v_count == 1 && !vn_has_cached_data(vp) &&
+#ifndef ZFS_COMPACT
 		    zp->z_phys->zp_xattr == xattr_obj &&
 		    zp->z_phys->zp_acl.z_acl_extern_obj == acl_obj;
+#else
+		    zp->z_phys->zp_xattr == xattr_obj;
+#endif	/* ZFS_COMPACT */
 		mutex_exit(&vp->v_lock);
 	}
 
@@ -1950,7 +1972,7 @@ zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp,
 	 */
 	outcount = 0;
 	while (outcount < bytes_wanted) {
-		ino64_t objnum;
+		objid_t objnum;
 		ushort_t reclen;
 		off64_t *next;
 
@@ -1980,7 +2002,7 @@ zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp,
 					goto update;
 			}
 
-			if (zap.za_integer_length != 8 ||
+			if (zap.za_integer_length != sizeof (zp->z_id) ||
 			    zap.za_num_integers != 1) {
 				cmn_err(CE_WARN, "zap_readdir: bad directory "
 				    "entry, obj = %lld, offset = %lld\n",
@@ -1990,7 +2012,7 @@ zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp,
 				goto update;
 			}
 
-			objnum = ZFS_DIRENT_OBJ(zap.za_first_integer);
+			objnum = (objid_t)ZFS_DIRENT_OBJ(zap.za_first_integer);
 			/*
 			 * MacOS X can extract the object type here such as:
 			 * uint8_t type = ZFS_DIRENT_TYPE(zap.za_first_integer);
@@ -2037,7 +2059,7 @@ zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp,
 			/*
 			 * Add normal entry:
 			 */
-			odp->d_ino = objnum;
+			odp->d_ino = (ino64_t)objnum;
 			odp->d_reclen = reclen;
 			/* NOTE: d_off is the offset for the *next* entry */
 			next = &(odp->d_off);
@@ -2097,6 +2119,8 @@ ulong_t zfs_fsync_sync_cnt = 4;
 static int
 zfs_fsync(vnode_t *vp, int syncflag, cred_t *cr, caller_context_t *ct)
 {
+	int error;
+
 	znode_t	*zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
@@ -2114,9 +2138,9 @@ zfs_fsync(vnode_t *vp, int syncflag, cred_t *cr, caller_context_t *ct)
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
-	zil_commit(zfsvfs->z_log, zp->z_last_itx, zp->z_id);
+	error = zil_commit(zfsvfs->z_log, zp->z_last_itx, zp->z_id);
 	ZFS_EXIT(zfsvfs);
-	return (0);
+	return (error);
 }
 
 
@@ -2189,6 +2213,7 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 	vap->va_rdev = vp->v_rdev;
 	vap->va_seq = zp->z_seq;
 
+#ifndef ZFS_COMPACT
 	/*
 	 * Add in any requested optional attributes and the create time.
 	 * Also set the corresponding bits in the returned attribute bitmap.
@@ -2291,6 +2316,7 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 			XVA_SET_RTN(xvap, XAT_CREATETIME);
 		}
 	}
+#endif	/* ZFS_COMPACT */
 
 	ZFS_TIME_DECODE(&vap->va_atime, pzp->zp_atime);
 	ZFS_TIME_DECODE(&vap->va_mtime, pzp->zp_mtime);
@@ -2517,6 +2543,7 @@ top:
 	mutex_enter(&zp->z_lock);
 	oldva.va_mode = pzp->zp_mode;
 	zfs_fuid_map_ids(zp, cr, &oldva.va_uid, &oldva.va_gid);
+#ifndef ZFS_COMPACT
 	if (mask & AT_XVATTR) {
 		if ((need_policy == FALSE) &&
 		    (XVA_ISSET_REQ(xvap, XAT_APPENDONLY) &&
@@ -2543,6 +2570,7 @@ top:
 			need_policy = TRUE;
 		}
 	}
+#endif	/* ZFS_COMPACT */
 
 	mutex_exit(&zp->z_lock);
 
@@ -2616,6 +2644,7 @@ top:
 			ZFS_EXIT(zfsvfs);
 			return (err);
 		}
+#ifndef ZFS_COMPACT
 		if (pzp->zp_acl.z_acl_extern_obj) {
 			/* Are we upgrading ACL from old V0 format to new V1 */
 			if (zfsvfs->z_version <= ZPL_VERSION_FUID &&
@@ -2635,6 +2664,7 @@ top:
 			dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 			    0, aclp->z_acl_bytes);
 		}
+#endif	/* ZFS_COMPACT */
 	}
 
 	if ((mask & (AT_UID | AT_GID)) && pzp->zp_xattr != 0) {
@@ -2730,6 +2760,7 @@ top:
 	 * update from toggling bit
 	 */
 
+#ifndef ZFS_COMPACT
 	if (xoap && (mask & AT_XVATTR)) {
 		if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) {
 			size_t len;
@@ -2746,6 +2777,7 @@ top:
 		}
 		zfs_xvattr_set(zp, xvap);
 	}
+#endif	/* ZFS_COMPACT */
 
 	if (mask != 0)
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
@@ -2797,8 +2829,8 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
 {
 	zfs_zlock_t	*zl;
 	znode_t		*zp = tdzp;
-	uint64_t	rootid = zp->z_zfsvfs->z_root;
-	uint64_t	*oidp = &zp->z_id;
+	objid_t		rootid = zp->z_zfsvfs->z_root;
+	objid_t		*oidp = &zp->z_id;
 	krwlock_t	*rwlp = &szp->z_parent_lock;
 	krw_t		rw = RW_WRITER;
 
@@ -3699,7 +3731,7 @@ zfs_putpage(vnode_t *vp, offset_t off, size_t len, int flags, cred_t *cr,
 	}
 out:
 	if ((flags & B_ASYNC) == 0)
-		zil_commit(zfsvfs->z_log, UINT64_MAX, zp->z_id);
+		error = zil_commit(zfsvfs->z_log, UINT64_MAX, zp->z_id);
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
@@ -3776,8 +3808,6 @@ static int
 zfs_seek(vnode_t *vp, offset_t ooff, offset_t *noffp,
     caller_context_t *ct)
 {
-	if (vp->v_type == VDIR)
-		return (0);
 	return ((*noffp < 0 || *noffp > MAXOFFSET_T) ? EINVAL : 0);
 }
 
@@ -3825,7 +3855,7 @@ zfs_fillpage(vnode_t *vp, u_offset_t off, struct seg *seg,
 	objset_t *os = zp->z_zfsvfs->z_os;
 	caddr_t va;
 	u_offset_t io_off, total;
-	uint64_t oid = zp->z_id;
+	objid_t oid = zp->z_id;
 	size_t io_len;
 	uint64_t filesz;
 	int err;
@@ -4240,7 +4270,7 @@ top:
 		return (error);
 	}
 
-	if (bfp->l_len < 0) {
+	if (bfp->l_len != 0) {
 		ZFS_EXIT(zfsvfs);
 		return (EINVAL);
 	}
@@ -4264,7 +4294,7 @@ zfs_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
 	uint32_t	gen;
-	uint64_t	object = zp->z_id;
+	objid_t		object = zp->z_id;
 	zfid_short_t	*zfid;
 	int		size, i;
 
@@ -4293,7 +4323,7 @@ zfs_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 		zfid->zf_gen[i] = (uint8_t)(gen >> (8 * i));
 
 	if (size == LONG_FID_LEN) {
-		uint64_t	objsetid = dmu_objset_id(zfsvfs->z_os);
+		objid_t	objsetid = dmu_objset_id(zfsvfs->z_os);
 		zfid_long_t	*zlfid;
 
 		zlfid = (zfid_long_t *)fidp;
@@ -4370,6 +4400,7 @@ zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
 	}
 }
 
+#ifndef ZFS_COMPACT
 /*ARGSUSED*/
 static int
 zfs_getsecattr(vnode_t *vp, vsecattr_t *vsecp, int flag, cred_t *cr,
@@ -4404,6 +4435,7 @@ zfs_setsecattr(vnode_t *vp, vsecattr_t *vsecp, int flag, cred_t *cr,
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+#endif	/* ZFS_COMPACT */
 
 /*
  * Predeclare these here so that the compiler assumes that
@@ -4452,8 +4484,10 @@ const fs_operation_def_t zfs_dvnodeops_template[] = {
 	VOPNAME_FID,		{ .vop_fid = zfs_fid },
 	VOPNAME_SEEK,		{ .vop_seek = zfs_seek },
 	VOPNAME_PATHCONF,	{ .vop_pathconf = zfs_pathconf },
+#ifndef ZFS_COMPACT
 	VOPNAME_GETSECATTR,	{ .vop_getsecattr = zfs_getsecattr },
 	VOPNAME_SETSECATTR,	{ .vop_setsecattr = zfs_setsecattr },
+#endif	/* ZFS_COMPACT */
 	VOPNAME_VNEVENT, 	{ .vop_vnevent = fs_vnevent_support },
 	NULL,			NULL
 };
@@ -4485,8 +4519,10 @@ const fs_operation_def_t zfs_fvnodeops_template[] = {
 	VOPNAME_ADDMAP,		{ .vop_addmap = zfs_addmap },
 	VOPNAME_DELMAP,		{ .vop_delmap = zfs_delmap },
 	VOPNAME_PATHCONF,	{ .vop_pathconf = zfs_pathconf },
+#ifndef ZFS_COMPACT
 	VOPNAME_GETSECATTR,	{ .vop_getsecattr = zfs_getsecattr },
 	VOPNAME_SETSECATTR,	{ .vop_setsecattr = zfs_setsecattr },
+#endif	/* ZFS_COMPACT */
 	VOPNAME_VNEVENT,	{ .vop_vnevent = fs_vnevent_support },
 	NULL,			NULL
 };
@@ -4541,8 +4577,10 @@ const fs_operation_def_t zfs_xdvnodeops_template[] = {
 	VOPNAME_FID,		{ .vop_fid = zfs_fid },
 	VOPNAME_SEEK,		{ .vop_seek = zfs_seek },
 	VOPNAME_PATHCONF,	{ .vop_pathconf = zfs_pathconf },
+#ifndef ZFS_COMPACT
 	VOPNAME_GETSECATTR,	{ .vop_getsecattr = zfs_getsecattr },
 	VOPNAME_SETSECATTR,	{ .vop_setsecattr = zfs_setsecattr },
+#endif	/* ZFS_COMPACT */
 	VOPNAME_VNEVENT,	{ .vop_vnevent = fs_vnevent_support },
 	NULL,			NULL
 };

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -149,7 +153,7 @@ xge_driver_init_hal(void)
  * Solaris standard _init function for a device driver
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int ret = 0;
 	xge_hal_status_e status;
@@ -176,13 +180,14 @@ _init(void)
 	return (0);
 }
 
+#ifndef	STATIC_DRIVER
 /*
  * _fini
  *
  * Solaris standard _fini function for device driver
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int ret;
 
@@ -194,6 +199,7 @@ _fini(void)
 
 	return (ret);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * _info
@@ -201,7 +207,7 @@ _fini(void)
  * Solaris standard _info function for device driver
  */
 int
-_info(struct modinfo *pModinfo)
+MODDRV_ENTRY_INFO(struct modinfo *pModinfo)
 {
 	return (mod_info(&modlinkage, pModinfo));
 }

@@ -25,6 +25,10 @@
  */
 
 /*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
+/*
  * Warning - This file is not an approved Public Interface.
  *           It may change or disappear at any time.
  */
@@ -369,7 +373,8 @@ union gldhash {
 /*
  * miscellaneous linkage glue
  */
-#define	DEPENDS_ON_GLD	char _depends_on[] = "misc/gld"
+#include <sys/modctl.h>
+#define	DEPENDS_ON_GLD	MODDRV_DEPENDS_ON("misc/gld")
 
 /*
  * defines to make porting older ISC LLC drivers to GLD easier

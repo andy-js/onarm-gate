@@ -26,6 +26,10 @@
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * In kernel module, the md4 module is created with one modlinkage,
  * this is different to md5 and sha1 modules which have a legacy misc
  * variant for direct calls to the Init/Update/Final routines.
@@ -158,7 +162,7 @@ static crypto_provider_info_t md4_prov_info = {
 static crypto_kcf_provider_handle_t md4_prov_handle = NULL;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int ret;
 
@@ -180,8 +184,9 @@ _init(void)
 	return (0);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int ret;
 
@@ -200,9 +205,10 @@ _fini(void)
 
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -1466,7 +1470,7 @@ cyclic_expand(cyc_cpu_t *cpu)
 static cyc_cpu_t *
 cyclic_pick_cpu(cpupart_t *part, cpu_t *bound, cpu_t *avoid, uint16_t flags)
 {
-	cpu_t *c, *start = (part != NULL) ? part->cp_cpulist : CPU;
+	cpu_t *c, *start = (part != NULL) ? part->cp_cpulist : CPU_GLOBAL;
 	cpu_t *online = NULL;
 	uintptr_t offset;
 
@@ -2823,7 +2827,7 @@ cyclic_init(cyc_backend_t *be, hrtime_t resolution)
 	 * preemption; cyclic_init() is called only during startup by the
 	 * cyclic backend.
 	 */
-	cyclic_configure(CPU);
+	cyclic_configure(CPU_GLOBAL);
 	cyclic_online(CPU);
 }
 

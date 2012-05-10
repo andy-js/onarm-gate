@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -37,7 +42,7 @@ include		../../Makefile.rootfs
 MAPFILES +=	$(MAPFILE.FLT)
 
 SRCDIR=		../common
-LIBS=		$(DYNLIB) $(LINTLIB)
+LIBS=		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 $(LINTLIB):=	SRCS = $(SRCDIR)/$(LINTSRC)
 

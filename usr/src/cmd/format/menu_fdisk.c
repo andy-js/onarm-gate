@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -70,7 +73,7 @@ extern	struct menu_item menu_fdisk[];
 #define	lel(val)	(((unsigned)(les((val)&0x0000FFFF))<<16) | \
 			(les((unsigned)((val)&0xffff0000)>>16)))
 
-#elif	defined(i386)
+#elif	defined(i386) || defined(__arm)
 
 #define	les(val)	(val)
 #define	lel(val)	(val)
@@ -131,9 +134,9 @@ fill_ipart(char *bootptr, struct ipart *partp)
 	partp->endcyl = getbyte((uchar_t **)&bootptr);
 	partp->relsect = getlong((uchar_t **)&bootptr);
 	partp->numsect = getlong((uchar_t **)&bootptr);
-#elif defined(i386)
+#elif defined(i386) || defined(__arm)
 	/*
-	 * i386 platform:
+	 * i386, ARM platform:
 	 *
 	 * The fdisk table does not begin on a 4-byte boundary within
 	 * the master boot record; so, we need to recopy its contents
@@ -359,7 +362,15 @@ c_fdisk()
 	/*
 	 * Run the fdisk program.
 	 */
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 	(void) snprintf(buf, sizeof (buf), "fdisk %s\n", pbuf);
+#else
+	if (option_ext) {
+		(void) snprintf(buf, sizeof (buf), "fdisk -H %s\n", pbuf);
+	} else {
+		(void) snprintf(buf, sizeof (buf), "fdisk %s\n", pbuf);
+	}
+#endif
 	(void) system(buf);
 
 	/*
@@ -451,6 +462,13 @@ get_solaris_part(int fd, struct ipart *ipart)
 	int		status;
 	char		*bootptr;
 	struct dk_label	update_label;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int		errcode;
+	struct extboot	*extBootCod = NULL;
+	struct ipart	logipart[2];
+	struct ipart	extpart;
+	int		offset_start = -1, offset = 0, find = -1;
+#endif
 
 	(void) lseek(fd, 0, 0);
 	status = read(fd, (caddr_t)&boot_sec, NBPSCTR);
@@ -476,6 +494,13 @@ get_solaris_part(int fd, struct ipart *ipart)
 		if (ip.systid == SUNIXOS ||
 		    ip.systid == SUNIXOS2 ||
 		    ip.systid == EFI_PMBR) {
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			if ((find != -1) &&
+			    (ip.bootid != ACTIVE) &&
+			    option_ext) {
+				continue;
+			}
+#endif
 			/*
 			 * if the disk has an EFI label, nhead and nsect may
 			 * be zero.  This test protects us from FPE's, and
@@ -495,19 +520,122 @@ get_solaris_part(int fd, struct ipart *ipart)
 #endif /* DEBUG */
 
 			solaris_offset = lel(ip.relsect);
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 			break;
+#else
+			find = i;
+			if (!option_ext) {
+				break;
+			}
+#endif
 		}
 	}
 
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 	if (i == FD_NUMPART) {
 		err_print("Solaris fdisk partition not found\n");
 		return (-1);
 	}
+#else /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+	if (!option_ext && (find == -1)) {
+		err_print("Solaris fdisk partition not found\n");
+		return (-1);
+	} else if (!option_ext) {
+		goto skip;
+	}
+
+	extBootCod =
+	    (struct extboot *)calloc((_EXTFDISK_PARTITION + 1),
+	    sizeof (struct extboot));
+	if (extBootCod == NULL) {
+		err_print("Canot allocate memory. size = %d\n",
+		    ((_EXTFDISK_PARTITION + 1) * sizeof (struct extboot)));
+		return (-1);
+	}
+	
+	if ((ioctl(fd, DKIOCGEBR, extBootCod) < 0) && (errno != ENOTTY)) {
+		errcode = errno;
+		err_print("Bad read of fdisk partition. Status = %x\n",
+		    errcode);
+		perror("Cannot read fdisk partition information.\n");
+		free(extBootCod);
+		return (-1);
+	}
+
+	for (i = 0; i < FD_NUMPART; i++) {
+		int	ipc;
+
+		ipc = i * sizeof (struct ipart);
+		
+		/* Handling the alignment problem of struct ipart */
+		bootptr = &boot_sec.parts[ipc];
+		(void) fill_ipart(bootptr, &extpart);
+		
+		if (extpart.systid == EXTDOS ||
+		    extpart.systid == FDISK_EXTLBA) {
+			offset_start = lel(extpart.relsect);
+			break;
+		}
+	}
+	
+	if (i < FD_NUMPART) {
+		for (i = 1; i < _EXTFDISK_PARTITION + 1; i++) {
+			bcopy(extBootCod[i].parts, logipart
+			    , sizeof (struct ipart) * 2);
+
+			if (logipart[0].systid == SUNIXOS ||
+			    logipart[0].systid == SUNIXOS2) {
+				if((find != -1) &&
+				    (logipart[0].bootid != ACTIVE)) {
+					continue;
+				}
+
+				if (nhead != 0 && nsect != 0) {
+					pcyl = lel(logipart[0].numsect)
+					    / (nhead * nsect);
+					xstart = (lel(logipart[0].relsect)
+					    + offset_start + offset)
+					    / (nhead * nsect);
+					ncyl = pcyl - acyl;
+				}
+#ifdef DEBUG
+				else {
+					err_print("Critical geometry values "
+						"are zero:\n"
+						"\tnhead = %d; nsect = %d\n",
+						nhead, nsect);
+				}
+#endif /* DEBUG */
+
+				solaris_offset = lel(logipart[0].relsect)
+					+ offset_start + offset;
+				fill_ipart(&extBootCod[i].parts[0], &ip);
+				find = i;
+			}
+			if (logipart[1].systid == EXTDOS ||
+			    logipart[1].systid == FDISK_EXTLBA) {
+				offset = lel(logipart[1].relsect);
+				continue;
+			}
+			break;
+		}
+	}
+	free(extBootCod);
+	if (find == -1) {
+		err_print("Solaris fdisk partition not found\n");
+		return (-1);
+		
+	}
+skip:
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 
 	/*
 	 * compare the previous and current Solaris partition
 	 * but don't use bootid in determination of Solaris partition changes
 	 */
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!option_ext)
+#endif
 	ipart->bootid = ip.bootid;
 	status = bcmp(&ip, ipart, sizeof (struct ipart));
 
@@ -570,6 +698,14 @@ copy_solaris_part(struct ipart *ipart)
 	char		buf[MAXPATHLEN];
 	char		*bootptr;
 	struct stat	statbuf;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int		errcode;
+	struct extboot	*extBootCod = NULL;
+	struct ipart	logipart[2];
+	struct ipart	extpart;
+	int		offset_start = -1, offset = 0, find = -1;
+#endif
+
 
 	(void) get_pname(&buf[0]);
 	if (stat(buf, &statbuf) == -1 ||
@@ -616,6 +752,13 @@ copy_solaris_part(struct ipart *ipart)
 		if (ip.systid == SUNIXOS ||
 		    ip.systid == SUNIXOS2 ||
 		    ip.systid == EFI_PMBR) {
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			if((find != -1) &&
+			    (ip.bootid != ACTIVE) &&
+			    option_ext) {
+				continue;
+			}
+#endif
 			solaris_offset = lel(ip.relsect);
 			bcopy(&ip, ipart, sizeof (struct ipart));
 
@@ -637,9 +780,110 @@ copy_solaris_part(struct ipart *ipart)
 			}
 #endif /* DEBUG */
 
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
+			break;
+#else
+			find = i;
+			if (!option_ext) {
+				break;
+			}
+#endif
+		}
+	}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!option_ext) {
+		goto end;
+	}
+
+	extBootCod =
+	    (struct extboot *)calloc((_EXTFDISK_PARTITION + 1),
+	    sizeof (struct extboot));
+	if (extBootCod == NULL) {
+		err_print("Canot allocate memory. size = %d\n",
+		    ((_EXTFDISK_PARTITION + 1) * sizeof (struct extboot)));
+		(void) close(fd);
+		return (-1);
+	}
+
+	if ((ioctl(fd, DKIOCGEBR, extBootCod) < 0) && (errno != ENOTTY)) {
+		errcode = errno;
+		err_print("Bad read of fdisk partition. Status = %x\n",
+		    errcode);
+		perror("Cannot read fdisk partition information.\n");
+		free(extBootCod);
+		(void) close(fd);
+		return (-1);
+	}
+
+	for (i = 0; i < FD_NUMPART; i++) {
+		int	ipc;
+
+		ipc = i * sizeof (struct ipart);
+		
+		/* Handling the alignment problem of struct ipart */
+		bootptr = &mboot.parts[ipc];
+		(void) fill_ipart(bootptr, &extpart);
+		
+		if (extpart.systid == EXTDOS ||
+		    extpart.systid == FDISK_EXTLBA) {
+			offset_start = lel(extpart.relsect);
 			break;
 		}
 	}
+
+	if (i < FD_NUMPART) {
+		for (i = 1; i < _EXTFDISK_PARTITION + 1; i++) {
+			bcopy(extBootCod[i].parts, logipart
+			    , sizeof (struct ipart) * 2);
+
+			if (logipart[0].systid == SUNIXOS ||
+			    logipart[0].systid == SUNIXOS2) {
+				if((find != -1) &&
+				    (logipart[0].bootid != ACTIVE)) {
+					continue;
+				}
+
+				solaris_offset = lel(logipart[0].relsect)
+					+ offset_start + offset;
+				bcopy(&logipart[0], ipart,
+					sizeof (struct ipart));
+				/*fill_ipart(&extBootCod[i].parts[0], &ip);*/
+				
+				/*
+				 * if the disk has an EFI label, we typically 
+				 * won't have values for nhead and nsect.
+				 * format seems to work without them, 
+				 * and we need to protect ourselves from FPE's
+				 */
+				if (nhead != 0 && nsect != 0) {
+					pcyl = lel(logipart[0].numsect)
+						/ (nhead * nsect);
+					ncyl = pcyl - acyl;
+				}
+#ifdef DEBUG
+				else {
+					err_print("Critical geometry values "
+						"are zero:\n"
+						"\tnhead = %d; nsect = %d\n",
+						nhead, nsect);
+				}
+#endif /* DEBUG */
+
+				find = i;
+			}
+			if (logipart[1].systid == EXTDOS ||
+			    logipart[1].systid == FDISK_EXTLBA) {
+				offset = lel(logipart[1].relsect);
+				continue;
+			}
+			break;
+		}
+	}
+	free(extBootCod);
+
+end:
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 
 	(void) close(fd);
 	return (0);
@@ -656,6 +900,13 @@ auto_solaris_part(struct dk_label *label)
 	struct ipart	ip;
 	char		*bootptr;
 	char		pbuf[MAXPATHLEN];
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int		errcode;
+	struct extboot	*extBootCod = NULL;
+	struct ipart	logipart[2];
+	struct ipart	extpart;
+	int		offset_start = -1, offset = 0, find = -1;
+#endif
 
 
 	(void) get_pname(&pbuf[0]);
@@ -668,6 +919,7 @@ auto_solaris_part(struct dk_label *label)
 
 	if (status != sizeof (struct mboot)) {
 		err_print("Bad read of fdisk partition.\n");
+		close(fd);
 		return (-1);
 	}
 
@@ -688,6 +940,13 @@ auto_solaris_part(struct dk_label *label)
 		if (ip.systid == SUNIXOS ||
 		    ip.systid == SUNIXOS2 ||
 		    ip.systid == EFI_PMBR) {
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			if ((find != -1) &&
+			    (ip.bootid != ACTIVE) &&
+			    option_ext) {
+				continue;
+			}
+#endif
 			if ((label->dkl_nhead != 0) &&
 			    (label->dkl_nsect != 0)) {
 				label->dkl_pcyl = lel(ip.numsect) /
@@ -707,9 +966,106 @@ auto_solaris_part(struct dk_label *label)
 #endif /* DEBUG */
 
 		solaris_offset = lel(ip.relsect);
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 		break;
+#else
+		find = i;
+		if (!option_ext) {
+			break;
+		}
+#endif
 		}
 	}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!option_ext) {
+		goto end;
+	}
+
+	extBootCod =
+	    (struct extboot *)calloc((_EXTFDISK_PARTITION + 1),
+	    sizeof (struct extboot));
+	if (extBootCod == NULL) {
+		err_print("Canot allocate memory. size = %d\n",
+		    ((_EXTFDISK_PARTITION + 1) * sizeof (struct extboot)));
+		(void) close(fd);
+		return (-1);
+	}
+
+	if ((ioctl(fd, DKIOCGEBR, extBootCod) < 0) && (errno != ENOTTY)) {
+		errcode = errno;
+		err_print("Bad read of fdisk partition. Status = %x\n",
+		    errcode);
+		perror("Cannot read fdisk partition information.\n");
+		free(extBootCod);
+		(void) close(fd);
+		return (-1);
+	}
+	
+	for (i = 0; i < FD_NUMPART; i++) {
+		int	ipc;
+
+		ipc = i * sizeof (struct ipart);
+		
+		/* Handling the alignment problem of struct ipart */
+		bootptr = &mboot.parts[ipc];
+		(void) fill_ipart(bootptr, &extpart);
+		
+		if (extpart.systid == EXTDOS ||
+		    extpart.systid == FDISK_EXTLBA) {
+			offset_start = lel(extpart.relsect);
+			break;
+		}
+	}
+
+	if (i < FD_NUMPART) {
+		for (i = 1; i < _EXTFDISK_PARTITION + 1; i++) {
+			bcopy(extBootCod[i].parts, logipart
+			    , sizeof (struct ipart) * 2);
+
+			if (logipart[0].systid == SUNIXOS ||
+			    logipart[0].systid == SUNIXOS2) {
+					if((find != -1) &&
+					    (logipart[0].bootid != ACTIVE)) {
+						continue;
+					}
+
+				if ((label->dkl_nhead != 0) &&
+				    (label->dkl_nsect != 0)) {
+					label->dkl_pcyl =
+					    lel(logipart[0].numsect) /
+					    (label->dkl_nhead *
+					    label->dkl_nsect);
+					label->dkl_ncyl =
+					    label->dkl_pcyl - label->dkl_acyl;
+				}
+#ifdef DEBUG
+				else {
+					err_print("Critical label fields "
+						"aren't non-zero:\n"
+						"\tlabel->dkl_nhead = %d; "
+						"label->dkl_nsect = "
+						"%d\n", label->dkl_nhead,
+						label->dkl_nsect);
+				}
+#endif /* DEBUG */
+
+				solaris_offset = lel(logipart[0].relsect) +
+					offset_start + offset;
+				find = i;
+			}
+			if (logipart[1].systid == EXTDOS ||
+			    logipart[1].systid == FDISK_EXTLBA) {
+				offset = lel(logipart[1].relsect);
+				continue;
+			}
+			break;
+		}
+	}
+	free(extBootCod);
+
+end:
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 
 	(void) close(fd);
 

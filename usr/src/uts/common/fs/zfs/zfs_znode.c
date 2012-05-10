@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 /* Portions Copyright 2007 Jeremy Teo */
 
@@ -62,6 +65,7 @@
 #include <sys/stat.h>
 #include <sys/zap.h>
 #include <sys/zfs_znode.h>
+#include <zfs_types.h>
 
 #include "zfs_prop.h"
 
@@ -134,7 +138,7 @@ zfs_znode_init(void)
 	 * Initialize zcache
 	 */
 	ASSERT(znode_cache == NULL);
-	znode_cache = kmem_cache_create("zfs_znode_cache",
+	znode_cache = kmem_cache_create(KMEM_ZFS_ZNODE_CACHE,
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
 	    zfs_znode_cache_destructor, NULL, NULL, NULL, 0);
 }
@@ -267,7 +271,10 @@ zfs_init_fs(zfsvfs_t *zfsvfs, znode_t **zpp, cred_t *cr)
 		dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, TRUE, NULL); /* del queue */
 		dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT); /* root node */
 		error = dmu_tx_assign(tx, TXG_WAIT);
-		ASSERT3U(error, ==, 0);
+		if (error) {
+			dmu_tx_abort(tx);
+			return (error);
+		}
 		if (spa_version(dmu_objset_spa(os)) >= SPA_VERSION_FUID)
 			zpl_version = ZPL_VERSION;
 		else
@@ -323,14 +330,14 @@ zfs_init_fs(zfsvfs_t *zfsvfs, znode_t **zpp, cred_t *cr)
 	zfsvfs->z_vfs->vfs_fsid.val[1] = ((fsid_guid>>32) << 8) |
 	    zfsfstype & 0xFF;
 
-	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_ROOT_OBJ, 8, 1,
-	    &zfsvfs->z_root);
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_ROOT_OBJ,
+	    sizeof (zfsvfs->z_root), 1, &zfsvfs->z_root);
 	if (error)
 		return (error);
 	ASSERT(zfsvfs->z_root != 0);
 
-	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
-	    &zfsvfs->z_unlinkedobj);
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET,
+	    sizeof (zfsvfs->z_unlinkedobj), 1, &zfsvfs->z_unlinkedobj);
 	if (error)
 		return (error);
 
@@ -352,8 +359,8 @@ zfs_init_fs(zfsvfs_t *zfsvfs, znode_t **zpp, cred_t *cr)
 		return (error);
 	}
 	ASSERT3U((*zpp)->z_id, ==, zfsvfs->z_root);
-	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES, 8, 1,
-	    &zfsvfs->z_fuid_obj);
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES,
+	    sizeof (zfsvfs->z_fuid_obj), 1, &zfsvfs->z_fuid_obj);
 	if (error == ENOENT)
 		error = 0;
 
@@ -565,13 +572,14 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	znode_phys_t	*pzp;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	timestruc_t	now;
-	uint64_t	gen, obj;
+	uint64_t	gen;
+	objid_t		obj;
 	int		err;
 
 	ASSERT(vap && (vap->va_mask & (AT_TYPE|AT_MODE)) == (AT_TYPE|AT_MODE));
 
 	if (zfsvfs->z_assign >= TXG_INITIAL) {		/* ZIL replay */
-		obj = vap->va_nodeid;
+		obj = (objid_t)vap->va_nodeid;
 		flag |= IS_REPLAY;
 		now = vap->va_ctime;		/* see zfs_replay_create() */
 		gen = vap->va_nblocks;		/* ditto */
@@ -687,6 +695,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	zfs_perm_init(*zpp, dzp, flag, vap, tx, cr, setaclp, fuidp);
 }
 
+#ifndef ZFS_COMPACT
 void
 zfs_xvattr_set(znode_t *zp, xvattr_t *xvap)
 {
@@ -751,9 +760,10 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap)
 		XVA_SET_RTN(xvap, XAT_AV_SCANSTAMP);
 	}
 }
+#endif	/* ZFS_COMPACT */
 
 int
-zfs_zget(zfsvfs_t *zfsvfs, uint64_t obj_num, znode_t **zpp)
+zfs_zget(zfsvfs_t *zfsvfs, objid_t obj_num, znode_t **zpp)
 {
 	dmu_object_info_t doi;
 	dmu_buf_t	*db;
@@ -817,7 +827,7 @@ zfs_rezget(znode_t *zp)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	dmu_object_info_t doi;
 	dmu_buf_t *db;
-	uint64_t obj_num = zp->z_id;
+	objid_t obj_num = zp->z_id;
 	int err;
 
 	ZFS_OBJ_HOLD_ENTER(zfsvfs, obj_num);
@@ -855,13 +865,15 @@ void
 zfs_znode_delete(znode_t *zp, dmu_tx_t *tx)
 {
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	uint64_t obj = zp->z_id;
+	objid_t obj = zp->z_id;
 
 	ZFS_OBJ_HOLD_ENTER(zfsvfs, obj);
+#ifndef ZFS_COMPACT
 	if (zp->z_phys->zp_acl.z_acl_extern_obj) {
 		VERIFY(0 == dmu_object_free(zfsvfs->z_os,
 		    zp->z_phys->zp_acl.z_acl_extern_obj, tx));
 	}
+#endif	/* ZFS_COMPACT */
 	VERIFY(0 == dmu_object_free(zfsvfs->z_os, obj, tx));
 	zfs_znode_dmu_fini(zp);
 	ZFS_OBJ_HOLD_EXIT(zfsvfs, obj);
@@ -873,7 +885,7 @@ zfs_zinactive(znode_t *zp)
 {
 	vnode_t	*vp = ZTOV(zp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	uint64_t z_id = zp->z_id;
+	objid_t z_id = zp->z_id;
 
 	ASSERT(zp->z_dbuf && zp->z_phys);
 
@@ -1203,7 +1215,7 @@ void
 zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 {
 	zfsvfs_t	zfsvfs;
-	uint64_t	moid, doid;
+	objid_t		moid, doid;
 	uint64_t	version = 0;
 	uint64_t	sense = ZFS_CASE_SENSITIVE;
 	uint64_t	norm = 0;
@@ -1258,7 +1270,8 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	 */
 	doid = zap_create(os, DMU_OT_UNLINKED_SET, DMU_OT_NONE, 0, tx);
 
-	error = zap_add(os, moid, ZFS_UNLINKED_SET, 8, 1, &doid, tx);
+	error = zap_add(os, moid, ZFS_UNLINKED_SET, sizeof (doid), 1,
+	    &doid, tx);
 	ASSERT(error == 0);
 
 	/*
@@ -1301,7 +1314,8 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 
 	zfs_mknode(rootzp, &vattr, tx, cr, IS_ROOT_NODE, &zp, 0, NULL, NULL);
 	ASSERT3P(zp, ==, rootzp);
-	error = zap_add(os, moid, ZFS_ROOT_OBJ, 8, 1, &rootzp->z_id, tx);
+	error = zap_add(os, moid, ZFS_ROOT_OBJ, sizeof (rootzp->z_id), 1,
+	    &rootzp->z_id, tx);
 	ASSERT(error == 0);
 
 	ZTOV(rootzp)->v_count = 0;
@@ -1316,7 +1330,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
  * or not the object is an extended attribute directory.
  */
 static int
-zfs_obj_to_pobj(objset_t *osp, uint64_t obj, uint64_t *pobjp, int *is_xattrdir)
+zfs_obj_to_pobj(objset_t *osp, objid_t obj, objid_t *pobjp, int *is_xattrdir)
 {
 	dmu_buf_t *db;
 	dmu_object_info_t doi;
@@ -1343,7 +1357,7 @@ zfs_obj_to_pobj(objset_t *osp, uint64_t obj, uint64_t *pobjp, int *is_xattrdir)
 }
 
 int
-zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len)
+zfs_obj_to_path(objset_t *osp, objid_t obj, char *buf, int len)
 {
 	char *path = buf + len - 1;
 	int error;
@@ -1351,7 +1365,7 @@ zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len)
 	*path = '\0';
 
 	for (;;) {
-		uint64_t pobj;
+		objid_t pobj;
 		char component[MAXNAMELEN + 2];
 		size_t complen;
 		int is_xattrdir;

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -133,6 +137,11 @@ const dt_version_t _dtrace_versions[] = {
  * A parameter enclosed in square brackets (e.g. "[int]") denotes an optional
  * argument.
  */
+#ifdef	STATIC_UNIX
+#define	GENUNIX		STATIC_UNIX_MODNAME
+#else	/* !STATIC_UNIX */
+#define	GENUNIX		"genunix"
+#endif	/* STATIC_UNIX */
 static const dt_ident_t _dtrace_globals[] = {
 { "alloca", DT_IDENT_FUNC, 0, DIF_SUBR_ALLOCA, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_func, "void *(size_t)" },
@@ -194,7 +203,7 @@ static const dt_ident_t _dtrace_globals[] = {
 { "curthread", DT_IDENT_SCALAR, 0, DIF_VAR_CURTHREAD,
 	{ DTRACE_STABILITY_STABLE, DTRACE_STABILITY_PRIVATE,
 	DTRACE_CLASS_COMMON }, DT_VERS_1_0,
-	&dt_idops_type, "genunix`kthread_t *" },
+	&dt_idops_type, GENUNIX"`kthread_t *" },
 { "ddi_pathname", DT_IDENT_FUNC, 0, DIF_SUBR_DDI_PATHNAME,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
 	&dt_idops_func, "string(void *, int64_t)" },
@@ -220,10 +229,10 @@ static const dt_ident_t _dtrace_globals[] = {
 	DT_VERS_1_2, &dt_idops_func, "_symaddr(uintptr_t)" },
 { "getmajor", DT_IDENT_FUNC, 0, DIF_SUBR_GETMAJOR,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "genunix`major_t(genunix`dev_t)" },
+	&dt_idops_func, GENUNIX"`major_t("GENUNIX"`dev_t)" },
 { "getminor", DT_IDENT_FUNC, 0, DIF_SUBR_GETMINOR,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "genunix`minor_t(genunix`dev_t)" },
+	&dt_idops_func, GENUNIX"`minor_t("GENUNIX"`dev_t)" },
 { "htonl", DT_IDENT_FUNC, 0, DIF_SUBR_HTONL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
 	&dt_idops_func, "uint32_t(uint32_t)" },
 { "htonll", DT_IDENT_FUNC, 0, DIF_SUBR_HTONLL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
@@ -265,16 +274,16 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "size_t(mblk_t *)" },
 { "mutex_owned", DT_IDENT_FUNC, 0, DIF_SUBR_MUTEX_OWNED,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "int(genunix`kmutex_t *)" },
+	&dt_idops_func, "int("GENUNIX"`kmutex_t *)" },
 { "mutex_owner", DT_IDENT_FUNC, 0, DIF_SUBR_MUTEX_OWNER,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "genunix`kthread_t *(genunix`kmutex_t *)" },
+	&dt_idops_func, GENUNIX"`kthread_t *("GENUNIX"`kmutex_t *)" },
 { "mutex_type_adaptive", DT_IDENT_FUNC, 0, DIF_SUBR_MUTEX_TYPE_ADAPTIVE,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "int(genunix`kmutex_t *)" },
+	&dt_idops_func, "int("GENUNIX"`kmutex_t *)" },
 { "mutex_type_spin", DT_IDENT_FUNC, 0, DIF_SUBR_MUTEX_TYPE_SPIN,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "int(genunix`kmutex_t *)" },
+	&dt_idops_func, "int("GENUNIX"`kmutex_t *)" },
 { "ntohl", DT_IDENT_FUNC, 0, DIF_SUBR_NTOHL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
 	&dt_idops_func, "uint32_t(uint32_t)" },
 { "ntohll", DT_IDENT_FUNC, 0, DIF_SUBR_NTOHLL, DT_ATTR_EVOLCMN, DT_VERS_1_3,
@@ -315,13 +324,13 @@ static const dt_ident_t _dtrace_globals[] = {
 	&dt_idops_func, "int(const char *, const char *, [int])" },
 { "rw_iswriter", DT_IDENT_FUNC, 0, DIF_SUBR_RW_ISWRITER,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "int(genunix`krwlock_t *)" },
+	&dt_idops_func, "int("GENUNIX"`krwlock_t *)" },
 { "rw_read_held", DT_IDENT_FUNC, 0, DIF_SUBR_RW_READ_HELD,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "int(genunix`krwlock_t *)" },
+	&dt_idops_func, "int("GENUNIX"`krwlock_t *)" },
 { "rw_write_held", DT_IDENT_FUNC, 0, DIF_SUBR_RW_WRITE_HELD,
 	DT_ATTR_EVOLCMN, DT_VERS_1_0,
-	&dt_idops_func, "int(genunix`krwlock_t *)" },
+	&dt_idops_func, "int("GENUNIX"`krwlock_t *)" },
 { "self", DT_IDENT_PTR, 0, 0, DT_ATTR_STABCMN, DT_VERS_1_0,
 	&dt_idops_type, "void" },
 { "setopt", DT_IDENT_ACTFUNC, 0, DT_ACT_SETOPT, DT_ATTR_STABCMN,
@@ -985,6 +994,14 @@ alloc:
 		if (dt_cpp_add_arg(dtp, "-D__i386") == NULL)
 			return (set_open_errno(dtp, errp, EDT_NOMEM));
 	}
+#endif
+
+#ifdef __arm
+	/*
+	 * On ARM systems, __arm is defined for <sys/isa_defs.h>.
+	 */
+	if (dt_cpp_add_arg(dtp, "-D__arm") == NULL)
+		return (set_open_errno(dtp, errp, EDT_NOMEM));
 #endif
 
 	if (dtp->dt_conf.dtc_difversion < DIF_VERSION)

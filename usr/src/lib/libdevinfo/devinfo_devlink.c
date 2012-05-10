@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -3381,7 +3384,7 @@ static void
 daemon_call(const char *root, struct dca_off *dcp)
 {
 	door_arg_t	arg;
-	int		fd, door_error;
+	int		fd, door_error = 0;
 	sigset_t	oset, nset;
 	char		synch_door[PATH_MAX];
 	struct stat	sb;

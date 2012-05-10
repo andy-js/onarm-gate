@@ -26,6 +26,9 @@
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* from SVr4.0 1.31 */
 
@@ -54,6 +57,7 @@
 #include <sys/cmn_err.h>
 #include <sys/vmparam.h>
 #include <sys/modctl.h>
+#include <sys/modstatic.h>
 #include <sys/vm.h>
 #include <sys/callb.h>
 #include <sys/ddi_timer.h>
@@ -72,6 +76,7 @@
 #include <sys/class.h>
 #include <sys/stack.h>
 #include <sys/brand.h>
+#include <sys/uctx_ops.h>
 
 #include <vm/as.h>
 #include <vm/seg_kmem.h>
@@ -87,7 +92,9 @@ proc_t *proc_fsflush;		/* fsflush daemon */
 
 pgcnt_t	maxmem;		/* Maximum available memory in pages.	*/
 pgcnt_t	freemem;	/* Current available memory in pages.	*/
+#ifndef	_C2_AUDIT_STUB
 int	audit_active;
+#endif	/* !_C2_AUDIT_STUB */
 int	interrupts_unleashed;	/* set when we do the first spl0() */
 
 kmem_cache_t *process_cache;	/* kmem cache for proc structures */
@@ -261,7 +268,7 @@ exec_init(const char *initpath, const char *args)
 	brand_action = ZONE_IS_BRANDED(p->p_zone) ? EBA_BRAND : EBA_NONE;
 again:
 	error = exec_common((const char *)(uintptr_t)exec_fnamep,
-	    (const char **)(uintptr_t)uap, NULL, brand_action);
+	    (const char **)(uintptr_t)uap, NULL, brand_action, NULL);
 
 	/*
 	 * Normally we would just set lwp_argsaved and t_post_sys and
@@ -351,6 +358,7 @@ main(void)
 {
 	proc_t		*p = ttoproc(curthread);	/* &p0 */
 	int		(**initptr)();
+	cpu_t		*cp = CPU_GLOBAL;
 	extern void	sched();
 	extern void	fsflush();
 	extern int	(*init_tbl[])();
@@ -381,7 +389,7 @@ main(void)
 	 * out that it's hard-coded in i86/ml/i86.il.  Similarly for
 	 * curcpup.  You're welcome.
 	 */
-	ASSERT(CPU == CPU->cpu_self);
+	ASSERT(cp == CPU->cpu_self);
 	ASSERT(curthread == CPU->cpu_thread);
 	ASSERT_STACK_ALIGNED();
 
@@ -445,8 +453,15 @@ main(void)
 	interrupts_unleashed = 1;
 
 	vfs_mountroot();	/* Mount the root file system */
+
+	/*
+	 * Need to scan driver.conf again on STATIC_UNIX environment.
+	 * This is required to configure modules in root filesystem.
+	 */
+	mod_static_rescan();
+
 	errorq_init();		/* after vfs_mountroot() so DDI root is ready */
-	cpu_kstat_init(CPU);	/* after vfs_mountroot() so TOD is valid */
+	cpu_kstat_init(cp);	/* after vfs_mountroot() so TOD is valid */
 	ddi_walk_devs(ddi_root_node(), pm_adjust_timestamps, NULL);
 				/* after vfs_mountroot() so hrestime is valid */
 
@@ -458,22 +473,26 @@ main(void)
 	 */
 	audit_init();
 
+#ifndef BOOT_STRPLUMB_DISABLE
 	/*
 	 * Plumb the protocol modules and drivers only if we are not
 	 * networked booted, in this case we already did it in rootconf().
 	 */
 	if (netboot == 0)
 		(void) strplumb();
+#endif
 
 	gethrestime(&PTOU(curproc)->u_start);
 	curthread->t_start = PTOU(curproc)->u_start.tv_sec;
 	p->p_mstart = gethrtime();
 
+#ifndef UART_CONSOLE_DISABLE
 	/*
 	 * Perform setup functions that can only be done after root
 	 * and swap have been set up.
 	 */
 	consconfig();
+#endif
 	release_bootstrap();
 
 	/*
@@ -592,6 +611,8 @@ main(void)
 
 	(void) thread_create(NULL, 0, seg_pasync_thread,
 	    NULL, 0, &p0, TS_RUN, minclsyspri);
+
+	UCTX_OPS_INIT();
 
 	pid_setmin();
 

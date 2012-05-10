@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 LIBRARY =	libpool.a
 VERS =		.1
 
@@ -41,10 +45,14 @@ include ../../Makefile.lib
 
 # Adding -lxml2 to LDLIBS would cause lint to complain as there is no .ln file
 # for libxml2, so add it to DYNFLAGS
-DYNFLAGS +=	-lxml2
+LIBXML2			= -lxml2
+$(ARM_BLD)LIBXML2	= 
+DYNFLAGS		+= $(LIBXML2)
 
 LIBS =		$(DYNLIB) $(LINTLIB)
-LDLIBS +=	-lscf -lnvpair -lexacct -lc
+LIBEXACCT		= -lexacct
+$(ARM_BLD)LIBEXACCT	=
+LDLIBS +=	-lscf -lnvpair $(LIBEXACCT) -lc
 
 SRCDIR =	../common
 $(LINTLIB) :=	SRCS = $(SRCDIR)/$(LINTSRC)

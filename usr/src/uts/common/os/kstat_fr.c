@@ -22,6 +22,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -124,6 +129,11 @@ typedef struct ekstat {
 	avl_node_t	e_avl_byname;	/* AVL tree to sort by name */
 	kstat_zone_t	e_zone;		/* zone to export stats to */
 } ekstat_t;
+
+#ifdef	__arm
+/* 64bit value may not be 8 bytes aligned on ARM. */
+#pragma align	8(kstat_initial)
+#endif	/* __arm */
 
 static uint64_t kstat_initial[8192];
 static void *kstat_initial_ptr = kstat_initial;
@@ -1214,12 +1224,13 @@ kstat_delete(kstat_t *ksp)
 {
 	kmutex_t *lp;
 	ekstat_t *e = (ekstat_t *)ksp;
-	zoneid_t zoneid = e->e_zone.zoneid;
+	zoneid_t zoneid;
 	kstat_zone_t *kz;
 
 	if (ksp == NULL)
 		return;
 
+	zoneid = e->e_zone.zoneid;
 	lp = ksp->ks_lock;
 
 	if (lp != NULL && MUTEX_HELD(lp)) {

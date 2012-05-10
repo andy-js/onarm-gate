@@ -5,6 +5,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_CONFIG_H
 #define	_CONFIG_H
@@ -134,7 +137,11 @@ extern "C" {
 #define	ALTPRIVSEP
 
 /* Define if you have Solaris-style Contracts */
+#ifdef	__WITHOUT_CONTRACTS
+#undef	HAVE_SOLARIS_CONTRACTS
+#else
 #define	HAVE_SOLARIS_CONTRACTS 1
+#endif
 
 /* Define if SVR4-style libcmd (for accessing /etc/default/ files) */
 #define	HAVE_DEFOPEN 1

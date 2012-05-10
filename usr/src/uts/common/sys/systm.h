@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_SYSTM_H
 #define	_SYS_SYSTM_H
 
@@ -64,6 +68,7 @@ extern int hz;			/* system clock rate */
 extern struct vnode *rootdir;	/* pointer to vnode of root directory */
 extern struct vnode *devicesdir;	/* pointer to /devices vnode */
 extern volatile clock_t lbolt;	/* time in HZ since last boot */
+extern volatile clock_t lbolt_fast;	/* more correctly than lbolt */
 extern volatile int64_t lbolt64;	/* lbolt computed as 64-bit value */
 extern int interrupts_unleashed;	/* set after the spl0() in main() */
 
@@ -101,7 +106,18 @@ extern int	klustsize;
 
 extern int	abort_enable;	/* Platform input-device abort policy */
 
+#if	defined(__arm) && !defined(_C2_AUDIT)
+
+/* Disable audit trailing. */
+#define	_C2_AUDIT_STUB	1
+
+#endif	/* defined(__arm) && !defined(_C2_AUDIT) */
+
+#ifdef	_C2_AUDIT_STUB
+#define	audit_active		0
+#else	/* !_C2_AUDIT_STUB */
 extern int	audit_active;	/* Solaris Auditing active 1, absent 0. */
+#endif	/* _C2_AUDIT_STUB */
 
 extern int	avenrun[];	/* array of load averages */
 

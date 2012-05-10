@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -269,13 +273,17 @@ const struct systable systable[] = {
 {"getgid",	0, UNS, UNS},					/*  47 */
 {"signal",	2, HEX, NOV, SIG, ACT},				/*  48 */
 {"msgsys",	6, DEC, NOV, DEC, DEC, DEC, DEC, DEC, DEC},	/*  49 */
+#ifdef __arm
+{"sysarm",	4, HEX, NOV, DEC, HEX, HEX, HEX, DEC, DEC},	/*  50 */
+#else
 {"sysi86",	4, HEX, NOV, S86, HEX, HEX, HEX, DEC, DEC},	/*  50 */
+#endif
 {"acct",	1, DEC, NOV, STG},				/*  51 */
 {"shmsys",	4, DEC, NOV, DEC, HEX, HEX, HEX},		/*  52 */
 {"semsys",	5, DEC, NOV, DEC, HEX, HEX, HEX, HEX},		/*  53 */
 {"ioctl",	3, DEC, NOV, DEC, IOC, IOA},			/*  54 */
 {"uadmin",	3, DEC, NOV, DEC, DEC, DEC},			/*  55 */
-{ NULL,		8, HEX, HEX, HEX, HEX, HEX, HEX, HEX, HEX, HEX, HEX},
+{"pspawn",	4, DEC, NOV, HEX, DEX, DEX, FXF},		/*  56 */
 {"utssys",	4, DEC, NOV, HEX, DEC, UTS, HEX},		/*  57 */
 {"fdsync",	2, DEC, NOV, DEC, FFG},				/*  58 */
 {"execve",	3, DEC, NOV, STG, HEX, HEX},			/*  59 */
@@ -397,7 +405,11 @@ const struct systable systable[] = {
 {"lwp_cond_broadcast", 1, DEC, NOV, HEX},			/* 172 */
 {"pread",	4, DEC, NOV, DEC, IOB, UNS, DEX},		/* 173 */
 {"pwrite",	4, DEC, NOV, DEC, IOB, UNS, DEX},		/* 174 */
+#if defined(__arm) && defined(__ARM_EABI__)  
+{"llseek",	5, LLO, NOV, DEC, HID, LLO, HID, WHN},		/* 175 */  
+#else  
 {"llseek",	4, LLO, NOV, DEC, LLO, HID, WHN},		/* 175 */
+#endif
 {"inst_sync",	2, DEC, NOV, STG, DEC},				/* 176 */
 {"brand",	6, DEC, NOV, DEC, HEX, HEX, HEX, HEX, HEX},	/* 177 */
 {"kaio",	7, DEC, NOV, AIO, HEX, HEX, HEX, HEX, HEX, HEX}, /* 178 */
@@ -436,7 +448,11 @@ const struct systable systable[] = {
 {"lwp_sema_timedwait", 3, DEC, NOV, HEX, HEX, DEC},		/* 211 */
 {"lwp_rwlock_sys", 3, DEC, NOV, DEC, HEX, HEX},			/* 212 */
 {"getdents64",	3, DEC, NOV, DEC, HEX, UNS},			/* 213 */
+#if defined(__arm) && defined(__ARM_EABI__)  
+{"mmap64", 8, HEX, NOV, HEX, UNS, MPR, MTY, DEC, HID, LLO, HID}, /* 214 */  
+#else  
 {"mmap64",	7, HEX, NOV, HEX, UNS, MPR, MTY, DEC, LLO, HID}, /* 214 */
+#endif
 {"stat64",	2, DEC, NOV, STG, HEX},				/* 215 */
 {"lstat64",	2, DEC, NOV, STG, HEX},				/* 216 */
 {"fstat64",	2, DEC, NOV, DEC, HEX},				/* 217 */
@@ -444,8 +460,13 @@ const struct systable systable[] = {
 {"fstatvfs64",	2, DEC, NOV, DEC, HEX},				/* 219 */
 {"setrlimit64",	2, DEC, NOV, RLM, HEX},				/* 220 */
 {"getrlimit64",	2, DEC, NOV, RLM, HEX},				/* 221 */
+#if defined(__arm) && defined(__ARM_EABI__)  
+{"pread64",	6, DEC, NOV, DEC, IOB, UNS, HID, LLO, HID},	/* 222 */  
+{"pwrite64",	6, DEC, NOV, DEC, IOB, UNS, HID, LLO, HID},	/* 223 */  
+#else  
 {"pread64",	5, DEC, NOV, DEC, IOB, UNS, LLO, HID},		/* 222 */
 {"pwrite64",	5, DEC, NOV, DEC, IOB, UNS, LLO, HID},		/* 223 */
+#endif
 {"creat64",	2, DEC, NOV, STG, OCT},				/* 224 */
 {"open64",	3, DEC, NOV, STG, OPN, OCT},			/* 225 */
 {"rpcmod",	3, DEC, NOV, DEC, HEX},				/* 226 */

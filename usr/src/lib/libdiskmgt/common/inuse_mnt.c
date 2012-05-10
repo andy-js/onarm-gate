@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -89,11 +92,13 @@ inuse_mnt(char *slice, nvlist_t *attrs, int *errp)
 	    /* load the mntpnt cache */
 	    *errp = load_mnttab(B_FALSE);
 
+#ifndef __arm
 	    if (*errp == 0) {
 		/* start a thread to monitor the mnttab */
 		*errp = thr_create(NULL, NULL, (void *(*)(void *))watch_mnttab,
 		    NULL, THR_NEW_LWP | THR_DAEMON, &mnttab_thread);
 	    }
+#endif	/* !__arm */
 
 	    if (*errp == 0) {
 		initialized = 1;

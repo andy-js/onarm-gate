@@ -26,6 +26,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -70,7 +75,7 @@ ifl_verify(Ehdr * ehdr, Ofl_desc * ofl, Rej_desc * rej)
 		rej->rej_info = (uint_t)ehdr->e_version;
 		return (0);
 	}
-	return (1);
+	return (ld_mach_ifl_verify(ehdr, ofl, rej));
 }
 
 /*
@@ -2157,9 +2162,15 @@ ld_process_open(const char *opath, const char *ofile, int *fd, Ofl_desc *ofl,
  * Combine the directory and filename, check the resultant path size, and try
  * opening the pathname.
  */
+#ifdef	CROSS_BUILD
+static Ifl_desc *
+real_process_req_lib(Sdf_desc *sdf, const char *dir, const char *file,
+    Ofl_desc * ofl, Rej_desc * rej)
+#else	/* !CROSS_BUILD */
 static Ifl_desc *
 process_req_lib(Sdf_desc *sdf, const char *dir, const char *file,
     Ofl_desc * ofl, Rej_desc * rej)
+#endif	/* CROSS_BUILD */
 {
 	size_t		dlen, plen;
 	int		fd;
@@ -2207,6 +2218,62 @@ process_req_lib(Sdf_desc *sdf, const char *dir, const char *file,
 		return (ifl);
 	}
 }
+
+#ifdef	CROSS_BUILD
+
+/*
+ * Cross build specific process_req_lib().
+ * If the given path is an absolute path to a file, try to open the given file
+ * with considering root directory is sysroot_path.
+ */
+static Ifl_desc *
+process_req_lib(Sdf_desc *sdf, const char *dir, const char *file,
+    Ofl_desc * ofl, Rej_desc * rej)
+{
+	Ifl_desc	*ifl;
+	char		sdir[PATH_MAX];
+
+	/*
+	 * Do normal handling if:
+	 * - sysroot path is not valid.
+	 * - dir is not an absolute path.
+	 * - user don't want to use sysroot.
+	 * - dir is a sysroot-relative path.
+	 */
+	if (sysroot_pathlen == 0 || *dir != '/' ||
+	    sysroot_order == SRORDER_NONE ||
+	    (strncmp(dir, sysroot_path, sysroot_pathlen) == 0 &&
+	     (*(dir + sysroot_pathlen) == '/' ||
+	      *(dir + sysroot_pathlen) == '\0'))) {
+		return (real_process_req_lib(sdf, dir, file, ofl, rej));
+	}
+
+	/*
+	 * Construct sysroot-relative directory path.
+	 * We don't need to check whether directory path is too long because
+	 * real_process_req_lib() will do.
+	 */
+	(void)snprintf(sdir, sizeof(sdir), "%s%s", sysroot_path, dir);
+
+	if (sysroot_order == SRORDER_FIRST) {
+		/* Try sysroot first. */
+		ifl = real_process_req_lib(sdf, sdir, file, ofl, rej);
+		if (ifl == 0) {
+			ifl = real_process_req_lib(sdf, dir, file, ofl, rej);
+		}
+	}
+	else {
+		/* Try the given path first. */
+		ifl = real_process_req_lib(sdf, dir, file, ofl, rej);
+		if (ifl == 0) {
+			ifl = real_process_req_lib(sdf, sdir, file, ofl, rej);
+		}
+	}
+
+	return (ifl);
+}
+
+#endif	/* CROSS_BUILD */
 
 /*
  * Finish any library processing.  Walk the list of so's that have been listed

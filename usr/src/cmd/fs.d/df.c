@@ -27,6 +27,9 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -538,6 +541,9 @@ mtab_read_file(void)
 	FILE		*fp;
 	struct extmnttab	mtab;
 	int		status;
+#ifdef MNTFS_DISABLE
+	struct mnttab	gmtab;
+#endif	/* MNTFS_DISABLE */
 
 	fp = xfopen(mtab_file);
 
@@ -547,9 +553,28 @@ mtab_read_file(void)
 	mount_table = xmalloc(
 	    mount_table_allocated_entries * sizeof (struct mtab_entry));
 
+#ifndef MNTFS_DISABLE
 	while ((status = getextmntent(fp, &mtab, sizeof (struct extmnttab)))
 	    == 0) {
+#else
+	while ((status = getmntent(fp, &gmtab)) == 0) {
+#endif	/* MNTFS_DISABLE */
 		struct mtab_entry *mtep;
+#ifdef MNTFS_DISABLE
+		struct stat64 msb;
+		
+		if (stat64(gmtab.mnt_mountp, &msb) == -1) {
+			errmsg(ERR_PERROR, "%s: ", gmtab.mnt_mountp);
+			exit(1);
+		}
+		mtab.mnt_special = gmtab.mnt_special;
+		mtab.mnt_mountp = gmtab.mnt_mountp;
+		mtab.mnt_fstype = gmtab.mnt_fstype;
+		mtab.mnt_mntopts = gmtab.mnt_mntopts;
+		mtab.mnt_time = gmtab.mnt_time;
+		mtab.mnt_major = (uint_t) major(msb.st_dev);
+		mtab.mnt_minor = (uint_t) minor(msb.st_dev);
+#endif	/* MNTFS_DISABLE */
 
 		if (mount_table_entries == mount_table_allocated_entries) {
 			mount_table_allocated_entries += MOUNT_TABLE_ENTRIES;
@@ -1248,9 +1273,11 @@ adjust_total_blocks(struct df_request *dfrp, fsblkcnt64_t *total,
 
 		*slash = '\0';
 
-		zhp = _zfs_open(g_zfs, dataset, ZFS_TYPE_DATASET);
-		if (zhp == NULL)
-			break;
+		if ((zhp =
+		    _zfs_open(g_zfs, dataset, ZFS_TYPE_DATASET)) == NULL) {
+			free(dataset);
+			return;
+		}
 
 		/* true at first iteration of loop */
 		if (first) {

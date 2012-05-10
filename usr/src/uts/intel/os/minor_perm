@@ -117,6 +117,8 @@ smbios:smbios 0444 root sys
 smbsrv:* 0640 root sys
 zfs:* 0600 root sys
 zfs:zfs 0666 root sys
+czfs:* 0600 root sys
+czfs:czfs 0666 root sys
 scsi_vhci:* 0666 root sys
 kssl:* 0666 root sys
 lx_ptm:lx_ptmajor 0666 root sys

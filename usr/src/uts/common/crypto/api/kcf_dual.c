@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -716,7 +719,8 @@ retry:
 			if (error != CRYPTO_SUCCESS) {
 				/* Should this be an ASSERT() ? */
 
-				KCF_CONTEXT_REFRELE(encr_kcf_context);
+				if (encr_kcf_context != NULL)
+					KCF_CONTEXT_REFRELE(encr_kcf_context);
 			} else {
 				encr_kcf_context = (kcf_context_t *)
 				    ctx->cc_framework_private;

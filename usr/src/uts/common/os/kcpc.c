@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -404,7 +408,7 @@ kcpc_stop_hw(kcpc_ctx_t *ctx)
 	cp = cpu_get(ctx->kc_cpuid);
 	ASSERT(cp != NULL);
 
-	if (cp == CPU) {
+	if (cp == CPU_GLOBAL) {
 		pcbe_ops->pcbe_allstop();
 		atomic_or_uint(&ctx->kc_flags,
 		    KCPC_CTX_INVALID_STOPPED);
@@ -1057,7 +1061,7 @@ kcpc_idle_save(struct cpu *cp)
 	/*
 	 * The idle thread shouldn't be run anywhere else.
 	 */
-	ASSERT(CPU == cp);
+	ASSERT(CPU_GLOBAL == cp);
 
 	/*
 	 * We must hold the CPU's context lock to ensure the context isn't freed
@@ -1081,7 +1085,7 @@ kcpc_idle_restore(struct cpu *cp)
 	/*
 	 * The idle thread shouldn't be run anywhere else.
 	 */
-	ASSERT(CPU == cp);
+	ASSERT(CPU_GLOBAL == cp);
 
 	/*
 	 * We must hold the CPU's context lock to ensure the context isn't freed

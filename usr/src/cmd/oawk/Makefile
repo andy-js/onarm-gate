@@ -28,6 +28,10 @@
 # cmd/oawk/Makefile
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 include		../Makefile.cmd
 
 PROG =		oawk
@@ -107,8 +111,11 @@ $(NATIVEDIR) :
 $(NATIVEDIR)/%.o :	%.c
 		$(COMPILE.c) -o $@ $<
 
-$(ROOTLINK) :	$(ROOTPROG)
-		$(RM) $@; $(LN) $(ROOTPROG) $@
+$(INTEL_BLD)$(ROOTLINK) :	$(ROOTPROG)
+$(INTEL_BLD)		$(RM) $@; $(LN) $(ROOTPROG) $@
+
+$(SPARC_BLD)$(ROOTLINK) :	$(ROOTPROG)
+$(SPARC_BLD)		$(RM) $@; $(LN) $(ROOTPROG) $@
 
 clean:
 		$(RM) $(OBJS) $(CLEANFILES)

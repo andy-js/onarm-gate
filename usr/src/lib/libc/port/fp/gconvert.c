@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #pragma weak gconvert = _gconvert
@@ -137,7 +141,7 @@ gconvert(double number, int ndigits, int trailing, char *buf)
 
 #if defined(__sparc)
 	dm.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	dm.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -164,7 +168,7 @@ sgconvert(single *number, int ndigits, int trailing, char *buf)
 
 #if defined(__sparc)
 	dm.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	dm.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -181,6 +185,8 @@ sgconvert(single *number, int ndigits, int trailing, char *buf)
 	__k_gconvert(ndigits, &dr, trailing, buf);
 	return (buf);
 }
+
+#if defined(__sparc) || defined(__i386) || defined(__amd64)
 
 char *
 qgconvert(quadruple *number, int ndigits, int trailing, char *buf)
@@ -214,3 +220,15 @@ qgconvert(quadruple *number, int ndigits, int trailing, char *buf)
 	__k_gconvert(ndigits, &dr, trailing, buf);
 	return (buf);
 }
+
+#elif defined(__arm)
+
+char *
+qgconvert(quadruple *number, int ndigits, int trailing, char *buf)
+{
+	return (gconvert((double)*number, ndigits, trailing, buf));
+}
+
+#else
+#error Unknown architecture
+#endif

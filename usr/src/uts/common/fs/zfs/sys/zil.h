@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_SYS_ZIL_H
 #define	_SYS_ZIL_H
@@ -32,10 +35,13 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/dmu.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	KMEM_ZIL_LWB_CACHE		"zil_lwb_cache"
 
 /*
  * Intent log format:
@@ -54,7 +60,10 @@ extern "C" {
  * the log.  All fields are 64 bit to easily handle cross architectures.
  */
 typedef struct zil_header {
-	uint64_t zh_claim_txg;	/* txg in which log blocks were claimed */
+	txg_t zh_claim_txg;	/* txg in which log blocks were claimed */
+#ifdef ZFS_COMPACT
+	uint32_t zh_pad2;
+#endif	/* ZFS_COMPACT */
 	uint64_t zh_replay_seq;	/* highest replayed sequence number */
 	blkptr_t zh_log;	/* log chain */
 	uint64_t zh_claim_seq;	/* highest claimed sequence number */
@@ -137,6 +146,8 @@ typedef enum zil_create {
 #define	TX_MKDIR_ACL_ATTR	19	/* mkdir with ACL + attrs */
 #define	TX_MAX_TYPE		20	/* Max transaction type */
 
+#define	zfs_replay_create_attr	zfs_replay_create
+
 /*
  * The transactions for mkdir, symlink, remove, rmdir, link, and rename
  * may have the following bit set, indicating the original request
@@ -159,7 +170,10 @@ typedef enum zil_create {
 typedef struct {			/* common log record header */
 	uint64_t	lrc_txtype;	/* intent log transaction type */
 	uint64_t	lrc_reclen;	/* transaction record length */
-	uint64_t	lrc_txg;	/* dmu transaction group number */
+	txg_t		lrc_txg;	/* dmu transaction group number */
+#ifdef ZFS_COMPACT
+	uint32_t	lrc_pad;
+#endif	/* ZFS_COMPACT */
 	uint64_t	lrc_seq;	/* see comment above */
 } lr_t;
 
@@ -182,8 +196,8 @@ typedef struct {
  */
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_doid;	/* object id of directory */
-	uint64_t	lr_foid;	/* object id of created file object */
+	objid_t		lr_doid;	/* object id of directory */
+	objid_t		lr_foid;	/* object id of created file object */
 	uint64_t	lr_mode;	/* mode of object */
 	uint64_t	lr_uid;		/* uid of object */
 	uint64_t	lr_gid;		/* gid of object */
@@ -230,27 +244,33 @@ typedef struct {
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_doid;	/* obj id of directory */
+	objid_t		lr_doid;	/* obj id of directory */
+#ifdef ZFS_COMPACT
+	uint32_t	lr_pad;
+#endif	/* ZFS_COMPACT */
 	/* name of object to remove follows this */
 } lr_remove_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_doid;	/* obj id of directory */
-	uint64_t	lr_link_obj;	/* obj id of link */
+	objid_t		lr_doid;	/* obj id of directory */
+	objid_t		lr_link_obj;	/* obj id of link */
 	/* name of object to link follows this */
 } lr_link_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_sdoid;	/* obj id of source directory */
-	uint64_t	lr_tdoid;	/* obj id of target directory */
+	objid_t		lr_sdoid;	/* obj id of source directory */
+	objid_t		lr_tdoid;	/* obj id of target directory */
 	/* 2 strings: names of source and destination follow this */
 } lr_rename_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_foid;	/* file object to write */
+	objid_t		lr_foid;	/* file object to write */
+#ifdef ZFS_COMPACT
+	uint32_t	lr_pad;
+#endif	/* ZFS_COMPACT */
 	uint64_t	lr_offset;	/* offset to write to */
 	uint64_t	lr_length;	/* user data length to write */
 	uint64_t	lr_blkoff;	/* offset represented by lr_blkptr */
@@ -260,14 +280,20 @@ typedef struct {
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_foid;	/* object id of file to truncate */
+	objid_t		lr_foid;	/* object id of file to truncate */
+#ifdef ZFS_COMPACT
+	uint32_t	lr_pad;
+#endif	/* ZFS_COMPACT */
 	uint64_t	lr_offset;	/* offset to truncate from */
 	uint64_t	lr_length;	/* length to truncate */
 } lr_truncate_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_foid;	/* file object to change attributes */
+	objid_t		lr_foid;	/* file object to change attributes */
+#ifdef ZFS_COMPACT
+	uint32_t	lr_pad;
+#endif	/* ZFS_COMPACT */
 	uint64_t	lr_mask;	/* mask of attributes to set */
 	uint64_t	lr_mode;	/* mode to set */
 	uint64_t	lr_uid;		/* uid to set */
@@ -278,16 +304,17 @@ typedef struct {
 	/* optional attribute lr_attr_t may be here */
 } lr_setattr_t;
 
+#ifndef ZFS_COMPACT
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_foid;	/* obj id of file */
+	objid_t		lr_foid;	/* obj id of file */
 	uint64_t	lr_aclcnt;	/* number of acl entries */
 	/* lr_aclcnt number of ace_t entries follow this */
 } lr_acl_v0_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
-	uint64_t	lr_foid;	/* obj id of file */
+	objid_t		lr_foid;	/* obj id of file */
 	uint64_t	lr_aclcnt;	/* number of ACEs in ACL */
 	uint64_t	lr_domcnt;	/* number of unique domains */
 	uint64_t	lr_fuidcnt;	/* number of real fuids */
@@ -295,6 +322,7 @@ typedef struct {
 	uint64_t	lr_acl_flags;	/* ACL flags */
 	/* lr_acl_bytes number of variable sized ace's follows */
 } lr_acl_t;
+#endif	/* ZFS_COMPACT */
 
 /*
  * ZIL structure definitions, interface function prototype and globals.
@@ -333,14 +361,14 @@ typedef struct {
 
 
 typedef void zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,
-    uint64_t txg);
+    txg_t txg);
 typedef void zil_parse_lr_func_t(zilog_t *zilog, lr_t *lr, void *arg,
-    uint64_t txg);
+    txg_t txg);
 typedef int zil_replay_func_t();
 typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf, zio_t *zio);
 
 extern uint64_t	zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
-    zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg);
+    zil_parse_lr_func_t *parse_lr_func, void *arg, txg_t txg);
 
 extern void	zil_init(void);
 extern void	zil_fini(void);
@@ -351,15 +379,15 @@ extern void	zil_free(zilog_t *zilog);
 extern zilog_t	*zil_open(objset_t *os, zil_get_data_t *get_data);
 extern void	zil_close(zilog_t *zilog);
 
-extern void	zil_replay(objset_t *os, void *arg, uint64_t *txgp,
+extern void	zil_replay(objset_t *os, void *arg, txg_t *txgp,
     zil_replay_func_t *replay_func[TX_MAX_TYPE]);
-extern void	zil_destroy(zilog_t *zilog, boolean_t keep_first);
+extern int	zil_destroy(zilog_t *zilog, boolean_t keep_first);
 extern void	zil_rollback_destroy(zilog_t *zilog, dmu_tx_t *tx);
 
 extern itx_t	*zil_itx_create(uint64_t txtype, size_t lrsize);
 extern uint64_t zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
-extern void	zil_commit(zilog_t *zilog, uint64_t seq, uint64_t oid);
+extern int	zil_commit(zilog_t *zilog, uint64_t seq, objid_t oid);
 
 extern int	zil_claim(char *osname, void *txarg);
 extern void	zil_sync(zilog_t *zilog, dmu_tx_t *tx);

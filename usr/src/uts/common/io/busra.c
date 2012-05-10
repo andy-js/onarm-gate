@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #if defined(DEBUG)
@@ -148,7 +152,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int	ret;
 
@@ -160,8 +164,9 @@ _init()
 	return (ret);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int	ret;
 
@@ -181,9 +186,10 @@ _fini()
 
 	return (ret);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 
 {
 	return (mod_info(&modlinkage, modinfop));

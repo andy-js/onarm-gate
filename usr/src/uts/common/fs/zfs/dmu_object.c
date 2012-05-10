@@ -23,19 +23,24 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
+#include <zfs_types.h>
 
-uint64_t
+objid_t
 dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	objset_impl_t *osi = os->os;
-	uint64_t object;
+	objid_t object;
 	uint64_t L2_dnode_count = DNODES_PER_BLOCK <<
 	    (osi->os_meta_dnode->dn_indblkshift - SPA_BLKPTRSHIFT);
 	dnode_t *dn = NULL;
@@ -86,7 +91,7 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 }
 
 int
-dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
+dmu_object_claim(objset_t *os, objid_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	dnode_t *dn;
@@ -106,7 +111,7 @@ dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
 }
 
 int
-dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
+dmu_object_reclaim(objset_t *os, objid_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	dnode_t *dn;
@@ -126,7 +131,7 @@ dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
 }
 
 int
-dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
+dmu_object_free(objset_t *os, objid_t object, dmu_tx_t *tx)
 {
 	dnode_t *dn;
 	int err;
@@ -146,7 +151,7 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 }
 
 int
-dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
+dmu_object_next(objset_t *os, objid_t *objectp, boolean_t hole, txg_t txg)
 {
 	uint64_t offset = (*objectp + 1) << DNODE_SHIFT;
 	int error;

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -33,6 +37,7 @@
 #include <sys/metaslab_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
+#include <zfs_types.h>
 
 uint64_t metaslab_aliquot = 512ULL << 10;
 uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
@@ -288,7 +293,7 @@ static space_map_ops_t metaslab_ff_ops = {
  */
 metaslab_t *
 metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
-	uint64_t start, uint64_t size, uint64_t txg)
+	uint64_t start, uint64_t size, txg_t txg)
 {
 	vdev_t *vd = mg->mg_vd;
 	metaslab_t *msp;
@@ -456,7 +461,7 @@ metaslab_passivate(metaslab_t *msp, uint64_t size)
  * Write a metaslab to disk in the context of the specified transaction group.
  */
 void
-metaslab_sync(metaslab_t *msp, uint64_t txg)
+metaslab_sync(metaslab_t *msp, txg_t txg)
 {
 	vdev_t *vd = msp->ms_group->mg_vd;
 	spa_t *spa = vd->vdev_spa;
@@ -490,9 +495,9 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		    DMU_OT_SPACE_MAP, 1 << SPACE_MAP_BLOCKSHIFT,
 		    DMU_OT_SPACE_MAP_HEADER, sizeof (*smo), tx);
 		ASSERT(smo->smo_object != 0);
-		dmu_write(mos, vd->vdev_ms_array, sizeof (uint64_t) *
+		dmu_write(mos, vd->vdev_ms_array, sizeof (objid_t) *
 		    (sm->sm_start >> vd->vdev_ms_shift),
-		    sizeof (uint64_t), &smo->smo_object, tx);
+		    sizeof (objid_t), &smo->smo_object, tx);
 		mutex_enter(&msp->ms_lock);
 	}
 
@@ -547,7 +552,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
  * all of the metaslab's free space as usable.
  */
 void
-metaslab_sync_done(metaslab_t *msp, uint64_t txg)
+metaslab_sync_done(metaslab_t *msp, txg_t txg)
 {
 	space_map_obj_t *smo = &msp->ms_smo;
 	space_map_obj_t *smosync = &msp->ms_smo_syncing;
@@ -627,7 +632,7 @@ metaslab_distance(metaslab_t *msp, dva_t *dva)
 }
 
 static uint64_t
-metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
+metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, txg_t txg,
     uint64_t min_distance, dva_t *dva, int d)
 {
 	metaslab_t *msp = NULL;
@@ -716,7 +721,7 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
  */
 static int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
-    dva_t *dva, int d, dva_t *hintdva, uint64_t txg, boolean_t hintdva_avoid)
+    dva_t *dva, int d, dva_t *hintdva, txg_t txg, boolean_t hintdva_avoid)
 {
 	metaslab_group_t *mg, *rotor;
 	vdev_t *vd;
@@ -870,7 +875,7 @@ next:
  * transaction group.
  */
 static void
-metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t txg, boolean_t now)
+metaslab_free_dva(spa_t *spa, const dva_t *dva, txg_t txg, boolean_t now)
 {
 	uint64_t vdev = DVA_GET_VDEV(dva);
 	uint64_t offset = DVA_GET_OFFSET(dva);
@@ -950,7 +955,7 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t txg, boolean_t now)
  * group didn't commit yet.
  */
 static int
-metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
+metaslab_claim_dva(spa_t *spa, const dva_t *dva, txg_t txg)
 {
 	uint64_t vdev = DVA_GET_VDEV(dva);
 	uint64_t offset = DVA_GET_OFFSET(dva);
@@ -991,7 +996,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 int
 metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
-    int ndvas, uint64_t txg, blkptr_t *hintbp, boolean_t hintbp_avoid)
+    int ndvas, txg_t txg, blkptr_t *hintbp, boolean_t hintbp_avoid)
 {
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = hintbp->blk_dva;
@@ -1023,7 +1028,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 }
 
 void
-metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
+metaslab_free(spa_t *spa, const blkptr_t *bp, txg_t txg, boolean_t now)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);
@@ -1036,7 +1041,7 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 }
 
 int
-metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
+metaslab_claim(spa_t *spa, const blkptr_t *bp, txg_t txg)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <assert.h>
@@ -48,8 +52,10 @@
 #include <sys/stat.h>
 
 #include <libzfs.h>
+#include <inttypes.h>
 
-#include "zpool_util.h"
+#include <zpool_util.h>
+#include <zfs_types.h>
 #include "zfs_comutil.h"
 
 static int zpool_do_create(int, char **);
@@ -184,7 +190,12 @@ get_usage(zpool_help_t idx) {
 		return (gettext("\tclear <pool> [device]\n"));
 	case HELP_CREATE:
 		return (gettext("\tcreate [-fn] [-o property=value] ... \n"
-		    "\t    [-m mountpoint] [-R root] <pool> <vdev> ...\n"));
+#ifndef ZFS_COMPACT
+		    "\t    [-m mountpoint]\n"
+#else
+		    "\t    [-g guid1:guid2] [-m mountpoint]\n"
+#endif	/* ZFS_COMPACT */
+		    "\t    [-R root] <pool> <vdev> ...\n"));
 	case HELP_DESTROY:
 		return (gettext("\tdestroy [-f] <pool>\n"));
 	case HELP_DETACH:
@@ -271,7 +282,8 @@ usage(boolean_t requested)
 	if (current_command == NULL) {
 		int i;
 
-		(void) fprintf(fp, gettext("usage: zpool command args ...\n"));
+		(void) fprintf(fp, gettext("usage: " ZPOOL_CMD_NAME
+		    " command args ...\n"));
 		(void) fprintf(fp,
 		    gettext("where 'command' is one of the following:\n\n"));
 
@@ -535,11 +547,13 @@ zpool_do_remove(int argc, char **argv)
 
 /*
  * zpool create [-fn] [-o property=value] ... [-R root] [-m mountpoint]
- *		<pool> <dev> ...
+ *		[-g guid1:guid2] <pool> <dev> ...
  *
  *	-f	Force creation, even if devices appear in use
  *	-n	Do not create the pool, but display the resulting layout if it
  *		were to be created.
+ *	-g	Available to set the first GUID and the second GUID.
+ *		(only ZFS_COMPACT)
  *      -R	Create a pool under an alternate root
  *      -m	Set default mountpoint for the root dataset.  By default it's
  *      	'/<pool>'
@@ -561,11 +575,16 @@ zpool_do_create(int argc, char **argv)
 	int ret = 1;
 	char *altroot = NULL;
 	char *mountpoint = NULL;
+	nvlist_t **child;
+	uint_t children;
 	nvlist_t *props = NULL;
 	char *propval;
+	boolean_t setguid = B_FALSE;
+	char *zfs_guid;
+	uint64_t guid1, guid2;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":fnR:m:o:")) != -1) {
+	while ((c = getopt(argc, argv, ":fnR:m:o:g:")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -605,6 +624,15 @@ zpool_do_create(int argc, char **argv)
 			(void) fprintf(stderr, gettext("missing argument for "
 			    "'%c' option\n"), optopt);
 			goto badusage;
+		case 'g':
+#ifdef ZFS_COMPACT
+			setguid = B_TRUE;
+			zfs_guid = optarg;
+			if (zfs_guid_str_to_uint64(zfs_guid, &guid1, &guid2)
+			    != 0)
+				usage(B_FALSE);
+			break;
+#endif	/* ZFS_COMPACT */
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -634,7 +662,7 @@ zpool_do_create(int argc, char **argv)
 	if (strchr(poolname, '/') != NULL) {
 		(void) fprintf(stderr, gettext("cannot create '%s': invalid "
 		    "character '/' in pool name\n"), poolname);
-		(void) fprintf(stderr, gettext("use 'zfs create' to "
+		(void) fprintf(stderr, gettext("use '" ZFS_MODULE " create' to "
 		    "create a dataset\n"));
 		goto errout;
 	}
@@ -645,7 +673,10 @@ zpool_do_create(int argc, char **argv)
 	if (nvroot == NULL)
 		return (1);
 
+#ifdef ZFS_COMPACT
 	/* make_root_vdev() allows 0 toplevel children if there are spares */
+	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0);
 	if (!zfs_allocatable_devs(nvroot)) {
 		(void) fprintf(stderr, gettext("invalid vdev "
 		    "specification: at least one toplevel vdev must be "
@@ -653,6 +684,18 @@ zpool_do_create(int argc, char **argv)
 		goto errout;
 	}
 
+	if (setguid) {
+		nvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID, guid1);
+		nvlist_add_uint64(child[0], ZPOOL_CONFIG_GUID, guid2);
+#ifdef SET_DEFAULT_GUID
+	} else {
+		nvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID,
+				  CZFS_DEFAULT_GUID1);
+		nvlist_add_uint64(child[0], ZPOOL_CONFIG_GUID,
+				  CZFS_DEFAULT_GUID2);
+#endif /* SET_DEFAULT_GUID */
+	}
+#endif	/* ZFS_COMPACT */
 
 	if (altroot != NULL && altroot[0] != '/') {
 		(void) fprintf(stderr, gettext("invalid alternate root '%s': "
@@ -814,8 +857,8 @@ zpool_do_destroy(int argc, char **argv)
 		 * direct the user to use 'zfs destroy' instead.
 		 */
 		if (strchr(pool, '/') != NULL)
-			(void) fprintf(stderr, gettext("use 'zfs destroy' to "
-			    "destroy a dataset\n"));
+			(void) fprintf(stderr, gettext("use '" ZFS_MODULE
+			    " destroy' to destroy a dataset\n"));
 		return (1);
 	}
 
@@ -1134,7 +1177,8 @@ show_import(nvlist_t *config)
 			(void) printf(gettext("action: The pool can be "
 			    "imported using its name or numeric identifier, "
 			    "though\n\tsome features will not be available "
-			    "without an explicit 'zpool upgrade'.\n"));
+			    "without an explicit '" ZPOOL_CMD_NAME
+			    " upgrade'.\n"));
 		else if (reason == ZPOOL_STATUS_HOSTID_MISMATCH)
 			(void) printf(gettext("action: The pool can be "
 			    "imported using its name or numeric "
@@ -1231,7 +1275,8 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	    ZPOOL_CONFIG_VERSION, &version) == 0);
 	if (version > SPA_VERSION) {
 		(void) fprintf(stderr, gettext("cannot import '%s': pool "
-		    "is formatted using a newer ZFS version\n"), name);
+		    "is formatted using a newer " ZFS_MODNAME " version\n"),
+		    name);
 		return (1);
 	} else if (state != POOL_STATE_EXPORTED && !force) {
 		uint64_t hostid;
@@ -1319,7 +1364,7 @@ zpool_do_import(int argc, char **argv)
 	char **searchdirs = NULL;
 	int nsearch = 0;
 	int c;
-	int err;
+	int err = B_TRUE;
 	nvlist_t *pools = NULL;
 	boolean_t do_all = B_FALSE;
 	boolean_t do_destroyed = B_FALSE;
@@ -2388,13 +2433,14 @@ zpool_do_online(int argc, char **argv)
 				    "onlined, but remains in faulted state\n"),
 				    argv[i]);
 				if (newstate == VDEV_STATE_FAULTED)
-					(void) printf(gettext("use 'zpool "
-					    "clear' to restore a faulted "
-					    "device\n"));
+					(void) printf(gettext("use '"
+					    ZPOOL_CMD_NAME " clear' to restore "
+					    "a faulted device\n"));
 				else
-					(void) printf(gettext("use 'zpool "
-					    "replace' to replace devices "
-					    "that are no longer present\n"));
+					(void) printf(gettext("use '"
+					    ZPOOL_CMD_NAME " replace' to "
+					    "replace devices that are no "
+					    "longer present\n"));
 			}
 		} else {
 			ret = 1;
@@ -2827,12 +2873,12 @@ print_error_log(zpool_handle_t *zhp)
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(nverrlist, elem)) != NULL) {
 		nvlist_t *nv;
-		uint64_t dsobj, obj;
+		objid_t dsobj, obj;
 
 		verify(nvpair_value_nvlist(elem, &nv) == 0);
-		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_DATASET,
+		verify(nvlist_lookup_objid(nv, ZPOOL_ERR_DATASET,
 		    &dsobj) == 0);
-		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT,
+		verify(nvlist_lookup_objid(nv, ZPOOL_ERR_OBJECT,
 		    &obj) == 0);
 		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
 		(void) printf("%7s %s\n", "", pathname);
@@ -2946,7 +2992,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "be opened.  Sufficient replicas exist for\n\tthe pool to "
 		    "continue functioning in a degraded state.\n"));
 		(void) printf(gettext("action: Attach the missing device and "
-		    "online it using 'zpool online'.\n"));
+		    "online it using '" ZPOOL_CMD_NAME " online'.\n"));
 		break;
 
 	case ZPOOL_STATUS_MISSING_DEV_NR:
@@ -2954,7 +3000,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "be opened.  There are insufficient\n\treplicas for the "
 		    "pool to continue functioning.\n"));
 		(void) printf(gettext("action: Attach the missing device and "
-		    "online it using 'zpool online'.\n"));
+		    "online it using '" ZPOOL_CMD_NAME " online'.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_LABEL_R:
@@ -2963,7 +3009,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "Sufficient replicas exist for the pool to continue\n\t"
 		    "functioning in a degraded state.\n"));
 		(void) printf(gettext("action: Replace the device using "
-		    "'zpool replace'.\n"));
+		    "'" ZPOOL_CMD_NAME " replace'.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_LABEL_NR:
@@ -2982,8 +3028,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "unaffected.\n"));
 		(void) printf(gettext("action: Determine if the device needs "
 		    "to be replaced, and clear the errors\n\tusing "
-		    "'zpool clear' or replace the device with 'zpool "
-		    "replace'.\n"));
+		    "'" ZPOOL_CMD_NAME " clear' or replace the device with "
+		    "'" ZPOOL_CMD_NAME " replace'.\n"));
 		break;
 
 	case ZPOOL_STATUS_OFFLINE_DEV:
@@ -2992,8 +3038,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "replicas exist for the pool to continue functioning in "
 		    "a\n\tdegraded state.\n"));
 		(void) printf(gettext("action: Online the device using "
-		    "'zpool online' or replace the device with\n\t'zpool "
-		    "replace'.\n"));
+		    "'" ZPOOL_CMD_NAME " online' or replace the device "
+		    "with\n\t'" ZPOOL_CMD_NAME " replace'.\n"));
 		break;
 
 	case ZPOOL_STATUS_RESILVERING:
@@ -3024,9 +3070,10 @@ status_callback(zpool_handle_t *zhp, void *data)
 		(void) printf(gettext("status: The pool is formatted using an "
 		    "older on-disk format.  The pool can\n\tstill be used, but "
 		    "some features are unavailable.\n"));
-		(void) printf(gettext("action: Upgrade the pool using 'zpool "
-		    "upgrade'.  Once this is done, the\n\tpool will no longer "
-		    "be accessible on older software versions.\n"));
+		(void) printf(gettext("action: Upgrade the pool using "
+		    "'" ZPOOL_CMD_NAME " upgrade'.  Once this is done, the\n\t"
+		    "pool will no longer be accessible on older software "
+		    "versions.\n"));
 		break;
 
 	case ZPOOL_STATUS_VERSION_NEWER:
@@ -3044,7 +3091,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "replicas exist for the pool to continue functioning "
 		    "in a\n\tdegraded state.\n"));
 		(void) printf(gettext("action: Replace the faulted device, "
-		    "or use 'zpool clear' to mark the device\n\trepaired.\n"));
+		    "or use '" ZPOOL_CMD_NAME " clear' to mark the device\n\t"
+		    "repaired.\n"));
 		break;
 
 	case ZPOOL_STATUS_FAULTED_DEV_NR:
@@ -3054,8 +3102,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "functioning.\n"));
 		(void) printf(gettext("action: Destroy and re-create the pool "
 		    "from a backup source.  Manually marking the device\n"
-		    "\trepaired using 'zpool clear' may allow some data "
-		    "to be recovered.\n"));
+		    "\trepaired using '" ZPOOL_CMD_NAME " clear' may allow "
+		    "some data to be recovered.\n"));
 		break;
 
 	default:
@@ -3367,7 +3415,7 @@ zpool_do_upgrade(int argc, char **argv)
 	}
 
 	(void) printf(gettext("This system is currently running "
-	    "ZFS pool version %llu.\n\n"), SPA_VERSION);
+	    ZFS_MODNAME " pool version %llu.\n\n"), SPA_VERSION);
 	cb.cb_first = B_TRUE;
 	if (showversions) {
 		(void) printf(gettext("The following versions are "
@@ -3375,7 +3423,7 @@ zpool_do_upgrade(int argc, char **argv)
 		(void) printf(gettext("VER  DESCRIPTION\n"));
 		(void) printf("---  -----------------------------------------"
 		    "---------------\n");
-		(void) printf(gettext(" 1   Initial ZFS version\n"));
+		(void) printf(gettext(" 1   Initial " ZFS_MODNAME" version\n"));
 		(void) printf(gettext(" 2   Ditto blocks "
 		    "(replicated metadata)\n"));
 		(void) printf(gettext(" 3   Hot spares and double parity "
@@ -3417,9 +3465,10 @@ zpool_do_upgrade(int argc, char **argv)
 				(void) printf(gettext("All pools are formatted "
 				    "using this version.\n"));
 			else if (!cb.cb_all)
-				(void) printf(gettext("Use 'zpool upgrade -v' "
-				    "for a list of available versions and "
-				    "their associated\nfeatures.\n"));
+				(void) printf(gettext("Use '" ZPOOL_CMD_NAME
+				    " upgrade -v' for a list of available "
+				    "versions and their associated\n"
+				    "features.\n"));
 		}
 	} else {
 		ret = for_each_pool(argc, argv, B_FALSE, NULL,
@@ -3497,7 +3546,7 @@ get_history_one(zpool_handle_t *zhp, void *data)
 	char *zonename;
 	char internalstr[MAXPATHLEN];
 	hist_cbdata_t *cb = (hist_cbdata_t *)data;
-	uint64_t txg;
+	txg_t txg;
 	uint64_t ievent;
 
 	cb->first = B_FALSE;
@@ -3523,7 +3572,7 @@ get_history_one(zpool_handle_t *zhp, void *data)
 			if (nvlist_lookup_uint64(records[i],
 			    ZPOOL_HIST_INT_EVENT, &ievent) != 0)
 				continue;
-			verify(nvlist_lookup_uint64(records[i],
+			verify(nvlist_lookup_txg(records[i],
 			    ZPOOL_HIST_TXG, &txg) == 0);
 			verify(nvlist_lookup_string(records[i],
 			    ZPOOL_HIST_INT_STR, &pathstr) == 0);
@@ -3531,7 +3580,7 @@ get_history_one(zpool_handle_t *zhp, void *data)
 				continue;
 			(void) snprintf(internalstr,
 			    sizeof (internalstr),
-			    "[internal %s txg:%lld] %s",
+			    "[internal %s txg:%" PRIuTXG "] %s",
 			    hist_event_table[ievent], txg,
 			    pathstr);
 			cmdstr = internalstr;
@@ -3783,7 +3832,7 @@ main(int argc, char **argv)
 
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, gettext("internal error: failed to "
-		    "initialize ZFS library\n"));
+		    "initialize " ZFS_MODNAME " library\n"));
 		return (1);
 	}
 
@@ -3807,7 +3856,7 @@ main(int argc, char **argv)
 	if (strcmp(cmdname, "-?") == 0)
 		usage(B_TRUE);
 
-	zpool_set_history_str("zpool", argc, argv, history_str);
+	zpool_set_history_str(ZPOOL_CMD_NAME, argc, argv, history_str);
 	verify(zpool_stage_history(g_zfs, history_str) == 0);
 
 	/*

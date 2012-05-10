@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef _SYS_INT_CONST_H
 #define	_SYS_INT_CONST_H
 
@@ -72,6 +76,9 @@ extern "C" {
  * standard requires a space between arguments, but the historical,
  * non-ANSI-C ``method'' of concatenation can't tolerate those spaces.
  */
+#ifdef	_ASM
+#define	__CONCAT__(A, B)	A	/* Ignore suffix */
+#else	/* !_ASM */
 #ifdef __STDC__
 /* CSTYLED */
 #define	__CONCAT__(A,B) A ## B
@@ -79,6 +86,7 @@ extern "C" {
 /* CSTYLED */
 #define	__CONCAT__(A,B) A/**/B
 #endif
+#endif	/* _ASM */
 
 #if defined(_CHAR_IS_SIGNED) || defined(__STDC__)
 #define	INT8_C(c)	(c)

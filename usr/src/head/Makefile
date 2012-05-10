@@ -22,7 +22,12 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
-# ident	"%Z%%M%	%I%	%E% SMI" 
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
+# ident	"%Z%%M%	%I%	%E% SMI"
 #
 # head/Makefile
 #
@@ -71,6 +76,7 @@ HDRS=   $($(MACH)_HDRS)  $(ATTRDB_HDRS) \
 	fatal.h		\
 	fcntl.h		\
 	float.h		\
+	floatingpoint.h	\
 	fmtmsg.h	\
 	fnmatch.h	\
 	ftw.h		\
@@ -100,6 +106,7 @@ HDRS=   $($(MACH)_HDRS)  $(ATTRDB_HDRS) \
 	locale.h	\
 	macros.h	\
 	malloc.h	\
+	math.h		\
 	mdmn_changelog.h	\
 	memory.h	\
 	meta.h		\
@@ -204,13 +211,16 @@ HDRS=   $($(MACH)_HDRS)  $(ATTRDB_HDRS) \
 	wordexp.h	\
 	xti.h		\
 	xti_inet.h	\
-	zone.h
+	zone.h		\
+	demangle.h
 
 ISOHDRS = \
 	ctype_c99.h	\
 	ctype_iso.h	\
 	limits_iso.h	\
 	locale_iso.h	\
+	math_c99.h	\
+	math_iso.h	\
 	setjmp_iso.h  	\
 	signal_iso.h	\
 	stdarg_c99.h	\

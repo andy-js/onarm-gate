@@ -23,6 +23,11 @@
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
+
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 #
 # include global definitions
 include ../Makefile.master
@@ -39,6 +44,8 @@ include ../Makefile.master
 sparc_ARCHITECTURES = sun4v sun4u sparc
 
 i386_ARCHITECTURES = i86pc i86xpv intel
+
+arm_ARCHITECTURES = $(ARM_PLATFORM) arm
 
 #
 # For i386 all architectures can be compiled in parallel.
@@ -58,6 +65,12 @@ sparc_PREREQ = sun4
 sparc_PARALLEL = $(sparc_ARCHITECTURES)
 
 #
+# For ARM all architectures can NOT be compiled in parallel.
+#
+arm_PREREQ	=
+arm_PARALLEL	=
+
+#
 # Platforms defined in $(MACH)_PARALLEL are built in parallel. DUMMY is placed
 # at the end in case $(MACH)_PARALLEL is empty to prevent everything going in
 # parallel.
@@ -69,7 +82,6 @@ sparc_PARALLEL = $(sparc_ARCHITECTURES)
 # '.prereq' suffix to the $(MACH)_PREREQ.
 #
 PREREQ_TARGET = $($(MACH)_PREREQ:%=%.prereq)
-
 
 def		:=	TARGET= def
 all		:=	TARGET= all
@@ -189,14 +201,16 @@ ONC_PLUS:	$(ONC_FILES:%=%_onc_plus)
 # We need to manually prune usr/closed/uts/{i86xpv|sfmmu} since neither
 # of them exist.
 #
-SHARED_XRDIRS = $(sparc_ARCHITECTURES) $(i386_ARCHITECTURES) sun4 sfmmu	\
-	sun common
+SHARED_XRDIRS = $(sparc_ARCHITECTURES) $(i386_ARCHITECTURES) \
+	$(arm_ARCHITECTURES) sun4 sfmmu	sun common
 CLOSED_XRDIRS = $(SHARED_XRDIRS:%=% ../../closed/uts/%)
 XRDIRS = $(SHARED_XRDIRS)
 CLOSED_XRDIRS_XEN = $(CLOSED_XRDIRS:../../closed/uts/i86xpv=)
 $(CLOSED_BUILD)XRDIRS = $(CLOSED_XRDIRS_XEN:../../closed/uts/sfmmu=)
 
 XRINCDIRS = $(XRDIRS)
+
+$(USE_UTSTUNE)include $(SRC)/uts/Makefile.tune
 
 cscope.out tags: FRC
 	$(XREF) -x $@

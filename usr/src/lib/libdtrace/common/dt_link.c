@@ -228,6 +228,11 @@ prepare_elf32(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf32_t *dep)
 			    dofr[j].dofr_offset + 4;
 			rel->r_info = ELF32_R_INFO(count + dep->de_global,
 			    R_SPARC_32);
+#elif defined(__arm)
+			rel->r_offset = s->dofs_offset +
+			    dofr[j].dofr_offset;
+			rel->r_info = ELF32_R_INFO(count + dep->de_global,
+			    R_ARM_ABS32);
 #else
 #error unknown ISA
 #endif
@@ -400,6 +405,11 @@ prepare_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, dof_elf64_t *dep)
 			    dofr[j].dofr_offset;
 			rel->r_info = ELF64_R_INFO(count + dep->de_global,
 			    R_SPARC_64);
+#elif defined(__arm)
+			rel->r_offset = s->dofs_offset +
+			    dofr[j].dofr_offset;
+			rel->r_info = ELF64_R_INFO(count + dep->de_global,
+			    R_ARM_NONE);
 #else
 #error unknown ISA
 #endif
@@ -490,6 +500,8 @@ dump_elf32(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	elf_file.ehdr.e_machine = EM_SPARC;
 #elif defined(__i386) || defined(__amd64)
 	elf_file.ehdr.e_machine = EM_386;
+#elif defined(__arm)
+	elf_file.ehdr.e_machine = EM_ARM;
 #endif
 	elf_file.ehdr.e_version = EV_CURRENT;
 	elf_file.ehdr.e_shoff = sizeof (Elf32_Ehdr);
@@ -627,6 +639,8 @@ dump_elf64(dtrace_hdl_t *dtp, const dof_hdr_t *dof, int fd)
 	elf_file.ehdr.e_machine = EM_SPARCV9;
 #elif defined(__i386) || defined(__amd64)
 	elf_file.ehdr.e_machine = EM_AMD64;
+#elif defined(__arm)
+	elf_file.ehdr.e_machine = EM_ARM;
 #endif
 	elf_file.ehdr.e_version = EV_CURRENT;
 	elf_file.ehdr.e_shoff = sizeof (Elf64_Ehdr);
@@ -947,6 +961,65 @@ dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
 	return (0);
 }
 
+#elif defined(__arm)
+
+#define	DT_OP_MOV_R0_0	0xe3a00000	/* mov r0, #0 */
+#define	DT_OP_NOP	0xe1a00000	/* nop (mov r0, r0) */
+#define	DT_IS_OP_BL(ip)	(((ip) & 0xff000000) == 0xeb000000)	/* bl ... */
+
+/*ARGSUSED*/
+static int
+dt_modtext(dtrace_hdl_t *dtp, char *p, int isenabled, GElf_Rela *rela,
+    uint32_t *off)
+{
+	uint32_t *ip;
+
+	if ((rela->r_offset & (sizeof (uint32_t) - 1)) != 0)
+		return (-1);
+
+	/*LINTED*/
+	ip = (uint32_t *)(p + rela->r_offset);
+
+	/*
+	 * We only know about some specific relocation types.
+	 */
+	if (GELF_R_TYPE(rela->r_info) != R_ARM_PC24)
+		return (-1);
+
+	/*
+	 * We may have already processed this object file in an earlier linker
+	 * invocation. Check to see if the present instruction sequence matches
+	 * the one we would install.
+	 */
+	if (isenabled) {
+		if (ip[0] == DT_OP_MOV_R0_0)
+			return (0);
+	} else {
+		if (ip[0] == DT_OP_NOP) {
+			(*off) += sizeof (ip[0]);
+			return (0);
+		}
+	}
+
+	/*
+	 * We only expect bl instructions.
+	 */
+	if (!DT_IS_OP_BL(ip[0])) {
+		dt_dprintf("found %x instead of a call instruction at %llx\n",
+		     ip[0], (u_longlong_t)rela->r_offset);
+		return (-1);
+	}
+
+	if (isenabled) {
+		ip[0] = DT_OP_MOV_R0_0;
+	} else {
+		ip[0] = DT_OP_NOP;
+		(*off) += sizeof (ip[0]);
+	}
+
+	return (0);
+}
+
 #else
 #error unknown ISA
 #endif
@@ -1037,6 +1110,8 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		emachine1 = emachine2 = EM_SPARCV9;
 #elif defined(__i386) || defined(__amd64)
 		emachine1 = emachine2 = EM_AMD64;
+#elif defined(__arm)
+		emachine1 = emachine2 = EM_ARM;
 #endif
 		symsize = sizeof (Elf64_Sym);
 	} else {
@@ -1046,6 +1121,8 @@ process_obj(dtrace_hdl_t *dtp, const char *obj, int *eprobesp)
 		emachine2 = EM_SPARC32PLUS;
 #elif defined(__i386) || defined(__amd64)
 		emachine1 = emachine2 = EM_386;
+#elif defined(__arm)
+		emachine1 = emachine2 = EM_ARM;
 #endif
 		symsize = sizeof (Elf32_Sym);
 	}

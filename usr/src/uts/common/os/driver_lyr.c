@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -60,6 +64,7 @@
 #include <sys/errno.h>
 #include <sys/debug.h>
 #include <sys/modctl.h>
+#include <sys/modstatic.h>
 #include <sys/var.h>
 #include <vm/seg_vn.h>
 
@@ -1467,10 +1472,11 @@ ldi_ident_from_anon()
 
 	ASSERT(!servicing_interrupt());
 
-	lip = (ldi_ident_t)ident_alloc("genunix", NULL, DDI_DEV_T_NONE, -1);
+	lip = (ldi_ident_t)ident_alloc(LDI_ANON_MODNAME, NULL,
+				       DDI_DEV_T_NONE, -1);
 
 	LDI_ALLOCFREE((CE_WARN, "%s: li=0x%p, mod=%s",
-	    "ldi_ident_from_anon", (void *)lip, "genunix"));
+		       "ldi_ident_from_anon", (void *)lip, LDI_ANON_MODNAME));
 
 	return (lip);
 }

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -546,6 +550,11 @@ single_to_decimal(single *px, decimal_mode *pm, decimal_record *pd,
 
 	/* decide what to do based on the class of x */
 	if (kluge->f.msw.exponent == 0) {	/* 0 or subnormal */
+#if defined(__arm)
+		pd->fpclass = fp_zero;
+		*ps = 0;
+		return;
+#else
 		if (kluge->f.msw.significand == 0) {
 			pd->fpclass = fp_zero;
 			*ps = 0;
@@ -579,6 +588,7 @@ single_to_decimal(single *px, decimal_mode *pm, decimal_record *pd,
 			pd->fpclass = fp_subnormal;
 #endif
 		}
+#endif
 	} else if (kluge->f.msw.exponent == 0xff) {	/* inf or nan */
 		if (kluge->f.msw.significand == 0)
 			pd->fpclass = fp_infinity;
@@ -616,6 +626,11 @@ double_to_decimal(double *px, decimal_mode *pm, decimal_record *pd,
 
 	/* decide what to do based on the class of x */
 	if (kluge->f.msw.exponent == 0) {	/* 0 or subnormal */
+#if defined(__arm)
+		pd->fpclass = fp_zero;
+		*ps = 0;
+		return;
+#else
 		if (kluge->f.msw.significand == 0 &&
 		    kluge->f.significand2 == 0) {
 			pd->fpclass = fp_zero;
@@ -624,6 +639,7 @@ double_to_decimal(double *px, decimal_mode *pm, decimal_record *pd,
 		} else {
 			pd->fpclass = fp_subnormal;
 		}
+#endif
 	} else if (kluge->f.msw.exponent == 0x7ff) {	/* inf or nan */
 		if (kluge->f.msw.significand == 0 &&
 		    kluge->f.significand2 == 0)
@@ -655,6 +671,13 @@ extended_to_decimal(extended *px, decimal_mode *pm, decimal_record *pd,
 	extended_equivalence	*kluge;
 	_big_float		bf;
 	fp_exception_field_type	ef;
+
+#if defined(__arm)
+	if (sizeof (long double) == sizeof (double)) {
+		double_to_decimal((double *)px, pm, pd, ps);
+		return;
+	}
+#endif
 
 	kluge = (extended_equivalence *)px;
 	pd->sign = kluge->f.msw.sign;
@@ -711,6 +734,13 @@ quadruple_to_decimal(quadruple *px, decimal_mode *pm, decimal_record *pd,
 	quadruple_equivalence	*kluge;
 	_big_float		bf;
 	fp_exception_field_type	ef;
+
+#if defined(__arm)
+	if (sizeof (long double) == sizeof (double)) {
+		double_to_decimal((double *)px, pm, pd, ps);
+		return;
+	}
+#endif
 
 	kluge = (quadruple_equivalence *)px;
 	pd->sign = kluge->f.msw.sign;

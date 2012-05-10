@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -192,7 +197,7 @@ rd_event(Lm_list *lml, rd_event_e event, r_state_e state)
 	r_debug.rtd_rdebug.r_rdevent = RD_NONE;
 }
 
-#if	defined(__sparc) || defined(__x86)
+#if	defined(__sparc) || defined(__x86) || defined(__arm)
 /*
  * Stack Cleanup.
  *
@@ -1788,7 +1793,7 @@ ld_generic_env(const char *s1, size_t len, const char *s2, Word *lmflags,
 			select |= SEL_ACT_SPEC_2;
 			variable = ENV_FLG_TRACE_OBJS;
 
-#if	defined(__sparc) || defined(__x86)
+#if	defined(__sparc) || defined(__x86) || defined(__arm)
 			/*
 			 * The simplest way to "disable" this variable is to
 			 * truncate this string to "LD_'\0'". This string is
@@ -3519,11 +3524,19 @@ ___errno()
  * A non-null argument allows a function pointer array to be passed to us which
  * is used to re-initialize the linker libc table.
  */
+#if	!defined(__arm)
 void
 _ld_libc(void * ptr)
 {
 	get_lcinterface(_caller(caller(), CL_EXECDEF), (Lc_interface *)ptr);
 }
+#else	/* !defined(__arm) */
+void
+_ld_libcf(void * ptr, caddr_t callerpc)
+{
+	get_lcinterface(_caller(callerpc, CL_EXECDEF), (Lc_interface *)ptr);
+}
+#endif	/* !defined(__arm) */
 
 /*
  * Determine whether a symbol name should be demangled.

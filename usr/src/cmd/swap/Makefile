@@ -27,6 +27,10 @@
 #
 # cmd/swap/Makefile
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 PROG= swap
 
 include ../Makefile.cmd
@@ -54,8 +58,8 @@ $(ROOTSYMLINK):
 clean clobber lint:	$(SUBDIRS)
 
 install: $(SUBDIRS) $(ROOTSYMLINK)
-	-$(RM) $(ROOTUSRSBINPROG)
-	-$(LN) $(ISAEXEC) $(ROOTUSRSBINPROG)
+	-$(USE_ISAEXEC)$(RM) $(ROOTUSRSBINPROG)
+	-$(USE_ISAEXEC)$(LN) $(ISAEXEC) $(ROOTUSRSBINPROG)
 
 $(SUBDIRS):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)

@@ -31,6 +31,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -41,6 +45,10 @@
  *
  * vm/vm_dep.h provides for platform specific support.
  */
+
+#ifdef	__arm
+#define	_VM_CPU_DATA0_DECL		/* To avoid compilation error. */
+#endif	/* __arm */
 
 #include <sys/types.h>
 #include <sys/debug.h>
@@ -60,6 +68,7 @@
 #include <sys/callb.h>
 #include <sys/mem_cage.h>
 #include <sys/sdt.h>
+#include <sys/lpg_config.h>
 
 extern uint_t	vac_colors;
 
@@ -218,6 +227,16 @@ static kmutex_t	*ctr_mutex[NPC_MUTEX];
 
 #define	INVALID_COLOR 0xffffffff
 #define	INVALID_MASK  0xffffffff
+
+#ifdef	LPG_DISABLE
+
+/*
+ * Define wrapper macros here to eliminate unused code.
+ */
+#define	page_freelist_coalesce(mnode, szc, color, ceq_mask, mtype, pfnhi) \
+	(NULL)
+
+#endif	/* LPG_DISABLE */
 
 /*
  * Local functions prototypes.
@@ -807,15 +826,16 @@ page_ctr_add_internal(int mnode, int mtype, page_t *pp, int flags)
 	ASSERT(mtype == PP_2_MTYPE(pp));
 
 	ASSERT(pp->p_szc < mmu_page_sizes);
+	SZC_ASSERT(pp->p_szc);
 
-	PLCNT_INCR(pp, mnode, mtype, pp->p_szc, flags);
+	PLCNT_INCR(pp, mnode, mtype, SZC_EVAL(pp->p_szc), flags);
 
 	/* no counter update needed for largest page size */
-	if (pp->p_szc >= mmu_page_sizes - 1) {
+	if (SZC_EVAL(pp->p_szc) >= mmu_page_sizes - 1) {
 		return;
 	}
 
-	r = pp->p_szc + 1;
+	r = SZC_EVAL(pp->p_szc) + 1;
 	pfnum = pp->p_pagenum;
 	lckidx = PP_CTR_LOCK_INDX(pp);
 
@@ -867,15 +887,16 @@ page_ctr_sub_internal(int mnode, int mtype, page_t *pp, int flags)
 	ASSERT(mtype == PP_2_MTYPE(pp));
 
 	ASSERT(pp->p_szc < mmu_page_sizes);
+	SZC_ASSERT(pp->p_szc);
 
-	PLCNT_DECR(pp, mnode, mtype, pp->p_szc, flags);
+	PLCNT_DECR(pp, mnode, mtype, SZC_EVAL(pp->p_szc), flags);
 
 	/* no counter update needed for largest page size */
-	if (pp->p_szc >= mmu_page_sizes - 1) {
+	if (SZC_EVAL(pp->p_szc) >= mmu_page_sizes - 1) {
 		return;
 	}
 
-	r = pp->p_szc + 1;
+	r = SZC_EVAL(pp->p_szc) + 1;
 	pfnum = pp->p_pagenum;
 	lckidx = PP_CTR_LOCK_INDX(pp);
 
@@ -1252,9 +1273,7 @@ cleanup:
 	return (rc);
 }
 
-
-#ifdef DEBUG
-
+#if	defined(DEBUG) && !defined(LPG_DISABLE)
 /*
  * confirm pp is a large page corresponding to szc
  */
@@ -1299,7 +1318,7 @@ chk_lpg(page_t *pp, uchar_t szc)
 		pp = pp->p_next;
 	}
 }
-#endif /* DEBUG */
+#endif	/* defined(DEBUG) && !defined(LPG_DISABLE) */
 
 void
 page_freelist_lock(int mnode)
@@ -1520,6 +1539,8 @@ page_list_noreloc_startup(page_t *pp)
 }
 #endif
 
+#ifndef	PGRELOC_DISABLE
+
 void
 page_list_add_pages(page_t *pp, int flags)
 {
@@ -1531,6 +1552,7 @@ page_list_add_pages(page_t *pp, int flags)
 	/* default to freelist/head */
 	ASSERT((flags & (PG_CACHE_LIST | PG_LIST_TAIL)) == 0);
 
+	SZC_ASSERT(pp->p_szc);
 	CHK_LPG(pp, pp->p_szc);
 	VM_STAT_ADD(vmm_vmstats.pladd_free[pp->p_szc]);
 
@@ -1564,6 +1586,10 @@ page_list_add_pages(page_t *pp, int flags)
 	}
 }
 
+#endif	/* !PGRELOC_DISABLE */
+
+#ifndef	LPG_DISABLE
+
 /*
  * During boot, need to demote a large page to base
  * pagesize pages for seg_kmem for use in boot_alloc()
@@ -1584,6 +1610,9 @@ page_boot_demote(page_t *pp)
 	ASSERT(pp->p_szc == 0);
 }
 
+#endif	/* !LPG_DISABLE */
+
+
 /*
  * Take a particular page off of whatever freelist the page
  * is claimed to be on.
@@ -1601,6 +1630,7 @@ page_list_sub(page_t *pp, int flags)
 
 	ASSERT(PAGE_EXCL(pp));
 	ASSERT(PP_ISFREE(pp));
+	SZC_ASSERT(pp->p_szc);
 
 	/*
 	 * The p_szc field can only be changed by page_promote()
@@ -1627,7 +1657,7 @@ try_again:
 	if (flags & PG_FREE_LIST) {
 		VM_STAT_ADD(vmm_vmstats.plsub_free[0]);
 		ASSERT(PP_ISAGED(pp));
-		ppp = &PAGE_FREELISTS(mnode, pp->p_szc, bin, mtype);
+		ppp = &PAGE_FREELISTS(mnode, SZC_EVAL(pp->p_szc), bin, mtype);
 	} else {
 		VM_STAT_ADD(vmm_vmstats.plsub_cache);
 		ASSERT(!PP_ISAGED(pp));
@@ -1641,7 +1671,7 @@ try_again:
 	 * any page promotion/demotion operations. Therefore
 	 * the p_szc will not change until we drop pcm mutex.
 	 */
-	if (pp->p_szc == 0) {
+	if (SZC_EVAL(pp->p_szc) == 0) {
 		page_sub(ppp, pp);
 		/*
 		 * Subtract counters before releasing pcm mutex
@@ -1678,7 +1708,7 @@ try_again:
 	 */
 	mutex_exit(pcm);
 	page_freelist_lock(mnode);
-	if (pp->p_szc != 0) {
+	if (SZC_EVAL(pp->p_szc) != 0) {
 		/*
 		 * Large page is on freelist.
 		 */
@@ -1707,6 +1737,8 @@ try_again:
 	}
 #endif
 }
+
+#ifndef	PGRELOC_DISABLE
 
 void
 page_list_sub_pages(page_t *pp, uint_t szc)
@@ -1738,7 +1770,9 @@ try_again:
 	 * drop pcm and re-lock entire freelist. If page still larger
 	 * than szc then demote it.
 	 */
-	if (pp->p_szc > szc) {
+	SZC_ASSERT(pp->p_szc);
+	SZC_ASSERT(szc);
+	if (SZC_EVAL(pp->p_szc) > SZC_EVAL(szc)) {
 		mutex_exit(pcm);
 		pcm = NULL;
 		page_freelist_lock(mnode);
@@ -1755,10 +1789,10 @@ try_again:
 	ASSERT(pp->p_szc <= szc);
 	ASSERT(pp == PP_PAGEROOT(pp));
 
-	VM_STAT_ADD(vmm_vmstats.plsub_free[pp->p_szc]);
+	VM_STAT_ADD(vmm_vmstats.plsub_free[SZC_EVAL(pp->p_szc)]);
 
 	mtype = PP_2_MTYPE(pp);
-	if (pp->p_szc != 0) {
+	if (SZC_EVAL(pp->p_szc) != 0) {
 		page_vpsub(&PAGE_FREELISTS(mnode, pp->p_szc, bin, mtype), pp);
 		CHK_LPG(pp, pp->p_szc);
 	} else {
@@ -1782,6 +1816,8 @@ try_again:
 	}
 #endif
 }
+
+#endif	/* !PGRELOC_DISABLE */
 
 /*
  * Add the page to the front of a linked list of pages
@@ -1827,6 +1863,8 @@ mach_page_sub(page_t **ppp, page_t *pp)
 	}
 	pp->p_prev = pp->p_next = pp;		/* make pp a list of one */
 }
+
+#ifndef	LPG_DISABLE
 
 /*
  * Routine fsflush uses to gradually coalesce the free list into larger pages.
@@ -2611,6 +2649,8 @@ page_freelist_split(uchar_t szc, uint_t color, int mnode, int mtype,
 	return (ret_pp);
 }
 
+#endif	/* !LPG_DISABLE */
+
 /*
  * Helper routine used only by the freelist code to lock
  * a page. If the page is a large page then it succeeds in
@@ -2675,6 +2715,7 @@ page_list_walk_init(uchar_t szc, uint_t flags, uint_t bin, int can_split,
 	uchar_t ceq = use_ceq ? colorequivszc[szc] : 0;
 
 	ASSERT(szc < mmu_page_sizes);
+	szc = SZC_EVAL(szc);
 	colors = PAGE_GET_PAGECOLORS(szc);
 
 	plw->plw_colors = colors;
@@ -2715,7 +2756,7 @@ page_list_walk_init(uchar_t szc, uint_t flags, uint_t bin, int can_split,
 	}
 
 	/* we can split pages in the freelist, but not the cachelist */
-	if (can_split) {
+	if (LPG_EVAL(can_split)) {
 		plw->plw_do_split = (szc + 1 < mmu_page_sizes) ? 1 : 0;
 
 		/* set next szc color masks and number of free list bins */
@@ -2756,12 +2797,15 @@ page_list_walk_next_bin(uchar_t szc, uint_t bin, page_list_walker_t *plw)
 {
 	uint_t  neq_mask = ~plw->plw_ceq_mask[szc] & plw->plw_color_mask;
 	uint_t  bin0_nsz, nbin_nsz, nbin0, nbin;
-	uchar_t nszc = szc + 1;
+	uchar_t nszc = SZC_EVAL(szc) + 1;
 
+	SZC_ASSERT(szc);
+	szc = SZC_EVAL(szc);
 	nbin = ADD_MASKED(bin,
 	    plw->plw_bin_step, neq_mask, plw->plw_color_mask);
 
-	if (plw->plw_do_split) {
+	LPG_DISABLE_ASSERT(plw->plw_do_split == 0);
+	if (LPG_EVAL(plw->plw_do_split)) {
 		plw->plw_bin_split_prev = bin;
 		PAGE_SET_NEXT_SPLIT_MARKER(szc, nszc, bin, plw);
 		plw->plw_do_split = 0;
@@ -2804,7 +2848,8 @@ page_list_walk_next_bin(uchar_t szc, uint_t bin, page_list_walker_t *plw)
 
 				plw->plw_bin_marker = nbin = nbin0;
 
-				if (plw->plw_bins[nszc] != 0) {
+				LPG_DISABLE_ASSERT(plw->plw_bins[nszc] == 0);
+				if (LPG_EVAL(plw->plw_bins[nszc]) != 0) {
 					/*
 					 * check if next page size bin is the
 					 * same as the next page size bin for
@@ -2824,7 +2869,8 @@ page_list_walk_next_bin(uchar_t szc, uint_t bin, page_list_walker_t *plw)
 		}
 	}
 
-	if (plw->plw_bins[nszc] != 0) {
+	LPG_DISABLE_ASSERT(plw->plw_bins[nszc] == 0);
+	if (LPG_EVAL(plw->plw_bins[nszc]) != 0) {
 		nbin_nsz = PAGE_GET_NSZ_COLOR(szc, nbin);
 		if (!((plw->plw_split_next ^ nbin_nsz) &
 		    plw->plw_ceq_mask[nszc]))
@@ -2845,6 +2891,8 @@ page_get_mnode_freelist(int mnode, uint_t bin, int mtype, uchar_t szc,
 	page_list_walker_t	plw;
 
 	ASSERT(szc < mmu_page_sizes);
+	SZC_ASSERT(szc);
+	szc = SZC_EVAL(szc);
 
 	VM_STAT_ADD(vmm_vmstats.pgmf_alloc[szc]);
 
@@ -2977,7 +3025,8 @@ bin_empty_1:
 		 * different colors assuming we are not called with
 		 * PG_MATCH_COLOR.
 		 */
-		if (plw.plw_do_split &&
+		LPG_DISABLE_ASSERT(plw.plw_do_split == 0);
+		if (LPG_EVAL(plw.plw_do_split) &&
 		    (pp = page_freelist_split(szc, bin, mnode,
 		    mtype, PFNNULL, &plw)) != NULL)
 			return (pp);
@@ -2999,6 +3048,8 @@ bin_empty_1:
 
 	return (NULL);
 }
+
+#ifndef	PGRELOC_DISABLE
 
 /*
  * Returns the count of free pages for 'pp' with size code 'szc'.
@@ -3133,6 +3184,9 @@ page_claim_contig_pages(page_t *pp, uchar_t szc, int flags)
 	page_t *pplist = NULL;
 
 	ASSERT(pp != NULL);
+	SZC_ASSERT(szc);
+	SZC_ASSERT(pp->p_szc);
+	szc = SZC_EVAL(szc);
 
 	pgcnt = page_get_pagecnt(szc);
 	while (pgcnt) {
@@ -3148,7 +3202,7 @@ page_claim_contig_pages(page_t *pp, uchar_t szc, int flags)
 			 */
 			if (PP_ISAGED(pp)) {
 				page_list_sub_pages(pp, szc);
-				if (pp->p_szc == szc) {
+				if (SZC_EVAL(pp->p_szc) == szc) {
 					return (pp);
 				}
 				ASSERT(pp->p_szc < szc);
@@ -3592,6 +3646,8 @@ page_get_contig_pages(int mnode, uint_t bin, int mtype, uchar_t szc,
 	return (NULL);
 }
 
+#endif	/* !PGRELOC_DISABLE */
+
 #if defined(__i386) || defined(__amd64)
 /*
  * Determine the likelihood of finding/coalescing a szc page.
@@ -3643,6 +3699,8 @@ page_get_freelist(struct vnode *vp, u_offset_t off, struct seg *seg,
 	page_t		*(*page_get_func)(int, uint_t, int, uchar_t, uint_t);
 	lgrp_mnode_cookie_t	lgrp_cookie;
 
+	LPG_DISABLE_ASSERT(size == PAGESIZE);
+
 	page_get_func = page_get_mnode_freelist;
 
 	/*
@@ -3677,7 +3735,7 @@ page_get_freelist(struct vnode *vp, u_offset_t off, struct seg *seg,
 	/*
 	 * Convert size to page size code.
 	 */
-	if ((szc = page_szc(size)) == (uchar_t)-1)
+	if ((szc = SZC_EVAL(page_szc(size))) == (uchar_t)-1)
 		panic("page_get_freelist: illegal page size request");
 	ASSERT(szc < mmu_page_sizes);
 
@@ -3742,6 +3800,7 @@ pgretry:
 		ASSERT(pp == NULL);
 	}
 
+#ifndef	PGRELOC_DISABLE
 	/*
 	 * when the cage is off chances are page_get_contig_pages() will fail
 	 * to lock a large page chunk therefore when the cage is off it's not
@@ -3762,6 +3821,7 @@ pgretry:
 	if (!(flags & PG_LOCAL) && pgcplimitsearch &&
 	    page_get_func == page_get_contig_pages)
 		SETPGCPFAILCNT(szc);
+#endif	/* !PGRELOC_DISABLE */
 
 	VM_STAT_ADD(vmm_vmstats.pgf_allocfailed[szc]);
 	return (NULL);
@@ -4004,6 +4064,8 @@ bin_empty_1:
 	return (NULL);
 }
 
+#ifndef	PGRELOC_DISABLE
+
 #ifdef DEBUG
 #define	REPL_PAGE_STATS
 #endif /* DEBUG */
@@ -4052,8 +4114,9 @@ page_get_replacement_page(page_t *orig_like_pp, struct lgrp *lgrp_target,
 	REPL_STAT_INCR(ngets);
 	like_pp = orig_like_pp;
 	ASSERT(PAGE_EXCL(like_pp));
+	SZC_ASSERT(pp->p_szc);
 
-	szc = like_pp->p_szc;
+	szc = SZC_EVAL(like_pp->p_szc);
 	npgs = page_get_pagecnt(szc);
 	/*
 	 * Now we reset like_pp to the base page_t.
@@ -4306,6 +4369,10 @@ page_get_replacement_page(page_t *orig_like_pp, struct lgrp *lgrp_target,
 	}
 }
 
+#endif	/* !PGRELOC_DISABLE */
+
+#ifndef	LPG_DISABLE
+
 /*
  * demote a free large page to it's constituent pages
  */
@@ -4329,6 +4396,8 @@ page_demote_free_pages(page_t *pp)
 	page_freelist_unlock(mnode);
 	ASSERT(pp->p_szc == 0);
 }
+
+#endif	/* !LPG_DISABLE */
 
 /*
  * Factor in colorequiv to check additional 'equivalent' bins.

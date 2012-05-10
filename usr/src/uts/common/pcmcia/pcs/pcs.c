@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -71,7 +75,7 @@ struct pcs_inst {
 } *pcs_instances;
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int ret;
 	if ((ret = ddi_soft_state_init((void **)&pcs_instances,
@@ -83,8 +87,9 @@ _init()
 	return (ret);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int ret;
 	ret = mod_remove(&modlinkage);
@@ -93,9 +98,10 @@ _fini()
 	}
 	return (ret);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -47,6 +51,31 @@ aes_ccm_format_initial_blocks(uchar_t *nonce, ulong_t nonceSize,
 static int
 aes_ccm_decrypt_contiguous_blocks(aes_ctx_t *ctx, char *data, size_t length,
     crypto_data_t *out);
+
+#if	defined(__GNUC__) && defined(__arm)
+
+#define HAVE_BSWAP
+
+/*
+ * arm optimization:
+ * 	REV instruction (ARM v6 or later)
+ */
+static __inline__ uint32_t
+bswap(uint32_t value)
+{
+	uint32_t	ret;
+
+	__asm__ __volatile__
+		("rev	%0, %1" : "=r" (ret) : "r" (value));
+	return ret;
+}
+
+#define	LOAD_BIG_64(addr)	\
+	(((uint64_t)bswap((uint32_t)	\
+	    ((*((uint64_t *)(addr))) & 0xffffffff)) << 32) |	\
+	    (uint64_t)bswap((uint32_t)((*((uint64_t *)(addr))) >> 32)))
+
+#endif	/* defined(__GNUC__) && defined(__arm) */
 
 /*
  * Initialize by setting iov_or_mp to point to the current iovec or mp,
@@ -732,6 +761,9 @@ aes_ctr_ccm_mode_contiguous_blocks(aes_ctx_t *ctx, char *data, size_t length,
 		counter = ctx->ac_cb[1] & ctx->ac_counter_mask;
 #ifdef _LITTLE_ENDIAN
 		p = (uint8_t *)&counter;
+#ifdef HAVE_BSWAP
+		counter = LOAD_BIG_64(p);
+#else	/* !HAVE_BSWAP */
 		counter = (((uint64_t)p[0] << 56) |
 		    ((uint64_t)p[1] << 48) |
 		    ((uint64_t)p[2] << 40) |
@@ -740,9 +772,13 @@ aes_ctr_ccm_mode_contiguous_blocks(aes_ctx_t *ctx, char *data, size_t length,
 		    ((uint64_t)p[5] << 16) |
 		    ((uint64_t)p[6] << 8) |
 		    (uint64_t)p[7]);
+#endif	/* HAVE_BSWAP */
 #endif
 		counter++;
 #ifdef _LITTLE_ENDIAN
+#ifdef	HAVE_BSWAP
+		counter = LOAD_BIG_64(p);
+#else	/* !HAVE_BSWAP */
 		counter = (((uint64_t)p[0] << 56) |
 		    ((uint64_t)p[1] << 48) |
 		    ((uint64_t)p[2] << 40) |
@@ -751,6 +787,7 @@ aes_ctr_ccm_mode_contiguous_blocks(aes_ctx_t *ctx, char *data, size_t length,
 		    ((uint64_t)p[5] << 16) |
 		    ((uint64_t)p[6] << 8) |
 		    (uint64_t)p[7]);
+#endif	/* HAVE_BSWAP */
 #endif
 		counter &= ctx->ac_counter_mask;
 		ctx->ac_cb[1] =

@@ -25,6 +25,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef _SYS_DKTP_FDISK_H
 #define	_SYS_DKTP_FDISK_H
@@ -57,6 +60,17 @@ extern "C" {
 #define	DEFAULT_INTLV	4	/* default interleave for testing tracks */
 #define	MINPSIZE	4	/* minimum number of cylinders in a partition */
 #define	TSTPAT		0xE5	/* test pattern for verifying disk */
+
+#if defined(_SUNOS_VTOC_16) && defined(_FIRMWARE_NEEDS_FDISK) && defined(__arm)
+/*
+ * The number of logical partitions.
+ * If present and larger than 0, it allows a primary partition
+ * to be subdivided into multiple logical partitions.
+ * The number of logical partitions should set 64 or less.
+ */
+#define _EXTFDISK_PARTITION	16
+#endif /* defined(_SUNOS_VTOC_16) && defined(_FIRMWARE_NEEDS_FDISK)
+	&& defined(__arm) */
 
 /*
  * structure to hold the fdisk partition table
@@ -139,6 +153,21 @@ struct mboot {	/* master boot block */
 	char	parts[FD_NUMPART * sizeof (struct ipart)];
 	ushort_t signature;
 };
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+/*
+ * structure to hold extended boot block in physical the disk.
+ */
+
+struct extboot {	/* extended boot block */
+	char	unused[BOOTSZ];
+	uint16_t win_volserno_lo;
+	uint16_t win_volserno_hi;
+	uint16_t reserved;
+	char	parts[FD_NUMPART * sizeof (struct ipart)];
+	ushort_t signature;
+};
+#endif
 
 #ifdef	__cplusplus
 }

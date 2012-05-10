@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_CRON_H
 #define	_CRON_H
 
@@ -83,7 +87,11 @@ struct	message {
 #define	ATDENY		"/etc/cron.d/at.deny"
 #define	PROTO		"/etc/cron.d/.proto"
 #define	QUEDEFS		"/etc/cron.d/queuedefs"
+#if defined(__READONLY_FS)
+#define	FIFO		"/tmp/cronFIFO"
+#else
 #define	FIFO		"/etc/cron.d/FIFO"
+#endif
 #define	DEFFILE		"/etc/default/cron"
 
 #define	SHELL		"/usr/bin/sh"	/* shell to execute */

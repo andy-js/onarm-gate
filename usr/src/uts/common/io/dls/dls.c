@@ -118,8 +118,6 @@ dls_stat_init()
 	    "net", KSTAT_TYPE_NAMED,
 	    sizeof (dls_kstat) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL)) == NULL) {
-		cmn_err(CE_WARN,
-		"DLS: failed to create kstat structure for dls stats");
 		return;
 	}
 	dls_ksp->ks_data = (void *)&dls_kstat;

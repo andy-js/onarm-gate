@@ -23,6 +23,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -565,6 +568,14 @@ dumpregs32(const prgregset_t reg)
 		(void) putchar('\n');
 }
 #endif
+
+#if defined(__arm)
+static const char * const regname[NPRGREG] = {
+	" %r0", " %r1", " %r2", " %r3", " %r4", " %r5", " %r6", " %r7",
+	" %r8", " %r9", " %r10"," %r11"," %r12"," %sp", " %lr", " %pc",
+	" %cpsr", " %tp"
+};
+#endif /* __arm */
 
 static void
 dumpregs(const prgregset_t reg, int is64)

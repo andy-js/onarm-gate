@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -147,6 +151,18 @@ static ddi_dma_lim_t e1000g_dma_limits = {
 };
 #endif
 
+#ifdef	__arm
+
+/* Fast optimization for ARM architecture */
+#define	E1000G_DMA_TYPE_RDLOCK()
+#define	E1000G_DMA_TYPE_WRLOCK()
+#define	E1000G_DMA_TYPE_UNLOCK()
+#define	E1000G_SET_DMA_TYPE(type)
+
+#define	e1000g_dma_type		USE_DMA
+
+#else	/* !__arm */
+
 #ifdef __sparc
 static dma_type_t e1000g_dma_type = USE_DVMA;
 #else
@@ -154,6 +170,20 @@ static dma_type_t e1000g_dma_type = USE_DMA;
 #endif
 
 extern krwlock_t e1000g_dma_type_lock;
+
+#define	E1000G_DMA_TYPE_RDLOCK()			\
+	rw_enter(&e1000g_dma_type_lock, RW_READER)
+#define	E1000G_DMA_TYPE_WRLOCK()			\
+	rw_enter(&e1000g_dma_type_lock, RW_WRITER)
+#define	E1000G_DMA_TYPE_UNLOCK()		\
+	rw_exit(&e1000g_dma_type_lock)
+
+#define	E1000G_SET_DMA_TYPE(type)		\
+	do {					\
+		e1000g_dma_type = (type);	\
+	} while (0)
+
+#endif	/* __arm */
 
 
 int
@@ -689,23 +719,23 @@ e1000g_alloc_packets(struct e1000g *Adapter)
 	rx_ring = Adapter->rx_ring;
 
 again:
-	rw_enter(&e1000g_dma_type_lock, RW_READER);
+	E1000G_DMA_TYPE_RDLOCK();
 
 	result = e1000g_alloc_tx_packets(tx_ring);
 	if (result != DDI_SUCCESS) {
 		if (e1000g_dma_type == USE_DVMA) {
-			rw_exit(&e1000g_dma_type_lock);
+			E1000G_DMA_TYPE_UNLOCK();
 
-			rw_enter(&e1000g_dma_type_lock, RW_WRITER);
-			e1000g_dma_type = USE_DMA;
-			rw_exit(&e1000g_dma_type_lock);
+			E1000G_DMA_TYPE_WRLOCK();
+			E1000G_SET_DMA_TYPE(USE_DMA);
+			E1000G_DMA_TYPE_UNLOCK();
 
 			E1000G_DEBUGLOG_0(Adapter, E1000G_INFO_LEVEL,
 			    "No enough dvma resource for Tx packets, "
 			    "trying to allocate dma buffers...\n");
 			goto again;
 		}
-		rw_exit(&e1000g_dma_type_lock);
+		E1000G_DMA_TYPE_UNLOCK();
 
 		E1000G_DEBUGLOG_0(Adapter, E1000G_WARN_LEVEL,
 		    "Failed to allocate dma buffers for Tx packets\n");
@@ -716,25 +746,25 @@ again:
 	if (result != DDI_SUCCESS) {
 		e1000g_free_tx_packets(tx_ring);
 		if (e1000g_dma_type == USE_DVMA) {
-			rw_exit(&e1000g_dma_type_lock);
+			E1000G_DMA_TYPE_UNLOCK();
 
-			rw_enter(&e1000g_dma_type_lock, RW_WRITER);
-			e1000g_dma_type = USE_DMA;
-			rw_exit(&e1000g_dma_type_lock);
+			E1000G_DMA_TYPE_WRLOCK();
+			E1000G_SET_DMA_TYPE(USE_DMA);
+			E1000G_DMA_TYPE_UNLOCK();
 
 			E1000G_DEBUGLOG_0(Adapter, E1000G_INFO_LEVEL,
 			    "No enough dvma resource for Rx packets, "
 			    "trying to allocate dma buffers...\n");
 			goto again;
 		}
-		rw_exit(&e1000g_dma_type_lock);
+		E1000G_DMA_TYPE_UNLOCK();
 
 		E1000G_DEBUGLOG_0(Adapter, E1000G_WARN_LEVEL,
 		    "Failed to allocate dma buffers for Rx packets\n");
 		return (DDI_FAILURE);
 	}
 
-	rw_exit(&e1000g_dma_type_lock);
+	E1000G_DMA_TYPE_UNLOCK();
 
 	return (DDI_SUCCESS);
 }

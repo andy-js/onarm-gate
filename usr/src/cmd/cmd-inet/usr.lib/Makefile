@@ -25,7 +25,11 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
-SUBDIRS=	dhcp dsvclockd in.chargend in.daytimed \
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
+SUBDIRS-common=	dhcp dsvclockd in.chargend in.daytimed \
 		in.discardd in.echod in.dhcpd in.mpathd in.ndpd \
 		in.ripngd in.timed inetd mdnsd ncaconfd pppoe \
 		slpd wanboot wpad
@@ -34,9 +38,16 @@ MSGSUBDIRS=	dsvclockd in.dhcpd inetd ncaconfd wanboot
 
 include ../../Makefile.cmd
 
-$(CLOSED_BUILD)SUBDIRS += \
+$(CLOSED_BUILD)SUBDIRS-common += \
 	$(CLOSED)/cmd/cmd-inet/usr.lib/ike-certutils \
 	$(CLOSED)/cmd/cmd-inet/usr.lib/in.iked
+
+SUBDIRS	= $(SUBDIRS-common)
+
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(SUBDIRS-common)
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
 
 POFILES=	dsvclockd/dsvclockd.po in.dhcpd/in.dhcpd.po \
 		inetd/inetd.po ncaconfd/ncaconfd.po \

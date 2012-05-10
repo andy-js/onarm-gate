@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_UFS_FS_H
 #define	_SYS_FS_UFS_FS_H
 
@@ -90,6 +94,7 @@ extern "C" {
 #define	SBOFF		((off_t)(BBOFF + BBSIZE))
 #define	BBLOCK		((daddr32_t)(0))
 #define	SBLOCK		((daddr32_t)(BBLOCK + BBSIZE / DEV_BSIZE))
+#define	ALTSBLOCK	((daddr32_t)(BBLOCK + (BBSIZE + SBSIZE) / DEV_BSIZE))
 
 /*
  * Addresses stored in inodes are capable of addressing fragments

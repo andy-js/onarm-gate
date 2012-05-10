@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -66,6 +69,7 @@
 #include "elf_impl.h"
 
 #include <sys/sdt.h>
+#include <sys/lpg_config.h>
 
 extern int at_flags;
 
@@ -163,6 +167,7 @@ dtrace_safe_phdr(Phdr *phdrp, struct uarg *args, uintptr_t base)
 	return (0);
 }
 
+#ifndef	BRAND_DISABLE
 /*
  * Map in the executable pointed to by vp. Returns 0 on success.
  */
@@ -239,6 +244,7 @@ mapexec_brand(vnode_t *vp, uarg_t *args, Ehdr *ehdr, Addr *uphdr_vaddr,
 	kmem_free(phdrbase, phdrsize);
 	return (error);
 }
+#endif	/* !BRAND_DISABLE */
 
 /*ARGSUSED*/
 int
@@ -333,6 +339,10 @@ elfexec(vnode_t *vp, execa_t *uap, uarg_t *args, intpdata_t *idatap,
 	}
 #else	/* _LP64 */
 	args->to_model = DATAMODEL_ILP32;
+#if defined(__arm)
+	args->stk_prot &= ~PROT_EXEC;
+	args->dat_prot &= ~PROT_EXEC;
+#endif
 	*execsz = btopr(SINCR) + btopr(SSIZE) + btopr(NCARGS-1);
 #endif	/* _LP64 */
 
@@ -1113,7 +1123,9 @@ mapelfexec(
 	off_t offset;
 	int hsize = ehdr->e_phentsize;
 	caddr_t mintmp = (caddr_t)-1;
+#ifndef	LPG_DISABLE
 	extern int use_brk_lpg;
+#endif	/* !LPG_DISABLE */
 
 	if (ehdr->e_type == ET_DYN) {
 		/*
@@ -1183,7 +1195,7 @@ mapelfexec(
 			 * Set the heap pagesize for OOB when the bss size
 			 * is known and use_brk_lpg is not 0.
 			 */
-			if (brksize != NULL && use_brk_lpg &&
+			if (brksize != NULL && LPG_EVAL(use_brk_lpg) &&
 			    zfodsz != 0 && phdr == dataphdrp &&
 			    (prot & PROT_WRITE)) {
 				size_t tlen = P2NPHASE((uintptr_t)addr +
@@ -1197,8 +1209,9 @@ mapelfexec(
 				}
 			}
 
-			if (curproc->p_brkpageszc != 0 && phdr == dataphdrp &&
-			    (prot & PROT_WRITE)) {
+			SZC_ASSERT(curproc->p_brkpageszc);
+			if (SZC_EVAL(curproc->p_brkpageszc) != 0 &&
+			    phdr == dataphdrp && (prot & PROT_WRITE)) {
 				uint_t	szc = curproc->p_brkpageszc;
 				size_t pgsz = page_get_pagesize(szc);
 				caddr_t ebss = addr + phdr->p_memsz;
@@ -1721,6 +1734,9 @@ top:
 #elif defined(__i386) || defined(__i386_COMPAT)
 	ehdr->e_ident[EI_DATA] = ELFDATA2LSB;
 	ehdr->e_machine = EM_386;
+#elif defined(__arm)
+	ehdr->e_ident[EI_DATA] = ELFDATA2LSB;
+	ehdr->e_machine = EM_ARM;
 #else
 #error "no recognized machine type is defined"
 #endif
@@ -2042,19 +2058,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

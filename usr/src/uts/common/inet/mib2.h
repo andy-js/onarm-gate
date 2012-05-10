@@ -23,6 +23,9 @@
  * Use is subject to license terms.
  */
 /* Copyright (c) 1990 Mentat Inc. */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_INET_MIB2_H
 #define	_INET_MIB2_H
@@ -115,6 +118,14 @@ extern "C" {
 #define	EXPER_RANGE_START	(EXPER+1)
 #define	EXPER_RANGE_END		(EXPER+3)
 
+#if (defined(KSTAT_DISABLE) && defined(_NETWORK_EXTENSION))
+#define	BUMP_MIB(s, x)		{;}
+#define	UPDATE_MIB(s, x, y)	{;}
+#define	SET_MIB(x, y)
+#define	BUMP_LOCAL(x)
+#define	UPDATE_LOCAL(x, y)
+#define	SYNC32_MIB(s, m32, m64)
+#else
 #define	BUMP_MIB(s, x)		{				\
 	extern void __dtrace_probe___mib_##x(int, void *);	\
 	void *stataddr = &((s)->x);				\
@@ -133,6 +144,7 @@ extern "C" {
 #define	BUMP_LOCAL(x)		(x)++
 #define	UPDATE_LOCAL(x, y)	(x) += (y)
 #define	SYNC32_MIB(s, m32, m64)	SET_MIB((s)->m32, (s)->m64 & 0xffffffff)
+#endif
 
 #define	OCTET_LENGTH	32	/* Must be at least LIFNAMSIZ */
 typedef struct Octet_s {

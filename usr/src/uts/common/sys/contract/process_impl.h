@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_SYS_CONTRACT_PROCESS_IMPL_H
 #define	_SYS_CONTRACT_PROCESS_IMPL_H
@@ -88,6 +91,10 @@ void contract_process_sig(cont_process_t *, struct proc *, int, pid_t, ctid_t,
 void contract_process_take(contract_t *, contract_t *);
 int contract_process_accept(contract_t *);
 void contract_process_adopt(contract_t *, proc_t *);
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <sys/contract/process_kernel.h>
+#endif	/* defined(_KERNEL_BUILD_TREE) */
 
 #ifdef	__cplusplus
 }

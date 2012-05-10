@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/spa.h>
@@ -92,7 +96,7 @@ spa_history_create_obj(spa_t *spa, dmu_tx_t *tx)
 	    sizeof (spa_history_phys_t), tx);
 
 	VERIFY(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_HISTORY, sizeof (uint64_t), 1,
+	    DMU_POOL_HISTORY, sizeof (spa->spa_history), 1,
 	    &spa->spa_history, tx) == 0);
 
 	VERIFY(0 == dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
@@ -248,7 +252,7 @@ spa_history_log_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	} else {
 		VERIFY(nvlist_add_uint64(nvrecord, ZPOOL_HIST_INT_EVENT,
 		    hap->ha_event) == 0);
-		VERIFY(nvlist_add_uint64(nvrecord, ZPOOL_HIST_TXG,
+		VERIFY(nvlist_add_txg(nvrecord, ZPOOL_HIST_TXG,
 		    tx->tx_txg) == 0);
 		VERIFY(nvlist_add_string(nvrecord, ZPOOL_HIST_INT_STR,
 		    history_str) == 0);

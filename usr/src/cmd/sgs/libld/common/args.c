@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -189,6 +194,9 @@ usage_mesg(Boolean detail)
 	(void) fprintf(stderr, MSG_INTL(MSG_ARG_DETAIL_ZTO));
 	(void) fprintf(stderr, MSG_INTL(MSG_ARG_DETAIL_ZTW));
 	(void) fprintf(stderr, MSG_INTL(MSG_ARG_DETAIL_ZV));
+#ifdef	CROSS_BUILD
+	(void) fprintf(stderr, MSG_INTL(MSG_ARG_DETAIL_ZSYSROOT));
+#endif	/* CROSS_BUILD */
 }
 
 /*
@@ -1027,11 +1035,46 @@ parseopt_pass1(Ofl_desc *ofl, int argc, char **argv, int *error)
 					ofl->ofl_flags |= FLG_OF_FATAL;
 				}
 				ztflag = MSG_ORIG(MSG_ARG_ZTEXTWARN);
+			}
+#ifdef	__arm
+			else if (strncmp(optarg, MSG_ORIG(MSG_ARG_EABI),
+					 MSG_ARG_EABI_SIZE) == 0) {
+				char	*arg = optarg + MSG_ARG_EABI_SIZE;
 
+				if (ld_parse_eabi(arg, ofl) == S_ERROR) {
+					return (S_ERROR);
+				}
+			}
+			else if (strcmp(optarg, MSG_ORIG(MSG_ARG_FORCEPLT))
+				 == 0) {
+				if (ld_parse_force_plt(NULL, ofl) == S_ERROR) {
+					return (S_ERROR);
+				}
+			}
+			else if (strncmp(optarg, MSG_ORIG(MSG_ARG_FORCEPLT_EQ),
+					 MSG_ARG_FORCEPLT_EQ_SIZE) == 0) {
+				char	*arg =
+					optarg + MSG_ARG_FORCEPLT_EQ_SIZE;
+
+				if (ld_parse_force_plt(arg, ofl) == S_ERROR) {
+					return (S_ERROR);
+				}
+			}
+#endif	/* __arm */
+#ifdef	CROSS_BUILD
+			else if (strncmp(optarg, MSG_ORIG(MSG_ARG_SYSROOT),
+					 MSG_ARG_SYSROOT_SIZE) == 0) {
+				char	*arg = optarg + MSG_ARG_SYSROOT_SIZE;
+
+				/* Overwrite previous sysroot configuration. */
+				sysroot_path = arg;
+				sysroot_pathlen = strlen(arg);
+			}
+#endif	/* CROSS_BUILD */
 			/*
 			 * For other options simply set the ofl flags directly.
 			 */
-			} else if (strcmp(optarg,
+			else if (strcmp(optarg,
 			    MSG_ORIG(MSG_ARG_RESCAN)) == 0) {
 				ofl->ofl_flags1 |= FLG_OF1_RESCAN;
 			} else if (strcmp(optarg,
@@ -1127,6 +1170,11 @@ parseopt_pass1(Ofl_desc *ofl, int argc, char **argv, int *error)
 			    MSG_ARG_RTLDINFO_SIZE) &&
 			    strncmp(optarg, MSG_ORIG(MSG_ARG_DTRACE),
 			    MSG_ARG_DTRACE_SIZE) &&
+#ifdef	CROSS_BUILD
+			    strcmp(optarg, MSG_ORIG(MSG_ARG_SYSROOT1ST)) &&
+			    strcmp(optarg, MSG_ORIG(MSG_ARG_NOSYSROOT1ST)) &&
+			    strcmp(optarg, MSG_ORIG(MSG_ARG_NOSYSROOT)) &&
+#endif	/* CROSS_BUILD */
 			    strcmp(optarg, MSG_ORIG(MSG_ARG_ALLEXTRT)) &&
 			    strcmp(optarg, MSG_ORIG(MSG_ARG_DFLEXTRT)) &&
 			    strcmp(optarg, MSG_ORIG(MSG_ARG_DIRECT)) &&
@@ -1465,6 +1513,23 @@ parseopt_pass2(Ofl_desc *ofl, int argc, char **argv)
 						return (S_ERROR);
 					ofl->ofl_dtracesym = sdp;
 				}
+#ifdef	CROSS_BUILD
+				else if (strcmp(optarg,
+						MSG_ORIG(MSG_ARG_SYSROOT1ST))
+					 == 0) {
+					sysroot_order = SRORDER_FIRST;
+				}
+				else if (strcmp(optarg,
+						MSG_ORIG(MSG_ARG_NOSYSROOT1ST))
+					 == 0) {
+					sysroot_order = SRORDER_LAST;
+				}
+				else if (strcmp(optarg,
+						MSG_ORIG(MSG_ARG_NOSYSROOT))
+					 == 0) {
+					sysroot_order = SRORDER_NONE;
+				}
+#endif	/* CROSS_BUILD */
 			default:
 				break;
 		}

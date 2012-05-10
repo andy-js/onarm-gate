@@ -23,10 +23,15 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/bplist.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 static int
 bplist_hold(bplist_t *bpl)
@@ -42,7 +47,7 @@ bplist_hold(bplist_t *bpl)
 	return (0);
 }
 
-uint64_t
+objid_t
 bplist_create(objset_t *mos, int blocksize, dmu_tx_t *tx)
 {
 	int size;
@@ -55,13 +60,13 @@ bplist_create(objset_t *mos, int blocksize, dmu_tx_t *tx)
 }
 
 void
-bplist_destroy(objset_t *mos, uint64_t object, dmu_tx_t *tx)
+bplist_destroy(objset_t *mos, objid_t object, dmu_tx_t *tx)
 {
 	VERIFY(dmu_object_free(mos, object, tx) == 0);
 }
 
 int
-bplist_open(bplist_t *bpl, objset_t *mos, uint64_t object)
+bplist_open(bplist_t *bpl, objset_t *mos, objid_t object)
 {
 	dmu_object_info_t doi;
 	int err;

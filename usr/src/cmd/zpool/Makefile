@@ -25,19 +25,31 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 PROG= zpool
 OBJS= zpool_main.o zpool_vdev.o zpool_iter.o zpool_util.o
+
 SRCS= $(OBJS:%.o=%.c)
 POFILES=$(OBJS:%.o=%.po)
 POFILE= zpool.po
 
 include ../Makefile.cmd
 
-LDLIBS += -lzfs -lnvpair -ldevid -lefi -ldiskmgt -luutil -lumem
-
+INCS += -I./
 INCS += -I../../common/zfs
 
+LIBEFI += -lefi
+LDLIBS += -lzfs -lnvpair -ldevid -ldiskmgt -luutil $(LIBEFI)
+$(__ARLIB)$(ARM_BLD)LDLIBS += -lnsl -lsocket -lmd -ldevinfo -lgen -lm
+
 CPPFLAGS += -D_LARGEFILE64_SOURCE=1 -D_REENTRANT $(INCS)
+
+$(ARM_BLD)CPPFLAGS     += -DNO_SUPPORT_EFI
+$(ARM_BLD)LIBEFI       =
+$(ARM_BLD)INCS         += -I../../uts/$(ARM_PLATFORM) -I../../uts/$(MACH)
 
 # lint complains about unused _umem_* functions
 LINTFLAGS += -xerroff=E_NAME_DEF_NOT_USED2 
@@ -67,5 +79,10 @@ lint:	lint_SRCS
 # Links from /usr/sbin to /sbin
 $(ROOTUSRSBINLINKS):
 	-$(RM) $@; $(SYMLINK) ../../sbin/$(@F) $@
+
+%.o: %.c
+	$(COMPILE.c) -o $@ $(OUTPUT_OPTION) \
+	    $< $(CTFCONVERT_HOOK)
+	$(POST_PROCESS_O)
 
 include ../Makefile.targ

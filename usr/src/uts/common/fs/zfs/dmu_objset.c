@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/cred.h>
@@ -43,6 +47,7 @@
 #include <sys/zil.h>
 #include <sys/dmu_impl.h>
 #include <sys/zfs_ioctl.h>
+#include <zfs_types.h>
 
 spa_t *
 dmu_objset_spa(objset_t *os)
@@ -85,7 +90,7 @@ dmu_objset_name(objset_t *os, char *buf)
 	dsl_dataset_name(os->os->os_dsl_dataset, buf);
 }
 
-uint64_t
+objid_t
 dmu_objset_id(objset_t *os)
 {
 	dsl_dataset_t *ds = os->os->os_dsl_dataset;
@@ -133,6 +138,7 @@ copies_changed_cb(void *arg, uint64_t newval)
 	osi->os_copies = newval;
 }
 
+#ifndef ZFS_COMPACT
 void
 dmu_objset_byteswap(void *buf, size_t size)
 {
@@ -143,6 +149,7 @@ dmu_objset_byteswap(void *buf, size_t size)
 	byteswap_uint64_array(&osp->os_zil_header, sizeof (zil_header_t));
 	osp->os_type = BSWAP_64(osp->os_type);
 }
+#endif	/* ZFS_COMPACT */
 
 int
 dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
@@ -491,10 +498,10 @@ dmu_objset_create_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	struct oscarg *oa = arg2;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	int err;
-	uint64_t ddobj;
+	objid_t ddobj;
 
 	err = zap_lookup(mos, dd->dd_phys->dd_child_dir_zapobj,
-	    oa->lastname, sizeof (uint64_t), 1, &ddobj);
+	    oa->lastname, sizeof (ddobj), 1, &ddobj);
 	if (err != ENOENT)
 		return (err ? err : EEXIST);
 
@@ -522,7 +529,7 @@ dmu_objset_create_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	struct oscarg *oa = arg2;
 	dsl_dataset_t *ds;
 	blkptr_t *bp;
-	uint64_t dsobj;
+	objid_t dsobj;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
@@ -544,7 +551,7 @@ dmu_objset_create_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	}
 
 	spa_history_internal_log(LOG_DS_CREATE, dd->dd_pool->dp_spa,
-	    tx, cr, "dataset = %llu", dsobj);
+	    tx, cr, "dataset = %" PRIuOBJID, dsobj);
 
 	dsl_dataset_close(ds, DS_MODE_STANDARD | DS_MODE_READONLY, FTAG);
 }
@@ -607,7 +614,7 @@ dmu_objset_destroy(const char *name)
 	    DS_MODE_EXCLUSIVE|DS_MODE_READONLY, &os);
 	if (error == 0) {
 		dsl_dataset_t *ds = os->os->os_dsl_dataset;
-		zil_destroy(dmu_objset_zil(os), B_FALSE);
+		(void) zil_destroy(dmu_objset_zil(os), B_FALSE);
 
 		/*
 		 * dsl_dataset_destroy() closes the ds.
@@ -843,7 +850,7 @@ dmu_objset_sync(objset_impl_t *os, zio_t *pio, dmu_tx_t *tx)
 	list_t *list;
 	dbuf_dirty_record_t *dr;
 
-	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", tx->tx_txg);
+	dprintf_ds(os->os_dsl_dataset, "txg=%" PRIuTXG "\n", tx->tx_txg);
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	/* XXX the write_done callback should really give us the tx... */
@@ -903,7 +910,7 @@ dmu_objset_sync(objset_impl_t *os, zio_t *pio, dmu_tx_t *tx)
 
 void
 dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
-    uint64_t *usedobjsp, uint64_t *availobjsp)
+    objid_t *usedobjsp, objid_t *availobjsp)
 {
 	dsl_dataset_space(os->os->os_dsl_dataset, refdbytesp, availbytesp,
 	    usedobjsp, availobjsp);
@@ -1027,7 +1034,7 @@ dmu_objset_find(char *name, int func(char *, void *), void *arg, int flags)
 {
 	dsl_dir_t *dd;
 	objset_t *os;
-	uint64_t snapobj;
+	objid_t snapobj;
 	zap_cursor_t zc;
 	zap_attribute_t *attr;
 	char *child;
@@ -1049,7 +1056,8 @@ dmu_objset_find(char *name, int func(char *, void *), void *arg, int flags)
 		    dd->dd_phys->dd_child_dir_zapobj);
 		    zap_cursor_retrieve(&zc, attr) == 0;
 		    (void) zap_cursor_advance(&zc)) {
-			ASSERT(attr->za_integer_length == sizeof (uint64_t));
+			ASSERT(attr->za_integer_length ==
+			    sizeof (dd->dd_phys->dd_child_dir_zapobj));
 			ASSERT(attr->za_num_integers == 1);
 
 			/*
@@ -1087,7 +1095,7 @@ dmu_objset_find(char *name, int func(char *, void *), void *arg, int flags)
 		for (zap_cursor_init(&zc, dd->dd_pool->dp_meta_objset, snapobj);
 		    zap_cursor_retrieve(&zc, attr) == 0;
 		    (void) zap_cursor_advance(&zc)) {
-			ASSERT(attr->za_integer_length == sizeof (uint64_t));
+			ASSERT(attr->za_integer_length == sizeof (snapobj));
 			ASSERT(attr->za_num_integers == 1);
 
 			child = kmem_alloc(MAXPATHLEN, KM_SLEEP);

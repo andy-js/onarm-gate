@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <ctype.h>
@@ -45,6 +49,14 @@ int g_quiet;		/* Quiet mode */
 int g_numeric;		/* Numeric mode */
 int g_flags;		/* libdisasm language flags */
 int g_doall;		/* true if no functions or sections were given */
+
+#ifdef	__arm
+int g_addrnumeric;	/* Print instruction address numerically. */
+int g_byteswap;		/* Dump data with byte swapping. */
+#else	/* __arm */
+#define	g_addrnumeric	0
+#define	g_byteswap	0
+#endif	/* __arm */
 
 dis_namelist_t *g_funclist;	/* list of functions to disassemble, if any */
 dis_namelist_t *g_seclist;	/* list of sections to disassemble, if any */
@@ -69,6 +81,12 @@ typedef struct dis_buffer {
 } dis_buffer_t;
 
 #define	MINSYMWIDTH	22	/* Minimum width of symbol portion of line */
+
+#ifdef	_LP64
+#define	MINADDRWIDTH	20
+#else	/* !_LP64 */
+#define	MINADDRWIDTH	12
+#endif	/* _LP64 */
 
 /*
  * Given a symbol+offset as returned by dis_tgt_lookup(), print an appropriately
@@ -171,10 +189,18 @@ dis_data(dis_tgt_t *tgt, dis_handle_t *dhp, uint64_t addr, void *data,
 		symbol = dis_tgt_lookup(tgt, addr, &symoffset, 1, &symsize,
 		    &isfunc);
 		/* Get the maximum length for this symbol */
-		getsymname(addr, symbol, symsize, symbuf, sizeof (symbuf));
-		symwidth = MAX(strlen(symbuf), MINSYMWIDTH);
+		if (g_addrnumeric) {
+			getsymname(addr, NULL, 0, symbuf, sizeof (symbuf));
+			symwidth = MAX(strlen(symbuf), MINADDRWIDTH);
+		}
+		else {
+			getsymname(addr, symbol, symsize, symbuf,
+				   sizeof (symbuf));
+			symwidth = MAX(strlen(symbuf), MINSYMWIDTH);
 
-		getsymname(addr, symbol, symoffset, symbuf, sizeof (symbuf));
+			getsymname(addr, symbol, symoffset, symbuf,
+				   sizeof (symbuf));
+		}
 
 		/*
 		 * If we've crossed a new function boundary, print out the
@@ -187,6 +213,28 @@ dis_data(dis_tgt_t *tgt, dis_handle_t *dhp, uint64_t addr, void *data,
 		    symwidth - strlen(symbuf), "");
 
 		/* print bytes */
+#ifdef	__arm
+		{
+			size_t	nbytes = db.db_nextaddr - addr;
+
+			if (nbytes < 4) {
+				i = 0;
+			}
+			else {
+				size_t	off = addr - db.db_addr;
+				uchar_t	*ptr = (uchar_t *)data + off;
+				uint_t	inst = *((uint_t *)ptr);
+
+				if (g_flags & DIS_OCTAL) {
+					(void)printf("%011o", inst);
+				}
+				else {
+					(void)printf("%08x ", inst);
+				}
+				i = 4;
+			}
+		}
+#else	/* !__arm */
 		for (i = 0; i < MIN(bytesperline, (db.db_nextaddr - addr));
 		    i++) {
 			int byte = *((uchar_t *)data + (addr - db.db_addr) + i);
@@ -195,6 +243,7 @@ dis_data(dis_tgt_t *tgt, dis_handle_t *dhp, uint64_t addr, void *data,
 			else
 				(void) printf("%02x ", byte);
 		}
+#endif	/* __arm */
 
 		/* trailing spaces for missing bytes */
 		for (; i < bytesperline; i++) {
@@ -291,9 +340,15 @@ void
 dump_data(uint64_t addr, void *data, size_t datalen)
 {
 	uintptr_t curaddr = addr & (~0xf);
-	uint8_t *bytes = data;
+	uint8_t *bytes;
 	int i;
 	int width;
+
+	if (data == NULL) {
+		/* No data in this section. */
+		return;
+	}
+	bytes = data;
 
 	/*
 	 * Determine if the address given to us fits in 32-bit range, in which
@@ -316,13 +371,27 @@ dump_data(uint64_t addr, void *data, size_t datalen)
 		 * section, print spaces.
 		 */
 		for (i = 0; i < 16; i++) {
-			if (curaddr + i < addr ||curaddr + i >= addr + datalen)
+			uint32_t	mask;
+			uintptr_t	ca;
+
+			/*
+			 * Swap bytes if g_byteswap is not zero.
+			 * Note that g_byteswap doesn't affect ASCII dump.
+			 */
+			if (g_byteswap == 0) {
+				mask = 1;
+				ca = curaddr + i;
+			}
+			else {
+				mask = g_byteswap - 1;
+				ca = curaddr + (i ^ mask);
+			}
+			if (ca < addr || ca >= addr + datalen)
 				(void) printf("  ");
 			else
-				(void) printf("%02x",
-				    bytes[curaddr + i - addr]);
+				(void) printf("%02x", bytes[ca - addr]);
 
-			if (i & 1)
+			if ((i & mask) == mask)
 				(void) printf(" ");
 		}
 
@@ -509,6 +578,11 @@ dis_file(const char *filename)
 			break;
 #endif /* __i386 || __amd64 */
 
+#ifdef	__arm
+		case EM_ARM:
+			break;
+#endif	/* __arm */
+
 		default:
 			die("%s: unsupported ELF machine 0x%x", filename,
 			    ehdr.e_machine);
@@ -583,17 +657,45 @@ typedef struct lib_node {
 	struct lib_node *next;
 } lib_node_t;
 
+#ifdef	__arm
+#define	OPTSTRING	"Cd:D:F:l:Lot:VqnNvb:"
+#else	/* !__arm */
+#define	OPTSTRING	"Cd:D:F:l:Lot:Vqn"
+#endif	/* __arm */
+
 int
 main(int argc, char **argv)
 {
 	int optchar;
 	int i;
 	lib_node_t *libs = NULL;
+#ifdef	__arm
+	char *env;
+#endif	/* __arm */
 
 	g_funclist = dis_namelist_create();
 	g_seclist = dis_namelist_create();
 
-	while ((optchar = getopt(argc, argv, "Cd:D:F:l:Lot:Vqn")) != -1) {
+#ifdef	__arm
+	/* Take options from environment variables. */
+	if ((env = getenv("DIS_ARM_NUMERIC_ADDR")) != NULL &&
+	    (*env == '1' && *(env + 1) == '\0')) {
+		g_addrnumeric = 1;
+	}
+	if ((env = getenv("DIS_ARM_VFP2")) != NULL &&
+	    (*env == '1' && *(env + 1) == '\0')) {
+		g_flags |= DIS_ARM_VFP2;
+	}
+	if ((env = getenv("DIS_ARM_BYTESWAP")) != NULL && strlen(env) == 1) {
+		char	c = *env;
+
+		if (c == '0' || c == '2' || c == '4' || c == '8') {
+			g_byteswap = c - '0';
+		}
+	}
+#endif	/* __arm */
+
+	while ((optchar = getopt(argc, argv, OPTSTRING)) != -1) {
 		switch (optchar) {
 		case 'C':
 			g_demangle = 1;
@@ -658,6 +760,28 @@ main(int argc, char **argv)
 		case 'V':
 			(void) printf("Solaris disassembler version 1.0\n");
 			return (0);
+#ifdef	__arm
+		case 'N':
+			g_addrnumeric = 1;
+			break;
+
+		case 'v':
+			g_flags |= DIS_ARM_VFP2;
+			break;
+
+		case 'b':
+			if (strlen(optarg) == 1 &&
+			    (*optarg == '0' || *optarg == '2' ||
+			     *optarg == '4' || *optarg == '8')) {
+				g_byteswap = *optarg - '0';
+			}
+			else {
+				(void)fprintf(stderr, "Invalid byteswap "
+					      "argument: %s\n", optarg);
+				exit(2);
+			}
+			break;
+#endif	/* __arm */
 		default:
 			usage();
 			break;

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	Copyright (c) 1988 AT&T	*/
@@ -38,6 +42,12 @@
 #include	<sys/types.h>
 #include	<sys/dl.h>
 
+#ifdef _LONG_LONG_LTOH
+dl_t	lzero	= {0,  0};
+dl_t	lone	= {1,  0};
+dl_t	lten	= {10, 0};
+#else
 dl_t	lzero	= {0,  0};
 dl_t	lone	= {0,  1};
 dl_t	lten	= {0, 10};
+#endif /* _LONG_LONG_LTOH */

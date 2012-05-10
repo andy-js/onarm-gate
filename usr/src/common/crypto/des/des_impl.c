@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -51,6 +55,33 @@ typedef struct keysched3_s {
 } keysched3_t;
 
 static void fix_des_parity(uint64_t *);
+
+#if	defined(__GNUC__) && defined(__arm)
+
+#define HAVE_BSWAP
+
+/*
+ * arm optimization:
+ * 	REV instruction (ARM v6 or later)
+ */
+static __inline__ uint32_t
+bswap(uint32_t value)
+{
+	uint32_t	ret;
+
+	__asm__ __volatile__
+		("rev	%0, %1" : "=r" (ret) : "r" (value));
+	return ret;
+}
+
+/*
+ * arm optimization:
+ */
+#define	LOAD_BIG_64(addr)	\
+	(((uint64_t)bswap((uint32_t)(	\
+	     (*((uint64_t *)(addr))) & 0xffffffff)) << 32) |	\
+	     (uint64_t)bswap((uint32_t)((*((uint64_t *)(addr))) >> 32)))
+#endif	/* defined(__GNUC__) && defined(__arm) */
 
 #ifndef sun4u
 
@@ -529,11 +560,14 @@ des3_crunch_block(void *cookie, uint8_t block[DES_BLOCK_LEN],
 	} else {
 #endif
 		uint64_t tmp;
-
+#ifdef	HAVE_BSWAP
+		tmp = LOAD_BIG_64(block);
+#else	/* !HAVE_BSWAP */
 		tmp = (((uint64_t)block[0] << 56) | ((uint64_t)block[1] << 48) |
 		    ((uint64_t)block[2] << 40) | ((uint64_t)block[3] << 32) |
 		    ((uint64_t)block[4] << 24) | ((uint64_t)block[5] << 16) |
 		    ((uint64_t)block[6] << 8) | (uint64_t)block[7]);
+#endif	/* HAVE_BSWAP */
 
 		if (decrypt == B_TRUE)
 			tmp = des_crypt_impl(ksch->ksch_decrypt, tmp, 3);
@@ -585,11 +619,14 @@ des_crunch_block(void *cookie, uint8_t block[DES_BLOCK_LEN],
 	} else {
 #endif
 		uint64_t tmp;
-
+#ifdef	HAVE_BSWAP
+		tmp = LOAD_BIG_64(block);
+#else	/* !HAVE_BSWAP */
 		tmp = (((uint64_t)block[0] << 56) | ((uint64_t)block[1] << 48) |
 		    ((uint64_t)block[2] << 40) | ((uint64_t)block[3] << 32) |
 		    ((uint64_t)block[4] << 24) | ((uint64_t)block[5] << 16) |
 		    ((uint64_t)block[6] << 8) | (uint64_t)block[7]);
+#endif	/* HAVE_BSWAP */
 
 		if (decrypt == B_TRUE)
 			tmp = des_crypt_impl(ksch->ksch_decrypt, tmp, 1);
@@ -660,10 +697,14 @@ keycheck(uint8_t *key, uint8_t *corrected_key)
 	 * On BIG_ENDIAN, the same code copies without reversing
 	 * the bytes.
 	 */
+#ifdef	HAVE_BSWAP
+	key_so_far = LOAD_BIG_64(key);
+#else	/* !HAVE_BSWAP */
 	key_so_far = (((uint64_t)key[0] << 56) | ((uint64_t)key[1] << 48) |
 	    ((uint64_t)key[2] << 40) | ((uint64_t)key[3] << 32) |
 	    ((uint64_t)key[4] << 24) | ((uint64_t)key[5] << 16) |
 	    ((uint64_t)key[6] << 8) | (uint64_t)key[7]);
+#endif	/* HAVE_BSWAP */
 
 	/*
 	 * Fix parity.
@@ -782,6 +823,9 @@ des_parity_fix(uint8_t *key, des_strength_t strength, uint8_t *corrected_key)
 	paritied_key = (uint8_t *)aligned_key;
 	while (strength > i) {
 		offset = 8 * i;
+#ifdef	HAVE_BSWAP
+		key_so_far = LOAD_BIG_64(offset);
+#else	/* !HAVE_BSWAP */
 		key_so_far = (((uint64_t)paritied_key[offset + 0] << 56) |
 		    ((uint64_t)paritied_key[offset + 1] << 48) |
 		    ((uint64_t)paritied_key[offset + 2] << 40) |
@@ -790,6 +834,7 @@ des_parity_fix(uint8_t *key, des_strength_t strength, uint8_t *corrected_key)
 		    ((uint64_t)paritied_key[offset + 5] << 16) |
 		    ((uint64_t)paritied_key[offset + 6] << 8) |
 		    (uint64_t)paritied_key[offset + 7]);
+#endif	/* HAVE_BSWAP */
 
 		fix_des_parity(&key_so_far);
 
@@ -856,6 +901,9 @@ des_init_keysched(uint8_t *cipherKey, des_strength_t strength, void *ks)
 #endif
 	{
 		for (i = 0, j = 0; j < keysize; i++, j += 8) {
+#ifdef	HAVE_BSWAP
+			key_uint64[i] = LOAD_BIG_64(cipherKey + j);
+#else	/* !HAVE_BSWAP */
 			key_uint64[i] = (((uint64_t)cipherKey[j] << 56) |
 			    ((uint64_t)cipherKey[j + 1] << 48) |
 			    ((uint64_t)cipherKey[j + 2] << 40) |
@@ -864,6 +912,7 @@ des_init_keysched(uint8_t *cipherKey, des_strength_t strength, void *ks)
 			    ((uint64_t)cipherKey[j + 5] << 16) |
 			    ((uint64_t)cipherKey[j + 6] << 8) |
 			    (uint64_t)cipherKey[j + 7]);
+#endif	/* HAVE_BSWAP */
 		}
 	}
 #ifdef _BIG_ENDIAN

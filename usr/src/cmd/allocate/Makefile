@@ -23,6 +23,10 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2008 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -63,6 +67,7 @@ POFILE =	allocate_all.po
 POFILES =	$(OBJS:%.o=%.po) $(ALLSCRIPTS:%.sh=%.po)
 
 DFLAGS +=	-D_REENTRANT
+$(ARM_BLD)DFLAGS +=	-D__ALLOCATE_NO_ACL
 CPPFLAGS +=	$(DFLAGS)
 
 ROOTLOCKS =	$(RTLCKS:%=$(ROOTSECDEV)/%)
@@ -105,8 +110,10 @@ $(ROOTSECLIB)/% :=	OWNER = root
 $(ROOTSECLIB)/% :=	GROUP = sys
 
 LAZYLIBS =	$(ZLAZYLOAD) -ltsol $(ZNOLAZYLOAD)
-lint :=		LDLIBS += -lbsm -lsec -lsecdb -ltsol -ldevinfo
-$(PROGalloc) :=		LDLIBS += -lbsm -lsec -lsecdb -ldevinfo $(LAZYLIBS)
+LIBSEC =	 -lsec
+$(ARM_BLD)LIBSEC =
+lint :=		LDLIBS += -lbsm $(LIBSEC) -lsecdb -ltsol -ldevinfo
+$(PROGalloc) :=		LDLIBS += -lbsm $(LIBSEC) -lsecdb -ldevinfo $(LAZYLIBS)
 $(PROGmkdevalloc) :=	LDLIBS += -lbsm
 $(PROGdminfo) :=	LDLIBS += -lbsm
 $(PROGaudio) :=		LDLIBS += -lbsm

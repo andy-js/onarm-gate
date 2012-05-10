@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -32,7 +37,7 @@ OBJECTS =	ipsec_util.o algs.o ipsec_libssl_setup.o
 include ../../Makefile.lib
 include $(SRC)/lib/openssl/Makefile.openssl
 
-LIBS +=		$(DYNLIB) $(LINTLIB)
+LIBS +=		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 SRCDIR =	../common
 

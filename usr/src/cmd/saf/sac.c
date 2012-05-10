@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -44,10 +48,10 @@
 #include <utmpx.h>
 #include <memory.h>
 #include "msgs.h"
-#include "extern.h"
 #include <sac.h>
 #include "misc.h"
 #include "structs.h"
+#include "extern.h"
 
 #include <security/pam_appl.h>
 

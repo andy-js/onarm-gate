@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 LIBRARY =	libfstyp.a
 VERS =		.1
 OBJECTS =	libfstyp.o
@@ -33,7 +37,7 @@ include ../../Makefile.lib
 
 SRCDIR =	../common
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 LDLIBS +=	-lc
 INCS +=		-I$(SRCDIR)
 $(LINTLIB) :=	SRCS = $(SRCDIR)/$(LINTSRC)

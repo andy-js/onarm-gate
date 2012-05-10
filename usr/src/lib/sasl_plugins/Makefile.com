@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -32,7 +37,7 @@ include $(SRC)/lib/Makefile.lib
 
 CPPFLAGS +=	-I$(SRC)/lib/libsasl/include
 
-LIBS =		$(DYNLIB)
+LIBS =		$(ARLIB) $(DYNLIB)
 SRCS=		$(PLUG_OBJS:%.o=../%.c) \
 		$(COMMONOBJS:%.o=$(SRC)/lib/libsasl/plugin/%.c)
 LDLIBS +=	-lsocket -lc $(PLUG_LIBS)
@@ -54,7 +59,7 @@ all:	$(LIBS)
 
 lint:	lintcheck
 
-pics/%.o: $(SRC)/lib/libsasl/plugin/%.c
+objs/%.o pics/%.o: $(SRC)/lib/libsasl/plugin/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

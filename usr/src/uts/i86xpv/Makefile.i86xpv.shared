@@ -25,6 +25,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 #	This makefile contains the common definitions for the i86xpv unix
@@ -100,6 +105,11 @@ INLINES_32		= $(UTSBASE)/intel/ia32/ml/ia32.il \
 INLINES_64		= $(UTSBASE)/intel/amd64/ml/amd64.il \
 			  $(UTSBASE)/$(PLATFORM)/ml/amd64.il
 INLINES			+= $(INLINES_$(CLASS))
+
+#
+# Support build-time tunable parameter.
+#
+$(USE_UTSTUNE)include	$(UTSTREE)/i86xpv/Makefile.i86xpv.tune
 
 #
 #	kernel-specific optimizations; override default in Makefile.master

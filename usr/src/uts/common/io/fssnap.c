@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/debug.h>
@@ -248,7 +252,7 @@ static struct modlinkage ml = {
 static void *statep;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 	kstat_t	*ksp;
@@ -302,13 +306,14 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&ml, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -333,6 +338,7 @@ _fini(void)
 
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 /* ************************************************************************ */
 
@@ -1680,10 +1686,16 @@ fssnap_write_taskq(void *arg)
 
 	if ((cmap->cmap_maxsize != 0) &&
 	    ((cmap->cmap_nchunks * cmap->cmap_chunksz) > cmap->cmap_maxsize)) {
+#ifndef KSTAT_DISABLE
 		cmn_err(CE_WARN, "fssnap_write_taskq: snapshot %d (%s) has "
 		    "reached the maximum backing file size specified (%llu "
 		    "bytes) and will be deleted.", sidp->sid_snapnumber,
 		    (char *)cowp->cow_kstat_mntpt->ks_data,
+#else	/* KSTAT_DISABLE */
+		cmn_err(CE_WARN, "fssnap_write_taskq: snapshot %d has "
+		    "reached the maximum backing file size specified (%llu "
+		    "bytes) and will be deleted.", sidp->sid_snapnumber,
+#endif	/* !KSTAT_DISABLE */
 		    cmap->cmap_maxsize);
 		if (release_sem)
 			sema_v(&cmap->cmap_throttle_sem);
@@ -1699,9 +1711,14 @@ fssnap_write_taskq(void *arg)
 	    (cmn->cmn_chunk % cmap->cmap_chunksperbf) * cmap->cmap_chunksz,
 	    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, (ssize_t *)NULL)) {
 		cmn_err(CE_WARN, "fssnap_write_taskq: error writing to "
+#ifndef KSTAT_DISABLE
 		    "backing file.  DELETING SNAPSHOT %d, backing file path "
 		    "%s, offset %llu bytes, error %d.", sidp->sid_snapnumber,
 		    (char *)cowp->cow_kstat_bfname->ks_data,
+#else	/* KSTAT_DISABLE */
+		    "backing file.  DELETING SNAPSHOT %d, "
+		    "offset %llu bytes, error %d.", sidp->sid_snapnumber,
+#endif	/* !KSTAT_DISABLE */
 		    cmn->cmn_chunk * cmap->cmap_chunksz, error);
 		if (release_sem)
 			sema_v(&cmap->cmap_throttle_sem);

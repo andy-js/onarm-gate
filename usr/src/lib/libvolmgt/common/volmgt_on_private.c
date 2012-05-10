@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -55,6 +59,13 @@
 
 #define	NULL_PATH		"/dev/null"
 
+static int	vol_getmntdev(FILE *, struct mnttab *, dev_t,
+		    struct dk_cinfo *);
+static int	call_unmount_prog(int, int, char *, int, char *,
+		    char *);
+static int	get_media_info(char *, char **, int *, char **);
+static int	vol_getmntdev(FILE *, struct mnttab *, dev_t,
+		    struct dk_cinfo *);
 
 
 /*
@@ -72,8 +83,6 @@
 int
 _dev_mounted(char *path)
 {
-	static int	vol_getmntdev(FILE *, struct mnttab *, dev_t,
-			    struct dk_cinfo *);
 	int		fd = -1;
 	struct dk_cinfo	info;
 	static FILE 	*fp = NULL;		/* mnttab file pointer */
@@ -133,9 +142,6 @@ dun:
 int
 _dev_unmount(char *path)
 {
-	static int	call_unmount_prog(int, int, char *, int, char *,
-			    char *);
-	static int	get_media_info(char *, char **, int *, char **);
 	char		*bn = NULL;		/* block name */
 	char		*mtype = NULL;		/* media type */
 	char		*spcl = NULL;		/* special dev. path */
@@ -409,8 +415,6 @@ vol_basename(char *path)
 static int
 get_media_info(char *path, char **mtypep, int *mnump, char **spclp)
 {
-	static int	vol_getmntdev(FILE *, struct mnttab *, dev_t,
-			    struct dk_cinfo *);
 	FILE		*fp = NULL;
 	int		fd = -1;
 	char		*cn = NULL;		/* char spcl pathname */

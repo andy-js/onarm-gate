@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dsl_pool.h>
@@ -36,11 +40,12 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/fs/zfs.h>
+#include <zfs_types.h>
 
 static int
 dsl_pool_open_mos_dir(dsl_pool_t *dp, dsl_dir_t **ddp)
 {
-	uint64_t obj;
+	objid_t obj;
 	int err;
 
 	err = zap_lookup(dp->dp_meta_objset,
@@ -53,7 +58,7 @@ dsl_pool_open_mos_dir(dsl_pool_t *dp, dsl_dir_t **ddp)
 }
 
 static dsl_pool_t *
-dsl_pool_open_impl(spa_t *spa, uint64_t txg)
+dsl_pool_open_impl(spa_t *spa, txg_t txg)
 {
 	dsl_pool_t *dp;
 	blkptr_t *bp = spa_get_rootblkptr(spa);
@@ -77,11 +82,15 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 }
 
 int
-dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
+dsl_pool_open(spa_t *spa, txg_t txg, dsl_pool_t **dpp)
 {
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
 	objset_impl_t *osi;
+
+	if (spa_state(spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(spa) == ZIO_FAILURE_MODE_ABORT)
+		return (EIO);
 
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
 	err = dmu_objset_open_impl(spa, NULL, &dp->dp_meta_rootbp, &osi);
@@ -90,7 +99,7 @@ dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 	dp->dp_meta_objset = &osi->os;
 
 	err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_ROOT_DATASET, sizeof (uint64_t), 1,
+	    DMU_POOL_ROOT_DATASET, sizeof (dp->dp_root_dir_obj), 1,
 	    &dp->dp_root_dir_obj);
 	if (err)
 		goto out;
@@ -138,7 +147,7 @@ dsl_pool_close(dsl_pool_t *dp)
 }
 
 dsl_pool_t *
-dsl_pool_create(spa_t *spa, uint64_t txg)
+dsl_pool_create(spa_t *spa, txg_t txg)
 {
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
@@ -166,7 +175,7 @@ dsl_pool_create(spa_t *spa, uint64_t txg)
 }
 
 void
-dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
+dsl_pool_sync(dsl_pool_t *dp, txg_t txg)
 {
 	zio_t *zio;
 	dmu_tx_t *tx;

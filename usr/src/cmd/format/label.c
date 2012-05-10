@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -217,6 +220,9 @@ do_geometry_sanity_check()
 int
 SMI_vtoc_to_EFI(int fd, struct dk_gpt **new_vtoc)
 {
+#ifdef NO_SUPPORT_EFI
+	return(-1);
+#else
 	int i;
 	struct dk_gpt	*efi;
 
@@ -255,6 +261,7 @@ SMI_vtoc_to_EFI(int fd, struct dk_gpt **new_vtoc)
 	efi->efi_parts[efi->efi_nparts - 1].p_size = EFI_MIN_RESV_SIZE;
 
 	return (0);
+#endif
 }
 
 /*
@@ -294,6 +301,10 @@ write_label()
 	 * If EFI label, then write it out to disk
 	 */
 	if (cur_label == L_TYPE_EFI) {
+#ifdef NO_SUPPORT_EFI
+	    err_print("Warning: error writing EFI.\n");
+	    return (-1);
+#else
 		enter_critical();
 		vtoc64 = cur_parts->etoc;
 		err_check(vtoc64);
@@ -305,6 +316,7 @@ write_label()
 		cur_disk->disk_flags |= DSK_LABEL;
 		exit_critical();
 		return (error);
+#endif
 	}
 
 	/*
@@ -590,6 +602,9 @@ get_disk_info(int fd, struct efi_info *label)
 int
 read_efi_label(int fd, struct efi_info *label)
 {
+#ifdef NO_SUPPORT_EFI
+	return(-1);
+#else
 	struct dk_gpt	*vtoc64;
 
 	/* This could fail if there is no label already */
@@ -605,6 +620,7 @@ read_efi_label(int fd, struct efi_info *label)
 		return (-1);
 	}
 	return (0);
+#endif
 }
 
 

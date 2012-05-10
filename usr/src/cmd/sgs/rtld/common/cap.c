@@ -23,6 +23,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	"_synonyms.h"
@@ -40,6 +45,7 @@
 #include	"_audit.h"
 #include	"msg.h"
 
+#if	!defined(__arm)
 /*
  * qsort(3c) comparison function.
  */
@@ -62,10 +68,13 @@ compare(const void *fdesc1, const void *fdesc2)
 		return (1);
 	return (0);
 }
+#endif	/* !defined(__arm) */
 
 /*
  * If this object defines a set of hardware capability requirements, insure the
  * kernal can cope with them.
+ * Note: On ARM architecture, hardware capability is not supported. So we do
+ *       only report that this object has hardware capatility. 
  */
 int
 hwcap_check(Rej_desc *rej, Ehdr *ehdr)
@@ -82,6 +91,11 @@ hwcap_check(Rej_desc *rej, Ehdr *ehdr)
 		if (phdr->p_type != PT_SUNWCAP)
 			continue;
 
+#if	defined(__arm)
+		rej->rej_type = SGS_REJ_HWCAP_1;
+		rej->rej_str = MSG_INTL(MSG_PT_SUNWCAP);
+		return (0);
+#else
 		/* LINTED */
 		cptr = (Cap *)((char *)ehdr + phdr->p_offset);
 		while (cptr->c_tag != CA_SUNW_NULL) {
@@ -106,10 +120,12 @@ hwcap_check(Rej_desc *rej, Ehdr *ehdr)
 		 * inspection should this object be processed as a filtee.
 		 */
 		fmap->fm_hwptr = cptr->c_un.c_val;
+#endif
 	}
 	return (1);
 }
 
+#if	!defined(__arm)
 static void
 remove_fdesc(Fdesc *fdp)
 {
@@ -504,3 +520,4 @@ load_hwcap(Lm_list *lml, Aliste lmco, const char *dir, Rt_map *clmp,
 	free(fdalp);
 	return (lmp);
 }
+#endif	/* !defined(__arm) */

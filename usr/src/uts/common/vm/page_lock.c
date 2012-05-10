@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -38,6 +42,7 @@
 #include <sys/lockstat.h>
 #include <sys/sysmacros.h>
 #include <sys/condvar_impl.h>
+#include <sys/lpg_config.h>
 #include <vm/page.h>
 #include <vm/seg_enum.h>
 #include <vm/vm_dep.h>
@@ -103,6 +108,12 @@ extern int pse_shift;			/* log2(pse_table_size) */
 	((((uintptr_t)(pp) >> pse_shift) ^ ((uintptr_t)(pp))) >> 7) &	\
 	(pse_table_size - 1)].pad_mutex
 
+#ifdef	LPG_DISABLE
+
+#define	PAGE_SZC_MUTEX(_pp)	(NULL)
+
+#else	/* !LPG_DISABLE */
+
 #define	PSZC_MTX_TABLE_SIZE	128
 #define	PSZC_MTX_TABLE_SHIFT	7
 
@@ -113,6 +124,8 @@ static pad_mutex_t	pszc_mutex[PSZC_MTX_TABLE_SIZE];
 		((uintptr_t)(_pp) >> (PSZC_MTX_TABLE_SHIFT << 1)) ^ \
 		((uintptr_t)(_pp) >> (3 * PSZC_MTX_TABLE_SHIFT))) & \
 		(PSZC_MTX_TABLE_SIZE - 1))].pad_mutex
+
+#endif	/* LPG_DISABLE */
 
 /*
  * The vph_mutex[] array  holds the mutexes to protect the vnode chains,
@@ -679,6 +692,10 @@ page_unlock(page_t *pp)
 		panic("page_unlock: page %p is not locked", pp);
 	}
 
+#ifdef	PAGE_RETIRE_DISABLE
+	ASSERT(!(pp->p_toxic & PR_CAPTURE));
+	mutex_exit(pse);
+#else	/* !PAGE_RETIRE_DISABLE */
 	if (pp->p_selock == 0) {
 		/*
 		 * If the T_CAPTURING bit is set, that means that we should
@@ -699,6 +716,7 @@ page_unlock(page_t *pp)
 	} else {
 		mutex_exit(pse);
 	}
+#endif	/* PAGE_RETIRE_DISABLE */
 }
 
 /*
@@ -945,7 +963,7 @@ page_szc_lock(page_t *pp)
 	page_t		*rootpp;
 	uint_t		szc;
 	uint_t		rszc;
-	uint_t		pszc = pp->p_szc;
+	uint_t		pszc = SZC_EVAL(pp->p_szc);
 
 	ASSERT(pp != NULL);
 	ASSERT(PAGE_LOCKED(pp));
@@ -953,6 +971,7 @@ page_szc_lock(page_t *pp)
 	ASSERT(pp->p_vnode != NULL);
 	ASSERT(!IS_SWAPFSVP(pp->p_vnode));
 	ASSERT(!PP_ISKAS(pp));
+	SZC_ASSERT(pp->p_szc);
 
 again:
 	if (pszc == 0) {
@@ -1005,6 +1024,7 @@ again:
 	goto again;
 }
 
+#ifndef	LPG_DISABLE
 int
 page_szc_lock_assert(page_t *pp)
 {
@@ -1013,6 +1033,7 @@ page_szc_lock_assert(page_t *pp)
 
 	return (MUTEX_HELD(mtx));
 }
+#endif	/* !LPG_DISABLE */
 
 /*
  * memseg locking

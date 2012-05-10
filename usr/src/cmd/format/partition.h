@@ -24,6 +24,10 @@
  * Copyright (c) 1991-2001 by Sun Microsystems, Inc.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_PARTITION_H
 #define	_PARTITION_H
 
@@ -45,13 +49,13 @@ extern "C" {
 #define	G_PARTITION		6
 #define	H_PARTITION		7
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 /*
  * the boot and alts slices only exist in the x86 disk layout.
  */
 #define	I_PARTITION		8
 #define	J_PARTITION		9
-#endif		/* defined(i386) */
+#endif		/* defined(i386) || defined(__arm) */
 
 /*
  *	Prototypes for ANSI C compilers

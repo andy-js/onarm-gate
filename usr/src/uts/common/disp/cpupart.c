@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -245,9 +249,7 @@ cpupart_initialize_default(void)
 	/*
 	 * Allocate space for cp_default list of lgrploads
 	 */
-	cp_default.cp_nlgrploads = lgrp_plat_max_lgrps();
-	cp_default.cp_lgrploads = kmem_zalloc(sizeof (lpl_t) *
-	    cp_default.cp_nlgrploads, KM_SLEEP);
+	LGRP_DEFAULT_LGRPLOADS_ALLOC(lgrp_plat_max_lgrps());
 
 	/*
 	 * The initial lpl topology is created in a special lpl list
@@ -268,7 +270,7 @@ cpupart_initialize_default(void)
 	 */
 	t0.t_lpl = &cp_default.cp_lgrploads[LGRP_ROOTID];
 
-	bitset_init(&cp_default.cp_cmt_pgs);
+	PG_PART_BITSET_INIT(&cp_default.cp_cmt_pgs);
 }
 
 
@@ -780,7 +782,7 @@ cpupart_create(psetid_t *psid)
 	for (i = 0; i < pp->cp_nlgrploads; i++) {
 		pp->cp_lgrploads[i].lpl_lgrpid = i;
 	}
-	bitset_init(&pp->cp_cmt_pgs);
+	PG_PART_BITSET_INIT(&pp->cp_cmt_pgs);
 
 	/*
 	 * Pause all CPUs while changing the partition list, to make sure
@@ -875,21 +877,21 @@ again:			p = ttoproc(t);
 		}
 	}
 
-	ASSERT(bitset_is_null(&pp->cp_cmt_pgs));
+	ASSERT(PG_PART_BITSET_IS_NULL(&pp->cp_cmt_pgs));
 	ASSERT(CPUSET_ISNULL(pp->cp_mach->mc_haltset));
 
 	/*
 	 * Teardown the partition's group of active CMT PGs now that
 	 * all of the CPUs have left.
 	 */
-	bitset_fini(&pp->cp_cmt_pgs);
+	PG_PART_BITSET_FINI(&pp->cp_cmt_pgs);
 
 	/*
 	 * Reset the pointers in any offline processors so they won't
 	 * try to rejoin the destroyed partition when they're turned
 	 * online.
 	 */
-	first_cp = cp = CPU;
+	first_cp = cp = CPU_GLOBAL;
 	do {
 		if (cp->cpu_part == pp) {
 			ASSERT(cp->cpu_flags & CPU_OFFLINE);

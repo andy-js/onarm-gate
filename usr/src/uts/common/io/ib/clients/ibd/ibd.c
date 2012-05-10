@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -421,7 +425,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Protected_by_Scheme", txpack))
 #endif
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int status;
 
@@ -454,13 +458,14 @@ _init()
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&ibd_modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int status;
 
@@ -472,6 +477,7 @@ _fini()
 	ddi_soft_state_fini(&ibd_list);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * Convert the GID part of the mac address from network byte order

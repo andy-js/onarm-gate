@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "fields.h"
@@ -1217,6 +1221,7 @@ line_convert(line_rec_t *L)
 {
 	static ssize_t bufsize;
 	static char *buffer;
+	size_t copy_size;
 
 	if (L->l_raw_collate.sp != NULL)
 		return;
@@ -1226,8 +1231,13 @@ line_convert(line_rec_t *L)
 		bufsize = L->l_data_length + 1;
 	}
 
-	(void) strncpy(buffer, L->l_data.sp, L->l_data_length);
-	buffer[L->l_data_length] = '\0';
+	copy_size = strnlen(L->l_data.sp, L->l_data_length);
+	(void) memcpy(buffer, L->l_data.sp, copy_size);
+	if (copy_size == L->l_data_length) {
+		buffer[L->l_data_length] = '\0';	    
+	} else {
+		(void) memset(buffer + copy_size, '\0', L->l_data_length - copy_size + 1);
+	}
 
 	L->l_raw_collate.sp = safe_realloc(L->l_raw_collate.sp,
 	    xfrm_ops->sx_len(buffer, L->l_data_length) + 1);

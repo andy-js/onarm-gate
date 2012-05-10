@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 const char ipclassifier_version[] = "@(#)ipclassifier.c	%I%	%E% SMI";
@@ -297,23 +301,39 @@ int	ipcl_debug_level = 0;
 uint_t tcp_conn_hash_size = 0;
 
 /* New value. Zero means choose automatically.  Setable in /etc/system */
+#ifndef IPCL_CONN_HASH_SIZE
 uint_t ipcl_conn_hash_size = 0;
+#else
+uint_t ipcl_conn_hash_size = IPCL_CONN_HASH_SIZE;
+#endif
 uint_t ipcl_conn_hash_memfactor = 8192;
 uint_t ipcl_conn_hash_maxsize = 82500;
 
 /* bind/udp fanout table size */
+#ifndef IPCL_BIND_FANOUT_SIZE
 uint_t ipcl_bind_fanout_size = 512;
+#else
+uint_t ipcl_bind_fanout_size = IPCL_BIND_FANOUT_SIZE;
+#endif
+#ifndef IPCL_UDP_FANOUT_SIZE
 uint_t ipcl_udp_fanout_size = 16384;
+#else
+uint_t ipcl_udp_fanout_size = IPCL_UDP_FANOUT_SIZE;
+#endif
 
 /* Raw socket fanout size.  Must be a power of 2. */
+#ifndef IPCL_RAW_FANOUT_SIZE
 uint_t ipcl_raw_fanout_size = 256;
+#else
+uint_t ipcl_raw_fanout_size = IPCL_RAW_FANOUT_SIZE;
+#endif
 
 /*
  * Power of 2^N Primes useful for hashing for N of 0-28,
  * these primes are the nearest prime <= 2^N - 2^(N-2).
  */
 
-#define	P2Ps() {0, 0, 0, 5, 11, 23, 47, 89, 191, 383, 761, 1531, 3067,	\
+#define	P2Ps() {0, 1, 3, 5, 11, 23, 47, 89, 191, 383, 761, 1531, 3067,	\
 		6143, 12281, 24571, 49139, 98299, 196597, 393209,	\
 		786431, 1572853, 3145721, 6291449, 12582893, 25165813,	\
 		50331599, 100663291, 201326557, 0}
@@ -428,7 +448,7 @@ ipcl_init(ip_stack_t *ipst)
 		}
 	}
 
-	for (i = 9; i < sizeof (sizes) / sizeof (*sizes) - 1; i++) {
+	for (i = 1; i < sizeof (sizes) / sizeof (*sizes) - 1; i++) {
 		if (sizes[i] >= ipst->ips_ipcl_conn_fanout_size) {
 			break;
 		}
@@ -589,11 +609,14 @@ conn_t *
 ipcl_conn_create(uint32_t type, int sleep, netstack_t *ns)
 {
 	conn_t	*connp;
+#ifndef SCTP_SHRINK
 	sctp_stack_t *sctps;
+#endif
 	struct kmem_cache *conn_cache;
 
 	switch (type) {
 	case IPCL_SCTPCONN:
+#ifndef SCTP_SHRINK
 		if ((connp = kmem_cache_alloc(sctp_conn_cache, sleep)) == NULL)
 			return (NULL);
 		sctp_conn_init(connp);
@@ -602,6 +625,9 @@ ipcl_conn_create(uint32_t type, int sleep, netstack_t *ns)
 		netstack_hold(ns);
 		connp->conn_netstack = ns;
 		return (connp);
+#else
+		return (NULL);
+#endif
 
 	case IPCL_TCPCONN:
 		conn_cache = tcp_conn_cache;
@@ -985,6 +1011,7 @@ ipcl_proto_insert_v6(conn_t *connp, uint8_t protocol)
 	IPCL_HASH_INSERT_WILDCARD(connfp, connp);
 }
 
+#ifndef SCTP_SHRINK
 /*
  * This function is used only for inserting SCTP raw socket now.
  * This may change later.
@@ -1034,6 +1061,7 @@ ipcl_sctp_hash_insert(conn_t *connp, in_port_t lport)
 	}
 	return (0);
 }
+#endif
 
 /*
  * Check for a MAC exemption conflict on a labeled system.  Note that for
@@ -1168,9 +1196,11 @@ ipcl_bind_insert(conn_t *connp, uint8_t protocol, ipaddr_t src, uint16_t lport)
 		}
 		break;
 
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 		ret = ipcl_sctp_hash_insert(connp, lport);
 		break;
+#endif
 	}
 
 	return (ret);
@@ -1248,10 +1278,11 @@ ipcl_bind_insert_v6(conn_t *connp, uint8_t protocol, const in6_addr_t *src,
 			    lport);
 		}
 		break;
-
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 		ret = ipcl_sctp_hash_insert(connp, lport);
 		break;
+#endif
 	}
 
 	return (ret);
@@ -1321,6 +1352,7 @@ ipcl_conn_insert(conn_t *connp, uint8_t protocol, ipaddr_t src,
 		mutex_exit(&connfp->connf_lock);
 		break;
 
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 		/*
 		 * The raw socket may have already been bound, remove it
@@ -1330,6 +1362,7 @@ ipcl_conn_insert(conn_t *connp, uint8_t protocol, ipaddr_t src,
 		lport = htons((uint16_t)(ntohl(ports) & 0xFFFF));
 		ret = ipcl_sctp_hash_insert(connp, lport);
 		break;
+#endif
 
 	default:
 		/*
@@ -1412,11 +1445,13 @@ ipcl_conn_insert_v6(conn_t *connp, uint8_t protocol, const in6_addr_t *src,
 		mutex_exit(&connfp->connf_lock);
 		break;
 
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 		IPCL_HASH_REMOVE(connp);
 		lport = htons((uint16_t)(ntohl(ports) & 0xFFFF));
 		ret = ipcl_sctp_hash_insert(connp, lport);
 		break;
+#endif
 
 	default:
 		if (is_system_labeled() &&

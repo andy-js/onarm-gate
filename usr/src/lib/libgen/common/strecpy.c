@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.2.5.2 */
 
 /*LINTLIBRARY*/
@@ -68,7 +72,7 @@ strecpy(char *pout, const char *pin, const char *except)
 char *
 streadd(char *pout, const char *pin, const char *except)
 {
-	unsigned	c;
+	char	c;
 
 	while ((c = *pin++) != 0) {
 		if (!isprint(c) && (!except || !strchr(except, c))) {
@@ -98,14 +102,14 @@ streadd(char *pout, const char *pin, const char *except)
 			case '\\':
 				continue;
 			default:
-				(void) sprintf(pout, "%.3o", c);
+				(void) sprintf(pout, "%.3o", (unsigned char)c);
 				pout += 3;
 				continue;
 			}
 		}
 		if (c == '\\' && (!except || !strchr(except, c)))
 			*pout++ = '\\';
-		*pout++ = (char)c;
+		*pout++ = c;
 	}
 	*pout = '\0';
 	return (pout);

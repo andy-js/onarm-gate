@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -56,6 +60,7 @@
 #include <sys/sunddi.h>
 #include <sys/modctl.h>
 #include <sys/hold_page.h>
+#include <sys/mem_cage.h>
 
 #define	RNDPOOLSIZE		1024	/* Pool size in bytes */
 #define	HASHBUFSIZE		64	/* Buffer size used for pool mixing */
@@ -118,6 +123,7 @@ static int swrand_get_entropy(uint8_t *ptr, size_t len, boolean_t);
 static void swrand_add_entropy(uint8_t *ptr, size_t len, uint16_t entropy_est);
 static void swrand_add_entropy_later(uint8_t *ptr, size_t len);
 
+#ifndef	KCAGE_DISABLE
 /* Dynamic Reconfiguration related declarations */
 kphysm_setup_vector_t rnd_dr_callback_vec = {
 	KPHYSM_SETUP_VECTOR_VERSION,
@@ -125,6 +131,7 @@ kphysm_setup_vector_t rnd_dr_callback_vec = {
 	rnd_dr_callback_pre_del,
 	rnd_dr_callback_post_del
 };
+#endif	/* !KCAGE_DISABLE */
 
 extern struct mod_ops mod_cryptoops;
 
@@ -190,7 +197,7 @@ static crypto_provider_info_t swrand_prov_info = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int ret;
 	hrtime_t ts;
@@ -258,7 +265,7 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -815,6 +822,8 @@ physmem_count_blocks()
 	memlist_read_unlock();
 }
 
+#ifndef	KCAGE_DISABLE
+
 /*
  * Dynamic Reconfiguration call-back functions
  */
@@ -843,6 +852,8 @@ rnd_dr_callback_post_del(void *arg, pgcnt_t delta, int cancelled)
 	/* Memory has shrunk, so update entsrc->nblocks. */
 	physmem_count_blocks();
 }
+
+#endif	/* !KCAGE_DISABLE */
 
 /* Timeout handling to gather entropy from physmem events */
 static void

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_DEBUG_H
 #define	_DEBUG_H
 
@@ -170,8 +174,13 @@ typedef struct {
 
 extern	Dbg_desc	*dbg_desc;
 
+#if	defined(__arm) && defined(RTLD_REDUCE_DEBUG_CALL)
+#define	DBG_ENABLED	(0)
+#define	DBG_CALL(func)
+#else
 #define	DBG_ENABLED	(dbg_desc->d_class)
 #define	DBG_CALL(func)	if (DBG_ENABLED) func
+#endif
 
 /*
  * Most debugging tokens are interpreted within liblddbg, and thus any flags

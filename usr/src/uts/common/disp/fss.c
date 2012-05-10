@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -267,19 +271,21 @@ static struct classfuncs fss_classfuncs = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

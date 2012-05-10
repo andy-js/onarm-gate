@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_VMSYSTM_H
 #define	_SYS_VMSYSTM_H
 
@@ -118,6 +122,19 @@ extern pgcnt_t	pages_before_pager; /* XXX */
  */
 #define	ADDR_NOVACALIGN	0
 #define	ADDR_VACALIGN	1
+
+/*
+ * If DESPERATE_FREEMEM() returns true, memory scheduler must create
+ * available memory as soon as possible, irrespective of actual available
+ * memory.
+ */
+#ifdef	__arm
+extern volatile uint_t	page_create_io_waiters;
+
+#define	DESPERATE_FREEMEM()	(page_create_io_waiters != 0)
+#else	/* !__arm */
+#define	DESPERATE_FREEMEM()	(0)
+#endif	/* __arm */
 
 struct as;
 struct page;

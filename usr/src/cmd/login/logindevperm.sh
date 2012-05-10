@@ -23,6 +23,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # This is the script that generates the logindevperm file. It is
@@ -92,6 +97,14 @@ case "$MACH" in
 	# 
 	# These are the ppc specific entries
 	# It depends on the build machine being a ppc
+	#
+	cat <<-EOM
+	EOM
+	;;
+    "arm" )
+	# 
+	# These are the arm specific entries
+	# It depends on the build machine being an arm
 	#
 	cat <<-EOM
 	EOM

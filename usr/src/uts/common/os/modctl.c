@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -41,6 +45,7 @@
 #include <sys/reboot.h>
 #include <sys/fs/ufs_fsdir.h>
 #include <sys/kmem.h>
+#include <sys/kmem_impl.h>
 #include <sys/sysconf.h>
 #include <sys/cmn_err.h>
 #include <sys/ddi.h>
@@ -79,6 +84,7 @@
 #include <sys/fs/dv_node.h>
 #include <sys/strsubr.h>
 #include <sys/fs/sdev_node.h>
+#include <sys/modstatic.h>
 
 static int		mod_circdep(struct modctl *);
 static int		modinfo(modid_t, struct modinfo *);
@@ -139,7 +145,11 @@ int	moddebug = 0x0;		/* debug flags for module writers */
 int	swaploaded;		/* set after swap driver and fs are loaded */
 int	bop_io_quiesced = 0;	/* set when BOP I/O can no longer be used */
 int	last_module_id;
+#ifdef	MOD_UNINSTALL_INTERVAL
+clock_t	mod_uninstall_interval = MOD_UNINSTALL_INTERVAL;
+#else	/* !MOD_UNINSTALL_INTERVAL */
 clock_t	mod_uninstall_interval = 0;
+#endif	/* MOD_UNINSTALL_INTERVAL */
 int	ddi_modclose_unload = 1;	/* 0 -> just decrement reference */
 
 struct devnames *devnamesp;
@@ -174,7 +184,7 @@ mod_setup(void)
 	 * XXX - This must be done before reading the system file so that
 	 * forceloads of drivers will work.
 	 */
-	num_devs = read_binding_file(majbind, mb_hashtab, make_mbind);
+	num_devs = BUILD_MAJOR_BINDING(majbind, mb_hashtab, make_mbind);
 	/*
 	 * Since read_binding_file is common code, it doesn't enforce that all
 	 * of the binding file entries have major numbers <= MAXMAJ32.  Thus,
@@ -215,7 +225,7 @@ mod_setup(void)
 	 */
 	(void) modload("misc", "cl_bootstrap");
 
-	(void) read_binding_file(sysbind, sb_hashtab, make_mbind);
+	(void) BUILD_SYSNUM_BINDING(sysbind, sb_hashtab, make_mbind);
 	init_syscallnames(NSYSCALL);
 
 	/*
@@ -384,7 +394,7 @@ modctl_modunload(modid_t id)
 	int rval = 0;
 
 	if (id == 0) {
-#ifdef DEBUG
+#if	!defined(MOD_UNINSTALL_INTERVAL) && defined(DEBUG)
 		/*
 		 * Turn on mod_uninstall_daemon
 		 */
@@ -393,7 +403,7 @@ modctl_modunload(modid_t id)
 			modreap();
 			return (rval);
 		}
-#endif
+#endif	/* !defined(MOD_UNINSTALL_INTERVAL) && defined(DEBUG) */
 		mod_uninstall_all();
 	} else {
 		rval = modunload(id);
@@ -2905,7 +2915,8 @@ mod_hold_installed_mod(char *name, int usepath, int forcecheck, int *r)
 	 * before allocation of module structure by mod_hold_by_name.
 	 */
 	if (modrootloaded && swaploaded || forcecheck) {
-		if (!kobj_path_exists(name, usepath)) {
+		if (!mod_is_static_linked(name) &&
+		    !kobj_path_exists(name, usepath)) {
 			*r = ENOENT;
 			return (NULL);
 		}
@@ -3035,6 +3046,10 @@ mod_getinfo(struct modctl *modp, struct modinfo *modinfop)
 	/* primary modules don't do getinfo */
 	if (modp->mod_prim)
 		return (0);
+
+	if (mod_static_getinfo(modp, modinfop, &retval) == 0) {
+		return retval;
+	}
 
 	func = (int (*)(struct modinfo *))kobj_lookup(modp->mod_mp, "_info");
 
@@ -3339,6 +3354,8 @@ mod_unload(struct modctl *mp)
 	mp->mod_loaded = 0;
 	mp->mod_linkage = NULL;
 
+	KMEM_CKPT_UNINSTALL(mp->mod_modname);
+
 	/* free the memory */
 	kobj_unload_module(mp);
 
@@ -3401,6 +3418,10 @@ modinstall(struct modctl *mp)
 		 * (otherwise there would be a deadlock).
 		 */
 		return (ENXIO);
+	}
+
+	if ((val = mod_static_install(mp)) >= 0) {
+		return val;
 	}
 
 	if (moddebug & MODDEBUG_ERRMSG) {

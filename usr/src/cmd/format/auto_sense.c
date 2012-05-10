@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -265,10 +268,14 @@ auto_efi_sense(int fd, struct efi_info *label)
 	/*
 	 * Now build the default partition table
 	 */
+#ifdef NO_SUPPORT_EFI
+	return ((struct disk_type *)NULL);
+#else
 	if (efi_alloc_and_init(fd, EFI_NUMPAR, &vtoc) != 0) {
 		err_print("efi_alloc_and_init failed. \n");
 		return ((struct disk_type *)NULL);
 	}
+#endif
 
 	label->e_parts = vtoc;
 
@@ -1564,7 +1571,7 @@ build_default_partition(
 		}
 		return (0);
 	}
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 	/*
 	 * Set the default boot partition to 1 cylinder
 	 */
@@ -1579,7 +1586,7 @@ build_default_partition(
 		ncyls[9] = 2;
 		freecyls -= 2;
 	}
-#endif			/* defined(i386) */
+#endif /* defined(i386) || defined(__arm) */
 
 	/*
 	 * Set the free hog partition to whatever space remains.

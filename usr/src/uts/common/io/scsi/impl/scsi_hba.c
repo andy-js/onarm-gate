@@ -1975,8 +1975,8 @@ string_scsi_to_1275(char *s_1275, char *s_scsi, int len)
  *				scsi-binding-set property of HBA.
  */
 #define	NCOMPAT		(1 + (8 + 1 + 5) + 1)
-#define	COMPAT_LONGEST	(strlen( \
-	"scsiclass,DDEEFFF.vVVVVVVVV.pPPPPPPPPPPPPPPPP.rRRRR" + 1))
+#define	COMPAT_LONGEST	(sizeof( \
+	"scsiclass,DDEEFFF.vVVVVVVVV.pPPPPPPPPPPPPPPPP.rRRRR"))
 void
 scsi_hba_nodename_compatible_get(struct scsi_inquiry *inq, char *binding_set,
     int dtype_node, char *compat0,

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	Copyright (c) 1988 AT&T	*/
@@ -67,6 +71,8 @@
 #include <sys/pool.h>
 #include <sys/sdt.h>
 #include <sys/brand.h>
+#include <sys/exec_private.h>
+#include <sys/lpg_config.h>
 
 #include <c2/audit.h>
 
@@ -109,13 +115,14 @@ exece(const char *fname, const char **argp, const char **envp)
 {
 	int error;
 
-	error = exec_common(fname, argp, envp, EBA_NONE);
+	error = exec_common(fname, argp, envp, EBA_NONE, NULL);
 	return (error ? (set_errno(error)) : 0);
 }
 
+
 int
 exec_common(const char *fname, const char **argp, const char **envp,
-    int brand_action)
+	    int brand_action, void *private)
 {
 	vnode_t *vp = NULL, *dir = NULL, *tmpvp = NULL;
 	proc_t *p = ttoproc(curthread);
@@ -197,8 +204,12 @@ exec_common(const char *fname, const char **argp, const char **envp,
 	 * but coreadm is allowed to expand %d to the empty string and
 	 * there are other cases in which that failure may occur.
 	 */
-	if ((error = pn_get((char *)fname, UIO_USERSPACE, &pn)) != 0)
-		goto out;
+
+	if ((error = EXEC_PN_GET((char *)fname, UIO_USERSPACE,
+				 &pn, private)) != 0) {
+                goto out;
+        }
+
 	pn_alloc(&resolvepn);
 	if ((error = lookuppn(&pn, &resolvepn, FOLLOW, &dir, &vp)) != 0) {
 		pn_free(&resolvepn);
@@ -207,8 +218,11 @@ exec_common(const char *fname, const char **argp, const char **envp,
 			goto out;
 
 		dir = NULL;
-		if ((error = pn_get((char *)fname, UIO_USERSPACE, &pn)) != 0)
+		if ((error = EXEC_PN_GET((char *)fname, UIO_USERSPACE, 
+					 &pn, private)) != 0) {
 			goto out;
+		}
+
 		pn_alloc(&resolvepn);
 		if ((error = lookuppn(&pn, &resolvepn, FOLLOW, NULLVPP,
 		    &vp)) != 0) {
@@ -266,6 +280,8 @@ exec_common(const char *fname, const char **argp, const char **envp,
 	 */
 	args.stk_prot = PROT_ZFOD;
 	args.dat_prot = PROT_ZFOD;
+
+	args.private = private;
 
 	CPU_STATS_ADD_K(sys, sysexec, 1);
 	DTRACE_PROC1(exec, char *, args.pathname);
@@ -992,6 +1008,8 @@ execmap(struct vnode *vp, caddr_t addr, size_t len, size_t zfodlen,
 	label_t ljb;
 	proc_t *p = ttoproc(curthread);
 
+	SZC_ASSERT(szc);
+
 	oldaddr = addr;
 	addr = (caddr_t)((uintptr_t)addr & (uintptr_t)PAGEMASK);
 	if (len) {
@@ -1128,7 +1146,7 @@ execmap(struct vnode *vp, caddr_t addr, size_t len, size_t zfodlen,
 				error = ENOMEM;
 				goto bad;
 			}
-			if (szc > 0) {
+			if (SZC_EVAL(szc) > 0) {
 				/*
 				 * ASSERT alignment because the mapelfexec()
 				 * caller for the szc > 0 case extended zfod
@@ -1398,6 +1416,9 @@ stk_copyin(execa_t *uap, uarg_t *args, intpdata_t *intp, void **auxvpp)
 	}
 
 	if (argv_empty == 0) {
+		
+		EXEC_ARGV_PREPARE(args, argv);
+		
 		/*
 		 * Add argv[] strings to the stack.
 		 */
@@ -1642,10 +1663,19 @@ exec_args(execa_t *uap, uarg_t *args, intpdata_t *intp, void **auxvpp)
 	char *usrstack;
 	rctl_entity_p_t e;
 	struct as *as;
+#ifndef	LPG_DISABLE
 	extern int use_stk_lpg;
+#endif	/* !LPG_DISABLE */
 	size_t sp_slew;
 
 	args->from_model = p->p_model;
+#ifdef	__arm
+	args->from_ptrsize = sizeof(long);
+	args->to_ptrsize = sizeof(long);
+	args->ncargs = NCARGS;
+	args->stk_align = STACK_ENTRY_ALIGN;
+	usrstack = (char *)USRSTACK;
+#else	/* !__arm */
 	if (p->p_model == DATAMODEL_NATIVE) {
 		args->from_ptrsize = sizeof (long);
 	} else {
@@ -1663,6 +1693,7 @@ exec_args(execa_t *uap, uarg_t *args, intpdata_t *intp, void **auxvpp)
 		args->stk_align = STACK_ALIGN32;
 		usrstack = (char *)USRSTACK32;
 	}
+#endif	/* __arm */
 
 	ASSERT(P2PHASE((uintptr_t)usrstack, args->stk_align) == 0);
 
@@ -1797,7 +1828,7 @@ exec_args(execa_t *uap, uarg_t *args, intpdata_t *intp, void **auxvpp)
 	rctl_set_reset(p->p_rctls, p, &e);
 
 	/* Too early to call map_pgsz for the heap */
-	if (use_stk_lpg) {
+	if (LPG_EVAL(use_stk_lpg)) {
 		p->p_stkpageszc = page_szc(map_pgsz(MAPPGSZ_STK, p, 0, 0, 0));
 	}
 

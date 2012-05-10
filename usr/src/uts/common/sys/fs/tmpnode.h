@@ -24,12 +24,17 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_FS_TMPNODE_H
 #define	_SYS_FS_TMPNODE_H
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/t_lock.h>
+#include <sys/vfs_opreg.h>
 #include <vm/seg.h>
 #include <vm/seg_vn.h>
 
@@ -89,6 +94,7 @@ struct tmpnode {
 	kmutex_t	tn_tlock;		/* time, flag, and nlink lock */
 	struct tmpnode *tn_xattrdp;		/* ext. attribute directory */
 	uint_t		tn_flags;		/* tmpnode specific flags */
+	uint_t		tn_status;		/* tmpnode status with tn_tlock */
 };
 
 #define	tn_dir		un_tmpnode.un_dirstruct.un_dirlist
@@ -101,6 +107,12 @@ struct tmpnode {
  * tmnode flag values.
  */
 #define	ISXATTR		0x1
+
+/*
+ *
+ */
+#define TMPSTALE	0x1
+#define TMPRENAMING	0x2
 
 /*
  * Attributes

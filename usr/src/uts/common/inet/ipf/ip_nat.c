@@ -7,6 +7,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"$
 
 #if defined(KERNEL) || defined(_KERNEL)
@@ -623,7 +627,14 @@ ipf_stack_t *ifs;
 {
 	ipnat_t *nat, *nt, *n = NULL, **np = NULL;
 	int error = 0, ret, arg, getlock;
+#if defined(_NETWORK_EXTENSION)
+	ipnat_t *natp = NULL;
+	KMALLOC(natp, ipnat_t *);
+	if(!natp)
+		return ENOMEM;
+#else
 	ipnat_t natd;
+#endif /* _NETWORK_EXTENSION */
 
 #if (BSD >= 199306) && defined(_KERNEL)
 	if ((securelevel >= 2) && (mode & FWRITE))
@@ -645,10 +656,18 @@ ipf_stack_t *ifs;
 
 	if ((cmd == (ioctlcmd_t)SIOCADNAT) || (cmd == (ioctlcmd_t)SIOCRMNAT)) {
 		if (mode & NAT_SYSSPACE) {
+#if defined(_NETWORK_EXTENSION)
+			bcopy(data, (char *)natp, sizeof(*natp));
+#else
 			bcopy(data, (char *)&natd, sizeof(natd));
+#endif /* _NETWORK_EXTENSION */
 			error = 0;
 		} else {
+#if defined(_NETWORK_EXTENSION)
+			error = fr_inobj(data, natp, IPFOBJ_IPNAT);
+#else
 			error = fr_inobj(data, &natd, IPFOBJ_IPNAT);
+#endif /* _NETWORK_EXTENSION */
 		}
 
 	} else if (cmd == (ioctlcmd_t)SIOCIPFFL) { /* SIOCFLNAT & SIOCCNATL */
@@ -662,7 +681,11 @@ ipf_stack_t *ifs;
 	 * For add/delete, look to see if the NAT entry is already present
 	 */
 	if ((cmd == (ioctlcmd_t)SIOCADNAT) || (cmd == (ioctlcmd_t)SIOCRMNAT)) {
+#if defined(_NETWORK_EXTENSION)
+		nat = natp;
+#else
 		nat = &natd;
+#endif /* _NETWORK_EXTENSION */
 		if (nat->in_v == 0)	/* For backward compat. */
 			nat->in_v = 4;
 		nat->in_flags &= IPN_USERFLAGS;
@@ -880,6 +903,9 @@ ipf_stack_t *ifs;
 done:
 	if (nt)
 		KFREE(nt);
+#if defined(_NETWORK_EXTENSION)
+	KFREE(natp);
+#endif /* _NETWORK_EXTENSION */
 	return error;
 }
 
@@ -1189,9 +1215,38 @@ ipf_stack_t *ifs;
 {
 	int error, outsize;
 	ap_session_t *aps;
+#if defined(_NETWORK_EXTENSION)
+	nat_save_t *ipn, *ipnsp;
+#else
 	nat_save_t *ipn, ipns;
+#endif /* _NETWORK_EXTENSION */
 	nat_t *n, *nat;
 
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(ipnsp, nat_save_t *);
+	if(!ipnsp)
+		return ENOMEM;
+
+	error = fr_inobj(data, ipnsp, IPFOBJ_NATSAVE);
+	if (error != 0) {
+		KFREE(ipnsp);
+		return error;
+	}
+
+	if ((ipnsp->ipn_dsize < sizeof(*ipnsp)) || (ipnsp->ipn_dsize > 81920)) {
+		KFREE(ipnsp);
+		return EINVAL;
+	}
+
+	KMALLOCS(ipn, nat_save_t *, ipnsp->ipn_dsize);
+	if (ipn == NULL) {
+		KFREE(ipnsp);
+		return ENOMEM;
+	}
+
+	ipn->ipn_dsize = ipnsp->ipn_dsize;
+	nat = ipnsp->ipn_next;
+#else
 	error = fr_inobj(data, &ipns, IPFOBJ_NATSAVE);
 	if (error != 0)
 		return error;
@@ -1205,6 +1260,7 @@ ipf_stack_t *ifs;
 
 	ipn->ipn_dsize = ipns.ipn_dsize;
 	nat = ipns.ipn_next;
+#endif /* _NETWORK_EXTENSION */
 	if (nat == NULL) {
 		nat = ifs->ifs_nat_instances;
 		if (nat == NULL) {
@@ -1273,13 +1329,24 @@ ipf_stack_t *ifs;
 			error = ENOBUFS;
 	}
 	if (error == 0) {
+#if defined(_NETWORK_EXTENSION)
+		error = fr_outobjsz(data, ipn, IPFOBJ_NATSAVE, ipnsp->ipn_dsize);
+#else
 		error = fr_outobjsz(data, ipn, IPFOBJ_NATSAVE, ipns.ipn_dsize);
+#endif /* _NETWORK_EXTENSION */
 	}
 
 finished:
+#if defined(_NETWORK_EXTENSION)
+	if (ipn != NULL) {
+		KFREES(ipn, ipnsp->ipn_dsize);
+	}
+	KFREE(ipnsp);
+#else
 	if (ipn != NULL) {
 		KFREES(ipn, ipns.ipn_dsize);
 	}
+#endif /* _NETWORK_EXTENSION */
 	return error;
 }
 
@@ -1301,7 +1368,11 @@ caddr_t data;
 int getlock;
 ipf_stack_t *ifs;
 {
+#if defined(_NETWORK_EXTENSION)
+	nat_save_t *ipnp, *ipnn;
+#else
 	nat_save_t ipn, *ipnn;
+#endif /* _NETWORK_EXTENSION */
 	ap_session_t *aps;
 	nat_t *n, *nat;
 	frentry_t *fr;
@@ -1309,9 +1380,19 @@ ipf_stack_t *ifs;
 	ipnat_t *in;
 	int error;
 
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(ipnp, nat_save_t *);
+	if(!ipnp)
+		return ENOMEM;
+
+	error = fr_inobj(data, ipnp, IPFOBJ_NATSAVE);
+	if (error != 0)
+		return error;
+#else
 	error = fr_inobj(data, &ipn, IPFOBJ_NATSAVE);
 	if (error != 0)
 		return error;
+#endif /* _NETWORK_EXTENSION */
 
 	/*
 	 * Trigger automatic call to nat_extraflush() if the
@@ -1333,6 +1414,27 @@ ipf_stack_t *ifs;
 	 * than just the nat_t structure.
 	 */
 	fr = NULL;
+#if defined(_NETWORK_EXTENSION)
+	if (ipnp->ipn_dsize > sizeof(*ipnp)) {
+		if (ipnp->ipn_dsize > 81920) {
+			error = ENOMEM;
+			goto junkput;
+		}
+
+		KMALLOCS(ipnn, nat_save_t *, ipnp->ipn_dsize);
+		if (ipnn == NULL) {
+			KFREE(ipnp);
+			return ENOMEM;
+		}
+
+		error = fr_inobjsz(data, ipnn, IPFOBJ_NATSAVE, ipnp->ipn_dsize);
+		if (error != 0) {
+			error = EFAULT;
+			goto junkput;
+		}
+	} else
+		ipnn = ipnp;
+#else
 	if (ipn.ipn_dsize > sizeof(ipn)) {
 		if (ipn.ipn_dsize > 81920) {
 			error = ENOMEM;
@@ -1350,6 +1452,7 @@ ipf_stack_t *ifs;
 		}
 	} else
 		ipnn = &ipn;
+#endif /* _NETWORK_EXTENSION */
 
 	KMALLOC(nat, nat_t *);
 	if (nat == NULL) {
@@ -1516,10 +1619,17 @@ ipf_stack_t *ifs;
 		}
 	}
 
+#if defined(_NETWORK_EXTENSION)
+	if (ipnn != ipnp) {
+		KFREES(ipnn, ipnp->ipn_dsize);
+		ipnn = NULL;
+	}
+#else
 	if (ipnn != &ipn) {
 		KFREES(ipnn, ipn.ipn_dsize);
 		ipnn = NULL;
 	}
+#endif /* _NETWORK_EXTENSION */
 
 	if (getlock) {
 		WRITE_ENTER(&ifs->ifs_ipf_nat);
@@ -1533,8 +1643,15 @@ ipf_stack_t *ifs;
 		RWLOCK_EXIT(&ifs->ifs_ipf_nat);
 	}
 
+#if defined(_NETWORK_EXTENSION)
+	if (error == 0) {
+		KFREE(ipnp);
+		return 0;
+	}
+#else
 	if (error == 0)
 		return 0;
+#endif /* _NETWORK_EXTENSION */
 
 	error = ENOMEM;
 
@@ -1542,9 +1659,15 @@ junkput:
 	if (fr != NULL)
 		(void) fr_derefrule(&fr, ifs);
 
+#if defined(_NETWORK_EXTENSION)
+	if ((ipnn != NULL) && (ipnn != ipnp)) {
+		KFREES(ipnn, ipnp->ipn_dsize);
+	}
+#else
 	if ((ipnn != NULL) && (ipnn != &ipn)) {
 		KFREES(ipnn, ipn.ipn_dsize);
 	}
+#endif /* _NETWORK_EXTENSION */
 	if (nat != NULL) {
 		if (aps != NULL) {
 			if (aps->aps_data != NULL) {
@@ -1559,6 +1682,9 @@ junkput:
 		}
 		KFREE(nat);
 	}
+#if defined(_NETWORK_EXTENSION)
+	KFREE(ipnp);
+#endif /* _NETWORK_EXTENSION */
 	return error;
 }
 

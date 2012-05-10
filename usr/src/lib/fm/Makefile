@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 include ../Makefile.lib
 
 sparc_SUBDIRS = \
@@ -34,15 +38,20 @@ sparc_SUBDIRS = \
 
 i386_SUBDIRS =
 
-SUBDIRS = \
+SUBDIRS-common = \
 	libdiagcode \
 	libdiskstatus \
 	libfmd_adm \
 	libfmd_log \
 	libfmd_msg \
-	libfmd_snmp \
-	$($(MACH)_SUBDIRS) \
-	topo
+	libfmd_snmp
+
+SUBDIRS	= $(SUBDIRS-common) $($(MACH)_SUBDIRS) topo
+
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(SUBDIRS-common) $(SUBDIRS-$(MACH)) topo
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
 
 libldom: libmdesc
 

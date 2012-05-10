@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -100,14 +104,19 @@ _caller(caddr_t cpc, int flags)
 	return (0);
 }
 
-#pragma weak dlerror = _dlerror
 
 /*
  * External entry for dlerror(3dl).  Returns a pointer to the string describing
  * the last occurring error.  The last occurring error is cleared.
  */
+#if	!defined(__arm)
+#pragma weak dlerror = _dlerror
 char *
 _dlerror()
+#else
+char *
+_dlerrorf(caddr_t callerpc)
+#endif
 {
 	char	*error;
 	Rt_map	*clmp;
@@ -115,7 +124,11 @@ _dlerror()
 
 	entry = enter();
 
+#if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
+#else
+	clmp = _caller(callerpc, CL_EXECDEF);
+#endif
 
 	error = lasterr;
 	lasterr = (char *)0;
@@ -533,20 +546,29 @@ dlclose_check(void *handle, Rt_map *clmp)
 	return (dlclose_intn(ghp, clmp));
 }
 
-#pragma weak dlclose = _dlclose
 
 /*
  * External entry for dlclose(3dl).  Returns 0 for success, non-zero otherwise.
  */
+#if	!defined(__arm)
+#pragma weak dlclose = _dlclose
 int
 _dlclose(void *handle)
+#else
+int
+_dlclosef(void *handle, caddr_t callerpc)
+#endif
 {
 	int		error, entry;
 	Rt_map		*clmp;
 
 	entry = enter();
 
+#if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
+#else
+	clmp = _caller(callerpc, CL_EXECDEF);
+#endif
 
 	error = dlclose_check(handle, clmp);
 
@@ -902,15 +924,21 @@ dlmopen_check(Lm_list *lml, const char *path, int mode, Rt_map *clmp,
 	return (dlmopen_intn(lml, path, mode, clmp, 0, 0, loaded));
 }
 
-#pragma weak dlopen = _dlopen
 
 /*
  * External entry for dlopen(3dl).  On success, returns a pointer (handle) to
  * the structure containing information about the newly added object, ie. can
  * be used by dlsym(). On failure, returns a null pointer.
  */
+
+#if	!defined(__arm)
+#pragma weak dlopen = _dlopen
 void *
 _dlopen(const char *path, int mode)
+#else
+void *
+_dlopenf(const char *path, int mode, caddr_t callerpc)
+#endif
 {
 	int	entry, loaded = 0;
 	Rt_map	*clmp;
@@ -919,7 +947,11 @@ _dlopen(const char *path, int mode)
 
 	entry = enter();
 
+#if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
+#else
+	clmp = _caller(callerpc, CL_EXECDEF);
+#endif
 	lml = LIST(clmp);
 
 	ghp = dlmopen_check(lml, path, mode, clmp, &loaded);
@@ -935,10 +967,15 @@ _dlopen(const char *path, int mode)
 /*
  * External entry for dlmopen(3dl).
  */
-#pragma weak dlmopen = _dlmopen
 
+#if	!defined(__arm)
+#pragma weak dlmopen = _dlmopen
 void *
 _dlmopen(Lmid_t lmid, const char *path, int mode)
+#else
+void *
+_dlmopenf(Lmid_t lmid, const char *path, int mode, caddr_t callerpc)
+#endif
 {
 	int	entry, loaded = 0;
 	Rt_map	*clmp;
@@ -946,7 +983,11 @@ _dlmopen(Lmid_t lmid, const char *path, int mode)
 
 	entry = enter();
 
+#if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
+#else
+	clmp = _caller(callerpc, CL_EXECDEF);
+#endif
 
 	ghp = dlmopen_check((Lm_list *)lmid, path, mode, clmp, &loaded);
 
@@ -1363,14 +1404,18 @@ dlsym_check(void *handle, const char *name, Rt_map *clmp, Rt_map **dlmp)
 }
 
 
-#pragma weak dlsym = _dlsym
-
 /*
  * External entry for dlsym().  On success, returns the address of the specified
  * symbol.  On error returns a null.
  */
+#if	!defined(__arm)
+#pragma weak dlsym = _dlsym
 void *
 _dlsym(void *handle, const char *name)
+#else
+void *
+_dlsymf(void *handle, const char *name, caddr_t callerpc)
+#endif
 {
 	int	entry;
 	Rt_map	*clmp, *dlmp = 0;
@@ -1378,7 +1423,11 @@ _dlsym(void *handle, const char *name)
 
 	entry = enter();
 
+#if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
+#else
+	clmp = _caller(callerpc, CL_EXECDEF);
+#endif
 
 	addr = dlsym_check(handle, name, clmp, &dlmp);
 
@@ -1550,7 +1599,11 @@ dldump_core(Lm_list *lml, const char *ipath, const char *opath, int flags)
 	 * As rt_dldump() will effectively lazy load the necessary support
 	 * libraries, make sure ld.so.1 is initialized for plt relocations.
 	 */
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+	if (elf_arm_rtld_load(LIBRTLD) == 0)
+#else
 	if (elf_rtld_load() == 0)
+#endif
 		return (0);
 
 	/*
@@ -1559,20 +1612,28 @@ dldump_core(Lm_list *lml, const char *ipath, const char *opath, int flags)
 	return (rt_dldump(lmp, opath, flags, addr));
 }
 
-#pragma weak dldump = _dldump
-
 /*
  * External entry for dldump(3c).  Returns 0 on success, non-zero otherwise.
  */
+#if	!defined(__arm)
+#pragma weak dldump = _dldump
 int
 _dldump(const char *ipath, const char *opath, int flags)
+#else
+int
+_dldumpf(const char *ipath, const char *opath, int flags, caddr_t callerpc)
+#endif
 {
 	int	error, entry;
 	Rt_map	*clmp;
 
 	entry = enter();
 
+#if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
+#else
+	clmp = _caller(callerpc, CL_EXECDEF);
+#endif
 
 	error = dldump_core(LIST(clmp), ipath, opath, flags);
 
@@ -1833,20 +1894,29 @@ dlinfo_core(void *handle, int request, void *p, Rt_map *clmp)
 	return (0);
 }
 
-#pragma weak dlinfo = _dlinfo
 
 /*
  * External entry for dlinfo(3dl).
  */
+#if	!defined(__arm)
+#pragma weak dlinfo = _dlinfo
 int
 _dlinfo(void *handle, int request, void *p)
+#else
+int
+_dlinfof(void *handle, int request, void *p, caddr_t callerpc)
+#endif
 {
 	int	error, entry;
 	Rt_map	*clmp;
 
 	entry = enter();
 
+#if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
+#else
+	clmp = _caller(callerpc, CL_EXECDEF);
+#endif
 
 	error = dlinfo_core(handle, request, p, clmp);
 

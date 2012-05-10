@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -35,7 +40,7 @@ include ../../../Makefile.lib
 include ../../Makefile.lib
 
 SRCS = $(LIBSRCS:%.c=../common/%.c)
-LIBS = $(DYNLIB) $(LINTLIB)
+LIBS = $(ARLIB) $(DYNLIB) $(LINTLIB)
 CLEANFILES += fmd_rpc.c fmd_xdr.c fmd_rpc_adm.h fmd_rpc_adm.x
 
 SRCDIR =	../common

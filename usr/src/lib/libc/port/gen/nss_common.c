@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2009 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -1351,6 +1355,11 @@ end_iter_u(nss_db_root_t *rootp, struct nss_getent_context *contextp)
 			contextp->be = 0;  /* Should be unnecessary, but hey */
 			NSS_UNREF_UNLOCK(rootp, s);
 		}
+		else {
+			/* Need to unref nss_db_state. */
+			NSS_RELOCK(&rootp, s);
+			NSS_UNREF_UNLOCK(rootp, s);
+		}
 		contextp->s = 0;
 	}
 }
@@ -1495,6 +1504,10 @@ nss_getent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 		(void) NSS_INVOKE_DBOP(be, NSS_DBOP_ENDENT, 0);
 		NSS_RELOCK(&rootp, s);
 		nss_put_backend_u(s, n_src, be);
+
+		/* Need to clear active backend to avoid duplex buffer free. */
+		contextp->be = 0;
+
 		do {
 			n_src++;
 		} while (n_src < s->max_src &&

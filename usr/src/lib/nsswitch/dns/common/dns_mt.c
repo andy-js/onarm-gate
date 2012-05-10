@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2009 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -48,39 +52,30 @@
 static void	_nss_dns_init(void);
 
 extern struct hostent *res_gethostbyname(const char *);
-#pragma weak	res_gethostbyname
 
 #define		RES_SET_NO_HOSTS_FALLBACK	"__res_set_no_hosts_fallback"
 extern void	__res_set_no_hosts_fallback(void);
-#pragma weak	__res_set_no_hosts_fallback
 
 #define		RES_UNSET_NO_HOSTS_FALLBACK	"__res_unset_no_hosts_fallback"
 extern void	__res_unset_no_hosts_fallback(void);
-#pragma weak	__res_unset_no_hosts_fallback
 
 #define		RES_GET_RES	"__res_get_res"
 extern struct __res_state	*__res_get_res(void);
-#pragma weak	__res_get_res
 
 #define		RES_ENABLE_MT			"__res_enable_mt"
 extern int	__res_enable_mt(void);
-#pragma weak	__res_enable_mt
 
 #define		RES_DISABLE_MT			"__res_disable_mt"
 extern int	__res_disable_mt(void);
-#pragma weak	__res_disable_mt
 
 #define		RES_GET_H_ERRNO			"__res_get_h_errno"
 extern int	*__res_get_h_errno();
-#pragma weak	__res_get_h_errno
 
 #define		__H_ERRNO			"__h_errno"
 extern int	*__h_errno(void);
-#pragma weak	__h_errno
 
 #define		RES_OVERRIDE_RETRY		"__res_override_retry"
 extern int	__res_override_retry(int);
-#pragma weak	__res_override_retry
 
 static void	__fallback_set_no_hosts(void);
 static int	*__fallback_h_errno(void);
@@ -103,6 +98,28 @@ int	(*override_retry)(int) = 0;
 /* From libresolv */
 extern	int	h_errno;
 
+#ifdef	LIBRESOLV_NEEDED
+
+/* libresolv.so is marked as needed library in .dynamic section. */
+
+#define	LIBRESOLV_IS_LOADED()	(1)
+
+#else	/* !LIBRESOLV_NEEDED */
+
+#define	LIBRESOLV_IS_LOADED()	(res_gethostbyname != 0)
+
+#pragma weak	res_gethostbyname
+#pragma weak	__res_set_no_hosts_fallback
+#pragma weak	__res_unset_no_hosts_fallback
+#pragma weak	__res_get_res
+#pragma weak	__res_enable_mt
+#pragma weak	__res_disable_mt
+#pragma weak	__res_get_h_errno
+#pragma weak	__h_errno
+#pragma weak	__res_override_retry
+
+#endif	/* LIBRESOLV_NEEDED */
+
 mutex_t	one_lane = DEFAULTMUTEX;
 
 void
@@ -111,7 +128,7 @@ _nss_dns_init(void)
 	void		*reslib, (*f_void_ptr)();
 
 	/* If no libresolv library, then load one */
-	if (res_gethostbyname == 0) {
+	if (!LIBRESOLV_IS_LOADED()) {
 		if ((reslib =
 		dlopen(NSS_DNS_LIBRESOLV, RTLD_LAZY|RTLD_GLOBAL)) != 0) {
 			/* Turn off /etc/hosts fall back in libresolv */

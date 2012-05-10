@@ -44,7 +44,9 @@
 #include <sys/stat.h>
 #include <door.h>
 #include <alloca.h>
+#ifndef STATIC_LINK
 #include <dlfcn.h>
+#endif
 #include <limits.h>
 #include <rpc/svc_mt.h>
 

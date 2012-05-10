@@ -37,6 +37,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_SOCKETVAR_H
 #define	_SYS_SOCKETVAR_H
 
@@ -47,6 +51,7 @@
 #include <sys/t_lock.h>
 #include <sys/cred.h>
 #include <sys/vnode.h>
+#include <sys/vfs_opreg.h>
 #include <sys/file.h>
 #include <sys/param.h>
 #include <sys/zone.h>

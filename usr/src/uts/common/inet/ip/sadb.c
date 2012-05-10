@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -5684,6 +5688,7 @@ ipsec_tcp_pol(ipsec_selector_t *sel, ipsec_policy_t **ppp, ip_stack_t *ipst)
 	ipsec_conn_pol(sel, connp, ppp);
 }
 
+#ifndef SCTP_SHRINK
 static void
 ipsec_sctp_pol(ipsec_selector_t *sel, ipsec_policy_t **ppp,
     ip_stack_t *ipst)
@@ -5727,6 +5732,7 @@ ipsec_sctp_pol(ipsec_selector_t *sel, ipsec_policy_t **ppp,
 		return;
 	ipsec_conn_pol(sel, connp, ppp);
 }
+#endif
 
 /*
  * Fill in a query for the SPD (in "sel") using two PF_KEY address extensions.
@@ -6041,9 +6047,11 @@ ipsec_construct_inverse_acquire(sadb_msg_t *samsg, sadb_ext_t *extv[],
 	case IPPROTO_UDP:
 		ipsec_udp_pol(&sel, &pp, ipst);
 		break;
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 		ipsec_sctp_pol(&sel, &pp, ipst);
 		break;
+#endif
 	case IPPROTO_ENCAP:
 	case IPPROTO_IPV6:
 		rw_enter(&ipss->ipsec_itp_get_byaddr_rw_lock, RW_READER);

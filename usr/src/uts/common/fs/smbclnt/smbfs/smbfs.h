@@ -37,6 +37,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SMBFS_SMBFS_H
 #define	_SMBFS_SMBFS_H
 
@@ -52,6 +56,7 @@
 
 #include <sys/list.h>
 #include <sys/vfs.h>
+#include <sys/vfs_opreg.h>
 #include <sys/fs/smbfs_mount.h>
 
 

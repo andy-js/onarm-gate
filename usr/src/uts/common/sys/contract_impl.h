@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_SYS_CONTRACT_IMPL_H
 #define	_SYS_CONTRACT_IMPL_H
@@ -389,6 +392,10 @@ int contract_vnode_clear(contract_t *, contract_vnode_t *);
 int contract_ack_inval(contract_t *, uint_t, uint64_t);
 int contract_qack_inval(contract_t *, uint_t, uint64_t);
 int contract_qack_notsup(contract_t *, uint_t, uint64_t);
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <sys/contract_kernel.h>
+#endif	/* defined(_KERNEL_BUILD_TREE) */
 
 #ifdef	__cplusplus
 }

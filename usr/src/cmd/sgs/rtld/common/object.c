@@ -23,6 +23,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -75,7 +80,11 @@ elf_obj_init(Lm_list *lml, Aliste lmco, const char *name)
 	 * As ent_setup() will effectively lazy load the necessary support
 	 * libraries, make sure ld.so.1 is initialized for plt relocations.
 	 */
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+	if (elf_arm_rtld_load(LIBLD) == 0)
+#else
 	if (elf_rtld_load() == 0)
+#endif
 		return (0);
 
 	/*

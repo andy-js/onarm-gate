@@ -23,6 +23,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -1015,7 +1018,7 @@ zsd_apply_create(kmutex_t *lockp, boolean_t zone_lock_held,
 		DTRACE_PROBE2(zsd__create__end,
 		    zone_t *, zone, voidn *, result);
 
-		ASSERT(result != NULL);
+		/* ASSERT(result != NULL); */ /* zsd_create may return NULL. */
 		if (lockp != NULL)
 			mutex_enter(lockp);
 		mutex_enter(&zone->zone_lock);
@@ -1904,7 +1907,7 @@ zone_init(void)
 	zone0.zone_ntasks = 1;
 	mutex_exit(&p0.p_lock);
 	zone0.zone_restart_init = B_TRUE;
-	zone0.zone_brand = &native_brand;
+	ZBRINIT(&zone0);
 	rctl_prealloc_destroy(gp);
 	/*
 	 * pool_default hasn't been initialized yet, so we let pool_init()
@@ -3760,7 +3763,7 @@ zone_create(const char *zone_name, const char *zone_root,
 	zone->zone_ncpus = 0;
 	zone->zone_ncpus_online = 0;
 	zone->zone_restart_init = B_TRUE;
-	zone->zone_brand = &native_brand;
+	ZBRINIT(zone);
 	zone->zone_initname = NULL;
 	mutex_init(&zone->zone_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zone->zone_nlwps_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -4657,13 +4660,12 @@ zone_getattr(zoneid_t zoneid, int attr, void *buf, size_t bufsize)
 			error = EFAULT;
 		break;
 	case ZONE_ATTR_BRAND:
-		size = strlen(zone->zone_brand->b_name) + 1;
+		size = strlen(ZBRNAME(zone)) + 1;
 
 		if (bufsize > size)
 			bufsize = size;
 		if (buf != NULL) {
-			err = copyoutstr(zone->zone_brand->b_name, buf,
-			    bufsize, NULL);
+			err = copyoutstr(ZBRNAME(zone), buf, bufsize, NULL);
 			if (err != 0 && err != ENAMETOOLONG)
 				error = EFAULT;
 		}
@@ -4743,7 +4745,7 @@ zone_setattr(zoneid_t zoneid, int attr, void *buf, size_t bufsize)
 {
 	zone_t *zone;
 	zone_status_t zone_status;
-	int err;
+	int err = 0;
 
 	if (secpolicy_zone_config(CRED()) != 0)
 		return (set_errno(EPERM));
@@ -4937,6 +4939,7 @@ zone_enter(zoneid_t zoneid)
 		goto out;
 	}
 
+#ifndef	CONTRACT_DISABLE
 	/*
 	 * To prevent processes in a zone from holding contracts on
 	 * extrazonal resources, and to avoid process contract
@@ -4980,6 +4983,7 @@ zone_enter(zoneid_t zoneid)
 
 	mutex_exit(&pp->p_lock);
 	mutex_exit(&ct->ct_lock);
+#endif	/* CONTRACT_DISABLE */
 
 	status = zone_status_get(zone);
 	if (status < ZONE_IS_READY || status >= ZONE_IS_SHUTTING_DOWN) {
@@ -5112,6 +5116,7 @@ zone_enter(zoneid_t zoneid)
 	 * shared with zsched().
 	 */
 
+#ifndef	CONTRACT_DISABLE
 	/*
 	 * If the process contract fmri was inherited, we need to
 	 * flag this so that any contract status will not leak
@@ -5128,6 +5133,7 @@ zone_enter(zoneid_t zoneid)
 	 */
 	ASSERT(ct->ct_mzuniqid == GLOBAL_ZONEUNIQID);
 	contract_setzuniqid(ct, zone->zone_uniqid);
+#endif	/* CONTRACT_DISABLE */
 
 	/*
 	 * Create a new task and associate the process with the project keyed

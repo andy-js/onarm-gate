@@ -25,14 +25,20 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
-LIBRARY= libzfs.a
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 VERS= .1
 
-OBJS_SHARED= zfs_namecheck.o zprop_common.o zfs_prop.o zpool_prop.o \
+OBJS_SHARED_BASE= zfs_namecheck.o zprop_common.o zfs_prop.o zpool_prop.o \
 	zfs_deleg.o zfs_comutil.o
-OBJS_COMMON= libzfs_dataset.o libzfs_util.o libzfs_graph.o libzfs_mount.o \
+OBJS_COMMON_BASE= libzfs_dataset.o libzfs_util.o libzfs_graph.o libzfs_mount.o \
 	libzfs_pool.o libzfs_changelist.o libzfs_config.o libzfs_import.o \
 	libzfs_status.o libzfs_sendrecv.o
+
+OBJS_SHARED= $(OBJS_SHARED_BASE:%.o=%$(LIBRARY:libzfs%.a=%).o)
+OBJS_COMMON= $(OBJS_COMMON_BASE:%.o=%$(LIBRARY:libzfs%.a=%).o)
 OBJECTS= $(OBJS_COMMON) $(OBJS_SHARED)
 
 include ../../Makefile.lib
@@ -40,7 +46,9 @@ include ../../Makefile.lib
 # libzfs must be installed in the root filesystem for mount(1M)
 include ../../Makefile.rootfs
 
-LIBS=	$(DYNLIB) $(LINTLIB)
+LIBS=	$(ARLIB) $(DYNLIB) $(LINTLIB)
+
+MAPFILES = $(SRCDIR)/mapfile-vers$(LIBRARY:libzfs%.a=%)
 
 SRCDIR =	../common
 
@@ -50,11 +58,14 @@ INCS += -I../../../common/zfs
 
 C99MODE=	-xc99=%all
 C99LMODE=	-Xc99=%all
-LDLIBS +=	-lc -lm -ldevinfo -ldevid -lgen -lnvpair -luutil -lavl -lefi
-CPPFLAGS +=	$(INCS) -D_REENTRANT
+LIBEFI +=	-lefi
+LDLIBS +=	-lc -lm -ldevinfo -ldevid -lgen -lnvpair -luutil -lavl $(LIBEFI)
+CPPFLAGS +=	$(INCS) -D_REENTRANT $(LIBZFSFLAG) $(LIBCOMFLAG)
+$(ARM_BLD)CPPFLAGS	+= -DNO_SUPPORT_EFI -DNO_SUPPORT_SHARE
+$(ARM_BLD)LIBEFI	=
 
-SRCS=	$(OBJS_COMMON:%.o=$(SRCDIR)/%.c)	\
-	$(OBJS_SHARED:%.o=$(SRC)/common/zfs/%.c)
+SRCS=	$(OBJS_COMMON_BASE:%.o=$(SRCDIR)/%.c)	\
+	$(OBJS_SHARED_BASE:%.o=$(SRC)/common/zfs/%.c)
 $(LINTLIB) := SRCS=	$(SRCDIR)/$(LINTSRC)
 
 .KEEP_STATE:
@@ -63,7 +74,11 @@ all: $(LIBS)
 
 lint: lintcheck
 
-pics/%.o: ../../../common/zfs/%.c
+objs/%$(LIBRARY:libzfs%.a=%).o pics/%$(LIBRARY:libzfs%.a=%).o: $(SRCDIR)/%.c
+	$(COMPILE.c) -o $@ $<
+	$(POST_PROCESS_O)
+
+objs/%$(LIBRARY:libzfs%.a=%).o pics/%$(LIBRARY:libzfs%.a=%).o: ../../../common/zfs/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

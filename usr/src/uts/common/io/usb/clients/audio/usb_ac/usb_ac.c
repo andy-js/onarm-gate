@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -428,7 +432,7 @@ _NOTE(SCHEME_PROTECTS_DATA("stable data", usb_pipe_policy_t))
 
 /* standard entry points */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int rval;
 
@@ -457,8 +461,9 @@ _init(void)
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int rval;
 
@@ -470,10 +475,11 @@ _fini(void)
 
 	return (rval);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&usb_ac_modlinkage, modinfop));
 }

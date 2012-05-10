@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 LIBRARY =	libscf.a
 VERS =		.1
 
@@ -51,7 +55,7 @@ $(LINTLIB) :=	SRCS = $(SRCDIR)/$(LINTSRC)
 COMDIR =	../../../common/svc
 
 CFLAGS +=	$(CCVERBOSE) -Wp,-xc99=%all
-CPPFLAGS +=	-I../inc -I../../common/inc -I$(COMDIR)
+CPPFLAGS +=	-I$(SRCDIR) -I../inc -I../../common/inc -I$(COMDIR)
 
 #
 # For native builds, we compile and link against the native version
@@ -61,6 +65,7 @@ LIBUUTIL =	$(SRC)/lib/libuutil
 MY_NATIVE_CPPFLAGS =\
 		-DNATIVE_BUILD $(DTEXTDOM) \
 		-I../inc -I$(COMDIR) -I$(LIBUUTIL)/common
+$(__GNUC)MY_NATIVE_CPPFLAGS	+= $(NATIVE_CPPFLAGS)
 MY_NATIVE_LDLIBS = -L$(LIBUUTIL)/native -R$(LIBUUTIL)/native -luutil -ldoor -lc \
 		-lgen
 

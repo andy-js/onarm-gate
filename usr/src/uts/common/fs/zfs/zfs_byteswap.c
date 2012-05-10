@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -150,9 +154,9 @@ zfs_znode_byteswap(void *buf, size_t size)
 	zp->zp_gen = BSWAP_64(zp->zp_gen);
 	zp->zp_mode = BSWAP_64(zp->zp_mode);
 	zp->zp_size = BSWAP_64(zp->zp_size);
-	zp->zp_parent = BSWAP_64(zp->zp_parent);
+	zp->zp_parent = BSWAP_OBJID(zp->zp_parent);
 	zp->zp_links = BSWAP_64(zp->zp_links);
-	zp->zp_xattr = BSWAP_64(zp->zp_xattr);
+	zp->zp_xattr = BSWAP_OBJID(zp->zp_xattr);
 	zp->zp_rdev = BSWAP_64(zp->zp_rdev);
 	zp->zp_flags = BSWAP_64(zp->zp_flags);
 	zp->zp_uid = BSWAP_64(zp->zp_uid);
@@ -162,7 +166,7 @@ zfs_znode_byteswap(void *buf, size_t size)
 	zp->zp_pad[1] = BSWAP_64(zp->zp_pad[1]);
 	zp->zp_pad[2] = BSWAP_64(zp->zp_pad[2]);
 
-	zp->zp_acl.z_acl_extern_obj = BSWAP_64(zp->zp_acl.z_acl_extern_obj);
+	zp->zp_acl.z_acl_extern_obj = BSWAP_OBJID(zp->zp_acl.z_acl_extern_obj);
 	zp->zp_acl.z_acl_size = BSWAP_32(zp->zp_acl.z_acl_size);
 	zp->zp_acl.z_acl_version = BSWAP_16(zp->zp_acl.z_acl_version);
 	zp->zp_acl.z_acl_count = BSWAP_16(zp->zp_acl.z_acl_count);

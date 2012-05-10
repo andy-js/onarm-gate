@@ -29,6 +29,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #include <sys/param.h>
 #include <sys/types.h>
 #include <locale.h>
@@ -152,6 +156,11 @@ static char	device[MAXPATHLEN];
 static char	cmd[BUFSIZ];
 
 extern	char	*getfullrawname(); /* from libadm */
+
+#ifdef	NO_SUPPORT_EFI
+#define	efi_alloc_and_read(fd, efi)	(-1)
+#define	efi_free(vtoc)
+#endif	/* NO_SUPPORT_EFI */
 
 int
 main(int argc, char *argv[])

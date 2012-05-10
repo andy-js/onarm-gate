@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -30,6 +34,7 @@
 #include <sys/dmu.h>
 #include <sys/zio.h>
 #include <sys/space_map.h>
+#include <zfs_types.h>
 
 /*
  * Space map routines.
@@ -332,7 +337,7 @@ space_map_load(space_map_t *sm, space_map_ops_t *ops, uint8_t maptype,
 		VERIFY(P2PHASE(size, sizeof (uint64_t)) == 0);
 		VERIFY(size != 0);
 
-		dprintf("object=%llu  offset=%llx  size=%llx\n",
+		dprintf("object=%" PRIuOBJID "  offset=%llx  size=%llx\n",
 		    smo->smo_object, offset, size);
 
 		mutex_exit(sm->sm_lock);
@@ -428,7 +433,8 @@ space_map_sync(space_map_t *sm, uint8_t maptype,
 	if (sm->sm_space == 0)
 		return;
 
-	dprintf("object %4llu, txg %llu, pass %d, %c, count %lu, space %llx\n",
+	dprintf("object %4" PRIuOBJID ", txg %" PRIuTXG
+	    ", pass %d, %c, count %lu, space %llx\n",
 	    smo->smo_object, dmu_tx_get_txg(tx), spa_sync_pass(spa),
 	    maptype == SM_ALLOC ? 'A' : 'F', avl_numnodes(&sm->sm_root),
 	    sm->sm_space);

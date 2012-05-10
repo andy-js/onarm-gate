@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* from SVr4.0 1.25 */
 
@@ -180,6 +183,12 @@ dotoprocs(procset_t *psp, int (*funcp)(), char *arg)
 					mutex_exit(&pidlock);
 					return (0);
 				} else if (error) {
+					if (error == ESRCH &&
+					    prp->p_tlist == NULL) {
+						nfound--;
+						error = 0;
+						continue;
+					}
 					mutex_exit(&pidlock);
 					return (error);
 				}

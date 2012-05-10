@@ -25,6 +25,9 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+#
+# Copyright (c) 2007 NEC Corporation
+#
 
 PROG= format
 
@@ -38,6 +41,8 @@ COBJS=	add_definition.o analyze.o checkdev.o ctlr_scsi.o \
 OBJS_sparc=   init_csparc.o ctlr_ata.o
 
 OBJS_i386=    init_ci386.o ctlr_ata.o ix_altsctr.o
+
+OBJS_arm=     init_ci386.o ctlr_ata.o ix_altsctr.o
 
 OBJS_=                non-existent
 
@@ -56,7 +61,11 @@ $(ROOTETCDATA) := FILEMODE = 0644
 $(ROOTETCDATA) := OWNER = root
 $(ROOTETCDATA) := GROUP = sys
 
-LDLIBS +=	-ladm -lefi -ldiskmgt -lnvpair -ldevid
+LIBEFI =	-lefi
+LDLIBS +=	-ladm $(LIBEFI) -ldiskmgt -lnvpair -ldevid
+
+$(ARM_BLD)LIBEFI +=
+$(ARM_BLD)CFLAGS +=	-DNO_SUPPORT_EFI
 
 .KEEP_STATE:
 

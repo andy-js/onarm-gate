@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -78,7 +82,7 @@
 
 
 int	au_naevent;
-char	_depends_on[] = "fs/sockfs";
+MODDRV_DEPENDS_ON("fs/sockfs");
 
 static au_event_t	aui_null(au_event_t);
 static au_event_t	aui_open(au_event_t);

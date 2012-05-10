@@ -27,6 +27,10 @@
 #
 
 #
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
+#
 #	This Makefile contains the common targets and definitions for
 #	all kernels. It is to be included in the Makefiles for specific
 #	implementation architectures and processor architecture dependent
@@ -60,15 +64,15 @@ COMMONBASE=	$(UTSBASE)/../common
 # The NOT_RELEASE_BUILD noise is to maintain compatibility with the
 # gatekeeper's nightly build script.
 #
-DEF_BUILDS32				= obj32
-DEF_BUILDS64				= obj64
-DEF_BUILDSONLY64			= obj64
-$(NOT_RELEASE_BUILD)DEF_BUILDS32	= debug32
-$(NOT_RELEASE_BUILD)DEF_BUILDS64	= debug64
-$(NOT_RELEASE_BUILD)DEF_BUILDSONLY64	= debug64
-ALL_BUILDS32				= obj32 debug32
-ALL_BUILDS64				= obj64 debug64
-ALL_BUILDSONLY64			= obj64 debug64
+DEF_BUILDS32					= obj32
+$(BUILD64)DEF_BUILDS64				= obj64
+$(BUILD64)DEF_BUILDSONLY64			= obj64
+$(NOT_RELEASE_BUILD)DEF_BUILDS32		= debug32
+$(BUILD64)$(NOT_RELEASE_BUILD)DEF_BUILDS64	= debug64
+$(BUILD64)$(NOT_RELEASE_BUILD)DEF_BUILDSONLY64	= debug64
+ALL_BUILDS32					= obj32 debug32
+$(BUILD64)ALL_BUILDS64				= obj64 debug64
+$(BUILD64)ALL_BUILDSONLY64			= obj64 debug64
 
 #
 #	For modules in 64b dirs that aren't built 64b
@@ -113,6 +117,8 @@ CC_i386_32	= $(i386_CC)
 CC_i386_64	= $(amd64_CC)
 CC_amd64_64	= $(amd64_CC)
 
+CC_arm_32	= $(arm_CC)
+
 CC		= $(CC_$(MACH)_$(CLASS))
 
 AS_sparc_32	= $(sparc_AS)
@@ -121,6 +127,8 @@ AS_sparc_64	= $(sparcv9_AS)
 AS_i386_32	= $(i386_AS)
 AS_i386_64	= $(amd64_AS)
 AS_amd64_64	= $(amd64_AS)
+
+AS_arm_32	= $(arm_AS)
 
 AS		= $(AS_$(MACH)_$(CLASS))
 
@@ -131,6 +139,8 @@ LD_i386_32	= $(i386_LD)
 LD_i386_64	= $(amd64_LD)
 LD_amd64_64	= $(amd64_LD)
 
+LD_arm_32	= $(arm_LD)
+
 LD		= $(LD_$(MACH)_$(CLASS))
 
 LINT_sparc_32	= $(sparc_LINT)
@@ -139,6 +149,8 @@ LINT_sparc_64	= $(sparcv9_LINT)
 LINT_i386_32	= $(i386_LINT)
 LINT_i386_64	= $(amd64_LINT)
 LINT_amd64_64	= $(amd64_LINT)
+
+LINT_arm_32	= $(arm_LINT)
 
 LINT		= $(LINT_$(MACH)_$(CLASS))
 
@@ -182,7 +194,9 @@ LINT_MODULE=	$(MODULE)
 #	Build the compile/assemble lines:
 #
 EXTRA_OPTIONS		= 
+$(ARM_BLD)EXTRA_OPTIONS	= -D_KERNEL_BUILD_TREE
 AS_DEFS			= -D_ASM -D__STDC__=0
+$(__GNUC)AS_DEFS	= -D_ASM -D__GNUC_AS__
 
 ALWAYS_DEFS_32		= -D_KERNEL -D_SYSCALL32 -D_DDI_STRICT
 ALWAYS_DEFS_64		= -D_KERNEL -D_SYSCALL32 -D_SYSCALL32_IMPL -D_ELF64 \
@@ -201,9 +215,13 @@ ALWAYS_DEFS		= $(ALWAYS_DEFS_$(CLASS))
 #
 CPPFLAGS	= $(ALWAYS_DEFS) $(ALL_DEFS) $(CONFIG_DEFS) \
 		   $(INCLUDE_PATH) $(EXTRA_OPTIONS)
-ASFLAGS		+= -P
+$(__NON_GNUC)ASFLAGS	+= -P
 AS_CPPFLAGS	= $(ALWAYS_DEFS) $(ALL_DEFS) $(CONFIG_DEFS) $(AS_DEFS) \
 		   $(AS_INC_PATH) $(EXTRA_OPTIONS)
+
+# Define USE_GNULD if GNU ld is used to build.
+$(__GNULD)CPPFLAGS	+= -DUSE_GNULD
+$(__GNULD)AS_CPPFLAGS	+= -DUSE_GNULD
 
 #
 #	Make it (relatively) easy to share compilation options between
@@ -224,6 +242,14 @@ CFLAGS_uts		+= $(CTF_FLAGS)
 CFLAGS_uts		+= $(CERRWARN)
 CFLAGS_uts		+= $(CGLOBALSTATIC)
 CFLAGS_uts		+= $(EXTRA_CFLAGS)
+
+# Do not use floating point instruction in kernel.
+$(__GNUC)arm_XARCH_FPU		= -xarch=mpcorenovfp -_gcc=-msoft-float
+$(__GNUC)arm_AS_XARCH_FPU	= -xarch=mpcorenovfp
+
+# Use EABI mode if GNU_EABI is defined as "".
+# We must append cpp option for GNU as EABI mode to AS_CPPFLAGS.
+$(GNUC_ARM_EABI)AS_CPPFLAGS	+= $(arm_EABI_AS_CPPFLAGS)
 
 #
 #	Declare that $(OBJECTS) and $(LINTS) can be compiled in parallel.
@@ -317,10 +343,13 @@ $(CH)INS.actfile= \
 #
 CTFMERGE_GUDIR_sparc	= sun4u
 CTFMERGE_GUDIR_i386	= intel
+CTFMERGE_GUDIR_arm	= arm
 CTFMERGE_GUDIR		= $(CTFMERGE_GUDIR_$(MACH))
 
 CTFMERGE_GENUNIX 	= \
 	$(UTSBASE)/$(CTFMERGE_GUDIR)/genunix/$(OBJS_DIR)/genunix
+
+CTFMERGE_UNIQFLAG	= $(CTFMRGFLAGS)
 
 #
 # Used to uniquify a non-genunix module against genunix.  If used in patch
@@ -340,7 +369,7 @@ CTFMERGE_UNIQUIFY_AGAINST_GENUNIX	= \
 			fi ; \
 		fi ; \
 	fi ; \
-	mergecmd="$(CTFMERGE) $(CTFMRGFLAGS)" ; \
+	mergecmd="$(CTFMERGE) $(CTFMERGE_UNIQFLAG)" ; \
 	cmd="$$mergecmd $$label -d $(CTFMERGE_GENUNIX) $$uniq -o $@" ; \
 	echo $$cmd "$(OBJECTS) $(CTFEXTRAOBJS)" ; \
 	$$cmd $(OBJECTS) $(CTFEXTRAOBJS)
@@ -653,3 +682,9 @@ MPSAS_BUILD:sh=		echo \\043
 #
 PRIVS_AWK = $(SRC)/uts/common/os/privs.awk
 PRIVS_DEF = $(SRC)/uts/common/os/priv_defs
+
+# Include rules for static link.
+$(STATIC_UNIX)include	$(SRC)/uts/Makefile.uts.static
+
+# Include rules for build-time tunable parameters
+$(USE_UTSTUNE)include	$(SRC)/uts/Makefile.uts.tune

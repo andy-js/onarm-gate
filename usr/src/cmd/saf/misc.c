@@ -26,6 +26,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -40,10 +44,10 @@
 #include <poll.h>
 #include "misc.h"
 #include "msgs.h"
-#include "extern.h"
 #include <sac.h>
 #include "adm.h"
 #include "structs.h"
+#include "extern.h"
 
 
 /*

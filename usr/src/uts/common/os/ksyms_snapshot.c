@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/ksyms.h>
@@ -31,6 +35,7 @@
 #include <sys/sysmacros.h>
 #include <sys/debug.h>
 #include <sys/cmn_err.h>
+#include <sys/modstatic.h>
 
 static const char ksyms_shstrtab[] = "\0.symtab\0.strtab\0.shstrtab\0";
 
@@ -121,6 +126,16 @@ ksyms_walk(ksyms_walkinfo_t *kwp, void *target, ssize_t resid,
 	bzero(&tmp, sizeof (Sym));
 	ksyms_emit(kwp, &tmp, sizeof (Sym), KW_LOCALS);
 	ksyms_emit(kwp, &tmp, 1, KW_STRINGS);
+
+	if (MOD_STATIC_UNIX()) {
+		struct module	*mp = modules.mod_mp;
+
+		/*
+		 * Need to export symbols for static kernel because
+		 * it is not mapped in ksyms_arena.
+		 */
+		ksyms_walk_one(kwp, mp->symhdr, sizeof(Shdr));
+	}
 	vmem_walk(ksyms_arena, VMEM_ALLOC, ksyms_walk_one, kwp);
 	return (kwp->kw_totalsize);
 }

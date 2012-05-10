@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -4450,45 +4454,69 @@ ehci_do_byte_stats(
 	uint8_t 	dir = addr & USB_EP_DIR_MASK;
 
 	if (dir == USB_EP_DIR_IN) {
-		EHCI_TOTAL_STATS_DATA(ehcip)->reads++;
-		EHCI_TOTAL_STATS_DATA(ehcip)->nread += len;
+		if (EHCI_TOTAL_STATS(ehcip)) {
+			EHCI_TOTAL_STATS_DATA(ehcip)->reads++;
+			EHCI_TOTAL_STATS_DATA(ehcip)->nread += len;
+		}
 		switch (type) {
 			case USB_EP_ATTR_CONTROL:
-				EHCI_CTRL_STATS(ehcip)->reads++;
-				EHCI_CTRL_STATS(ehcip)->nread += len;
+				if (ehcip->
+				    ehci_count_stats[USB_EP_ATTR_CONTROL]) {
+					EHCI_CTRL_STATS(ehcip)->reads++;
+					EHCI_CTRL_STATS(ehcip)->nread += len;
+				}
 				break;
 			case USB_EP_ATTR_BULK:
-				EHCI_BULK_STATS(ehcip)->reads++;
-				EHCI_BULK_STATS(ehcip)->nread += len;
+				if (ehcip->ehci_count_stats[USB_EP_ATTR_BULK]) {
+					EHCI_BULK_STATS(ehcip)->reads++;
+					EHCI_BULK_STATS(ehcip)->nread += len;
+				}
 				break;
 			case USB_EP_ATTR_INTR:
-				EHCI_INTR_STATS(ehcip)->reads++;
-				EHCI_INTR_STATS(ehcip)->nread += len;
+				if (ehcip->ehci_count_stats[USB_EP_ATTR_INTR]) {
+					EHCI_INTR_STATS(ehcip)->reads++;
+					EHCI_INTR_STATS(ehcip)->nread += len;
+				}
 				break;
 			case USB_EP_ATTR_ISOCH:
-				EHCI_ISOC_STATS(ehcip)->reads++;
-				EHCI_ISOC_STATS(ehcip)->nread += len;
+				if (ehcip->
+				    ehci_count_stats[USB_EP_ATTR_ISOCH]) {
+					EHCI_ISOC_STATS(ehcip)->reads++;
+					EHCI_ISOC_STATS(ehcip)->nread += len;
+				}
 				break;
 		}
 	} else if (dir == USB_EP_DIR_OUT) {
-		EHCI_TOTAL_STATS_DATA(ehcip)->writes++;
-		EHCI_TOTAL_STATS_DATA(ehcip)->nwritten += len;
+		if (EHCI_TOTAL_STATS(ehcip)) {
+			EHCI_TOTAL_STATS_DATA(ehcip)->writes++;
+			EHCI_TOTAL_STATS_DATA(ehcip)->nwritten += len;
+		}
 		switch (type) {
 			case USB_EP_ATTR_CONTROL:
-				EHCI_CTRL_STATS(ehcip)->writes++;
-				EHCI_CTRL_STATS(ehcip)->nwritten += len;
+				if (ehcip->
+				    ehci_count_stats[USB_EP_ATTR_CONTROL]) {
+					EHCI_CTRL_STATS(ehcip)->writes++;
+					EHCI_CTRL_STATS(ehcip)->nwritten += len;
+				}
 				break;
 			case USB_EP_ATTR_BULK:
-				EHCI_BULK_STATS(ehcip)->writes++;
-				EHCI_BULK_STATS(ehcip)->nwritten += len;
+				if (ehcip->ehci_count_stats[USB_EP_ATTR_BULK]) {
+					EHCI_BULK_STATS(ehcip)->writes++;
+					EHCI_BULK_STATS(ehcip)->nwritten += len;
+				}
 				break;
 			case USB_EP_ATTR_INTR:
-				EHCI_INTR_STATS(ehcip)->writes++;
-				EHCI_INTR_STATS(ehcip)->nwritten += len;
+				if (ehcip->ehci_count_stats[USB_EP_ATTR_INTR]) {
+					EHCI_INTR_STATS(ehcip)->writes++;
+					EHCI_INTR_STATS(ehcip)->nwritten += len;
+				}
 				break;
 			case USB_EP_ATTR_ISOCH:
-				EHCI_ISOC_STATS(ehcip)->writes++;
-				EHCI_ISOC_STATS(ehcip)->nwritten += len;
+				if (ehcip->
+				    ehci_count_stats[USB_EP_ATTR_ISOCH]) {
+					EHCI_ISOC_STATS(ehcip)->writes++;
+					EHCI_ISOC_STATS(ehcip)->nwritten += len;
+				}
 				break;
 		}
 	}

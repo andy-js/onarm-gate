@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_AUTOFS_H
 #define	_SYS_FS_AUTOFS_H
 
@@ -31,6 +35,7 @@
 #include <rpc/clnt.h>
 #include <gssapi/gssapi.h>
 #include <sys/vfs.h>
+#include <sys/vfs_opreg.h>
 #include <sys/dirent.h>
 #include <sys/types.h>
 #include <sys/types32.h>

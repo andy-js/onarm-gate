@@ -26,6 +26,10 @@
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 MODULE = zfs.so
 MDBTGT = kvm
 
@@ -35,7 +39,8 @@ include ../../../../Makefile.cmd
 include ../../Makefile.ia32
 include ../../../Makefile.module
 
-CPPFLAGS += -I../../../../../uts/common/fs/zfs
+CPPFLAGS += -I../../../../../uts/common/fs/zfs \
+	-I../../../../../common/zfs
 
 C99MODE=	-xc99=%all
 C99LMODE=	-Xc99=%all

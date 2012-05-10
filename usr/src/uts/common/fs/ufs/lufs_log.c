@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/systm.h>
@@ -390,7 +394,11 @@ inval_range(ml_unit_t *ul, cirbuf_t *cb, off_t lof, off_t nb)
  * that ldl_read does not reference w/o holding the cb_rwlock or
  * the bp makebusy lock.
  */
+#ifdef UFS_FLUSH_WRITE_CACHE
+buf_t *
+#else
 static buf_t *
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 get_write_bp(ml_unit_t *ul)
 {
 	cirbuf_t	*cb = &ul->un_wrbuf;

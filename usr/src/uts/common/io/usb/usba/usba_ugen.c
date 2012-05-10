@@ -21,6 +21,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -52,6 +55,7 @@
 #include "sys/usb/usba/usba_ugen.h"
 #include "sys/usb/usba/usba_ugend.h"
 
+#ifndef USB_UGEN_DISABLE
 /* Debugging information */
 uint_t	ugen_errmask		= (uint_t)UGEN_PRINT_ALL;
 uint_t	ugen_errlevel		= USB_LOG_L4;
@@ -4796,3 +4800,87 @@ ugen_free_devt(ugen_state_t *ugenp)
 	ugen_devt_cache_index = 0;
 	mutex_exit(&ugen_devt_list_mutex);
 }
+
+#else	/* USB_UGEN_DISABLE */
+usb_ugen_hdl_t
+usb_ugen_get_hdl(dev_info_t *dip, usb_ugen_info_t *usb_ugen_info)
+{
+	return (NULL);
+}
+
+void
+usb_ugen_release_hdl(usb_ugen_hdl_t usb_ugen_hdl)
+{
+	return;
+}
+
+int
+usb_ugen_attach(usb_ugen_hdl_t usb_ugen_hdl, ddi_attach_cmd_t cmd)
+{
+	return (USB_FAILURE);
+}
+
+int
+usb_ugen_detach(usb_ugen_hdl_t usb_ugen_hdl, ddi_detach_cmd_t cmd)
+{
+	return (USB_FAILURE);
+}
+
+/* ARGSUSED */
+int
+usb_ugen_open(usb_ugen_hdl_t usb_ugen_hdl, dev_t *devp, int flag, int sflag,
+    cred_t *cr)
+{
+	return (EINVAL);
+}
+
+/* ARGSUSED */
+int
+usb_ugen_close(usb_ugen_hdl_t usb_ugen_hdl, dev_t dev, int flag, int otype,
+    cred_t *cr)
+{
+	return (EINVAL);
+}
+
+/*ARGSUSED*/
+int
+usb_ugen_power(usb_ugen_hdl_t usb_ugen_hdl, int comp, int level)
+{
+	return (USB_FAILURE);
+}
+
+/*ARGSUSED*/
+int
+usb_ugen_read(usb_ugen_hdl_t usb_ugen_hdl, dev_t dev, struct uio *uiop,
+    cred_t *credp)
+{
+	return (EINVAL);
+}
+
+/*ARGSUSED*/
+int
+usb_ugen_write(usb_ugen_hdl_t usb_ugen_hdl, dev_t dev, struct uio *uiop,
+    cred_t *credp)
+{
+	return (EINVAL);
+}
+
+int
+usb_ugen_poll(usb_ugen_hdl_t usb_ugen_hdl, dev_t dev, short events,
+    int anyyet,  short *reventsp, struct pollhead **phpp)
+{
+	return (EINVAL);
+}
+
+int
+usb_ugen_disconnect_ev_cb(usb_ugen_hdl_t usb_ugen_hdl)
+{
+	return (USB_FAILURE);
+}
+
+int
+usb_ugen_reconnect_ev_cb(usb_ugen_hdl_t usb_ugen_hdl)
+{
+	return (USB_SUCCESS);
+}
+#endif	/* USB_UGEN_DISABLE */ 

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef	_SYS_CPC_IMPL_H
 #define	_SYS_CPC_IMPL_H
 
@@ -178,10 +182,13 @@ typedef struct __cpc_args32 {
  */
 #define	KCPC_PIC_OVERFLOWED	0x1	/* pic overflowed & requested notify */
 
-#ifdef __sparc
+#if	defined(__sparc)
 extern uint64_t ultra_gettick(void);
 #define	KCPC_GET_TICK ultra_gettick
-#else
+#elif	defined(__arm)
+extern uint64_t	arm_gettick(void);
+#define	KCPC_GET_TICK	arm_gettick
+#else	/* i386 */
 extern hrtime_t tsc_read(void);
 #define	KCPC_GET_TICK tsc_read
 #endif /* __sparc */

@@ -28,6 +28,9 @@
 /*	Copyright (c) 1984, 1985, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -69,6 +72,7 @@ static int pack();
 static int unpack();
 static int keysave();
 static int keyvalid();
+static void regetkey();
 
 /*
  *	scram -- Scramble an object and pack all its parts into an OEU package
@@ -77,8 +81,6 @@ int
 scram(file)
 register char *file;
 {
-	static void regetkey();
-
 	strcpy(Keyprompt, "Please enter scramble key: ");
 	strcpy(Srcfile, file);
 	get_string(regetkey, Keyprompt, "",
@@ -124,7 +126,6 @@ token t;
 {
 	struct ott_entry *entry, *path_to_ott();
 	struct stat buf;
-	static void regetkey();
 
 	if (t == TOK_CANCEL)
 		return (SUCCESS);

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DMU_TX_H
 #define	_SYS_DMU_TX_H
 
@@ -32,6 +36,7 @@
 #include <sys/dmu.h>
 #include <sys/txg.h>
 #include <sys/refcount.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -53,9 +58,9 @@ struct dmu_tx {
 	objset_t *tx_objset;
 	struct dsl_dir *tx_dir;
 	struct dsl_pool *tx_pool;
-	uint64_t tx_txg;
-	uint64_t tx_lastsnap_txg;
-	uint64_t tx_lasttried_txg;
+	txg_t tx_txg;
+	txg_t tx_lastsnap_txg;
+	txg_t tx_lasttried_txg;
 	txg_handle_t tx_txgh;
 	void *tx_tempreserve_cookie;
 	struct dmu_tx_hold *tx_needassign_txh;
@@ -101,16 +106,16 @@ typedef struct dmu_tx_hold {
  * These routines are defined in dmu.h, and are called by the user.
  */
 dmu_tx_t *dmu_tx_create(objset_t *dd);
-int dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how);
+int dmu_tx_assign(dmu_tx_t *tx, txg_t txg_how);
 void dmu_tx_commit(dmu_tx_t *tx);
 void dmu_tx_abort(dmu_tx_t *tx);
-uint64_t dmu_tx_get_txg(dmu_tx_t *tx);
+txg_t dmu_tx_get_txg(dmu_tx_t *tx);
 void dmu_tx_wait(dmu_tx_t *tx);
 
 /*
  * These routines are defined in dmu_spa.h, and are called by the SPA.
  */
-extern dmu_tx_t *dmu_tx_create_assigned(struct dsl_pool *dp, uint64_t txg);
+extern dmu_tx_t *dmu_tx_create_assigned(struct dsl_pool *dp, txg_t txg);
 
 /*
  * These routines are only called by the DMU.
@@ -118,10 +123,10 @@ extern dmu_tx_t *dmu_tx_create_assigned(struct dsl_pool *dp, uint64_t txg);
 dmu_tx_t *dmu_tx_create_dd(dsl_dir_t *dd);
 int dmu_tx_is_syncing(dmu_tx_t *tx);
 int dmu_tx_private_ok(dmu_tx_t *tx);
-void dmu_tx_add_new_object(dmu_tx_t *tx, objset_t *os, uint64_t object);
+void dmu_tx_add_new_object(dmu_tx_t *tx, objset_t *os, objid_t object);
 void dmu_tx_willuse_space(dmu_tx_t *tx, int64_t delta);
 void dmu_tx_dirty_buf(dmu_tx_t *tx, struct dmu_buf_impl *db);
-int dmu_tx_holds(dmu_tx_t *tx, uint64_t object);
+int dmu_tx_holds(dmu_tx_t *tx, objid_t object);
 void dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space);
 
 #ifdef ZFS_DEBUG

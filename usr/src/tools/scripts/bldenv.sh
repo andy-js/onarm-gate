@@ -25,6 +25,11 @@
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
+
+#
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
 #
 # Uses supplied "env" file, based on /opt/onbld/etc/env, to set shell variables
 # before spawning a shell for doing a release-style builds interactively
@@ -125,10 +130,12 @@ LC_MESSAGES=C;  export LC_MESSAGES
 LC_MONETARY=C;  export LC_MONETARY
 LC_NUMERIC=C;   export LC_NUMERIC
 LC_TIME=C;      export LC_TIME
+LANG=C;		export LANG
 
 # clear environment variables we know to be bad for the build
 unset LD_OPTIONS LD_LIBRARY_PATH LD_AUDIT LD_BIND_NOW LD_BREADTH LD_CONFIG
 unset LD_DEBUG LD_FLAGS LD_LIBRARY_PATH_64 LD_NOVERSION LD_ORIGIN 
+unset LD_RUN_PATH LD_RUN_PATH_32 LD_RUN_PATH_64
 unset LD_LOADFLTR LD_NOAUXFLTR LD_NOCONFIG LD_NODIRCONFIG LD_NOOBJALTER 
 unset LD_PRELOAD LD_PROFILE  
 unset CONFIG
@@ -138,6 +145,8 @@ unset REMOTE
 unset ENV
 unset ARCH
 unset CLASSPATH 
+
+USE_WS_TOOLS=#;		export USE_WS_TOOLS
 
 # setup environmental variables
 if [ -f $1 ]; then
@@ -320,6 +329,9 @@ echo "RELEASE      is  $RELEASE"
 echo "VERSION      is  $VERSION"
 echo "RELEASE_DATE is  $RELEASE_DATE"
 echo ""
+if [ "$ARM_PLATFORM" != "" ]; then
+    printf 'ARM_PLATFORM is %s\n\n' "$ARM_PLATFORM"
+fi
 
 if [[ -f $SRC/Makefile ]] && egrep -s '^setup:' $SRC/Makefile; then
 	echo "The top-level 'setup' target is available \c"

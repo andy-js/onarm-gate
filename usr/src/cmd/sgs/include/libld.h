@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_LIBLD_H
 #define	_LIBLD_H
 
@@ -280,6 +284,9 @@ struct ofl_desc {
 	Xword		ofl_sfcap_1;	/* software capabilities */
 	Lm_list		*ofl_lml;	/* runtime link-map list */
 	Gottable	*ofl_gottable;	/* debugging got information */
+#ifdef	__arm
+	void		*ofl_private;	/* for ARM specific use */
+#endif	/* __arm */
 };
 
 #define	FLG_OF_DYNAMIC	0x00000001	/* generate dynamic output module */

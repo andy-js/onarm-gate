@@ -28,6 +28,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989, 1990 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/proc.h>
@@ -59,13 +63,13 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	return (mod_install(&modlinkage));
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

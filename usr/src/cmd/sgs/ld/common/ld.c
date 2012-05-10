@@ -23,6 +23,11 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -39,6 +44,14 @@
 #include	"conv.h"
 #include	"libld.h"
 #include	"msg.h"
+
+/* Options to be ignored. */
+static const char	*ignore_opts[] = {
+	"--start-group",		/* GNU binutils compatibility */
+	"--end-group"			/* GNU binutils compatibility */
+};
+
+#define	IGNORE_OPTS_NUM		(sizeof(ignore_opts) / sizeof(ignore_opts[0]))
 
 /*
  * The following prevent us from having to include ctype.h which defines these
@@ -351,6 +364,106 @@ ld_altexec(char **argv, char **envp)
 	return (1);
 }
 
+/*
+ * static int
+ * prep_argv(int argc, char **argv)
+ *	Pre-process arguments before parsing.
+ *	This function updates argument vector directly, and it returns
+ *	number of arguments in the new argument vector.
+ */
+static int
+prep_argv(int argc, char **argv)
+{
+	int	i, cur, newargc = argc;
+#ifdef	CROSS_BUILD
+	int	sysroot = 0;
+#endif	/* CROSS_BUILD */
+
+	for (i = cur = 1; i < argc; i++) {
+		int		j;
+		char		*arg = *(argv + cur);
+		const char	**opt;
+
+#ifdef	CROSS_BUILD
+		if (sysroot) {
+			size_t	len;
+			char	*str;
+
+			/*
+			 * This must be an argument for "-z sysroot".
+			 * Previous argument has been changed to "-z",
+			 * so this argument must be "sysroot=path".
+			 */
+			sysroot = 0;
+			len = strlen(arg) + MSG_ARG_SYSROOT_SIZE + 1;
+			if ((str = (char *)malloc(len)) == NULL) {
+				int	err = errno;
+				eprintf(0, ERR_FATAL, MSG_INTL(MSG_SYS_ALLOC),
+					strerror(err));
+				return (0);
+			}
+			snprintf(str, len, "%s%s", MSG_ORIG(MSG_ARG_SYSROOT),
+				 arg);
+			*(argv + cur) = str;
+			cur++;
+			continue;
+		}
+#endif	/* CROSS_BUILD */
+
+		/* Eliminate options to be ignored. */
+		for (j = 0, opt = ignore_opts; j < IGNORE_OPTS_NUM;
+		     j++, opt++) {
+			if (strcmp(arg, *opt) == 0) {
+				/* Ignore this option. */
+				break;
+			}
+		}
+		if (j < IGNORE_OPTS_NUM) {
+			int	j;
+
+			/* Eliminate this option. */
+			for (j = cur + 1; j < newargc; j++) {
+				*(argv + j - 1) = *(argv + j);
+			}
+			newargc--;
+			*(argv + newargc) = NULL;
+			continue;
+		}
+
+#ifdef	CROSS_BUILD
+		/*
+		 * Convert "--sysroot" option into "-z sysroot" option.
+		 * This may helps gcc for cross build environment.
+		 */
+		if (strncmp(arg, MSG_ORIG(MSG_ARG_GNU_SYSROOT),
+			    MSG_ARG_GNU_SYSROOT_SIZE) == 0) {
+			char	*p = arg + MSG_ARG_GNU_SYSROOT_SIZE;
+
+			if (*p == '\0') {
+				/*
+				 * "--sysroot path" is given, so next argument
+				 * must be replaced. If no next argument,
+				 * libld causes fatal error.
+				 */
+				sysroot = 1;
+				*(argv + cur) = "-z";
+			}
+			else if (*p == '=') {
+				/*
+				 * "--sysroot=path" is given.
+				 * Replace "--sysroot" with "-zsysroot".
+				 */
+				*(arg + 1) = 'z';
+			}
+		}
+#endif	/* CROSS_BUILD */
+
+		cur++;
+	}
+
+	return (newargc);
+}
+
 int
 main(int argc, char **argv, char **envp)
 {
@@ -371,6 +484,10 @@ main(int argc, char **argv, char **envp)
 			while (*(p + 1) == 'W' && strncmp(p, "-Wl,-", 5) == 0)
 				argv[i] = (p += 4);
 		}
+	}
+
+	if ((argc = prep_argv(argc, argv)) == 0) {
+		return (1);
 	}
 
 	/*
@@ -424,10 +541,14 @@ main(int argc, char **argv, char **envp)
 	 * point using the appropriate class.
 	 */
 	optind = opterr = 1;
+#ifdef	__arm
+	return (ld32_main(argc, argv));
+#else	/* !__arm */
 	if (aoutclass == ELFCLASS64)
 		return (ld64_main(argc, argv));
 	else
 		return (ld32_main(argc, argv));
+#endif	/* __arm */
 }
 
 /*

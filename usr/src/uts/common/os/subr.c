@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -55,8 +58,22 @@
 #include <sys/utsname.h>
 #include <sys/zone.h>
 
-#ifdef __sparc
+#if	defined(__sparc)
+
 #include <sys/membar.h>
+
+/* Deferred error barrier (see sparcv9_subr.s) */
+#define	MEMBAR_SYNC()	membar_sync()
+
+#elif	defined(__arm)
+
+extern void	membar_sync(void);
+
+/* Deferred error barrier (see arm/ml/lock_prim.s) */
+#define	MEMBAR_SYNC()	membar_sync()
+
+#else	/* _x86 */
+#define	MEMBAR_SYNC()	/* do nothing */
 #endif
 
 /*
@@ -400,9 +417,7 @@ void
 no_trap(void)
 {
 	if (curthread->t_ontrap != NULL) {
-#ifdef __sparc
-		membar_sync(); /* deferred error barrier (see sparcv9_subr.s) */
-#endif
+		MEMBAR_SYNC(); 
 		curthread->t_ontrap = curthread->t_ontrap->ot_prev;
 	}
 }

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -977,16 +981,20 @@ mod_installfs(struct modlfs *modl, struct modlinkage *modlp)
 	struct vfssw *vswp;
 	struct modctl *mcp;
 	char *fsname;
+#ifndef KSTAT_DISABLE
 	char ksname[KSTAT_STRLEN + 1];
+#endif	/* !KSTAT_DISABLE */
 	int fstype;	/* index into vfssw[] and vsanchor_fstype[] */
 	int allocated;
 	int err;
+#ifndef KSTAT_DISABLE
 	int vsw_stats_enabled;
 	/* Not for public consumption so these aren't in a header file */
 	extern int	vopstats_enabled;
 	extern vopstats_t **vopstats_fstype;
 	extern kstat_t *new_vskstat(char *, vopstats_t *);
 	extern void initialize_vopstats(vopstats_t *);
+#endif	/* !KSTAT_DISABLE */
 
 	if (modl->fs_vfsdef->def_version == VFSDEF_VERSION) {
 		/* Version matched */
@@ -1045,6 +1053,7 @@ mod_installfs(struct modlfs *modl, struct modlinkage *modlp)
 		vswp->vsw_flag |= VSW_CANREMOUNT;
 	}
 
+#ifndef KSTAT_DISABLE
 	/*
 	 * If stats are enabled system wide and for this fstype, then
 	 * set the VSW_STATS flag in the proper vfssw[] table entry.
@@ -1052,6 +1061,7 @@ mod_installfs(struct modlfs *modl, struct modlinkage *modlp)
 	if (vopstats_enabled && modl->fs_vfsdef->flags & VSW_STATS) {
 		vswp->vsw_flag |= VSW_STATS;
 	}
+#endif	/* !KSTAT_DISABLE */
 
 	if (modl->fs_vfsdef->init == NULL)
 		err = EFAULT;
@@ -1067,12 +1077,15 @@ mod_installfs(struct modlfs *modl, struct modlinkage *modlp)
 		vswp->vsw_init = NULL;
 	}
 
+#ifndef KSTAT_DISABLE
 	/* We don't want to hold the vfssw[] write lock over a kmem_alloc() */
 	vsw_stats_enabled = vswp->vsw_flag & VSW_STATS;
+#endif	/* !KSTAT_DISABLE */
 
 	vfs_unrefvfssw(vswp);
 	WUNLOCK_VFSSW();
 
+#ifndef KSTAT_DISABLE
 	/* If everything is on, set up the per-fstype vopstats */
 	if (vsw_stats_enabled && vopstats_enabled &&
 	    vopstats_fstype && vopstats_fstype[fstype] == NULL) {
@@ -1083,6 +1096,7 @@ mod_installfs(struct modlfs *modl, struct modlinkage *modlp)
 		initialize_vopstats(vopstats_fstype[fstype]);
 		(void) new_vskstat(ksname, vopstats_fstype[fstype]);
 	}
+#endif	/* !KSTAT_DISABLE */
 	return (err);
 }
 
@@ -1442,6 +1456,65 @@ mod_removeipp(struct modlipp *modl, struct modlinkage *modlp)
 	return (ipp_mod_unregister(mid));
 }
 
+#ifdef	KICONV_LOADABLE
+
+/* Function to register/unregister kiconv module. */
+static int	(*kiconv_register)(kiconv_module_info_t *kmip);
+static int	(*kiconv_unregister)(kiconv_module_info_t *kmip);
+
+#define	KICONV_REGISTER_MODULE(kimp)					\
+	(kiconv_register == NULL ? ENOENT : (*kiconv_register)(kimp))
+#define	KICONV_UNREGISTER_MODULE(kimp)					\
+	(kiconv_unregister == NULL ? ENOENT : (*kiconv_unregister)(kimp))
+
+static kmutex_t	kiconv_lock;
+
+int
+mod_kiconv_install(int (*regfunc)(kiconv_module_info_t *),
+		   int (*unregfunc)(kiconv_module_info_t *))
+{
+	int	err;
+
+	mutex_enter(&kiconv_lock);
+	if (kiconv_register != NULL || kiconv_unregister != NULL) {
+		err = EBUSY;
+	}
+	else {
+		kiconv_register = regfunc;
+		kiconv_unregister = unregfunc;
+		err = 0;
+	}
+	mutex_exit(&kiconv_lock);
+
+	return err;
+}
+
+int
+mod_kiconv_uninstall(void)
+{
+	int	err;
+
+	mutex_enter(&kiconv_lock);
+	if (kiconv_register == NULL || kiconv_unregister == NULL) {
+		err = EBUSY;
+	}
+	else {
+		kiconv_register = NULL;
+		kiconv_unregister = NULL;
+		err = 0;
+	}
+	mutex_exit(&kiconv_lock);
+
+	return err;
+}
+
+#else	/* !KICONV_LOADABLE */
+
+#define	KICONV_REGISTER_MODULE(kimp)	kiconv_register_module(kimp)
+#define	KICONV_UNREGISTER_MODULE(kimp)	kiconv_unregister_module(kimp)
+
+#endif	/* KICONV_LOADABLE */
+
 /*
  * Manage kiconv modules.
  */
@@ -1449,12 +1522,12 @@ mod_removeipp(struct modlipp *modl, struct modlinkage *modlp)
 static int
 mod_installkiconv(struct modlkiconv *modl, struct modlinkage *modlp)
 {
-	return (kiconv_register_module(modl->kiconv_moddef));
+	return (KICONV_REGISTER_MODULE(modl->kiconv_moddef));
 }
 
 /*ARGSUSED*/
 static int
 mod_removekiconv(struct modlkiconv *modl, struct modlinkage *modlp)
 {
-	return (kiconv_unregister_module(modl->kiconv_moddef));
+	return (KICONV_UNREGISTER_MODULE(modl->kiconv_moddef));
 }

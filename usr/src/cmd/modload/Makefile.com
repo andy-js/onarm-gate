@@ -25,6 +25,12 @@
 # Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
+#
 # cmd/modload/Makefile.com
 #
 # makefile for loadable module utilities
@@ -34,6 +40,8 @@ MODPROG = modinfo modunload modload
 PROG = $(MODPROG) $(DRVPROG)
 
 include ../../Makefile.cmd
+
+$(ARM_BLD)DRVPROG = rem_drv update_drv
 
 MODCOMMONOBJ = modsubr.o
 MODCOMMONSRC = $(MODCOMMONOBJ:%.o=../%.c)

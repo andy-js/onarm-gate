@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_MEM_CAGE_H
 #define	_SYS_MEM_CAGE_H
 
@@ -44,6 +48,37 @@ extern "C" {
 #define	KCT_FAILURE	0
 #define	KCT_CRIT	1
 #define	KCT_NONCRIT	2
+
+#ifdef	__arm
+#define	KCAGE_DISABLE	1
+#else	/* !__arm */
+#undef	KCAGE_DISABLE
+#endif	/* __arm */
+
+#ifdef	KCAGE_DISABLE
+
+/*
+ * Disable all memory cage interfaces on ARM.
+ */
+#define	kernel_cage_enable	(0)
+#define	kcage_on		(0)
+#define	kcage_cageout_thread	(0)
+#define	kcage_freemem		(0)
+#define	kcage_needfree		(0)
+#define	kcage_lotsfree		(1)
+#define	kcage_desfree		(0)
+#define	kcage_minfree		(0)
+#define	kcage_throttlefree	(0)
+
+#define	kphysm_setup_func_register(vec, arg)	(0)
+#define	kphysm_setup_func_unregister(vec, arg)	((void)0)
+#define	kcage_create_throttle(npages, flags)	(0)
+#define	kcage_cageout_init()			((void)0)
+#define	kcage_cageout_wakeup()			((void)0)
+#define	kcage_tick()				((void)0)
+#define	kcage_current_pfn(pfn)			(0)
+
+#else	/* !KCAGE_DISABLE */
 
 extern int kernel_cage_enable;
 extern int kcage_on;
@@ -84,6 +119,8 @@ extern int kcage_next_range(int incage,
     pfn_t lo, pfn_t hi, pfn_t *nlo, pfn_t *nhi);
 
 extern kcage_dir_t kcage_startup_dir;
+
+#endif	/* KCAGE_DISABLE */
 
 #endif /* _KERNEL */
 

@@ -32,6 +32,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -51,7 +55,9 @@
 #include <netconfig.h>
 #include <string.h>
 #include <sys/file.h>
+#ifndef STATIC_LINK
 #include <dlfcn.h>
+#endif
 #include <stdlib.h>
 #include <malloc.h>
 #include <syslog.h>
@@ -63,6 +69,14 @@
 
 extern const char __nsl_dom[];
 extern char *dgettext(const char *, const char *);
+
+#ifdef STATIC_LINK
+extern struct nd_addrlist *_netdir_getbyname_straddr(struct netconfig *, struct nd_hostserv *);
+extern struct nd_hostservlist *_netdir_getbyaddr_straddr(struct netconfig *, struct netbuf *);
+extern int _netdir_options_straddr(struct netconfig *, int, int, void *);
+extern char *_taddr2uaddr_straddr(struct netconfig *, struct netbuf *);
+extern struct netbuf *_uaddr2taddr_straddr(struct netconfig *, char *);
+#endif /* STATIC_LINK */
 
 struct translator {
 	struct nd_addrlist	*(*gbn)();	/* _netdir_getbyname	*/
@@ -667,6 +681,18 @@ load_xlate(char *name)
 		return (NULL);
 	}
 
+#ifdef STATIC_LINK
+	if (!strcmp(name, "/usr/lib/straddr.so")) {
+		t->gbn = _netdir_getbyname_straddr;
+		t->gba = _netdir_getbyaddr_straddr;
+		t->t2u = _taddr2uaddr_straddr;
+		t->u2t = _uaddr2taddr_straddr;
+		t->opt = _netdir_options_straddr;
+	} else {
+		_nderror = ND_OPEN;
+		goto error;
+	}
+#else /* STATIC_LINK */
 	t->tr_fd = dlopen(name, RTLD_LAZY);
 	if (t->tr_fd == NULL) {
 		_nderror = ND_OPEN;
@@ -709,6 +735,8 @@ load_xlate(char *name)
 		_nderror = ND_NOSYM;
 		goto error;
 	}
+#endif /* STATIC_LINK */
+
 	/*
 	 * Add this library to the list of loaded libraries.
 	 */
@@ -727,8 +755,10 @@ load_xlate(char *name)
 	(void) mutex_unlock(&xlist_lock);
 	return (t);
 error:
+#ifndef STATIC_LINK
 	if (t->tr_fd != NULL)
 		(void) dlclose(t->tr_fd);
+#endif
 	free(t->tr_name);
 	free(t);
 	(void) mutex_unlock(&xlist_lock);
@@ -748,14 +778,18 @@ netdir_sperror(void)
 	static pthread_key_t nderrbuf_key = PTHREAD_ONCE_KEY_NP;
 	static char buf_main[NDERR_BUFSZ];
 	char	*str;
+#ifndef STATIC_LINK
 	char *dlerrstr;
+#endif
 
 	str = thr_main()?
 		buf_main :
 		thr_get_storage(&nderrbuf_key, NDERR_BUFSZ, free);
 	if (str == NULL)
 		return (NULL);
+#ifndef STATIC_LINK
 	dlerrstr = dlerror();
+#endif
 	switch (_nderror) {
 	case ND_NOMEM :
 		(void) snprintf(str, NDERR_BUFSZ,
@@ -773,6 +807,17 @@ netdir_sperror(void)
 		(void) snprintf(str, NDERR_BUFSZ,
 			dgettext(__nsl_dom, "n2a: service name not found"));
 		break;
+#ifdef STATIC_LINK
+	case ND_NOSYM :
+		(void) snprintf(str, NDERR_BUFSZ, "%s ",
+			dgettext(__nsl_dom,
+			"n2a: symbol missing in shared object"));
+		break;
+	case ND_OPEN :
+		(void) snprintf(str, NDERR_BUFSZ, "%s ",
+			dgettext(__nsl_dom, "n2a: couldn't open shared object"));
+		break;
+#else /* STATIC_LINK */
 	case ND_NOSYM :
 		(void) snprintf(str, NDERR_BUFSZ, "%s : %s ",
 			dgettext(__nsl_dom,
@@ -784,6 +829,7 @@ netdir_sperror(void)
 			dgettext(__nsl_dom, "n2a: couldn't open shared object"),
 			dlerrstr ? dlerrstr : " ");
 		break;
+#endif /* STATIC_LINK */
 	case ND_ACCESS :
 		(void) snprintf(str, NDERR_BUFSZ,
 			dgettext(__nsl_dom,

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -60,8 +64,6 @@ static int cryptoadm_open(dev_t *, int, int, cred_t *);
 static int cryptoadm_close(dev_t, int, int, cred_t *);
 static int cryptoadm_ioctl(dev_t, int, intptr_t, int, cred_t *, int *);
 
-extern void audit_cryptoadm(int, char *, crypto_mech_name_t *, uint_t,
-    uint_t, uint32_t, int);
 /*
  * Module linkage.
  */
@@ -118,19 +120,21 @@ static dev_info_t	*cryptoadm_dip = NULL;
  * DDI entry points.
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -87,6 +91,7 @@ zfs_log_create_txtype(zil_create_t type, vsecattr_t *vsecp, vattr_t *vap)
 	return (TX_MAX_TYPE);
 }
 
+#ifndef ZFS_COMPACT
 /*
  * build up the log data necessary for logging xvattr_t
  * First lr_attr_t is initialized.  following the lr_attr_t
@@ -158,6 +163,9 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP))
 		bcopy(xoap->xoa_av_scanstamp, scanstamp, AV_SCANSTAMP_SZ);
 }
+#else
+#define	zfs_log_xvattr(lrattr, xvap)
+#endif	/* ZFS_COMPACT */
 
 static void *
 zfs_log_fuid_ids(zfs_fuid_info_t *fuidp, void *start)
@@ -623,6 +631,7 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	zp->z_last_itx = seq;
 }
 
+#ifndef ZFS_COMPACT
 /*
  * zfs_log_acl() handles TX_ACL transactions.
  */
@@ -690,3 +699,4 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 	seq = zil_itx_assign(zilog, itx, tx);
 	zp->z_last_itx = seq;
 }
+#endif	/* ZFS_COMPACT */

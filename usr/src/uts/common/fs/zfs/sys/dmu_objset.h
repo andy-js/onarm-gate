@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DMU_OBJSET_H
 #define	_SYS_DMU_OBJSET_H
 
@@ -35,6 +39,7 @@
 #include <sys/dnode.h>
 #include <sys/zio.h>
 #include <sys/zil.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -78,7 +83,7 @@ typedef struct objset_impl {
 
 	/* Protected by os_obj_lock */
 	kmutex_t os_obj_lock;
-	uint64_t os_obj_next;
+	objid_t os_obj_next;
 
 	/* Protected by os_lock */
 	kmutex_t os_lock;
@@ -107,7 +112,7 @@ int dmu_objset_snapshot(char *fsname, char *snapname, boolean_t recursive);
 void dmu_objset_stats(objset_t *os, nvlist_t *nv);
 void dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat);
 void dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
-    uint64_t *usedobjsp, uint64_t *availobjsp);
+    objid_t *usedobjsp, objid_t *availobjsp);
 uint64_t dmu_objset_fsid_guid(objset_t *os);
 int dmu_objset_find(char *name, int func(char *, void *), void *arg,
     int flags);

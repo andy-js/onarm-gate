@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -351,6 +355,7 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 }
 
 
+#ifndef NO_SUPPORT_EFI
 /*
  * By "whole disk" we mean an entire physical disk (something we can
  * label, toggle the write cache on, etc.) as opposed to the full
@@ -378,6 +383,9 @@ is_whole_disk(const char *arg)
 	(void) close(fd);
 	return (B_TRUE);
 }
+#else
+#define	is_whole_disk(arg)	B_FALSE
+#endif	/* NO_SUPPORT_EFI */
 
 /*
  * Create a leaf vdev.  Determine if this is a file or a device.  If it's a
@@ -914,6 +922,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		    &wholedisk) != 0 || !wholedisk)
 			return (0);
 
+#ifndef NO_SUPPORT_EFI
 		diskname = strrchr(path, '/');
 		assert(diskname != NULL);
 		diskname++;
@@ -956,6 +965,9 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		(void) close(fd);
 
 		return (0);
+#else
+		return (-1);
+#endif	/* NO_SUPPORT_EFI */
 	}
 
 	for (c = 0; c < children; c++)

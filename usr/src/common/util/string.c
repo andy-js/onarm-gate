@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -680,7 +684,7 @@ strsep(char **stringp, const char *delim)
  * Unless mentioned otherwise, all of the routines below should be added to
  * the Solaris DDI as necessary.  For now, only provide them to standalone.
  */
-#if defined(_BOOT) || defined(_KMDB)
+#if defined(_BOOT) || defined(_KMDB) || defined(_USE_STRTOK)
 char *
 strtok(char *string, const char *sepset)
 {
@@ -714,6 +718,7 @@ strtok(char *string, const char *sepset)
 	return (q);
 }
 
+#ifndef	_USE_STRTOK
 /*
  * The strlen() routine isn't shared with the kernel because it has its own
  * hand-tuned assembly version.
@@ -727,8 +732,9 @@ strlen(const char *s)
 		n++;
 	return (n);
 }
+#endif	/* !_USE_STRTOK */
 
-#endif /* _BOOT || _KMDB */
+#endif /* _BOOT || _KMDB || _USE_STRTOK */
 
 /*
  * Returns the number of non-NULL bytes in string argument,

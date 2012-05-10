@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef _SETJMP_H
 #define	_SETJMP_H
 
@@ -54,10 +58,14 @@ extern "C" {
 	defined(__EXTENSIONS__)
 /* non-ANSI standard compilation */
 
+#if defined(__arm)
+typedef long long sigjmp_buf[_SIGJBLEN];
+#else
 #if defined(_LP64) || defined(_I32LPx)
 typedef long sigjmp_buf[_SIGJBLEN];
 #else
 typedef int sigjmp_buf[_SIGJBLEN];
+#endif
 #endif
 
 extern int sigsetjmp(sigjmp_buf, int);

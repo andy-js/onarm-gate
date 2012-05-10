@@ -33,6 +33,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -147,6 +151,8 @@ __nis_cast_proc(
 	char uaddrbuf[INET6_ADDRSTRLEN + sizeof (".255.255")];
 					/* large enough for an IPv6 uaddr */
 
+	tr_head = NULL;
+
 	if (sys_auth == NULL) {
 		stat = RPC_SYSTEMERROR;
 		goto done_broad;
@@ -160,7 +166,6 @@ __nis_cast_proc(
 	}
 
 	addr_cnt = sent = rcvd = 0;
-	tr_head = NULL;
 
 	srv = binding->dobj.do_servers.do_servers_val;
 	for (i = 0, bep = binding->bep_val + base; i < nbep; i++, bep++) {
@@ -503,7 +508,9 @@ __nis_cast_proc(
 done_broad:
 	free_transports(tr_head);
 	free_server_addrs(saddrs, nbep);
-	AUTH_DESTROY(sys_auth);
+	if (sys_auth != NULL) {
+		AUTH_DESTROY(sys_auth);
+	}
 	return (stat);
 }
 

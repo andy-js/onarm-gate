@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -39,6 +43,7 @@
 #include <sys/zfs_znode.h>
 #endif
 #include <sys/zfs_fuid.h>
+#include <zfs_types.h>
 
 /*
  * FUID Domain table(s).
@@ -102,7 +107,7 @@ domain_compare(const void *arg1, const void *arg2)
  * both the kernel and zdb.
  */
 uint64_t
-zfs_fuid_table_load(objset_t *os, uint64_t fuid_obj, avl_tree_t *idx_tree,
+zfs_fuid_table_load(objset_t *os, objid_t fuid_obj, avl_tree_t *idx_tree,
     avl_tree_t *domain_tree)
 {
 	dmu_buf_t *db;
@@ -205,13 +210,14 @@ zfs_fuid_init(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 		/* first make sure we need to allocate object */
 
 		error = zap_lookup(zfsvfs->z_os, MASTER_NODE_OBJ,
-		    ZFS_FUID_TABLES, 8, 1, &zfsvfs->z_fuid_obj);
+		    ZFS_FUID_TABLES, sizeof (zfsvfs->z_fuid_obj),
+		    1, &zfsvfs->z_fuid_obj);
 		if (error == ENOENT && tx != NULL) {
 			zfsvfs->z_fuid_obj = dmu_object_alloc(zfsvfs->z_os,
 			    DMU_OT_FUID, 1 << 14, DMU_OT_FUID_SIZE,
 			    sizeof (uint64_t), tx);
 			VERIFY(zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
-			    ZFS_FUID_TABLES, sizeof (uint64_t), 1,
+			    ZFS_FUID_TABLES, sizeof (zfsvfs->z_fuid_obj), 1,
 			    &zfsvfs->z_fuid_obj, tx) == 0);
 		}
 	}

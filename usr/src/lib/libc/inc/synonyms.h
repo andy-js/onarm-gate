@@ -27,6 +27,10 @@
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _LIBC_SYNONYMS_H
 #define	_LIBC_SYNONYMS_H
 
@@ -1216,6 +1220,14 @@ extern "C" {
 #define	_Unwind_SetGR			_SUNW_Unwind_SetGR
 #define	_Unwind_SetIP			_SUNW_Unwind_SetIP
 #endif  /* __amd64 */
+
+/*
+ * The following symbols are not global (See mapfile-vers)
+ * So we rename them to avoid the confliction.
+ */
+#define	sig_mutex_lock		__libc_sig_mutex_lock
+#define	sig_mutex_trylock	__libc_sig_mutex_trylock
+#define	sig_mutex_unlock	__libc_sig_mutex_unlock
 
 #endif	/* !defined(__lint) */
 

@@ -114,28 +114,30 @@ static struct modlinkage modlinkage = {
 /*
  * There are not enough stubs for rpcmod so we must force load it
  */
-char _depends_on[] = "strmod/rpcmod misc/rpcsec fs/mntfs";
+MODDRV_DEPENDS_ON("strmod/rpcmod misc/rpcsec fs/mntfs");
 
 /*
  * This is the module initialization routine.
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	/*
 	 * Don't allow the autofs module to be unloaded for now.
 	 */
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

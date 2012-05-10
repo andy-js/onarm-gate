@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef	_VM_PAGE_H
 #define	_VM_PAGE_H
 
@@ -501,7 +505,10 @@ typedef struct page {
 #if defined(__sparc)
 	uint_t		p_kpmref;	/* number of kpm mapping sharers */
 	struct kpme	*p_kpmelist;	/* kpm specific mapping info */
-#else
+#elif	defined(__arm)
+	uint16_t	p_mlentry;	/* Page table entry index */
+	uint16_t	p_ptszc;	/* Page size code of mapping */
+#else	/* !__sparc && !__arm */
 	/* index of entry in p_map when p_embed is set */
 	uint_t		p_mlentry;
 #endif

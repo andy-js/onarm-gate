@@ -27,6 +27,10 @@
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 
 /*
  * An application should not include this header directly.  Instead it
@@ -44,6 +48,10 @@
 #define	_ISO_LIMITS_ISO_H
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI" /* SVr4.0 1.34 */
+
+#if defined(_AEABI_PORTABILITY_LEVEL)
+#error "not supported AEABI."
+#endif
 
 #ifdef	__cplusplus
 extern "C" {

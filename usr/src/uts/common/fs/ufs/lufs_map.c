@@ -25,6 +25,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #include <sys/systm.h>
 #include <sys/types.h>
 #include <sys/vnode.h>
@@ -41,6 +45,11 @@
 #include <sys/inttypes.h>
 #include <sys/atomic.h>
 #include <sys/tuneable.h>
+#ifdef UFS_FLUSH_WRITE_CACHE
+#include <sys/file.h>
+#include <sys/dkio.h>
+#include <sys/ddi.h>
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 /*
  * externs
@@ -48,6 +57,9 @@
 extern pri_t minclsyspri;
 extern struct kmem_cache *lufs_bp;
 extern int ufs_trans_push_quota();
+#ifdef UFS_FLUSH_WRITE_CACHE
+extern buf_t * get_write_bp(ml_unit_t *ul);
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 /*
  * globals
@@ -1491,7 +1503,11 @@ logmap_commit(ml_unit_t *ul, uint32_t tid)
 {
 	mapentry_t	me;
 	mt_map_t	*mtm	= ul->un_logmap;
-
+#ifdef UFS_FLUSH_WRITE_CACHE
+	buf_t		*bp;
+	int		rval;
+	int		rc;
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 	ASSERT(MUTEX_HELD(&ul->un_log_mutex));
 
@@ -1507,8 +1523,18 @@ logmap_commit(ml_unit_t *ul, uint32_t tid)
 		me.me_nb = 0;
 		me.me_hash = NULL;
 		logmap_wait_space(mtm, ul, &me);
+#ifdef UFS_FLUSH_WRITE_CACHE
+		bp = get_write_bp(ul);
+		sema_v(&bp->b_sem);
+		rc = cdev_ioctl(ul->un_dev, DKIOCFLUSHWRITECACHE,
+		    NULL, FNATIVE|FKIOCTL, NULL, &rval);
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 		ldl_write(ul, NULL, (offset_t)0, &me);
 		ldl_round_commit(ul);
+#ifdef UFS_FLUSH_WRITE_CACHE
+		rc = cdev_ioctl(ul->un_dev, DKIOCFLUSHWRITECACHE,
+		    NULL, FNATIVE|FKIOCTL, NULL, &rval);
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 		/*
 		 * abort on error; else reset dirty flag

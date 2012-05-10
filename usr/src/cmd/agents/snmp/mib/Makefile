@@ -27,9 +27,15 @@
 # snmp/mib/Makefile
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 include ../../Makefile.vars
 
 include $(SRC)/cmd/Makefile.cmd
+
+$(ARM_BLD)TARGET_ARCH	= -arm
 
 MIBS =		snmpdx.mib
 MIBDIR =	$(ROOT)/var/snmp/mib

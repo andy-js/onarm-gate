@@ -22,6 +22,10 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -36,13 +40,15 @@ OBJECTS=	libsysevent.o		\
 include ../../Makefile.lib
 include ../../Makefile.rootfs
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 LINTSRC =       $(LINTLIB:%.ln=%)
 
 CPPFLAGS +=	-D_REENTRANT -I..
 CFLAGS +=	$(CCVERBOSE)
 LDLIBS +=	-lnvpair -lc
+
+$(ARM_BLD)CPPFLAGS +=   -DMNTFS_DISABLE
 
 $(LINTLIB) :=	SRCS = ../llib-lsysevent
 
@@ -55,7 +61,7 @@ lint : lintcheck
 # include library targets
 include ../../Makefile.targ
 
-pics/%.o:	../%.c
+objs/%.o pics/%.o:	../%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

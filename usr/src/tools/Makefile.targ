@@ -24,7 +24,14 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2009 NEC Corporation
+#
+
 # common target definitions for tool builds
+
+lint	:= GCC_ISYSTEM = -I
 
 clobber: clean
 	-$(RM) $(PROG) $(CLOBBERFILES)

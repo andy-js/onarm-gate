@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_ARC_H
 #define	_SYS_ARC_H
 
@@ -37,6 +41,10 @@ extern "C" {
 #include <sys/zio.h>
 #include <sys/dmu.h>
 #include <sys/spa.h>
+#include <zfs_types.h>
+
+#define	KMEM_ARC_BUF_HDR_T		"arc_buf_hdr_t"
+#define	KMEM_ARC_BUF_T			"arc_buf_t"
 
 typedef struct arc_buf_hdr arc_buf_hdr_t;
 typedef struct arc_buf arc_buf_t;
@@ -90,10 +98,10 @@ int arc_read(zio_t *pio, spa_t *spa, blkptr_t *bp, arc_byteswap_func_t *swap,
     arc_done_func_t *done, void *private, int priority, int flags,
     uint32_t *arc_flags, zbookmark_t *zb);
 zio_t *arc_write(zio_t *pio, spa_t *spa, int checksum, int compress,
-    int ncopies, uint64_t txg, blkptr_t *bp, arc_buf_t *buf,
+    int ncopies, txg_t txg, blkptr_t *bp, arc_buf_t *buf,
     arc_done_func_t *ready, arc_done_func_t *done, void *private, int priority,
     int flags, zbookmark_t *zb);
-int arc_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+int arc_free(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private, uint32_t arc_flags);
 int arc_tryread(spa_t *spa, blkptr_t *bp, void *data);
 
@@ -111,10 +119,15 @@ void arc_fini(void);
  * Level 2 ARC
  */
 
+#ifndef ZFS_NO_L2ARC
 void l2arc_add_vdev(spa_t *spa, vdev_t *vd, uint64_t start, uint64_t end);
 void l2arc_remove_vdev(vdev_t *vd);
 void l2arc_init(void);
 void l2arc_fini(void);
+#else	/* ZFS_NO_L2ARC */
+#define	l2arc_init()
+#define	l2arc_fini()
+#endif	/* ZFS_NO_L2ARC */
 
 #ifdef	__cplusplus
 }

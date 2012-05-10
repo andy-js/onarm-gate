@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -77,7 +81,9 @@
 #define	HISCREENCOLS	120
 
 struct wscons {
+#ifndef NO_TEM_FRAMEWORK
 	struct tem *wc_tem;		/* Terminal emulator state */
+#endif /* NO_TEM_FRAMEWORK */
 	int	wc_flags;		/* random flags (protected by */
 					/* write-side exclusion lock  */
 	dev_t	wc_dev;			/* major/minor for this device */
@@ -188,7 +194,9 @@ static int	wc_polled_getchar(cons_polledio_arg_t arg);
 static void	wc_polled_enter(cons_polledio_arg_t arg);
 static void	wc_polled_exit(cons_polledio_arg_t arg);
 static void	wc_get_size(struct wscons *wscons);
+#ifndef NO_TEM_FRAMEWORK
 static void	wc_modechg_cb(tem_modechg_cb_arg_t arg);
+#endif /* NO_TEM_FRAMEWORK */
 
 #include <sys/types.h>
 #include <sys/conf.h>
@@ -247,19 +255,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -676,6 +686,7 @@ wcioctl(queue_t *q, mblk_t *mp)
 			miocack(q, mp, 0, 0);
 		return;
 
+#ifndef NO_TEM_FRAMEWORK
 	case WC_OPEN_FB:
 		/*
 		 * Start out pessimistic, so that we can just jump to
@@ -766,6 +777,7 @@ open_fail:
 close_fail:
 		qreply(q, mp);
 		break;
+#endif /* NO_TEM_FRAMEWORK */
 
 	default:
 
@@ -1016,6 +1028,7 @@ wcstart(void)
 #ifdef _HAVE_TEM_FIRMWARE
 		if (consmode == CONS_KFB) {
 #endif /* _HAVE_TEM_FIRMWARE */
+#ifndef NO_TEM_FRAMEWORK
 			if (wscons.wc_tem != NULL) {
 				for (nbp = bp; nbp != NULL; nbp = nbp->b_cont) {
 					if (nbp->b_wptr > nbp->b_rptr) {
@@ -1027,6 +1040,7 @@ wcstart(void)
 				}
 				freemsg(bp);
 			}
+#endif /* NO_TEM_FRAMEWORK */
 #ifdef _HAVE_TEM_FIRMWARE
 			continue;
 		}
@@ -1308,6 +1322,7 @@ wc_polled_putchar(cons_polledio_arg_t arg, unsigned char c)
 	if (c == '\n')
 		wc_polled_putchar(arg, '\r');
 
+#ifndef NO_TEM_FRAMEWORK
 	if (wscons.wc_tem == NULL) {
 		/*
 		 * We have no terminal emulator configured.  We have no
@@ -1317,6 +1332,7 @@ wc_polled_putchar(cons_polledio_arg_t arg, unsigned char c)
 	}
 
 	tem_polled_write(wscons.wc_tem, &c, 1);
+#endif /* NO_TEM_FRAMEWORK */
 }
 
 /*
@@ -1414,6 +1430,7 @@ wc_get_size(struct wscons *wscons)
 	struct winsize *t = &wscons->wc_ttycommon.t_size;
 	ushort_t r = LOSCREENLINES, c = LOSCREENCOLS, x = 0, y = 0;
 
+#ifndef NO_TEM_FRAMEWORK
 	if (wscons->wc_tem != NULL)
 		tem_get_size(wscons->wc_tem, &r, &c, &x, &y);
 #ifdef _HAVE_TEM_FIRMWARE
@@ -1421,6 +1438,11 @@ wc_get_size(struct wscons *wscons)
 		console_get_size(&r, &c, &x, &y);
 	}
 #endif /* _HAVE_TEM_FIRMWARE */
+#else  /* NO_TEM_FRAMEWORK */
+#ifdef _HAVE_TEM_FIRMWARE
+		console_get_size(&r, &c, &x, &y);
+#endif /* _HAVE_TEM_FIRMWARE */
+#endif /* NO_TEM_FRAMEWORK */
 
 	update_property(wscons, "screen-#cols",  t->ws_col = c);
 	update_property(wscons, "screen-#rows",  t->ws_row = r);
@@ -1428,8 +1450,10 @@ wc_get_size(struct wscons *wscons)
 	update_property(wscons, "screen-height", t->ws_ypixel = y);
 }
 
+#ifndef NO_TEM_FRAMEWORK
 static void
 wc_modechg_cb(tem_modechg_cb_arg_t arg)
 {
 	wc_get_size((struct wscons *)arg);
 }
+#endif /* NO_TEM_FRAMEWORK */

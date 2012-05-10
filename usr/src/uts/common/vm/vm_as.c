@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -58,6 +62,7 @@
 #include <sys/debug.h>
 #include <sys/tnf_probe.h>
 #include <sys/vtrace.h>
+#include <sys/lpg_config.h>
 
 #include <vm/hat.h>
 #include <vm/xhat.h>
@@ -1472,11 +1477,12 @@ as_map_segvn_segs(struct as *as, caddr_t addr, size_t size, uint_t szcvec,
 	ASSERT(IS_P2ALIGNED(addr, PAGESIZE));
 	ASSERT(IS_P2ALIGNED(size, PAGESIZE));
 	ASSERT(vn_a->vp == NULL || vn_a->amp == NULL);
+	LPG_DISABLE_ASSERT(szcvec == 0);
 	if (!do_off) {
 		vn_a->offset = 0;
 	}
 
-	if (szcvec <= 1) {
+	if (LPG_EVAL(szcvec) <= 1) {
 		seg = seg_alloc(as, addr, size);
 		if (seg == NULL) {
 			return (ENOMEM);
@@ -1577,16 +1583,19 @@ as_map_vnsegs(struct as *as, caddr_t addr, size_t size,
 	struct vattr va;
 	u_offset_t eoff;
 	size_t save_size = 0;
+#ifndef	__arm
 	extern size_t textrepl_size_thresh;
+#endif	/* !__arm */
 
 	ASSERT(AS_WRITE_HELD(as, &as->a_lock));
 	ASSERT(IS_P2ALIGNED(addr, PAGESIZE));
 	ASSERT(IS_P2ALIGNED(size, PAGESIZE));
 	ASSERT(vn_a->vp != NULL);
 	ASSERT(vn_a->amp == NULL);
+	LPG_DISABLE_ASSERT(szcvec == 0);	
 
 again:
-	if (szcvec <= 1) {
+	if (LPG_EVAL(szcvec) <= 1) {
 		seg = seg_alloc(as, addr, size);
 		if (seg == NULL) {
 			return (ENOMEM);
@@ -1624,9 +1633,11 @@ again:
 		}
 	}
 
+#ifndef	__arm
 	if (size > textrepl_size_thresh) {
 		vn_a->flags |= _MAP_TEXTREPL;
 	}
+#endif	/* !__arm */
 	error = as_map_segvn_segs(as, addr, size, szcvec, crfp, vn_a,
 	    segcreated);
 	if (error != 0) {
@@ -1671,8 +1682,9 @@ as_map_ansegs(struct as *as, caddr_t addr, size_t size,
 	ASSERT(IS_P2ALIGNED(addr, PAGESIZE));
 	ASSERT(IS_P2ALIGNED(size, PAGESIZE));
 	ASSERT(vn_a->vp == NULL);
+	LPG_DISABLE_ASSERT(szcvec == 0);
 
-	return (as_map_segvn_segs(as, addr, size, szcvec,
+	return (as_map_segvn_segs(as, addr, size, LPG_EVAL(szcvec),
 	    crfp, vn_a, segcreated));
 }
 
@@ -2687,6 +2699,8 @@ as_pagereclaim(struct as *as, struct page **pp, caddr_t addr,
 	SEGOP_PAGELOCK(seg, raddr, rsize, &pp, L_PAGERECLAIM, rw);
 }
 
+#ifndef	LPG_DISABLE
+
 #define	MAXPAGEFLIP	4
 #define	MAXPAGEFLIPSIZ	MAXPAGEFLIP*PAGESIZE
 
@@ -3167,6 +3181,8 @@ again:
 	AS_LOCK_EXIT(as, &as->a_lock);
 	return (error);
 }
+
+#endif	/* !LPG_DISABLE */
 
 /*
  * Setup all of the uninitialized watched pages that we can.

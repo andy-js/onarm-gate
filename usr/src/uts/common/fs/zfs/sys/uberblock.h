@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_UBERBLOCK_H
 #define	_SYS_UBERBLOCK_H
 
@@ -33,6 +37,7 @@
 #include <sys/vdev.h>
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -41,7 +46,7 @@ extern "C" {
 typedef struct uberblock uberblock_t;
 
 extern int uberblock_verify(uberblock_t *ub);
-extern int uberblock_update(uberblock_t *ub, vdev_t *rvd, uint64_t txg);
+extern int uberblock_update(uberblock_t *ub, vdev_t *rvd, txg_t txg);
 
 #ifdef	__cplusplus
 }

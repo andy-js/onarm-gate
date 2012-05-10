@@ -10,6 +10,10 @@
  */
 
 /*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
+/*
  * PTY - Stream "pseudo-tty" device.
  * This is the "slave" side.
  */
@@ -134,7 +138,7 @@ DDI_DEFINE_STREAM_OPS(ptsl_ops, nulldev, nulldev,
 #include <sys/errno.h>
 #include <sys/modctl.h>
 
-char _depends_on[] = "drv/ptc";
+MODDRV_DEPENDS_ON("drv/ptc");
 
 /*
  * Module linkage information for the kernel.
@@ -153,19 +157,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

@@ -34,6 +34,10 @@
  * FILE NOTICE END
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/cpuvar.h>
@@ -50,6 +54,7 @@ static void
 thread_create_intr(cpu_t *cp)
 {
 	kthread_t *tp;
+	CPU_INTR_THREAD_LOCK_DECL;
 
 	tp = thread_create(NULL, 0,
 	    (void (*)())thread_create_intr, NULL, 0, &p0, TS_ONPROC, 0);
@@ -92,8 +97,10 @@ thread_create_intr(cpu_t *cp)
 	/*
 	 * Link onto CPU's interrupt pool.
 	 */
+	CPU_INTR_THREAD_LOCK();
 	tp->t_link = cp->cpu_intr_thread;
 	cp->cpu_intr_thread = tp;
+	CPU_INTR_THREAD_UNLOCK();
 }
 
 /*
@@ -112,4 +119,16 @@ cpu_intr_alloc(cpu_t *cp, int n)
 	cp->cpu_intr_stack = (caddr_t)segkp_get(segkp, INTR_STACK_SIZE,
 		KPD_HASREDZONE | KPD_NO_ANON | KPD_LOCKED) +
 		INTR_STACK_SIZE - SA(MINFRAME);
+}
+
+/*
+ * void
+ * cpu_intr_add(cpu_t *cp)
+ *     Allocate one interrupt thread for a given CPU.
+ *     This function simply calls thread_create_intr().
+ */
+void
+cpu_intr_add(cpu_t *cp)
+{
+	thread_create_intr(cp);
 }

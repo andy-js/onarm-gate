@@ -24,6 +24,11 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+
 #ifndef	_IPP_IPP_IMPL_H
 #define	_IPP_IPP_IMPL_H
 
@@ -49,12 +54,18 @@ extern "C" {
 
 #define	IPP_ALIGN		64
 
+#if defined(_NETWORK_EXTENSION)
+#define	IPP_NBUCKET		2
+#define	IPP_LOG2NACTION         7
+#define	IPP_LOG2NMOD		2
+#else
 #define	IPP_NBUCKET		23
-
 #define	IPP_LOG2NACTION		16
+#define	IPP_LOG2NMOD		6
+#endif /* _NETWORK_EXTENSION */
+
 #define	IPP_NACTION		(1 << IPP_LOG2NACTION)
 
-#define	IPP_LOG2NMOD		6
 #define	IPP_NMOD		(1 << IPP_LOG2NMOD)
 
 #define	IPP_NCLASS		5

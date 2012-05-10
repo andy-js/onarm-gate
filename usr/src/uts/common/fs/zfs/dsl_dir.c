@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
@@ -38,7 +42,9 @@
 #include <sys/zio.h>
 #include <sys/arc.h>
 #include <sys/sunddi.h>
+#include <zfs_types.h>
 #include "zfs_namecheck.h"
+
 
 static uint64_t dsl_dir_space_towrite(dsl_dir_t *dd);
 static void dsl_dir_set_reservation_sync(void *arg1, void *arg2,
@@ -76,7 +82,7 @@ dsl_dir_evict(dmu_buf_t *db, void *arg)
 }
 
 int
-dsl_dir_open_obj(dsl_pool_t *dp, uint64_t ddobj,
+dsl_dir_open_obj(dsl_pool_t *dp, objid_t ddobj,
     const char *tail, void *tag, dsl_dir_t **ddp)
 {
 	dmu_buf_t *dbuf;
@@ -124,7 +130,7 @@ dsl_dir_open_obj(dsl_pool_t *dp, uint64_t ddobj,
 			}
 			if (tail) {
 #ifdef ZFS_DEBUG
-				uint64_t foundobj;
+				objid_t foundobj;
 
 				err = zap_lookup(dp->dp_meta_objset,
 				    dd->dd_parent->dd_phys->dd_child_dir_zapobj,
@@ -307,7 +313,7 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 	int err;
 	dsl_dir_t *dd;
 	dsl_pool_t *dp;
-	uint64_t ddobj;
+	objid_t ddobj;
 	int openedspa = FALSE;
 
 	dprintf("%s\n", name);
@@ -329,6 +335,13 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 
 	dp = spa_get_dsl(spa);
 
+	if (spa_state(spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(spa) == ZIO_FAILURE_MODE_ABORT) {
+		if (openedspa)
+			spa_close(spa, FTAG);
+		return (EIO);
+	}
+
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
 	err = dsl_dir_open_obj(dp, dp->dp_root_dir_obj, NULL, tag, &dd);
 	if (err) {
@@ -346,7 +359,7 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 		ASSERT(next[0] != '\0');
 		if (next[0] == '@')
 			break;
-		dprintf("looking up %s in obj%lld\n",
+		dprintf("looking up %s in obj%" PRIuOBJID "\n",
 		    buf, dd->dd_phys->dd_child_dir_zapobj);
 
 		err = zap_lookup(dp->dp_meta_objset,
@@ -405,18 +418,18 @@ dsl_dir_open(const char *name, void *tag, dsl_dir_t **ddp, const char **tailp)
 	return (dsl_dir_open_spa(NULL, name, tag, ddp, tailp));
 }
 
-uint64_t
+objid_t
 dsl_dir_create_sync(dsl_dir_t *pds, const char *name, dmu_tx_t *tx)
 {
 	objset_t *mos = pds->dd_pool->dp_meta_objset;
-	uint64_t ddobj;
+	objid_t ddobj;
 	dsl_dir_phys_t *dsphys;
 	dmu_buf_t *dbuf;
 
 	ddobj = dmu_object_alloc(mos, DMU_OT_DSL_DIR, 0,
 	    DMU_OT_DSL_DIR, sizeof (dsl_dir_phys_t), tx);
 	VERIFY(0 == zap_add(mos, pds->dd_phys->dd_child_dir_zapobj,
-	    name, sizeof (uint64_t), 1, &ddobj, tx));
+	    name, sizeof (ddobj), 1, &ddobj, tx));
 	VERIFY(0 == dmu_bonus_hold(mos, ddobj, FTAG, &dbuf));
 	dmu_buf_will_dirty(dbuf, tx);
 	dsphys = dbuf->db_data;
@@ -467,7 +480,8 @@ dsl_dir_destroy_sync(void *arg1, void *tag, cred_t *cr, dmu_tx_t *tx)
 {
 	dsl_dir_t *dd = arg1;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	uint64_t val, obj;
+	uint64_t val;
+	objid_t obj;
 
 	ASSERT(RW_WRITE_HELD(&dd->dd_pool->dp_config_rwlock));
 	ASSERT(dd->dd_phys->dd_head_dataset_obj == 0);
@@ -490,7 +504,7 @@ dsl_dir_destroy_sync(void *arg1, void *tag, cred_t *cr, dmu_tx_t *tx)
 }
 
 void
-dsl_dir_create_root(objset_t *mos, uint64_t *ddobjp, dmu_tx_t *tx)
+dsl_dir_create_root(objset_t *mos, objid_t *ddobjp, dmu_tx_t *tx)
 {
 	dsl_dir_phys_t *dsp;
 	dmu_buf_t *dbuf;
@@ -500,7 +514,7 @@ dsl_dir_create_root(objset_t *mos, uint64_t *ddobjp, dmu_tx_t *tx)
 	    DMU_OT_DSL_DIR, sizeof (dsl_dir_phys_t), tx);
 
 	error = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ROOT_DATASET,
-	    sizeof (uint64_t), 1, ddobjp, tx);
+	    sizeof (*ddobjp), 1, ddobjp, tx);
 	ASSERT3U(error, ==, 0);
 
 	VERIFY(0 == dmu_bonus_hold(mos, *ddobjp, FTAG, &dbuf));
@@ -529,6 +543,10 @@ dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv)
 	    (dd->dd_phys->dd_uncompressed_bytes * 100 /
 	    dd->dd_phys->dd_compressed_bytes));
 	mutex_exit(&dd->dd_lock);
+
+	if (spa_state(dd->dd_pool->dp_spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(dd->dd_pool->dp_spa) == ZIO_FAILURE_MODE_ABORT)
+		return;
 
 	rw_enter(&dd->dd_pool->dp_config_rwlock, RW_READER);
 	if (dd->dd_phys->dd_origin_obj) {
@@ -575,7 +593,7 @@ dsl_dir_sync(dsl_dir_t *dd, dmu_tx_t *tx)
 
 	mutex_enter(&dd->dd_lock);
 	ASSERT3U(dd->dd_tempreserved[tx->tx_txg&TXG_MASK], ==, 0);
-	dprintf_dd(dd, "txg=%llu towrite=%lluK\n", tx->tx_txg,
+	dprintf_dd(dd, "txg=%" PRIuTXG " towrite=%lluK\n", tx->tx_txg,
 	    dd->dd_space_towrite[tx->tx_txg&TXG_MASK] / 1024);
 	dd->dd_space_towrite[tx->tx_txg&TXG_MASK] = 0;
 	dd->dd_phys->dd_used_bytes = dd->dd_used_bytes;
@@ -681,7 +699,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
     boolean_t ignorequota, boolean_t checkrefquota, list_t *tr_list,
     dmu_tx_t *tx)
 {
-	uint64_t txg = tx->tx_txg;
+	txg_t txg = tx->tx_txg;
 	uint64_t est_inflight, used_on_disk, quota, parent_rsrv;
 	struct tempreserve *tr;
 	int enospc = EDQUOT;
@@ -963,7 +981,7 @@ dsl_dir_set_quota_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	mutex_exit(&dd->dd_lock);
 
 	spa_history_internal_log(LOG_DS_QUOTA, dd->dd_pool->dp_spa,
-	    tx, cr, "%lld dataset = %llu ",
+	    tx, cr, "%lld dataset = %" PRIuOBJID,
 	    (longlong_t)new_quota, dd->dd_phys->dd_head_dataset_obj);
 }
 
@@ -982,10 +1000,12 @@ dsl_dir_set_quota(const char *ddname, uint64_t quota)
 		 * If someone removes a file, then tries to set the quota, we
 		 * want to make sure the file freeing takes effect.
 		 */
-		txg_wait_open(dd->dd_pool, 0);
-
-		err = dsl_sync_task_do(dd->dd_pool, dsl_dir_set_quota_check,
-		    dsl_dir_set_quota_sync, dd, &quota, 0);
+		err = txg_wait_open(dd->dd_pool, 0);
+		if (err == 0) {
+			err = dsl_sync_task_do(dd->dd_pool,
+			    dsl_dir_set_quota_check,
+			    dsl_dir_set_quota_sync, dd, &quota, 0);
+		}
 	}
 	dsl_dir_close(dd, FTAG);
 	return (err);
@@ -1056,7 +1076,7 @@ dsl_dir_set_reservation_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	}
 
 	spa_history_internal_log(LOG_DS_RESERVATION, dd->dd_pool->dp_spa,
-	    tx, cr, "%lld dataset = %llu",
+	    tx, cr, "%lld dataset = %" PRIuOBJID,
 	    (longlong_t)new_reservation, dd->dd_phys->dd_head_dataset_obj);
 }
 
@@ -1118,7 +1138,7 @@ dsl_dir_rename_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	dsl_pool_t *dp = dd->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
 	int err;
-	uint64_t val;
+	objid_t val;
 
 	/* There should be 2 references: the open and the dirty */
 	if (dmu_buf_refcount(dd->dd_dbuf) > 2)
@@ -1126,7 +1146,7 @@ dsl_dir_rename_check(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	/* check for existing name */
 	err = zap_lookup(mos, ra->newparent->dd_phys->dd_child_dir_zapobj,
-	    ra->mynewname, 8, 1, &val);
+	    ra->mynewname, sizeof (val), 1, &val);
 	if (err == 0)
 		return (EEXIST);
 	if (err != ENOENT)
@@ -1187,11 +1207,11 @@ dsl_dir_rename_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 
 	/* add to new parent zapobj */
 	err = zap_add(mos, ra->newparent->dd_phys->dd_child_dir_zapobj,
-	    dd->dd_myname, 8, 1, &dd->dd_object, tx);
+	    dd->dd_myname, sizeof (dd->dd_object), 1, &dd->dd_object, tx);
 	ASSERT3U(err, ==, 0);
 
 	spa_history_internal_log(LOG_DS_RENAME, dd->dd_pool->dp_spa,
-	    tx, cr, "dataset = %llu", dd->dd_phys->dd_head_dataset_obj);
+	    tx, cr, "dataset = %" PRIuOBJID, dd->dd_phys->dd_head_dataset_obj);
 }
 
 int

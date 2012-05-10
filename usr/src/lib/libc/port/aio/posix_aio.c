@@ -23,6 +23,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -243,7 +246,9 @@ lio_listio(int mode, aiocb_t *_RESTRICT_KYWD const *_RESTRICT_KYWD list,
 			}
 			if (aiocbp->aio_resultp.aio_errno == EBADFD)
 				SET_KAIO_NOT_SUPPORTED(aiocbp->aio_fildes);
-			if (aiocbp->aio_reqprio != 0) {
+			if ((aiocbp->aio_reqprio != 0) ||
+			    (aiocbp->aio_lio_opcode != LIO_READ) &&
+			    (aiocbp->aio_lio_opcode != LIO_WRITE)) {
 				aiocbp->aio_resultp.aio_errno = EINVAL;
 				aiocbp->aio_resultp.aio_return = -1;
 				EIOflg = 1;

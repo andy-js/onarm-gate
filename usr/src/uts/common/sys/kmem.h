@@ -20,6 +20,10 @@
  * CDDL HEADER END
  */
 /*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
+/*
  * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
@@ -104,6 +108,12 @@ extern void *kmem_cache_alloc(kmem_cache_t *, int);
 extern void kmem_cache_free(kmem_cache_t *, void *);
 extern uint64_t kmem_cache_stat(kmem_cache_t *, char *);
 extern void kmem_cache_reap_now(kmem_cache_t *);
+
+#define _KMSTATIC	static
+
+#ifdef _KERNEL_BUILD_TREE
+#include <sys/kmrc.h>
+#endif /* _KERNEL_BUILD_TREE */
 
 #endif	/* _KERNEL */
 

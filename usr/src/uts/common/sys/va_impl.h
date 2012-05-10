@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef	_SYS_VA_IMPL_H
 #define	_SYS_VA_IMPL_H
 
@@ -148,9 +152,17 @@ char *__builtin_va_arg_incr();
 #define	__va_end(list)		__va_void(0)
 
 #elif defined(__GNUC__)	&& ((__GNUC__ == 2 && __GNUC_MINOR >= 96) || \
-	(__GNUC__ >= 3))		/* ------------------------ protocol */
+	(__GNUC__ == 3))		/* ------------------------ protocol */
 
 #define	__va_start(list, name)	__builtin_stdarg_start(list, name)
+#define	__va_arg(list, type)	__builtin_va_arg(list, type)
+#define	__va_end(list)		__builtin_va_end(list)
+#define	__va_copy(to, from)	__builtin_va_copy(to, from)
+
+#elif defined(__GNUC__)	&& (__GNUC__ >= 4)
+					/* ------------------------ protocol */
+
+#define	__va_start(list, name)	__builtin_va_start(list, name)
 #define	__va_arg(list, type)	__builtin_va_arg(list, type)
 #define	__va_end(list)		__builtin_va_end(list)
 #define	__va_copy(to, from)	__builtin_va_copy(to, from)

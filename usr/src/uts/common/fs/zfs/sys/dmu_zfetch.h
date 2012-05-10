@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_DFETCH_H
 #define	_DFETCH_H
 
@@ -63,10 +67,15 @@ typedef struct zfetch {
 	uint64_t	zf_alloc_fail;	/* # of failed attempts to alloc strm */
 } zfetch_t;
 
+#ifndef ZFS_NO_PREFETCH
 void		dmu_zfetch_init(zfetch_t *, struct dnode *);
 void		dmu_zfetch_rele(zfetch_t *);
 void		dmu_zfetch(zfetch_t *, uint64_t, uint64_t, int);
-
+#else
+#define		dmu_zfetch_init(zf, dno)
+#define		dmu_zfetch_rele(zf)
+#define		dmu_zfetch(zf, offset, size, prefetched)
+#endif	/* ZFS_NO_PREFETCH */
 
 #ifdef	__cplusplus
 }

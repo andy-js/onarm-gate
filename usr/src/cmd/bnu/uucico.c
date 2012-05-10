@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -73,6 +76,8 @@ extern int sysaccess(), guinfo(), eaccess(), countProcs(), interface(),
 	cmtseq(), conn(), startup(), cntrl();
 extern void setuucp(), fixline(), gename(), ulkseq(), pfEndfile();
 
+static char	*pskip();
+
 #ifdef	NOSTRANGERS
 static void checkrmt();		/* See if we want to talk to remote. */
 #endif /* NOSTRANGERS */
@@ -87,7 +92,6 @@ char **envp;
 {
 
 	extern void intrEXIT(), onintr(), timeout();
-	static char *pskip();
 	extern void setservice();
 #ifndef ATTSVR3
 	void setTZ();

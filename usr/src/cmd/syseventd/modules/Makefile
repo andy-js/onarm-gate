@@ -27,6 +27,10 @@
 # cmd/syseventd/modules/Makefile
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 .PARALLEL:
 
 SUBDIRS=			\
@@ -34,6 +38,11 @@ SUBDIRS=			\
 	sysevent_conf_mod	\
 	sysevent_reg_mod	\
 	zfs_mod
+
+$(ARM_BLD)SUBDIRS=		\
+	devfsadmd_mod		\
+	sysevent_conf_mod	\
+	sysevent_reg_mod
 
 all:=		TARGET= all
 install:=	TARGET= install

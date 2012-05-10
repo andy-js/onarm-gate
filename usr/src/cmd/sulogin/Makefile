@@ -24,11 +24,16 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
-
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+#
 PROG =		sulogin
 ROOTFS_PROG =	$(PROG)
 
 include		../Makefile.cmd
+
+$(ARM_BLD)CPPFLAGS += -D__ARM_INIT
 
 FILEMODE =	0555
 

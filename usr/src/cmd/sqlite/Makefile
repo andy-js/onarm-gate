@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG=		sqlite
 
 include ../Makefile.cmd
@@ -53,7 +57,7 @@ CPPFLAGS +=	-D_REENTRANT -DTHREADSAFE=1 -DHAVE_USLEEP=1 \
 
 $(PROG): $(OBJS) $(SQLITEHDRDIR)/sqlite.h
 	$(LINK.c) -o $@ $(OBJS) \
-	    $(MAPFILE.NES:%=-M%) $(MAPFILE.NED:%=-M%) $(LIBSQLITE)
+	    $(MAPFILE.NES:%=-M%) $(MAPFILE.NED:%=-M%) $(LIBSQLITE) $(LDLIBS)
 	$(CTFMERGE) -t -L VERSION -o $@ $(OBJS) $(LIBSQLITE)
 	$(POST_PROCESS)
 

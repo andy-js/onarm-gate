@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -364,6 +368,28 @@ typedef struct keysched_s {
 	(left) = (right); \
 	(right) = tmp;
 
+#if	defined(__GNUC__) && defined(__arm)
+
+#define HAVE_BSWAP
+
+/*
+ * arm optimization:
+ * 	REV instruction (ARM v6 or later)
+ */
+static __inline__ uint32_t
+bswap(uint32_t value)
+{
+	uint32_t	ret;
+
+	__asm__ __volatile__
+		("rev	%0, %1" : "=r" (ret) : "r" (value));
+	return ret;
+}
+
+#define	LOAD_BIG_32(addr) bswap(*((uint32_t *)(addr)))
+
+#endif	/* defined(__GNUC__) && defined(__arm) */
+
 /* EXPORT DELETE END */
 
 /*
@@ -392,6 +418,10 @@ blowfish_encrypt_block(void *cookie, uint8_t *block, uint8_t *out_block)
 	/*
 	 * Read input block and place in left/right in big-endian order.
 	 */
+#ifdef	HAVE_BSWAP
+	left  = LOAD_BIG_32(block);
+	right = LOAD_BIG_32(block + 4);
+#else	/* !HAVE_BSWAP */
 	left = ((uint32_t)block[0] << 24)
 	    | ((uint32_t)block[1] << 16)
 	    | ((uint32_t)block[2] << 8)
@@ -400,6 +430,7 @@ blowfish_encrypt_block(void *cookie, uint8_t *block, uint8_t *out_block)
 	    | ((uint32_t)block[5] << 16)
 	    | ((uint32_t)block[6] << 8)
 	    | (uint32_t)block[7];
+#endif	/* HAVE_BSWAP */
 #ifdef _BIG_ENDIAN
 	}
 #endif
@@ -478,6 +509,10 @@ blowfish_decrypt_block(void *cookie, uint8_t *block, uint8_t *out_block)
 	/*
 	 * Read input block and place in left/right in big-endian order.
 	 */
+#ifdef	HAVE_BSWAP
+	left  = LOAD_BIG_32(block);
+	right = LOAD_BIG_32(block + 4);
+#else	/* !HAVE_BSWAP */
 	left = ((uint32_t)block[0] << 24)
 	    | ((uint32_t)block[1] << 16)
 	    | ((uint32_t)block[2] << 8)
@@ -486,6 +521,7 @@ blowfish_decrypt_block(void *cookie, uint8_t *block, uint8_t *out_block)
 	    | ((uint32_t)block[5] << 16)
 	    | ((uint32_t)block[6] << 8)
 	    | (uint32_t)block[7];
+#endif	/* HAVE_BSWAP */
 #ifdef _BIG_ENDIAN
 	}
 #endif

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "synonyms.h"
@@ -294,6 +298,13 @@ __pack_extended(unpacked *pu, extended *px, enum fp_direction_type rd,
 	extended_equivalence kluge;
 	int		e;
 
+#if defined(__arm)
+	if (sizeof (long double) == sizeof (double)) {
+		__pack_double(pu, (double *)px, rd, ex);
+		return;
+	}
+#endif
+
 	e = 0;
 	kluge.f.msw.sign = pu->sign;
 	switch (pu->fpclass) {
@@ -361,6 +372,13 @@ __pack_quadruple(unpacked *pu, quadruple *px, enum fp_direction_type rd,
 {
 	quadruple_equivalence kluge;
 	int		e;
+
+#if defined(__arm)
+	if (sizeof (long double) == sizeof (double)) {
+		__pack_double(pu, (double *)px, rd, ex);
+		return;
+	}
+#endif
 
 	e = 0;
 	kluge.f.msw.sign = pu->sign;

@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -61,6 +64,7 @@ static	void	open_all();
 static	int	set_poll();
 static	int	check_spawnlimit();
 static	int	mod_ttydefs();
+static	void	free_defs();
 
 void	open_device();
 void	set_softcar();
@@ -269,7 +273,6 @@ open_all()
 {
 	struct	pmtab	*tp;
 	int	check_modtime;
-	static	void	free_defs();
 	sigset_t cset;
 	sigset_t tset;
 

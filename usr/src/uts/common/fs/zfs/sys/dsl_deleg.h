@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DSL_DELEG_H
 #define	_SYS_DSL_DELEG_H
 
@@ -31,6 +35,7 @@
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -63,7 +68,7 @@ int dsl_deleg_access(const char *ddname, const char *perm, cred_t *cr);
 void dsl_deleg_set_create_perms(dsl_dir_t *dd, dmu_tx_t *tx, cred_t *cr);
 int dsl_deleg_can_allow(char *ddname, nvlist_t *nvp, cred_t *cr);
 int dsl_deleg_can_unallow(char *ddname, nvlist_t *nvp, cred_t *cr);
-int dsl_deleg_destroy(objset_t *os, uint64_t zapobj, dmu_tx_t *tx);
+int dsl_deleg_destroy(objset_t *os, objid_t zapobj, dmu_tx_t *tx);
 boolean_t dsl_delegation_on(objset_t *os);
 
 #ifdef	__cplusplus

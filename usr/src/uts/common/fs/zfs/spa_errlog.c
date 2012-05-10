@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -55,6 +59,7 @@
 #include <sys/spa_impl.h>
 #include <sys/zap.h>
 #include <sys/zio.h>
+#include <zfs_types.h>
 
 /*
  * This is a stripped-down version of strtoull, suitable only for converting
@@ -106,9 +111,9 @@ bookmark_to_name(zbookmark_t *zb, char *buf, size_t len)
 static void
 name_to_bookmark(char *buf, zbookmark_t *zb)
 {
-	zb->zb_objset = strtonum(buf, &buf);
+	zb->zb_objset = (objid_t)strtonum(buf, &buf);
 	ASSERT(*buf == ':');
-	zb->zb_object = strtonum(buf + 1, &buf);
+	zb->zb_object = (objid_t)strtonum(buf + 1, &buf);
 	ASSERT(*buf == ':');
 	zb->zb_level = (int)strtonum(buf + 1, &buf);
 	ASSERT(*buf == ':');
@@ -194,7 +199,7 @@ spa_get_errlog_size(spa_t *spa)
 
 #ifdef _KERNEL
 static int
-process_error_log(spa_t *spa, uint64_t obj, void *addr, size_t *count)
+process_error_log(spa_t *spa, objid_t obj, void *addr, size_t *count)
 {
 	zap_cursor_t zc;
 	zap_attribute_t za;
@@ -333,7 +338,7 @@ spa_errlog_drain(spa_t *spa)
  * Process a list of errors into the current on-disk log.
  */
 static void
-sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
+sync_error_list(spa_t *spa, avl_tree_t *t, objid_t *obj, dmu_tx_t *tx)
 {
 	spa_error_entry_t *se;
 	char buf[64];
@@ -374,7 +379,7 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
  * and not a performance critical operation.
  */
 void
-spa_errlog_sync(spa_t *spa, uint64_t txg)
+spa_errlog_sync(spa_t *spa, txg_t txg)
 {
 	dmu_tx_t *tx;
 	avl_tree_t scrub, last;
@@ -428,10 +433,10 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 	 * Update the MOS to reflect the new values.
 	 */
 	(void) zap_update(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_ERRLOG_LAST, sizeof (uint64_t), 1,
+	    DMU_POOL_ERRLOG_LAST, sizeof (spa->spa_errlog_last), 1,
 	    &spa->spa_errlog_last, tx);
 	(void) zap_update(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_ERRLOG_SCRUB, sizeof (uint64_t), 1,
+	    DMU_POOL_ERRLOG_SCRUB, sizeof (spa->spa_errlog_scrub), 1,
 	    &spa->spa_errlog_scrub, tx);
 
 	dmu_tx_commit(tx);

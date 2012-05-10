@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 # Standard install rules
 # The VAR_SGSBIN and VAR_SGSBIN64 install rules included here are applicable
 # to Solaris 10 and earlier releases. For post Solaris 10 releases, the 
@@ -210,5 +214,12 @@ $(VAR_POUND_1)	$(INS.liblinkccc)
 $(VAR_POUND_1)$(ROOTFS_LIBDIR64)/$(LIBLINKSCCC): \
 	$(ROOTFS_LIBDIR64)/$(LIBLINKSCCC)$(VERS)
 $(VAR_POUND_1)	$(INS.liblinkccc64)
+
+# Special rule to generate dynamic library for cross builds.
+$(CROSSLIB)/$(DYNLIB):	pics .WAIT $$(PICS)
+	$(BUILD.SO)
+	$(POST_PROCESS_SO)
+	-@$(RM) $(CROSSLIB)/$(LIBLINKS)
+	$(SYMLINK) $(DYNLIB) $(CROSSLIB)/$(LIBLINKS)
 
 FRC:

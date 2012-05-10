@@ -31,6 +31,10 @@
 /*	Copyright (c) 1987, 1988 Microsoft Corporation	*/
 /*	  All Rights Reserved	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -64,11 +68,40 @@
 #define	CLR_LIN "[0K"
 #define	HOME "[1;1H[0K[2;1H[0K[3;1H[0K[4;1H[0K[5;1H[0K" \
 	"[6;1H[0K[7;1H[0K[8;1H[0K[9;1H[0K[10;1H[0K[1;1H"
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 #define	Q_LINE "[22;1H[0K[21;1H[0K[20;1H[0K"
 #define	W_LINE "[12;1H[0K[11;1H[0K"
 #define	E_LINE "[24;1H[0K[23;1H[0K"
 #define	M_LINE "[13;1H[0K[14;1H[0K[15;1H[0K[16;1H[0K[17;1H" \
 	"[0K[18;1H[0K[19;1H[0K[13;1H"
+#else /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+#define	Q_LINE "[%d;1H[0K[%d;1H[0K[%d;1H[0K[%d;1H[0K"	\
+	"[%d;1H[0K",						\
+	(io_extend > 0) ? (25 + _EXTFDISK_PARTITION) : 25,	\
+	(io_extend > 0) ? (24 + _EXTFDISK_PARTITION) : 24,	\
+	(io_extend > 0) ? (23 + _EXTFDISK_PARTITION) : 23,	\
+	(io_extend > 0) ? (22 + _EXTFDISK_PARTITION) : 22,	\
+	(io_extend > 0) ? (21 + _EXTFDISK_PARTITION) : 21
+
+#define	W_LINE "[%d;1H[0K[%d;1H[0K",			\
+	(io_extend > 0) ? (13 + _EXTFDISK_PARTITION) : 13,	\
+	(io_extend > 0) ? (12 + _EXTFDISK_PARTITION) : 12
+
+#define	E_LINE "[%d;1H[0K[%d;1H[0K",			\
+	(io_extend > 0) ? (27 + _EXTFDISK_PARTITION) : 27,	\
+	(io_extend > 0) ? (26 + _EXTFDISK_PARTITION) : 26
+
+#define	M_LINE "[%d;1H[0K[%d;1H[0K[%d;1H[0K[%d;1H[0K[%d;1H" \
+	"[0K[%d;1H[0K[%d;1H[0K[%d;1H",			\
+	(io_extend > 0) ? (13 + _EXTFDISK_PARTITION) : 13,		\
+	(io_extend > 0) ? (14 + _EXTFDISK_PARTITION) : 14,		\
+	(io_extend > 0) ? (15 + _EXTFDISK_PARTITION) : 15,		\
+	(io_extend > 0) ? (16 + _EXTFDISK_PARTITION) : 16,		\
+	(io_extend > 0) ? (17 + _EXTFDISK_PARTITION) : 17,		\
+	(io_extend > 0) ? (18 + _EXTFDISK_PARTITION) : 18,		\
+	(io_extend > 0) ? (19 + _EXTFDISK_PARTITION) : 19,		\
+	(io_extend > 0) ? (13 + _EXTFDISK_PARTITION) : 13
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 #define	T_LINE "[1;1H[0K"
 
 #define	DEFAULT_PATH	"/dev/rdsk/"
@@ -90,6 +123,10 @@
 /* for clear_vtoc() */
 #define	OLD		0
 #define	NEW		1
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+#define OLD_LOGI	2
+#define NEW_LOGI	3
+#endif
 
 /* readvtoc/writevtoc return codes */
 #define	VTOC_OK		0	/* Good VTOC */
@@ -128,6 +165,9 @@ static char Usage[] = "Usage: fdisk\n"
 "[ -D id:act:bhead:bsect:bcyl:ehead:esect:ecyl:rsect:numsect ]\n"
 "[ -F fdisk_file ] [ -h ] [ -o offset ] [ -P fill_patt ] [ -s size ]\n"
 "[ -S geom_file ] [ [ -v ] -W { creat_fdisk_file | - } ]\n"
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+"[ -H ]\n"
+#endif
 "[ -w | r | d | n | I | B | E | g | G | R | t | T ] rdevice";
 
 static char Usage1[] = "    Partition options:\n"
@@ -164,6 +204,9 @@ static char Usage1[] = "    Partition options:\n"
 "		Write on-disk table to fdisk_file.\n"
 "	-W -	Write on-disk table to standard output.\n"
 "	-v	Display virtual geometry. Must be used with the -W option.\n"
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+"	-H	Enable to operate Extended Partitions.\n"
+#endif
 "    Diagnostic options:\n"
 "	-d	Activate debug information about progress.\n"
 "	-g	Write label geometry to standard output:\n"
@@ -301,6 +344,16 @@ static int	hba_sectors;		/* number of sectors per track */
 
 static int	sectsiz;		/* sector size */
 
+static int	io_extend = 0;		/* extended function (-H) */
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+/* Logical Partition Table information */
+static int	io_view = 0;		/* View Partition Info (-X) */
+static int	logicaldisk_num = 0;
+struct extboot	ExtBootblk[_EXTFDISK_PARTITION + 1];
+struct ipart	LTable[_EXTFDISK_PARTITION][FD_NUMPART];
+struct ipart	Old_LTable[_EXTFDISK_PARTITION][FD_NUMPART];
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+
 /* Load functions for fdisk table modification */
 #define	LOADFILE	0	/* load fdisk from file */
 #define	LOADDEL		1	/* delete an fdisk entry */
@@ -329,7 +382,21 @@ static int pars_fdisk(char *line,
     int *id, int *act,
     int *bhead, int *bsect, int *bcyl,
     int *ehead, int *esect, int *ecyl,
-    int *rsect, int *numsect);
+    int *rsect, int *numsect, char *ptype);
+#if (defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
+static int l_pcreate(void);
+static int l_specify(uchar_t tsystid, uchar_t tpartition);
+static int l_ppartid(void);
+static char l_pdelete(void);
+static int l_pchange(void);
+static int
+insert_exttbl(
+    int id, int act,
+    int bhead, int bsect, int bcyl,
+    int ehead, int esect, int ecyl,
+    int rsect, int numsect);
+static void clear_lTable();
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 static int validate_part(int id, int rsect, int numsect);
 static void stage0(void);
 static int pcreate(void);
@@ -363,6 +430,41 @@ static void clear_vtoc(int table, int part);
 static int lecture_and_query(char *warning, char *devname);
 static void sanity_check_provided_device(char *devname, int fd);
 static char *get_node(char *devname);
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+#define isExtended(pid)	\
+	(((pid) == EXTDOS) || ((pid) == FDISK_EXTLBA))
+
+static void
+clear_lTable()
+{
+	int i, j;
+
+	for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		for (j = 0; j < FD_NUMPART; j++) {
+			LTable[i][j].systid = UNUSED;
+			LTable[i][j].numsect = 0;
+			LTable[i][j].relsect = 0;
+			LTable[i][j].bootid = 0;
+		}
+	}
+}
+
+#define print_HOME()	{ \
+	int m; \
+	if (!io_extend) { \
+		printf(HOME); \
+	} \
+	for(m = 0; m < FD_NUMPART + _EXTFDISK_PARTITION + 8; m++) { \
+		printf("[%d;1H[0K", m); \
+	} \
+	printf("[1;1H"); \
+}
+#define __EXT_FDISK	1
+#else /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+#define print_HOME()	(void) printf(HOME)
+#define __EXT_FDISK	0
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 
 static void
 update_disk_and_exit(boolean_t table_changed)
@@ -403,7 +505,11 @@ main(int argc, char *argv[])
 	setbuf(stdout, 0);
 
 	/* Process the options. */
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 	while ((c = getopt(argc, argv, "o:s:P:F:b:A:D:W:S:tTIhwvrndgGRBE"))
+#else
+	while ((c = getopt(argc, argv, "o:s:P:F:b:A:D:W:S:tTIhwvrndgGRBEHX"))
+#endif
 	    != EOF) {
 		switch (c) {
 
@@ -450,8 +556,10 @@ main(int argc, char *argv[])
 				io_fdisk++;
 				continue;
 			case 'E':
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 				io_EFIdisk++;
 				io_fdisk++;
+#endif
 				continue;
 			case 'g':
 				diag_cnt++;
@@ -500,6 +608,14 @@ main(int argc, char *argv[])
 			case 'v':
 				v_flag = 1;
 				continue;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			case 'H':
+				io_extend = 1;
+				continue;
+			case 'X':
+				io_view = 1;
+				continue;
+#endif
 			case '?':
 				errflg++;
 				break;
@@ -936,11 +1052,17 @@ read_geom(char *sgeom)
 static void
 dev_mboot_read(void)
 {
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int		i, extpart = -1;
+	struct mboot	*mbr;
+	struct ipart	iparts[FD_NUMPART];
+	off_t		offset, offset_start;
+#endif
 	if ((ioctl(Dev, DKIOCGMBOOT, Bootsect) < 0) && (errno != ENOTTY)) {
 		perror("Error in ioctl DKIOCGMBOOT");
 	}
 	if (errno == 0)
-		return;
+		goto get_ebr;
 	if (lseek(Dev, 0, SEEK_SET) == -1) {
 		(void) fprintf(stderr,
 		    "fdisk: Error seeking to partition table on %s.\n",
@@ -955,6 +1077,77 @@ dev_mboot_read(void)
 		if (!io_image)
 			exit(1);
 	}
+get_ebr:
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
+	return;
+#else
+	if (!io_extend) {
+		return;
+	}
+
+	/* Get an aligned copy of the partition tables */
+	mbr = (struct mboot *)Bootsect;
+
+	if (les(mbr->signature) != MBB_MAGIC) {
+		/* Signature is missing */
+		return;
+	}
+
+	if ((ioctl(Dev, DKIOCGEBR, &ExtBootblk) < 0) && (errno != ENOTTY)) {
+		(void)fprintf(stderr,
+		    "fdisk: Error in ioctl DKIOCGEBR on %s.\n", Dfltdev);
+	}
+	if (errno == 0) {
+		return;
+	}
+
+	/* Extended Partition exist */
+	(void) memcpy(iparts, mbr->parts, sizeof (iparts));
+	for (i = 0; i < FD_NUMPART; i++) {
+		if (isExtended(iparts[i].systid)) {
+			extpart = i;
+			break;
+		}
+	}
+
+	if (extpart < 0) {
+		return;
+	}
+
+	/* Get Extended Boot records */
+	offset = offset_start = les(iparts[extpart].relsect) * sectsiz;
+	for (i = 1; i <= _EXTFDISK_PARTITION; i++) {
+		if (lseek(Dev, offset, SEEK_SET) == -1) {
+			(void) fprintf(stderr,
+			    "fdisk: Error seeking to partition table on %s.\n",
+			    Dfltdev);
+			if (!io_image)
+				exit(1);
+		}
+		if (read(Dev, &ExtBootblk[i], sectsiz) != sectsiz) {
+			(void) fprintf(stderr,
+			    "fdisk: Error reading partition table from %s.\n",
+			    Dfltdev);
+			if (!io_image)
+				exit(1);
+		}
+
+		if (les(ExtBootblk[i].signature) != MBB_MAGIC)  {
+			/* Signature is missing */
+			return;
+		}
+		(void) memcpy(iparts, ExtBootblk[i].parts, sizeof (iparts));
+		if (isExtended(iparts[1].systid)) {
+			offset = offset_start +
+			    les(iparts[1].relsect) * sectsiz;
+		} else {
+			break;
+		}
+	}
+
+	/* Copy MBR */
+	memcpy(&ExtBootblk[0], Bootsect, sizeof(ExtBootblk[0]));
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 }
 
 /*
@@ -966,6 +1159,10 @@ dev_mboot_write(int sect, char *buff, int bootsiz)
 {
 	int 	new_pt, old_pt, error;
 	int	clr_efi = -1, old_solaris = -1, new_solaris = -1;
+	int	table = NEW;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int	new_extpart = -1;
+#endif
 
 	if (io_readonly)
 		return;
@@ -1013,6 +1210,7 @@ dev_mboot_write(int sect, char *buff, int bootsiz)
 		}
 	}
 
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 	/* look to see if a EFI partition changed in relsect/numsect */
 	for (new_pt = 0; new_pt < FD_NUMPART; new_pt++) {
 		if (Table[new_pt].systid != EFI_PMBR)
@@ -1051,13 +1249,123 @@ dev_mboot_write(int sect, char *buff, int bootsiz)
 			}
 		}
 	}
+#else /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+	if (io_extend) {
+		int	old_extpart = -1;
+		int	old_relsect, old_numsect, new_relsect, new_numsect;
+		int	old_ext_relsect, old_ext_numsect;
+		int	new_ext_relsect, new_ext_numsect;
+		int	old_offset, new_offset;
+
+		/* If support extended partition, Solaris partition is Active
+		 * and systid equals SUNIXOS or SUNIXOS2. If it does not exist,
+		 * Solaris which found first is selected.
+		 */
+
+		old_solaris = -1;
+		new_solaris = -1;
+
+		/* Find Solaris partition from old partition table. */
+		/* Primary partition */
+		for (old_pt = 0; old_pt < FD_NUMPART; old_pt++) {
+
+			if (old_extpart == -1 &&
+			    isExtended(Old_Table[old_pt].systid)) {
+				old_extpart = old_pt;
+				old_ext_relsect = Old_Table[old_pt].relsect;
+				old_ext_numsect = Old_Table[old_pt].numsect;
+				continue;
+			}
+
+			if (Old_Table[old_pt].systid != SUNIXOS &&
+			    Old_Table[old_pt].systid != SUNIXOS2)
+				continue;
+
+			if (old_solaris == -1 ||
+			    Old_Table[old_pt].bootid == ACTIVE ) {
+				old_solaris = old_pt;
+				old_relsect = Old_Table[old_pt].relsect;
+				old_numsect = Old_Table[old_pt].numsect;
+			}
+		}
+
+		/* Logical partition */
+		for (old_pt = 0; old_pt < _EXTFDISK_PARTITION; old_pt++) {
+			if (Old_LTable[old_pt][0].systid != SUNIXOS &&
+			    Old_LTable[old_pt][0].systid != SUNIXOS2)
+				continue;
+
+			if (old_solaris == -1 ||
+			    Old_LTable[old_pt][0].bootid == ACTIVE ) {
+				old_solaris = old_pt;
+				if (old_pt > 0) {
+					old_offset =
+					    Old_LTable[old_pt - 1][1].relsect;
+				}
+				old_relsect = Old_LTable[old_pt][0].relsect +
+				    old_offset + old_ext_relsect;
+				old_numsect = Old_LTable[old_pt][0].numsect;
+			}
+		}
+
+		/* Find Solaris partition from new partition table. */
+		/* Primary partition */
+		for (new_pt = 0; new_pt < FD_NUMPART; new_pt++) {
+			if (isExtended(Table[new_pt].systid) &&
+			    new_extpart == -1) {
+				new_extpart = new_pt;
+				new_ext_relsect = Table[new_pt].relsect;
+				new_ext_numsect = Table[new_pt].numsect;
+				continue;
+			}
+
+			if (Table[new_pt].systid != SUNIXOS &&
+			    Table[new_pt].systid != SUNIXOS2)
+				continue;
+
+			if (new_solaris == -1 ||
+			    Table[new_pt].bootid == ACTIVE ) {
+				new_solaris = new_pt;
+				new_relsect = Table[new_pt].relsect;
+				new_numsect = Table[new_pt].numsect;
+			}
+		}
+
+		/* Logical partition */
+		for (new_pt = 0; new_pt < _EXTFDISK_PARTITION; new_pt++) {
+			if (LTable[new_pt][0].systid != SUNIXOS &&
+			    LTable[new_pt][0].systid != SUNIXOS2)
+				continue;
+
+			if (new_solaris == -1 ||
+			    LTable[new_pt][0].bootid == ACTIVE ) {
+				new_solaris = new_pt;
+				if (new_pt > 0) {
+					new_offset =
+					    LTable[new_pt - 1][1].relsect;
+				}
+				new_relsect = LTable[new_pt][0].relsect +
+				    new_offset + new_ext_relsect;
+				new_numsect = LTable[new_pt][0].numsect;
+				table = NEW_LOGI;
+			}
+		}
+
+		/* compare old solaris partition to new one */
+		if (old_solaris != -1 &&
+		    (old_relsect == new_relsect) &&
+		    (old_numsect == new_numsect)) {
+			new_solaris = -1;
+		}
+	}
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 
 	if (new_solaris >= 0) {
 		if (io_debug) {
 			(void) fprintf(stderr, "Clearing VTOC labels from NEW"
 			    " table\n");
 		}
-		clear_vtoc(NEW, new_solaris);
+		clear_vtoc(table, new_solaris);
 	}
 
 	if ((ioctl(Dev, DKIOCSMBOOT, buff) == -1) && (errno != ENOTTY)) {
@@ -1066,7 +1374,7 @@ dev_mboot_write(int sect, char *buff, int bootsiz)
 		    Dfltdev);
 	}
 	if (errno == 0)
-		return;
+		goto write_ebr;
 
 	/* write to disk drive */
 	if (lseek(Dev, sect, SEEK_SET) == -1) {
@@ -1081,6 +1389,57 @@ dev_mboot_write(int sect, char *buff, int bootsiz)
 		    Dfltdev);
 		exit(1);
 	}
+
+write_ebr:
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
+	return;
+#else
+	if (io_extend) {
+		int offset, offset_ext, i;
+
+		if(new_extpart == -1) {
+			return;
+		}
+
+		errno = 0;
+		if ((ioctl(Dev, DKIOCSEBR, &ExtBootblk) < 0) &&
+		    (errno != ENOTTY)) {
+			(void) fprintf(stderr,
+			    "fdisk: Error in ioctl DKIOCSEBR on %s.\n",
+			    Dfltdev);
+		}
+		if (errno >= 0) {
+			return;
+		}
+
+		/* Set Extended Boot records */
+		offset = offset_ext = les(Table[new_extpart].relsect) * sectsiz;
+		for (i = 1; i <= _EXTFDISK_PARTITION; i++) {
+			if (lseek(Dev, offset, SEEK_SET) == -1) {
+				(void) fprintf(stderr,
+				    "fdisk: Error seeking to extended boot "
+				    "record on %s.\n", Dfltdev);
+				if (!io_image)
+					exit(1);
+			}
+			if (write(Dev, &ExtBootblk[i], sectsiz) != sectsiz) {
+				(void) fprintf(stderr,
+				    "fdisk: Error writeing extended boot "
+				    "record to %s.\n", Dfltdev);
+				if (!io_image)
+					exit(1);
+			}
+
+			if (isExtended(LTable[i][1].systid)) {
+				offset = offset_ext +
+				    les(LTable[i][1].relsect) * sectsiz;
+			} else {
+				break;
+			}
+		}
+	}
+	return;
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 }
 
 /*
@@ -1093,7 +1452,7 @@ mboot_read(void)
 	int mDev, i;
 	struct ipart *part;
 
-#if defined(i386) || defined(sparc)
+#if defined(i386) || defined(sparc) || defined(__arm)
 	/*
 	 * If the master boot file hasn't been specified, use the
 	 * implementation architecture name to generate the default one.
@@ -1310,6 +1669,11 @@ load(int funct, char *file)
 	int	i = 0;
 	int	j;
 	FILE *fp;
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
+	char	ptype = 'p';
+#else
+	char	ptype;
+#endif
 
 	switch (funct) {
 
@@ -1333,7 +1697,8 @@ load(int funct, char *file)
 		/* Read a line from the file */
 		while (fgets(line, sizeof (line) - 1, fp)) {
 			if (pars_fdisk(line, &id, &act, &bhead, &bsect,
-			    &bcyl, &ehead, &esect, &ecyl, &rsect, &numsect)) {
+			    &bcyl, &ehead, &esect, &ecyl, &rsect, &numsect,
+			    &ptype)) {
 				continue;
 			}
 
@@ -1351,12 +1716,30 @@ load(int funct, char *file)
 			 * Find an unused entry to use and put the entry
 			 * in table
 			 */
-			if (insert_tbl(id, act, bhead, bsect, bcyl, ehead,
-			    esect, ecyl, rsect, numsect) < 0) {
-				(void) fprintf(stderr,
-				    "fdisk: Error on entry \"%s\".\n",
-				    line);
-				exit(1);
+			if (__EXT_FDISK && io_extend && (ptype != 'p')) {
+				int ret = -1;
+
+				if (ptype == 'l') {
+					/* Logical Partition */
+					ret = insert_exttbl(id, act, bhead,
+					    bsect, bcyl, ehead, esect, ecyl,
+					    rsect, numsect);
+				}
+
+				if (ret < 0) {
+					(void) fprintf(stderr,
+					    "fdisk: Error on entry \"%s\".\n",
+					    line);
+					exit(1);
+				}
+			} else {
+				if (insert_tbl(id, act, bhead, bsect, bcyl,
+				    ehead, esect, ecyl, rsect, numsect) < 0) {
+					(void) fprintf(stderr,
+					    "fdisk: Error on entry \"%s\".\n",
+					    line);
+					exit(1);
+				}
 			}
 		} /* while (fgets(line, sizeof (line) - 1, fp)) */
 
@@ -1373,55 +1756,180 @@ load(int funct, char *file)
 
 		/* Parse the user-supplied deletion line (-D) */
 		if (pars_fdisk(file, &id, &act, &bhead, &bsect, &bcyl,
-		    &ehead, &esect, &ecyl, &rsect, &numsect)) {
+		    &ehead, &esect, &ecyl, &rsect, &numsect, &ptype)) {
 			(void) fprintf(stderr,
 			    "fdisk: Syntax error \"%s\"\n", file);
 			exit(1);
 		}
 
 		/* Find the exact entry in the table */
-		for (i = 0; i < FD_NUMPART; i++) {
-			if (Table[i].systid == id &&
-			    Table[i].bootid == act &&
-			    Table[i].beghead == bhead &&
-			    Table[i].begsect == ((bsect & 0x3f) |
-			    (uchar_t)((bcyl>>2) & 0xc0)) &&
-			    Table[i].begcyl == (uchar_t)(bcyl & 0xff) &&
-			    Table[i].endhead == ehead &&
-			    Table[i].endsect == ((esect & 0x3f) |
-			    (uchar_t)((ecyl>>2) & 0xc0)) &&
-			    Table[i].endcyl == (uchar_t)(ecyl & 0xff) &&
-			    Table[i].relsect == lel(rsect) &&
-			    Table[i].numsect == lel(numsect)) {
+		if (__EXT_FDISK && io_extend && (ptype != 'p')) {
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			int offset_ext = -1, offset = 0, k;
 
-				/*
-				 * Found the entry. Now move rest of
-				 * entries up toward the top of the
-				 * table, leaving available entries at
-				 * the end of the fdisk table.
-				 */
-				for (j = i; j < FD_NUMPART - 1; j++) {
-					Table[j].systid = Table[j + 1].systid;
-					Table[j].bootid = Table[j + 1].bootid;
-					Table[j].beghead = Table[j + 1].beghead;
-					Table[j].begsect = Table[j + 1].begsect;
-					Table[j].begcyl = Table[j + 1].begcyl;
-					Table[j].endhead = Table[j + 1].endhead;
-					Table[j].endsect = Table[j + 1].endsect;
-					Table[j].endcyl = Table[j + 1].endcyl;
-					Table[j].relsect = Table[j + 1].relsect;
-					Table[j].numsect = Table[j + 1].numsect;
+			if (ptype != 'l') {
+				(void) fprintf(stderr,
+				    "fdisk: Entry does not match any existing"
+				    " partition:\n	\"%s\"\n", file);
+				exit(1);
+			}
+
+			for (i = 0; i < FD_NUMPART; i++) {
+				if (isExtended(Table[i].systid)) {
+					offset_ext = lel(Table[i].relsect);
+					break;
 				}
+			}
+			if (offset_ext == -1) {
+				(void) fprintf(stderr,
+				    "fdisk: Extended Partition does notexist:"
+				    "\n \"%s\"\n", file);
+				exit(1);
+			}
 
-				/*
-				 * Mark the last entry as unused in case
-				 * all table entries were in use prior
-				 * to the deletion.
-				 */
+			/* find match table */
+			for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+				if (LTable[i][0].systid == id &&
+				    LTable[i][0].bootid == act &&
+				    LTable[i][0].beghead == bhead &&
+				    LTable[i][0].begsect == ((bsect & 0x3f) |
+					(uchar_t)((bcyl>>2) & 0xc0)) &&
+				    LTable[i][0].begcyl ==
+					(uchar_t)(bcyl & 0xff) &&
+				    LTable[i][0].endhead == ehead &&
+				    LTable[i][0].endsect == ((esect & 0x3f) |
+					(uchar_t)((ecyl>>2) & 0xc0)) &&
+				    LTable[i][0].endcyl ==
+					(uchar_t)(ecyl & 0xff) &&
+				    LTable[i][0].relsect + offset_ext + offset
+				        == lel(rsect) &&
+				    LTable[i][0].numsect == lel(numsect)) {
 
-				Table[FD_NUMPART - 1].systid = UNUSED;
-				Table[FD_NUMPART - 1].bootid = 0;
-				return;
+					if (i >= 1) {
+						LTable[i-1][1] = LTable[i][1];
+
+						for (j = i;
+						    j < _EXTFDISK_PARTITION - 1;
+						    j++) {
+							for (k = 0;
+							    k < FD_NUMPART;
+							    k++) {
+								LTable[j][k]
+								    = LTable\
+								    [j + 1][k];
+							}
+						}
+						for (k = 0; k < FD_NUMPART;
+						    k++) {
+							LTable[j][k].systid
+							    = UNUSED;
+							LTable[j][k].numsect = 0;
+							LTable[j][k].relsect = 0;
+							LTable[j][k].bootid = 0;
+						}
+						return;
+					}
+
+					LTable[0][0].systid
+					    = LTable[1][0].systid;
+					LTable[0][0].numsect
+					    = LTable[1][0].numsect;
+					LTable[0][0].relsect
+					    = LTable[1][0].relsect
+					    + LTable[0][1].relsect;
+					LTable[0][0].bootid
+					    = LTable[1][0].bootid;
+
+					for (k = 1; k < FD_NUMPART; k++) {
+						LTable[0][k] = LTable[1][k];
+					}
+
+					for (j = 1; j < _EXTFDISK_PARTITION -1;
+					     j++) {
+						for (k = 0; k < FD_NUMPART;
+						    k++) {
+							LTable[j][k]
+							    = LTable[j + 1][k];
+						}
+					}
+
+					for (k = 0; k < FD_NUMPART; k++) {
+						LTable[j][k].systid = UNUSED;
+						LTable[j][k].numsect = 0;
+						LTable[j][k].relsect = 0;
+						LTable[j][k].bootid = 0;
+					}
+					return;
+				}
+				if (!isExtended(LTable[i][1].systid)) {
+					break;
+				}
+				offset = lel(LTable[i][1].relsect);
+			}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+		} else {
+			for (i = 0; i < FD_NUMPART; i++) {
+				if (Table[i].systid == id &&
+				    Table[i].bootid == act &&
+				    Table[i].beghead == bhead &&
+				    Table[i].begsect == ((bsect & 0x3f) |
+				    (uchar_t)((bcyl>>2) & 0xc0)) &&
+				    Table[i].begcyl == (uchar_t)(bcyl & 0xff) &&
+				    Table[i].endhead == ehead &&
+				    Table[i].endsect == ((esect & 0x3f) |
+				    (uchar_t)((ecyl>>2) & 0xc0)) &&
+				    Table[i].endcyl == (uchar_t)(ecyl & 0xff) &&
+				    Table[i].relsect == lel(rsect) &&
+				    Table[i].numsect == lel(numsect)) {
+
+					/*
+					 * Found the entry. Now move rest of
+					 * entries up toward the top of the
+					 * table, leaving available entries at
+					 * the end of the fdisk table.
+					 */
+					for (j = i; j < FD_NUMPART - 1; j++) {
+						Table[j].systid =
+						    Table[j + 1].systid;
+						Table[j].bootid =
+						    Table[j + 1].bootid;
+						Table[j].beghead =
+						    Table[j + 1].beghead;
+						Table[j].begsect =
+						    Table[j + 1].begsect;
+						Table[j].begcyl =
+						    Table[j + 1].begcyl;
+						Table[j].endhead =
+						    Table[j + 1].endhead;
+						Table[j].endsect =
+						    Table[j + 1].endsect;
+						Table[j].endcyl =
+						    Table[j + 1].endcyl;
+						Table[j].relsect =
+						    Table[j + 1].relsect;
+						Table[j].numsect =
+						    Table[j + 1].numsect;
+					}
+
+					/*
+					 * Mark the last entry as unused in case
+					 * all table entries were in use prior
+					 * to the deletion.
+					 */
+
+					Table[FD_NUMPART - 1].systid = UNUSED;
+					Table[FD_NUMPART - 1].bootid = 0;
+
+					if (__EXT_FDISK && isExtended(id)) {
+						/*
+						 * Clear All
+						 * logical partition Table
+						 */
+						clear_lTable();
+					}
+
+					return;
+				}
 			}
 		}
 		(void) fprintf(stderr,
@@ -1435,7 +1943,7 @@ load(int funct, char *file)
 
 		/* Parse the user-supplied addition line (-A) */
 		if (pars_fdisk(file, &id, &act, &bhead, &bsect, &bcyl, &ehead,
-		    &esect, &ecyl, &rsect, &numsect)) {
+		    &esect, &ecyl, &rsect, &numsect, &ptype)) {
 			(void) fprintf(stderr,
 			    "fdisk: Syntax error \"%s\"\n", file);
 			exit(1);
@@ -1475,14 +1983,36 @@ load(int funct, char *file)
 			}
 		}
 
-		/* Find unused entry for use and put entry in table */
-		if (insert_tbl(id, act, bhead, bsect, bcyl, ehead, esect,
-		    ecyl, rsect, numsect) < 0) {
+		if (io_extend && (id == EFI_PMBR)) {
 			(void) fprintf(stderr,
-			    "fdisk: Invalid entry could not be inserted:\n"
-			    "	\"%s\"\n",
-			    file);
+			    "fdisk: EFI partition is not supported.\n");
 			exit(1);
+		}
+
+		/* Find unused entry for use and put entry in table */
+		if (__EXT_FDISK && io_extend && (ptype != 'p')) {
+			int ret = -1;
+
+			if (ptype == 'l') {
+				/* Logical Partition */
+				ret = insert_exttbl(id, act, bhead, bsect, bcyl,
+				    ehead, esect, ecyl, rsect, numsect);
+			}
+
+			if (ret < 0) {
+				(void) fprintf(stderr,
+				    "fdisk: Invalid entry could not be "
+				    "inserted:\n	\"%s\"\n", file);
+				exit(1);
+			}
+		} else {
+			if (insert_tbl(id, act, bhead, bsect, bcyl, ehead,
+			    esect, ecyl, rsect, numsect) < 0) {
+				(void) fprintf(stderr,
+				    "fdisk: Invalid entry could not be "
+				    "inserted:\n	\"%s\"\n", file);
+				exit(1);
+			}
 		}
 
 		/* Make sure new entry does not overlap existing entry */
@@ -1620,6 +2150,170 @@ insert_tbl(
 	return (i);
 }
 
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+/*
+ * Set_extTable_CHS_Values
+ *
+ * This will calculate the CHS values for beginning and ending CHS
+ * for a single logical partition table entry (ti) based on the relsect
+ * and numsect values.
+ *
+ * hba_heads and hba_sectors contain the number of heads and sectors.
+ *
+ * If the number of cylinders exceeds the MAX_CYL,
+ * then maximum values will be placed in the corresponding chs entry.
+ */
+static void
+Set_extTable_CHS_Values(int index1, int index2, uint32_t slba, uint32_t elba)
+{
+	uint32_t	cy, hd, sc;
+
+	if (slba >= hba_heads * hba_sectors * MAX_CYL) {
+		/*
+		 * the lba address cannot be expressed in CHS value
+		 * so store the maximum CHS field values in the CHS fields.
+		 */
+		cy = MAX_CYL + 1;
+		hd = MAX_HEAD;
+		sc = MAX_SECT;
+	} else {
+		cy = slba / hba_sectors / hba_heads;
+		hd = slba / hba_sectors % hba_heads;
+		sc = slba % hba_sectors + 1;
+	}
+	LTable[index1][index2].begcyl = cy & 0xff;
+	LTable[index1][index2].beghead = (uchar_t)hd;
+	LTable[index1][index2].begsect = (uchar_t)(((cy >> 2) & 0xc0) | sc);
+
+	/*
+	 * This code is identical to the code above
+	 * except that it works on ending CHS values
+	 */
+	if (elba >= hba_heads * hba_sectors * MAX_CYL) {
+		cy = MAX_CYL + 1;
+		hd = MAX_HEAD;
+		sc = MAX_SECT;
+	} else {
+		cy = elba / hba_sectors / hba_heads;
+		hd = elba / hba_sectors % hba_heads;
+		sc = elba % hba_sectors + 1;
+	}
+	LTable[index1][index2].endcyl = cy & 0xff;
+	LTable[index1][index2].endhead = (uchar_t)hd;
+	LTable[index1][index2].endsect = (uchar_t)(((cy >> 2) & 0xc0) | sc);
+}
+
+/*
+ * insert_exttbl
+ * 	Insert entry into logical partiton table. Check all user-supplied values
+ *	for the entry, but not the validity relative to other table
+ *	entries!
+ */
+static int
+insert_exttbl(
+    int id, int act,
+    int bhead, int bsect, int bcyl,
+    int ehead, int esect, int ecyl,
+    int rsect, int numsect)
+{
+	int	i, extpart = -1;
+
+	for (i = 0; i < FD_NUMPART; i++) {
+		if (isExtended(Table[i].systid)) {
+			extpart = i;
+			break;
+		}
+	}
+	if (i == FD_NUMPART) {
+		(void) fprintf(stderr,
+		    "fdisk: Extend Partition does not exit.\n");
+		return (-1);
+	}
+
+	/* validate partition size */
+	if ((rsect + numsect) > (Table[extpart].relsect +
+	    Table[extpart].numsect)) {
+		(void) fprintf(stderr,
+		    "fdisk: Partition table exceeds the size of"
+		    " the Extended Partition.\n");
+		return (-1);
+	}
+
+	/*
+	 * find unused EBR entry
+	 * If partition table2 is unused, next EBR is unused.
+	 */
+	for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		if (LTable[i][0].systid == UNUSED
+		    && LTable[i][1].systid == UNUSED) {
+			break;
+		}
+	}
+	if (i >= _EXTFDISK_PARTITION) {
+		(void) fprintf(stderr, "fdisk: Extended Partition table "
+		"is full.\n");
+		return (-1);
+	}
+
+	LTable[i][0].systid = (uchar_t)id;
+	LTable[i][0].bootid = (uchar_t)act;
+
+	LTable[i][1].systid = UNUSED;
+	LTable[i][1].bootid = 0;
+	LTable[i][1].numsect = 0;
+	LTable[i][1].relsect = 0;
+	Set_extTable_CHS_Values(i, 1, 0, 0);
+
+	if (i != 0) {
+		LTable[i][0].numsect = lel(numsect) - (heads * sectors);
+		LTable[i][0].relsect = heads * sectors;
+
+		LTable[i - 1][1].systid = EXTDOS;
+		LTable[i - 1][1].bootid = 0;
+		LTable[i - 1][1].numsect = lel(numsect);
+		LTable[i - 1][1].relsect
+		    = lel(rsect) - lel(Table[extpart].relsect);
+		Set_extTable_CHS_Values(i - 1, 1, lel(rsect),
+		    (lel(rsect) + lel(numsect) - 1));
+	} else {
+		LTable[i][0].numsect = lel(numsect);
+		LTable[i][0].relsect = lel(rsect) - lel(Table[extpart].relsect);
+	}
+
+	/*
+	 * If we have been called with a valid geometry, use it
+	 * valid means non-zero values that fit in the BIOS fields
+	 */
+	if (0 < bsect && bsect <= MAX_SECT &&
+	    0 <= bhead && bhead <= MAX_HEAD &&
+	    0 < esect && esect <= MAX_SECT &&
+	    0 <= ehead && ehead <= MAX_HEAD) {
+		if (bcyl > MAX_CYL)
+			bcyl = MAX_CYL + 1;
+		if (ecyl > MAX_CYL)
+			ecyl = MAX_CYL + 1;
+		LTable[i][0].begcyl = bcyl & 0xff;
+		LTable[i][0].endcyl = ecyl & 0xff;
+		LTable[i][0].beghead = (uchar_t)bhead;
+		LTable[i][0].endhead = (uchar_t)ehead;
+		LTable[i][0].begsect = (uchar_t)(((bcyl >> 2) & 0xc0) | bsect);
+		LTable[i][0].endsect = ((ecyl >> 2) & 0xc0) | esect;
+	} else {
+		/*
+		 * The specified values are invalid,
+		 * so calculate the values based on hba_heads, hba_sectors
+		 */
+		Set_extTable_CHS_Values(i, 0, lel(rsect) + sectors,
+		    (lel(rsect) + lel(numsect) - sectors - 1));
+	}
+
+	/*
+	 * return partition index
+	 */
+	return (i);
+}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+
 /*
  * verify_tbl
  * Verify that no partition entries overlap or exceed the size of
@@ -1631,6 +2325,9 @@ verify_tbl(void)
 	int	i, j, rsect, numsect;
 	int	noMoreParts = 0;
 	int	numParts = 0;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int	extpart = -1, ext_offset = 0, offset = 0;
+#endif
 
 	/* Make sure new entry does not overlap an existing entry */
 	for (i = 0; i < FD_NUMPART - 1; i++) {
@@ -1682,6 +2379,11 @@ verify_tbl(void)
 			/* make sure the partition isn't larger than the disk */
 			rsect = lel(Table[i].relsect);
 			numsect = lel(Table[i].numsect);
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			if(numsect <= 0){
+				return(-1);
+			}
+#endif
 			if ((rsect + numsect) > dev_capacity) {
 				return (-1);
 			}
@@ -1750,13 +2452,104 @@ verify_tbl(void)
 		}
 	}
 	if (Table[i].systid != UNUSED) {
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+		if(lel(Table[i].numsect) <= 0){
+			return(-1);
+		}
+#endif
 		if (noMoreParts ||
 		    ((lel(Table[i].relsect) + lel(Table[i].numsect)) >
 		    dev_capacity)) {
 			return (-1);
 		}
 	}
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if(!io_extend)
+		return (numParts);
+	/* Make sure new entry does not overlap an existing entry */
+	for (i = 0; i < FD_NUMPART; i++) {
+		if (isExtended(Table[i].systid)) {
+			extpart = i;
+			break;
+		}
+	}
+	if (extpart >= 0) {
+		ext_offset = lel(Table[extpart].relsect);
+		for (i = 0; i < _EXTFDISK_PARTITION - 1; i++) {
+			if (LTable[i][0].systid != UNUSED) {
+				numParts++;
 
+				/* make sure the partition isn't larger
+				 * than the Extend partition
+				 */
+				rsect = lel(LTable[i][0].relsect) + offset +
+				    ext_offset;
+				numsect = lel(LTable[i][0].numsect);
+				if(numsect <= 0) {
+					return(-1);
+				}
+				if(i != 0) {
+					rsect -= heads * sectors;
+					numsect += heads * sectors;
+				}
+				if(lel(Table[extpart].relsect) >= rsect){
+					return(-1);
+				}
+				if ((rsect + numsect) >
+				    (lel(Table[extpart].relsect)
+				    + lel(Table[extpart].numsect))) {
+					return (-1);
+				}
+
+				for (j = i + 1; j < _EXTFDISK_PARTITION; j++) {
+					if (LTable[j][0].systid != UNUSED) {
+						int t_relsect =
+						  (lel(LTable[j][0].relsect) +
+						  ext_offset +
+						  lel(LTable[j - 1][1].relsect))
+						   - (heads * sectors);
+						int t_numsect =
+						  lel(LTable[j][0].numsect) +
+						  (heads * sectors);
+
+						if (((t_relsect + t_numsect)
+						    <= rsect ) ||
+						    ((rsect + numsect)
+						    <= t_relsect)) {
+							continue;
+						} else {
+							(void) fprintf(stderr,
+							    "ERROR: "
+							    "current partition"
+							    " overlaps"
+							    " following"
+							    " partition\n");
+							return (-1);
+						}
+					}
+				}
+				offset = lel(LTable[i][1].relsect);
+			}
+		}
+		if (LTable[i][0].systid != UNUSED) {
+			int t_numsect = lel(LTable[i][0].numsect);
+			int t_relsect = (lel(LTable[i][0].relsect) +
+				ext_offset + lel(LTable[i - 1][1].relsect)) -
+				(heads * sectors);
+			if(t_numsect <= 0){
+				return(-1);
+			}
+			if(lel(Table[extpart].relsect) >= t_relsect){
+				return(-1);
+			}
+			if ((t_relsect + t_numsect + (heads * sectors)) >
+			    (lel(Table[extpart].relsect)
+			    + lel(Table[extpart].numsect))) {
+				return (-1);
+			}
+		}
+	}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 	return (numParts);
 }
 
@@ -1771,7 +2564,7 @@ pars_fdisk(
     int *id, int *act,
     int *bhead, int *bsect, int *bcyl,
     int *ehead, int *esect, int *ecyl,
-    int *rsect, int *numsect)
+    int *rsect, int *numsect, char *ptype)
 {
 	int	i;
 	if (line[0] == '\0' || line[0] == '\n' || line[0] == '*')
@@ -1784,11 +2577,22 @@ pars_fdisk(
 			line[i] = ' ';
 		}
 	}
-	if (sscanf(line, "%d %d %d %d %d %d %d %d %d %d",
-	    id, act, bhead, bsect, bcyl, ehead, esect, ecyl,
-	    rsect, numsect) != 10) {
-		(void) fprintf(stderr, "Syntax error:\n	\"%s\".\n", line);
-		exit(1);
+	if (__EXT_FDISK && io_extend) {
+		if (sscanf(line, "%d %d %d %d %d %d %d %d %d %d %c",
+		    id, act, bhead, bsect, bcyl, ehead, esect, ecyl,
+		    rsect, numsect, ptype) != 11) {
+			(void) fprintf(stderr, "Syntax error:\n	\"%s\".\n",
+			    line);
+			exit(1);
+		}
+	} else {
+		if (sscanf(line, "%d %d %d %d %d %d %d %d %d %d",
+		    id, act, bhead, bsect, bcyl, ehead, esect, ecyl,
+		    rsect, numsect) != 10) {
+			(void) fprintf(stderr, "Syntax error:\n	\"%s\".\n",
+			    line);
+			exit(1);
+		}
 	}
 	return (0);
 }
@@ -1802,19 +2606,55 @@ static int
 validate_part(int id, int rsect, int numsect)
 {
 	int i;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int offset = 0, offset_ext = -1;
+#endif
+
 	if ((id != UNUSED) && (rsect == 0)) {
 		for (i = 0; i < FD_NUMPART; i++) {
 			if ((Old_Table[i].systid == id) &&
 			    (Old_Table[i].relsect == lel(rsect)) &&
 			    (Old_Table[i].numsect == lel(numsect)))
 				return (0);
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			if (Old_Table[i].systid && offset_ext == -1) {
+				offset_ext = lel(Old_Table[i].relsect);
+			}
+#endif
 		}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+		if(io_extend && offset_ext != -1) {
+			for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+				if ((Old_LTable[i][0].systid == id) &&
+				    ((Old_LTable[i][0].relsect
+				    + offset + offset_ext) == lel(rsect)) &&
+				    (Old_LTable[i][0].numsect == lel(numsect)))
+				    {
+					return (0);
+				}
+				offset = lel(Old_LTable[i][1].relsect);
+			}
+		}
+#endif
 		(void) fprintf(stderr,
 		    "New partition cannot start at sector 0\n");
 		return (-1);
 	}
 	return (0);
 }
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+#define _FDISK_PCREATE	l_pcreate
+#define _FDISK_PCHANGE	l_pchange
+#define _FDISK_PDELETE	l_pdelete
+#define _FDISK_PPARTID	l_ppartid
+#else
+#define _FDISK_PCREATE	pcreate
+#define _FDISK_PCHANGE	pchange
+#define _FDISK_PDELETE	pdelete
+#define _FDISK_PPARTID	ppartid
+#endif
 
 /*
  * stage0
@@ -1841,19 +2681,19 @@ stage0(void)
 		(void) printf(E_LINE);
 		switch (s[0]) {
 			case '1':
-				if (pcreate() == -1)
+				if (_FDISK_PCREATE() == -1)
 					return;
 				break;
 			case '2':
-				if (pchange() == -1)
+				if (_FDISK_PCHANGE() == -1)
 					return;
 				break;
 			case '3':
-				if (pdelete() == -1)
+				if (_FDISK_PDELETE() == -1)
 					return;
 				break;
 			case '4':
-				if (ppartid() == -1)
+				if (_FDISK_PPARTID() == -1)
 					return;
 				break;
 			case '5':
@@ -2100,6 +2940,282 @@ pcreate(void)
 
 	return (i);
 }
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+/*
+ * l_pcreate
+ * Create primary partition, extended partition, logical partition entry
+ * in the table (interactive mode).
+ * Use for logical partition.
+ */
+static int
+l_pcreate(void)
+{
+	uchar_t tsystid = 'z', tpartition = 'z';
+	int i, j;
+	int rsect = 1;
+	int can_extend = 1, can_logical = 0, can_prmary = 0;
+	int unusedPart = -1, extpart = -1, can_create = 0;
+
+	if (!io_extend) {
+		return (pcreate());
+	}
+
+
+	for (i = 0; i < FD_NUMPART; i++) {
+		if (Table[i].systid == UNUSED) {
+			unusedPart = i;
+		} else if(isExtended(Table[i].systid)) {
+			extpart = i;
+			can_extend = 0;
+		}
+	}
+
+	if (unusedPart < 0 && extpart < 0) {
+		(void) printf(E_LINE);
+		(void) printf(
+		    "The partition table is full!\n"
+		    "You must delete a primary partition before creating"
+		    " a new one.\n");
+		return (-1);
+	}
+
+	/* Check Master boot record */
+	if (unusedPart >= 0) {
+		j = 0;
+		for (i = 0; i < FD_NUMPART; i++) {
+			if (Table[i].systid != UNUSED) {
+				j += lel(Table[i].numsect);
+			}
+		}
+		if (j < chs_capacity) {
+			can_create++;
+			can_prmary = 1;
+		}
+	}
+
+	/* Check Extended boot record */
+	if (extpart >= 0) {
+		j = 0;
+		unusedPart = -1;
+		for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+			if (LTable[i][0].systid != UNUSED) {
+				j += lel(LTable[i][0].numsect);
+			} else {
+				unusedPart = i;
+			}
+		}
+
+		if (unusedPart < 0 && can_create == 0) {
+			(void) printf(E_LINE);
+			(void) printf(
+			    "The partition table is full!\n"
+			    "You must delete a partition before creating"
+			    " a new one.\n");
+			return (-1);
+		} else if (j < lel(Table[extpart].numsect)) {
+			can_create++;
+			can_logical = 1;
+		}
+	}
+
+	if (can_create == 0) {
+		(void) printf(E_LINE);
+		(void) printf("There is no more room on the"
+		    " disk for another partition.\n");
+		(void) printf(
+		    "You must delete a partition before"
+		    " creating a new one.\n");
+		return (-1);
+	}
+
+	while (tpartition == 'z') {
+		(void) printf(Q_LINE);
+		(void) printf("Select the partition type to create:\n");
+		if (can_prmary)
+			(void) printf("   1=Primary Partition\n");
+		if (can_extend && can_prmary)
+			(void) printf("   2=Extended Partition\n");
+		if (can_logical)
+			(void) printf("   3=Logical Partition\n");
+		(void) printf("   0=Exit?");
+
+		(void)gets(s);
+		rm_blanks(s);
+		if (s[0] < '0' || s[0] > '9' || s[1] != 0) {
+			(void) printf(E_LINE);
+			(void) printf("Invalid selection, try again.");
+			continue;
+		}
+		switch (s[0]) {
+		case '1':
+			if (!can_prmary) {
+				(void) printf(E_LINE);
+				(void) printf("Invalid selection, try again.");
+				continue;
+			}
+			tpartition = 'p';
+			break;
+		case '2':
+			if (!can_extend || !can_prmary) {
+				(void) printf(E_LINE);
+				(void) printf("Invalid selection, try again.");
+				continue;
+			}
+			tpartition = 'e';
+			tsystid = EXTDOS;
+			goto extend;
+		case '3':
+			if (!can_logical) {
+				(void) printf(E_LINE);
+				(void) printf("Invalid selection, try again.");
+				continue;
+			}
+			tpartition = 'l';
+			break;
+		case '0':
+			(void) printf(E_LINE);
+			return (-1);
+		default:
+			(void) printf(E_LINE);
+			(void) printf("Invalid selection, try again.");
+			continue;
+		}
+	}
+
+	(void) printf(E_LINE);
+	while (tsystid == 'z') {
+		(void) printf(Q_LINE);
+		(void) printf(
+		    "Select the partition type to create:\n"
+		    "   1=SOLARIS2  2=UNIX        3=PCIXOS     4=Other\n"
+		    "   5=DOS12     6=DOS16       8=DOSBIG     9=DOS16LBA\n"
+		    "   A=x86 Boot  B=Diagnostic  C=FAT32      D=FAT32LBA\n"
+		    "   0=Exit? ");
+		(void) gets(s);
+		rm_blanks(s);
+		if (s[1] != 0) {
+			(void) printf(E_LINE);
+			(void) printf("Invalid selection, try again.");
+			continue;
+		}
+		switch (s[0]) {
+		case '0':		/* exit */
+			(void) printf(E_LINE);
+			return (-1);
+		case '1':		/* Solaris partition */
+			tsystid = SUNIXOS2;
+			break;
+		case '2':		/* UNIX partition */
+			tsystid = UNIXOS;
+			break;
+		case '3':		/* PCIXOS partition */
+			tsystid = PCIXOS;
+			break;
+		case '4':		/* OTHEROS System partition */
+			tsystid = OTHEROS;
+			break;
+		case '5':
+			tsystid = DOSOS12; /* DOS 12 bit fat */
+			break;
+		case '6':
+			tsystid = DOSOS16; /* DOS 16 bit fat */
+			break;
+		case '8':
+			tsystid = DOSHUGE;
+			break;
+		case '9':
+			tsystid = FDISK_FAT95;  /* FAT16, need extended int13 */
+			break;
+		case 'a':		/* x86 Boot partition */
+		case 'A':
+			tsystid = X86BOOT;
+			break;
+		case 'b':		/* Diagnostic boot partition */
+		case 'B':
+			tsystid = DIAGPART;
+			break;
+		case 'c':		/* FAT32 */
+		case 'C':
+			tsystid = FDISK_WINDOWS;
+			break;
+		case 'd':		/* FAT32 and need extended int13 */
+		case 'D':
+			tsystid = FDISK_EXT_WIN;
+			break;
+		default:
+			(void) printf(E_LINE);
+			(void) printf("Invalid selection, try again.");
+			continue;
+		}
+	}
+extend:
+	(void) printf(E_LINE);
+
+	/* create the new partition */
+	i = l_specify(tsystid, tpartition);
+
+	if (i != -1) {
+		/* see if it should be the active partition */
+		(void) printf(E_LINE);
+		(void) printf(Q_LINE);
+
+		(void) printf(
+		    "Should this become the active partition? If "
+		    "yes, it  will be activated\n"
+		    "each time the computer is reset or turned on.\n"
+		    "Please type \"y\" or \"n\". ");
+
+		if (yesno()) {
+			(void) printf(E_LINE);
+			if (tpartition == 'p') {
+				for (j = 0; j < FD_NUMPART; j++) {
+					if (j == i) {
+						Table[j].bootid = ACTIVE;
+						(void) printf(E_LINE);
+						(void) printf(
+						    "Partition %d is now "
+						    "the active partition.",
+						    j + 1);
+					} else {
+						Table[j].bootid = 0;
+					}
+				}
+				for (j = 0; j < _EXTFDISK_PARTITION; j++) {
+					LTable[j][0].bootid = 0;
+				}
+			} else if (tpartition == 'l') {
+				for (j = 0; j < FD_NUMPART; j++) {
+					Table[j].bootid = 0;
+				}
+				for (j = 0; j < _EXTFDISK_PARTITION; j++) {
+					if (j == i) {
+						LTable[j][0].bootid = ACTIVE;
+						(void) printf(E_LINE);
+						(void) printf(
+						    "Partition %d is now "
+						    "the active partition.",
+						    j + 1 + FD_NUMPART);
+					} else {
+						LTable[j][0].bootid = 0;
+					}
+				}
+			}
+		} else {
+			if (tpartition == 'p') {
+				Table[i].bootid = 0;
+			} else if (tpartition == 'l') {
+				LTable[i][0].bootid = 0;
+			}
+		}
+
+		/* set up the return code */
+		i = 1;
+	}
+
+	return (i);
+}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 
 /*
  * specify
@@ -2358,6 +3474,350 @@ specify(uchar_t tsystid)
 	}
 }
 
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+#define LCHAN(z, x, y)	z[(((x) * FD_NUMPART) + (y))]
+
+/*
+ * l_specify
+ * Query the user to specify the size of the new partition in
+ * terms of percentage of the disk or by specifying the starting
+ * cylinder and length in cylinders.
+ * Use for logical partition.
+ */
+static int
+l_specify(uchar_t tsystid, uchar_t tpartition)
+{
+	int	i, j, k,
+		percent = -1;
+	int	cyl, cylen, first_free, size_free;
+	int	extpart = -1, lnum = 1, count = 0, s_ext;
+	struct	ipart *partition[FD_NUMPART];
+	struct	ipart **lpartition = NULL;
+
+	(void) printf(Q_LINE);
+	(void) printf(
+	    "Specify the percentage of disk to use for this partition\n"
+	    "(or type \"c\" to specify the size in cylinders). ");
+	(void) gets(s);
+	rm_blanks(s);
+	if (s[0] != 'c') {	/* Specify size in percentage of disk */
+	    i = 0;
+	    while (s[i] != '\0') {
+		if (s[i] < '0' || s[i] > '9') {
+		    (void) printf(E_LINE);
+		    (void) printf("Invalid percentage value specified; retry"
+			" the operation.");
+		    return (-1);
+		}
+		i++;
+		if (i > 3) {
+		    (void) printf(E_LINE);
+		    (void) printf("Invalid percentage value specified; retry"
+			" the operation.");
+		    return (-1);
+		}
+	    }
+	    if ((percent = atoi(s)) > 100) {
+		(void) printf(E_LINE);
+		(void) printf(
+		    "Percentage value is too large. The value must be"
+		    " between 1 and 100;\nretry the operation.\n");
+		return (-1);
+	    }
+	    if (percent < 1) {
+		(void) printf(E_LINE);
+		(void) printf(
+		    "Percentage value is too small. The value must be"
+		    " between 1 and 100;\nretry the operation.\n");
+		return (-1);
+	    }
+
+	    cylen = (Numcyl * percent) / 100;
+	    if ((percent < 100) && (((Numcyl * percent) % 10) > 5))
+		cylen++;
+
+	    /* Verify that the DOS12 partition does not exceed the maximum */
+	    /* size of 32MB. */
+	    if ((tsystid == DOSOS12) && ((long)((long)cylen * heads * sectors) >
+		MAXDOS)) {
+		int n;
+		n = (int)(MAXDOS * 100 / (int)(heads * sectors) / Numcyl);
+		(void) printf(E_LINE);
+		(void) printf("Maximum size for a DOS partition is %d%%;"
+		    " retry the operation.",
+		    n <= 100 ? n : 100);
+		return (-1);
+	    }
+
+	    if (tpartition != 'l') { /* Primary Partition */
+		/* Before searching the partitions, sort them into sector */
+		/* order in the partition array, note that we only need to */
+		/* sort NUMPART-1 entries as at least the last one must be */
+		/* empty */
+		for (i = 0; i < FD_NUMPART; i++) partition[i] = &Table[i];
+
+		for (i = 0; i < FD_NUMPART - 2; i++) {
+		    if (partition[i]->systid == UNUSED) break;
+		    for (j = i + 1; j < FD_NUMPART - 1; j++) {
+			if (partition[j]->systid == UNUSED) break;
+			if (lel(partition[j]->relsect) <
+			    lel(partition[i]->relsect)) {
+				struct ipart *temp = partition[i];
+				partition[i] = partition[j];
+				partition[j] = temp;
+			}
+		    }
+		}
+
+		for (i = 0; i < FD_NUMPART; i++) {
+		    int last_ent = 0;
+
+		    /* Find start of current check area */
+		    if (i) { /* Not an empty table */
+			first_free = lel(partition[i - 1]->relsect) +
+			    lel(partition[i - 1]->numsect);
+		    } else {
+			first_free = heads * sectors;
+		    }
+
+		    /* Determine size of current check area */
+		    if (partition[i]->systid == UNUSED) {
+			/* Special case hack for whole unused disk */
+			if (percent == 100 && i == 0)
+				cylen--;
+			size_free = (Numcyl * heads * sectors) - first_free;
+			    last_ent++;
+		    } else {
+			if (i && ((lel(partition[i - 1]->relsect) +
+			    lel(partition[i - 1]->numsect)) !=
+			    lel(partition[i]->relsect))) {
+				/* There is a hole in table */
+				size_free = lel(partition[i]->relsect) -
+				    (lel(partition[i - 1]->relsect) +
+				    lel(partition[i - 1]->numsect));
+			} else if (i == 0) {
+				size_free = lel(partition[i]->relsect) -
+				    heads * sectors;
+			} else {
+				size_free = 0;
+			}
+		    }
+
+		    if ((cylen * heads * sectors) <= size_free) {
+			/* We found a place to use */
+			break;
+		    } else if (last_ent) {
+			size_free = 0;
+			break;
+		    }
+		}
+		if (i < FD_NUMPART && size_free) {
+		    (void) printf(E_LINE);
+		    if ((i = insert_tbl(tsystid, 0, 0, 0, 0, 0, 0, 0,
+			first_free, cylen * heads * sectors)) < 0)  {
+			(void) fprintf(stderr,
+				"fdisk: Partition entry too big.\n");
+			return (-1);
+		    }
+		} else {
+		    (void) printf(E_LINE);
+		    (void) fprintf(stderr, "fdisk: Partition entry"
+		        " too big.\n");
+		    i = -1;
+		}
+		return (i);
+	    } else { /* Logical Partition */
+
+		lpartition =
+		    (struct ipart**)malloc(_EXTFDISK_PARTITION * FD_NUMPART *
+		    sizeof (struct ipart*));
+		if (lpartition == NULL) {
+		    (void) fprintf(stderr,
+			"fdisk: Unable to obtain enough buffer memory"
+			" (%d bytes).\n",
+			(_EXTFDISK_PARTITION * FD_NUMPART *
+			sizeof (struct ipart*)));
+		    return (-1);
+		}
+
+		/* Get Extended Partition */
+		for (i = 0; i < FD_NUMPART; i++) {
+		    if (isExtended(Table[i].systid)) {
+			extpart = i;
+			s_ext = Table[extpart].relsect;
+			break;
+		    }
+		}
+		/* Copy and set absolute position to [i][3] */
+		for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		    for (j = 0; j < FD_NUMPART; j++) {
+			LCHAN(lpartition,i,j) = &LTable[i][j];
+		    }
+		    /* set start potition of logical partition and size. */
+		    if (i != 0) {
+			LCHAN(lpartition, i, 3)->relsect = s_ext
+				+ LCHAN(lpartition, i -1, 1)->relsect
+				+ LCHAN(lpartition, i, 0)->relsect;
+		    } else {
+			LCHAN(lpartition, i, 3)->relsect = s_ext
+				+ LCHAN(lpartition, i, 0)->relsect;
+		    }
+		    LCHAN(lpartition, i, 3)->numsect
+			= LCHAN(lpartition, i, 0)->numsect;
+		    if (LCHAN(lpartition, i, 1)->systid != UNUSED) {
+			lnum++;
+		    }
+		}
+		/* solt logical partition */
+		for (i = 0; i < _EXTFDISK_PARTITION - 2; i++) {
+		    for (j = i + 1; j < _EXTFDISK_PARTITION - 1; j++) {
+			if (LCHAN(lpartition, j, 0)->systid == UNUSED)
+				continue;
+			if (lel(LCHAN(lpartition, j, 3)->relsect) <
+			    lel(LCHAN(lpartition, i, 3)->relsect)) {
+				struct ipart *tmp[FD_NUMPART];
+				for (k = 0; k < FD_NUMPART; k++) {
+					tmp[k] = LCHAN(lpartition, i, k);
+					LCHAN(lpartition, i, k)
+					    = LCHAN(lpartition, j, k);
+					LCHAN(lpartition, j, k) = tmp[k];
+				}
+			}
+		    }
+		}
+
+		for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		    int last_ent = 0;
+
+		    /* Find start of current check area */
+		    if (i) { /* Not an empty table */
+			first_free = lel(LCHAN(lpartition, i - 1, 3)->relsect) +
+			    lel(LCHAN(lpartition, i - 1, 3)->numsect);
+		    } else {
+		    	first_free = s_ext + (heads * sectors);
+		    }
+
+		    /* Determine size of current check area */
+		    if (LCHAN(lpartition, i, 0)->systid == UNUSED) {
+			/* Special case hack for whole unused disk */
+			if (percent == 100 && i == 0)
+				cylen--;
+			size_free = lel(Table[extpart].relsect) +
+			    lel(Table[extpart].numsect) - first_free;
+			last_ent++;
+		    } else {
+			if (i && ((lel(LCHAN(lpartition, i - 1, 3)->relsect) +
+			    lel(LCHAN(lpartition, i - 1, 3)->numsect)) !=
+			    (lel(LCHAN(lpartition, i, 3)->relsect) - sectors)))
+			{
+				/* There is a hole in table */
+				size_free =
+				    lel(LCHAN(lpartition, i, 3)->relsect) -
+				    (lel(LCHAN(lpartition, i - 1, 3)->relsect) +
+				    lel(LCHAN(lpartition, i - 1, 3)->numsect));
+			} else if (i == 0) {
+				size_free =
+				    lel(LCHAN(lpartition, i, 3)->relsect) -
+				    s_ext - heads * sectors;
+			} else {
+				size_free = 0;
+			}
+		    }
+		    if ((cylen * heads * sectors) <= size_free) {
+			/* We found a place to use */
+			break;
+		    } else if (last_ent) {
+			size_free = 0;
+			break;
+		    }
+		}
+
+		for (j = 0; j < _EXTFDISK_PARTITION; j++) {
+			LCHAN(lpartition, j, 3)->relsect
+			    = LCHAN(lpartition, j, 2)->relsect;
+			LCHAN(lpartition, j, 3)->numsect
+			    = LCHAN(lpartition, j, 2)->numsect;
+		}
+
+		if (i < _EXTFDISK_PARTITION && size_free) {
+		    (void) printf(E_LINE);
+		    if ((i = insert_exttbl(tsystid, 0, 0, 0, 0, 0, 0, 0,
+			first_free, cylen * heads * sectors)) < 0)  {
+			(void) fprintf(stderr,
+				"fdisk: Partition entry too big.\n");
+			free(lpartition);
+			return (-1);
+		    }
+		} else {
+		    (void) printf(E_LINE);
+		    (void) fprintf(stderr, "fdisk: Partition entry too big.\n");
+		    i = -1;
+		}
+
+		free(lpartition);
+		return (i);
+	    } /* if (tpartition != 'l') */
+	} else {	/* Specifying size in cylinders */
+
+	    (void) printf(E_LINE);
+	    (void) printf(Q_LINE);
+	    (void) printf("Enter starting cylinder number: ");
+	    if ((cyl = getcyl()) == -1) {
+		(void) printf(E_LINE);
+		(void) printf("Invalid number; retry the operation.");
+		return (-1);
+	    }
+	    if (cyl == 0) {
+		(void) printf(E_LINE);
+		(void) printf("New partition cannot start at cylinder 0.\n");
+		return (-1);
+	    }
+	    if (cyl >= (unsigned int)Numcyl) {
+		(void) printf(E_LINE);
+		(void) printf(
+		    "Cylinder %d is out of bounds, the maximum is %d.\n",
+		    cyl, Numcyl - 1);
+		return (-1);
+	    }
+	    (void) printf(Q_LINE);
+	    (void) printf("Enter partition size in cylinders: ");
+	    if ((cylen = getcyl()) == -1) {
+		(void) printf(E_LINE);
+		(void) printf("Invalid number, retry the operation.");
+		return (-1);
+	    }
+
+	    /* Verify that the DOS12 partition does not exceed the maximum */
+	    /* size of 32MB. */
+	    if ((tsystid == DOSOS12) &&
+		((long)((long)cylen * heads * sectors) > MAXDOS)) {
+		(void) printf(E_LINE);
+		(void) printf(
+		    "Maximum size for a %s partition is %ld cylinders;"
+		    "\nretry the operation.",
+		    Dstr, MAXDOS / (int)(heads * sectors));
+		return (-1);
+	    }
+
+	    if (tpartition != 'l') {
+		i = insert_tbl(tsystid, 0, 0, 0, 0, 0, 0, 0,
+		    cyl * heads * sectors, cylen * heads * sectors);
+	    } else {
+		i = insert_exttbl(tsystid, 0, 0, 0, 0, 0, 0, 0,
+		    cyl * heads * sectors, cylen * heads * sectors);
+	    }
+
+	    if (verify_tbl() < 0) {
+		(void) printf(E_LINE);
+		(void) printf("fdisk: Cannot create partition table\n");
+		return (-1);
+	    }
+
+	    return (i);
+	}
+}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+
 /*
  * dispmenu
  * Display command menu (interactive mode).
@@ -2448,6 +3908,130 @@ pchange(void)
 	return (1);
 }
 
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+/*
+ * l_pchange
+ * Change the ACTIVE designation of a partition.
+ * Use for logical partition.
+ */
+static int
+l_pchange(void)
+{
+	char s[80];
+	int i, j, index;
+
+	if (!io_extend) {
+		return (pchange());
+	}
+
+	for (;;) {
+		(void) printf(Q_LINE);
+			{
+			(void) printf(
+			    "Specify the partition number to boot from"
+			    " (or specify 0 for none): ");
+			}
+		(void) gets(s);
+		rm_blanks(s);
+		index = atoi(s);
+		if ((index < 0) || index > (FD_NUMPART + _EXTFDISK_PARTITION)) {
+			(void) printf(E_LINE);
+			(void) printf(
+			    "Invalid response, please specify a number"
+			    " between 0 and %d.\n",
+			    FD_NUMPART + _EXTFDISK_PARTITION);
+		} else {
+			break;
+		}
+	}
+	if (index == 0) {	/* No active partitions */
+		for (i = 0; i < FD_NUMPART; i++) {
+			if (Table[i].systid != UNUSED &&
+			    Table[i].bootid == ACTIVE)
+				Table[i].bootid = 0;
+		}
+
+		for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+			if (LTable[i][0].systid != UNUSED &&
+			    LTable[i][0].bootid == ACTIVE)
+				LTable[i][0].bootid = 0;
+		}
+
+		(void) printf(E_LINE);
+			(void) printf(
+			    "No partition is currently marked as active.");
+		return (0);
+	} else if (index <= FD_NUMPART) {
+		/* User has selected a partition to be active (MBR) */
+		i = index -1;
+		if (Table[i].systid == UNUSED) {
+			(void) printf(E_LINE);
+			(void) printf("Partition does not exist.");
+			return (-1);
+		}
+		/* a DOS-DATA or EXT-DOS partition cannot be active */
+		else if ((Table[i].systid == DOSDATA) ||
+		    (Table[i].systid == EXTDOS) ||
+		    (Table[i].systid == FDISK_EXTLBA)) {
+			(void) printf(E_LINE);
+			(void) printf(
+			    "DOS-DATA, EXT_DOS and EXT_DOS_LBA partitions "
+			    "cannot be made active.\n");
+			(void) printf("Select another partition.");
+			return (-1);
+		}
+		Table[i].bootid = ACTIVE;
+
+		/* Clear another partition active flag */
+		for (j = 0; j < FD_NUMPART; j++) {
+			if (j != i)
+				Table[j].bootid = 0;
+		}
+		for (j = 0; j < _EXTFDISK_PARTITION; j++) {
+				LTable[j][0].bootid = 0;
+		}
+	} else {
+		/* User has selected a partition to be active (EBR) */
+		i = index - FD_NUMPART -1;
+		if (LTable[i][0].systid == UNUSED) {
+			(void) printf(E_LINE);
+			(void) printf("Partition does not exist.");
+			return (-1);
+		}
+		/* a DOS-DATA or EXT-DOS partition cannot be active */
+		else if ((LTable[i][0].systid == DOSDATA) ||
+		    (LTable[i][0].systid == EXTDOS) ||
+		    (LTable[i][0].systid == FDISK_EXTLBA)) {
+			(void) printf(E_LINE);
+			(void) printf(
+			    "DOS-DATA, EXT_DOS and EXT_DOS_LBA "
+			    "partitions cannot be made active.\n");
+			(void) printf("Select another partition.");
+			return (-1);
+		}
+		LTable[i][0].bootid = ACTIVE;
+
+		/* Clear another partition active flag */
+		for (j = 0; j < FD_NUMPART; j++) {
+				Table[j].bootid = 0;
+		}
+		for (j = 0; j < _EXTFDISK_PARTITION; j++) {
+			if (j != i)
+				LTable[j][0].bootid = 0;
+		}
+	}
+
+	(void) printf(E_LINE);
+		{
+		(void) printf(
+		    "Partition %d is now active. The system will start up"
+		    " from this\n", index);
+		(void) printf("partition after the next reboot.");
+		}
+	return (1);
+}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+
 /*
  * Change between SOLARIS and SOLARIS2 partition id
  */
@@ -2496,6 +4080,86 @@ ppartid(void)
 		return (1);
 	}
 }
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+/*
+ * l_ppartid
+ * Change between SOLARIS and SOLARIS2 partition id
+ * Use for logical partition.
+ */
+static int
+l_ppartid(void)
+{
+	char	*p, s[80];
+	int	i;
+
+	if (!io_extend) {
+		return (ppartid());
+	}
+
+	for (;;) {
+		printf(Q_LINE);
+		(void) printf("Specify the partition number to change"
+		    " (or enter 0 to exit): ");
+		if (!fgets(s, sizeof (s), stdin))
+			return (1);
+		i = strtol(s, &p, 10);
+
+		if (*p != '\n' || i < 0 ||
+		    i > FD_NUMPART + _EXTFDISK_PARTITION) {
+			(void) printf(E_LINE);
+			(void) printf(
+			    "Invalid response, retry the operation.\n");
+			continue;
+		}
+
+		if (i == 0) {
+			/* exit change id command */
+			(void) printf(E_LINE); /* clear error message */
+			return (1);
+		}
+
+		if (i <= FD_NUMPART) {
+			i -= 1;
+			if (Table[i].systid == SUNIXOS) {
+				Table[i].systid = SUNIXOS2;
+			} else if (Table[i].systid == SUNIXOS2) {
+				Table[i].systid = SUNIXOS;
+			} else {
+				(void) printf(E_LINE);
+				(void) printf(
+				    "Partition %d is not a Solaris partition.",
+				    i + 1);
+				continue;
+			}
+
+			(void) printf(E_LINE);
+			(void) printf("Partition %d has been changed.", i + 1);
+			return (1);
+		} else {
+			i = i - FD_NUMPART - 1;
+			if (LTable[i][0].systid == SUNIXOS) {
+				LTable[i][0].systid = SUNIXOS2;
+			}
+			else if (LTable[i][0].systid == SUNIXOS2) {
+				LTable[i][0].systid = SUNIXOS;
+			}
+			else {
+				(void) printf(E_LINE);
+				(void) printf(
+					"Partition %d is not a Solaris "
+					"partition.",
+					i + FD_NUMPART + 1);
+				continue;
+			}
+			(void) printf(E_LINE);
+			(void) printf("Partition %d has been changed.",
+			    i + FD_NUMPART + 1);
+			return (1);
+		}
+	}
+}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 
 /*
  * pdelete
@@ -2567,6 +4231,166 @@ DEL1:	(void) printf(Q_LINE);
 	return (1);
 }
 
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+/*
+ * l_pdelete
+ * Remove partition entry from the table (interactive mode).
+ * Use for logical partition.
+ */
+static char
+l_pdelete(void)
+{
+	char s[80];
+	int i, j, k;
+	char pactive;
+
+	if (!io_extend) {
+		return (pdelete());
+	}
+
+DEL1:	(void) printf(Q_LINE);
+	(void) printf("Specify the partition number to delete"
+	    " (or enter 0 to exit): ");
+	(void) gets(s);
+	rm_blanks(s);
+	if ((s[0] == '0')) {	/* exit delete command */
+		(void) printf(E_LINE);	/* clear error message */
+		return (1);
+	}
+	/* Accept only a single digit between 1 and MAX partition */
+	if ((i = atoi(s)) < 1
+	    || i > FD_NUMPART + _EXTFDISK_PARTITION) {
+		(void) printf(E_LINE);
+		(void) printf("Invalid response, retry the operation.\n");
+		goto DEL1;
+	}
+
+	if (i <= FD_NUMPART) {
+		/* Primary Partition */
+		--i;
+		if (Table[i].systid == UNUSED) {
+			(void) printf(E_LINE);
+			(void) printf("Partition %d does not exist.", i + 1);
+			return (-1);
+		}
+
+		(void) printf(E_LINE);
+		(void) printf(Q_LINE);
+		(void) printf("Are you sure you want to delete partition %d?"
+		    " This will make all files and \n", i + 1);
+		(void) printf("programs in this partition inaccessible (type"
+		    " \"y\" or \"n\"). ");
+
+		if (! yesno()) {
+			return (1);
+		}
+
+		if (Table[i].bootid == ACTIVE) {
+			pactive = 1;
+		} else {
+			pactive = 0;
+		}
+
+		/* If Extended Partition, clear all logical partition table. */
+		if (isExtended(Table[i].systid)) {
+			clear_lTable();
+		}
+
+		for (j = i; j < FD_NUMPART - 1; j++) {
+			Table[j] = Table[j + 1];
+		}
+
+		Table[j].systid = UNUSED;
+		Table[j].numsect = 0;
+		Table[j].relsect = 0;
+		Table[j].bootid = 0;
+		(void) printf(E_LINE);
+		(void) printf("Partition %d has been deleted.", i + 1);
+	} else {
+		/* logical Partition */
+		i = i - FD_NUMPART - 1;
+		if (LTable[i][0].systid == UNUSED) {
+			(void) printf(E_LINE);
+			(void) printf("Partition %d does not exist.",
+			    i + FD_NUMPART + 1);
+			return (-1);
+		}
+
+		(void) printf(E_LINE);
+		(void) printf(Q_LINE);
+		(void) printf("Are you sure you want to delete partition %d?"
+		    " This will make all files and \n", i + FD_NUMPART + 1);
+		(void) printf("programs in this partition inaccessible (type"
+		    " \"y\" or \"n\"). ");
+
+		if (! yesno()) {
+			return (1);
+		}
+
+		if (LTable[i][0].bootid == ACTIVE) {
+			pactive = 1;
+		} else {
+			pactive = 0;
+		}
+
+		if (i != 0) {
+			LTable[i - 1][1].relsect
+				= LTable[i][1].relsect;
+			LTable[i - 1][1].numsect
+				= LTable[i][1].numsect;
+			LTable[i - 1][1].systid
+				= LTable[i][1].systid;
+			LTable[i - 1][1].bootid
+				= LTable[i][1].bootid;
+			for (j = i; j < _EXTFDISK_PARTITION - 1; j++) {
+				for (k = 0; k < FD_NUMPART; k++) {
+					LTable[j][k] = LTable[j + 1][k];
+				}
+			}
+
+			for (k = 0; k < FD_NUMPART; k++) {
+				LTable[j][k].systid = UNUSED;
+				LTable[j][k].numsect = 0;
+				LTable[j][k].relsect = 0;
+				LTable[j][k].bootid = 0;
+			}
+		} else {
+			/* Shift EBR table */
+			LTable[0][0].systid  = LTable[1][0].systid;
+			LTable[0][0].numsect = LTable[1][0].numsect;
+			LTable[0][0].relsect =
+			    LTable[1][0].relsect + LTable[0][1].relsect;
+			LTable[0][0].bootid  = LTable[1][0].bootid;
+
+			for (k = 1; k < FD_NUMPART; k++) {
+				LTable[0][k] = LTable[1][k];
+			}
+
+			for (j = 1; j < _EXTFDISK_PARTITION -1; j++) {
+				for (k = 0; k < FD_NUMPART; k++) {
+					LTable[j][k] = LTable[j + 1][k];
+				}
+			}
+			for (k = 0; k < FD_NUMPART; k++) {
+				LTable[j][k].systid = UNUSED;
+				LTable[j][k].numsect = 0;
+				LTable[j][k].relsect = 0;
+				LTable[j][k].bootid = 0;
+			}
+		}
+		(void) printf(E_LINE);
+		(void) printf("Partition %d has been deleted.",
+		    i + FD_NUMPART + 1);
+	}
+
+	if (pactive) {
+	    (void) printf(" This was the active partition.");
+	}
+
+	return (1);
+}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+
 /*
  * rm_blanks
  * Remove blanks from strings of user responses.
@@ -2627,6 +4451,14 @@ disptbl(void)
 	int i;
 	unsigned int startcyl, endcyl, length, percent, remainder;
 	char *stat, *type;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int extendPart = -1, startextend, startnext, m;
+
+	if (io_view) {
+		print_Table();
+		exit(0);
+	}
+#endif
 
 	if ((heads == 0) || (sectors == 0)) {
 		(void) printf("WARNING: critical disk geometry information"
@@ -2635,7 +4467,7 @@ disptbl(void)
 		exit(1);
 	}
 
-	(void) printf(HOME);
+	print_HOME();
 	(void) printf(T_LINE);
 	(void) printf("             Total disk size is %d cylinders\n", Numcyl);
 	(void) printf("             Cylinder size is %d (512 byte) blocks\n\n",
@@ -2679,6 +4511,11 @@ disptbl(void)
 			break;
 		case EXTDOS:
 			type = EDstr;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			if (extendPart == -1) {
+				extendPart = i;
+			}
+#endif
 			break;
 		case DOSDATA:
 			type = DDstr;
@@ -2715,6 +4552,11 @@ disptbl(void)
 			break;
 		case FDISK_EXTLBA:
 			type = EXTLstr;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			if (extendPart == -1) {
+				extendPart = i;
+			}
+#endif
 			break;
 		case FDISK_LINUX:
 			type = LINUXstr;
@@ -2785,6 +4627,170 @@ disptbl(void)
 		    "    %3d",
 		    i + 1, stat, type, startcyl, endcyl, length, percent);
 	}
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (io_extend) {
+		if (extendPart >= 0) {
+			printf("\n");
+			startextend = lel(Table[extendPart].relsect);
+			for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+				if (LTable[i][0].systid == UNUSED) {
+					(void) printf("\n");
+					(void) printf(CLR_LIN);
+					continue;
+				}
+				if (LTable[i][0].bootid == ACTIVE)
+					stat = Actvstr;
+				else
+					stat = NAstr;
+
+				switch (LTable[i][0].systid) {
+				case UNIXOS:
+					type = Ustr;
+					break;
+				case SUNIXOS:
+					type = SUstr;
+					break;
+				case SUNIXOS2:
+					type = SU2str;
+					break;
+				case X86BOOT:
+					type = X86str;
+					break;
+				case DOSOS12:
+					type = Dstr;
+					break;
+				case DOSOS16:
+					type = D16str;
+					break;
+				case EXTDOS:
+					type = EDstr;
+					break;
+				case DOSDATA:
+					type = DDstr;
+					break;
+				case DOSHUGE:
+					type = DBstr;
+					break;
+				case PCIXOS:
+					type = PCstr;
+					break;
+				case DIAGPART:
+					type = DIAGstr;
+					break;
+				case FDISK_IFS:
+					type = IFSstr;
+					break;
+				case FDISK_AIXBOOT:
+					type = AIXstr;
+					break;
+				case FDISK_AIXDATA:
+					type = AIXDstr;
+					break;
+				case FDISK_OS2BOOT:
+					type = OS2str;
+					break;
+				case FDISK_WINDOWS:
+					type = WINstr;
+					break;
+				case FDISK_EXT_WIN:
+					type = EWINstr;
+					break;
+				case FDISK_FAT95:
+					type = FAT95str;
+					break;
+				case FDISK_EXTLBA:
+					type = EXTLstr;
+					break;
+				case FDISK_LINUX:
+					type = LINUXstr;
+					break;
+				case FDISK_CPM:
+					type = CPMstr;
+					break;
+				case FDISK_NOVELL3:
+					type = NOVstr;
+					break;
+				case FDISK_QNX4:
+					type = QNXstr;
+					break;
+				case FDISK_QNX42:
+					type = QNX2str;
+					break;
+				case FDISK_QNX43:
+					type = QNX3str;
+					break;
+				case FDISK_LINUXNAT:
+					type = LINNATstr;
+					break;
+				case FDISK_NTFSVOL1:
+					type = NTFSVOL1str;
+					break;
+				case FDISK_NTFSVOL2:
+					type = NTFSVOL2str;
+					break;
+				case FDISK_BSD:
+					type = BSDstr;
+					break;
+				case FDISK_NEXTSTEP:
+					type = NEXTSTEPstr;
+					break;
+				case FDISK_BSDIFS:
+					type = BSDIFSstr;
+					break;
+				case FDISK_BSDISWAP:
+					type = BSDISWAPstr;
+					break;
+				case EFI_PMBR:
+					type = EFIstr;
+					break;
+				default:
+					type = Ostr;
+					break;
+				}
+
+
+				if (i > 0) {
+					startnext
+					    = lel(LTable[i - 1][1].relsect)
+					    + lel(LTable[i][0].relsect);
+				} else {
+					startnext = lel(LTable[i][0].relsect);
+				}
+				startcyl = (startnext+ startextend)
+				    / (unsigned long)(heads * sectors);
+				length = lel(LTable[i][0].numsect)
+				    / (unsigned long)(heads * sectors);
+				if(i != 0) {
+					startcyl--;
+					length++;
+				}
+				if (lel(LTable[i][0].numsect)
+				    % (unsigned long)(heads * sectors))
+					length++;
+				endcyl = startcyl + length - 1;
+				percent = length * 100 / Numcyl;
+				if ((remainder = (length * 100 % Numcyl))
+				    != 0) {
+					if ((remainder * 100 / Numcyl) > 50) {
+						/* round up */
+						percent++;
+					}
+					/* Else leave the percent as is since*/
+					/* it's already rounded down */
+				}
+				if (percent > 100)
+					percent = 100;
+				(void) printf(
+				    "\n         %2d       %s    %-12.12s   %4d"
+				    "  %4d    %4d    %3d",
+				    i + FD_NUMPART + 1, stat, type, startcyl,
+				    endcyl, length, percent);
+			}
+			(void) printf("\n");
+			(void) printf(CLR_LIN);
+		}
+	}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 	/* Print warning message if table is empty */
 	if (Table[0].systid == UNUSED) {
 		(void) printf(W_LINE);
@@ -2804,6 +4810,9 @@ static void
 print_Table(void)
 {
 	int i;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int offset_ext = -1, offset = 0;
+#endif
 
 	(void) fprintf(stderr,
 	    "  SYSID ACT BHEAD BSECT BEGCYL   EHEAD ESECT ENDCYL   RELSECT"
@@ -2824,7 +4833,79 @@ print_Table(void)
 		(void) fprintf(stderr, "%-9d ", lel(Table[i].relsect));
 		(void) fprintf(stderr, "%-9d\n", lel(Table[i].numsect));
 
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+		if (isExtended(Table[i].systid)) {
+			offset_ext = lel(Table[i].relsect);
+		}
+#endif
 	}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (offset_ext > 0 && io_extend) {
+		if ((LTable[0][0].systid == UNUSED) &&
+		    (LTable[0][1].systid == UNUSED)) {
+			return;
+		}
+		(void) fprintf(stderr, "  ------------------------- "
+			"Logical Partition ------------------------\n");
+		for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+			(void) fprintf(stderr, "  %-5d ", LTable[i][0].systid);
+			(void) fprintf(stderr, "%-3d ", LTable[i][0].bootid);
+			(void) fprintf(stderr, "%-5d ", LTable[i][0].beghead);
+			(void) fprintf(stderr, "%-5d ",
+				LTable[i][0].begsect & 0x3f);
+			(void) fprintf(stderr, "%-8d ",
+				(((uint_t)LTable[i][0].begsect &
+				0xc0) << 2) + LTable[i][0].begcyl);
+
+			(void) fprintf(stderr, "%-5d ", LTable[i][0].endhead);
+			(void) fprintf(stderr, "%-5d ",
+				LTable[i][0].endsect & 0x3f);
+			(void) fprintf(stderr, "%-8d ",
+				(((uint_t)LTable[i][0].endsect &
+				0xc0) << 2) + LTable[i][0].endcyl);
+			if (LTable[i][0].systid != UNUSED) {
+				(void) fprintf(stderr, "%-9d ",
+				    lel(LTable[i][0].relsect)
+				    + offset + offset_ext);
+			} else {
+				(void) fprintf(stderr, "0 ");
+			}
+
+			(void) fprintf(stderr, "%-9d\n",
+				lel(LTable[i][0].numsect));
+
+			(void) fprintf(stderr, "  %-5d ", LTable[i][1].systid);
+			(void) fprintf(stderr, "%-3d ", LTable[i][1].bootid);
+			(void) fprintf(stderr, "%-5d ", LTable[i][1].beghead);
+			(void) fprintf(stderr, "%-5d ",
+				LTable[i][1].begsect & 0x3f);
+			(void) fprintf(stderr, "%-8d ",
+				(((uint_t)LTable[i][1].begsect &
+				0xc0) << 2) + LTable[i][1].begcyl);
+
+			(void) fprintf(stderr, "%-5d ", LTable[i][1].endhead);
+			(void) fprintf(stderr, "%-5d ",
+				LTable[i][1].endsect & 0x3f);
+			(void) fprintf(stderr, "%-8d ",
+				(((uint_t)LTable[i][1].endsect &
+				0xc0) << 2) + LTable[i][1].endcyl);
+			if (LTable[i][1].systid != UNUSED) {
+				(void) fprintf(stderr, "%-9d ",
+					lel(LTable[i][1].relsect)
+					+ offset_ext);
+			} else {
+				(void) fprintf(stderr, "0 ");
+			}
+			(void) fprintf(stderr, "%-9d\n\n",
+				lel(LTable[i][1].numsect));
+			if (!isExtended(LTable[i][1].systid)) {
+				break;
+			}
+			offset = lel(LTable[i][1].relsect);
+		}
+	}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 }
 
 /*
@@ -2840,6 +4921,20 @@ copy_Table_to_Old_Table(void)
 	for (i = 0; i < FD_NUMPART; i++)  {
 		(void) memcpy(&Old_Table[i], &Table[i], sizeof (Table[0]));
 	}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!io_extend) {
+		return;
+	}
+	for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		int j;
+		for (j = 0; j < FD_NUMPART; j++) {
+			(void) memcpy(&Old_LTable[i][j],
+			    &LTable[i][j],
+			    sizeof (LTable[0][0]));
+		}
+	}
+#endif
 }
 
 /*
@@ -2858,6 +4953,21 @@ nulltbl(void)
 		Table[i].relsect = lel(UNUSED);
 		Table[i].bootid = 0;
 	}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!io_extend) {
+		return;
+	}
+	for (i = 0; i < _EXTFDISK_PARTITION; i++)  {
+		int j;
+		for (j = 0; j < FD_NUMPART; j++)  {
+			LTable[i][j].systid = UNUSED;
+			LTable[i][j].numsect = lel(UNUSED);
+			LTable[i][j].relsect = lel(UNUSED);
+			LTable[i][j].bootid = 0;
+		}
+	}
+#endif
 }
 
 /*
@@ -2905,6 +5015,76 @@ copy_Bootblk_to_Table(void)
 		Table[i].bootid = 0;
 
 	}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!io_extend)
+		goto skip;
+
+	for (i = 0; i < FD_NUMPART; i++) {
+		if (isExtended(Table[i].systid)) {
+			break;
+		}
+	}
+
+	if (i >= FD_NUMPART) {
+		clear_lTable();
+		goto skip;
+	}
+
+	logicaldisk_num = 0;
+	for (i = 0; i < _EXTFDISK_PARTITION + 1; i++) {
+		memcpy(iparts, ExtBootblk[i].parts, sizeof(iparts));
+		bootptr = (char *)iparts;
+		/* check extended record signature */
+		if (les(ExtBootblk[i].signature) != MBB_MAGIC) {
+			if (i == 0 || i== 1) {
+				/* No Logical partition */
+				logicaldisk_num = 0;
+				clear_lTable();
+				goto skip;
+			}
+			/* Signature is missing */
+			nulltbl();
+			logicaldisk_num = 0;
+			return;
+		}
+
+		if (i == 0)
+			continue;
+
+		for (j = 0; j < FD_NUMPART; j++) {
+			fill_ipart(bootptr, &LTable[logicaldisk_num][j]);
+			bootptr += sizeof (struct ipart);
+		}
+
+		/* check next EBR */
+		if (i != 0 && !isExtended(LTable[logicaldisk_num][1].systid)) {
+			break;
+		}
+		logicaldisk_num++;
+	}
+
+	/* Clear unused area */
+	for (i = logicaldisk_num + 1; i < _EXTFDISK_PARTITION; i++) {
+		for (j = 0; j < FD_NUMPART; j++) {
+			LTable[i][j].systid = UNUSED;
+			LTable[i][j].numsect = lel(UNUSED);
+			LTable[i][j].relsect = lel(UNUSED);
+			LTable[i][j].bootid = 0;
+		}
+	}
+
+	for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		for (j = 0; j < FD_NUMPART; j++) {
+			if (LTable[i][j].systid == 0x0) {
+				LTable[i][j].systid = UNUSED;
+			}
+		}
+	}
+
+skip:
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+
 	/* For now, always replace the bootcode with ours */
 	(void) memcpy(Bootblk->bootinst, &BootCod, BOOTSZ);
 	copy_Table_to_Bootblk();
@@ -2986,6 +5166,30 @@ copy_Table_to_Bootblk(void)
 			(void) memcpy(boot_ptr, tbl_ptr, sizeof (struct ipart));
 	}
 	Bootblk->signature = les(MBB_MAGIC);
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!io_extend) {
+		return;
+	} else {
+		int i;
+		memcpy(ExtBootblk, Bootblk, sizeof (struct mboot));
+
+		for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+			boot_ptr = (struct ipart *)ExtBootblk[i + 1].parts;
+			tbl_ptr = &LTable[i][0];
+			if (LTable[i][0].systid == UNUSED &&
+			    LTable[i][1].systid == UNUSED) {
+				(void) memset(boot_ptr, 0,
+				    sizeof (struct ipart) * 2);
+				ExtBootblk[i + 1].signature = les(MBB_MAGIC);
+			} else {
+				(void) memcpy(boot_ptr, tbl_ptr,
+				    sizeof (struct ipart) * 2);
+				ExtBootblk[i + 1].signature = les(MBB_MAGIC);
+			}
+		}
+	}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 }
 
 /*
@@ -3005,6 +5209,21 @@ TableChanged(void)
 		}
 	}
 
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!io_extend) {
+		return (changed);
+	}
+	for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		int j;
+		for (j = 0; j < 2; j++) {
+			if (memcmp(&Old_LTable[i][j],
+			    &LTable[i][j],
+			    sizeof (LTable[0][0])) != 0) {
+				changed = 1;
+			}
+		}
+	}
+#endif
 	return (changed);
 }
 
@@ -3018,6 +5237,9 @@ ffile_write(char *file)
 {
 	register int	i;
 	FILE *fp;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int offset_ext = -1, offset = 0;
+#endif
 
 	/*
 	 * If file isn't standard output, then it's a file name.
@@ -3111,6 +5333,37 @@ ffile_write(char *file)
 			    lel(Table[i].relsect),
 			    lel(Table[i].numsect));
 	}
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	if (!io_extend) {
+		return;
+	}
+	for (i = 0; i < FD_NUMPART; i++) {
+		if (isExtended(Table[i].systid)) {
+			offset_ext = lel(Table[i].relsect);
+			break;
+		}
+	}
+	if(offset_ext >= 0)
+	for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+		if (LTable[i][0].systid != UNUSED)
+			(void) fprintf(fp,
+			    "  %-5d %-4d %-6d %-6d %-7d %-6d %-6d %-7d %-8d"
+			    " %-8d\n",
+			    LTable[i][0].systid,
+			    LTable[i][0].bootid,
+			    LTable[i][0].beghead,
+			    LTable[i][0].begsect & 0x3f,
+			    ((LTable[i][0].begcyl & 0xff) |
+			    ((LTable[i][0].begsect & 0xc0) << 2)),
+			    LTable[i][0].endhead,
+			    LTable[i][0].endsect & 0x3f,
+			    ((LTable[i][0].endcyl & 0xff) |
+			    ((LTable[i][0].endsect & 0xc0) << 2)),
+			    lel(LTable[i][0].relsect) + offset + offset_ext,
+			    lel(LTable[i][0].numsect));
+			offset = lel(LTable[i][1].relsect);
+	}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 	if (fp != stdout)
 		(void) fclose(fp);
 }
@@ -3125,7 +5378,7 @@ static void
 fix_slice(void)
 {
 	int	i;
-	int	numsect;
+	int	numsect = -1;
 
 	if (io_image) {
 		return;
@@ -3138,11 +5391,24 @@ fix_slice(void)
 			 * VTOC entries are relative to the start of
 			 * the partition.
 			 */
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 			numsect = lel(Table[i].numsect);
 			break;
+#else
+			if (io_extend) {
+				if (numsect == -1 ||
+				    Table[i].bootid == ACTIVE) {
+					numsect = lel(Table[i].numsect);
+				}
+			} else {
+				numsect = lel(Table[i].numsect);
+				break;
+			}
+#endif
 		}
 	}
 
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 	if (i >= FD_NUMPART) {
 		if (!io_nifdisk) {
 			(void) fprintf(stderr,
@@ -3151,6 +5417,30 @@ fix_slice(void)
 		}
 		return;
 	}
+#else /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+	if (io_extend) {
+		/* Search Solaris partition from Logical partition */
+		for (i = 0; i < _EXTFDISK_PARTITION; i++) {
+			if (LTable[i][0].systid == SUNIXOS ||
+			    LTable[i][0].systid == SUNIXOS2) {
+				if (numsect == -1 ||
+				    LTable[i][0].bootid == ACTIVE) {
+					numsect =
+					    lel(LTable[i][0].numsect);
+				}
+			}
+		}
+	}
+
+	if (numsect == -1) {
+		if (!io_nifdisk) {
+			(void) fprintf(stderr,
+			    "fdisk: No Solaris partition found - VTOC not"
+			    " checked.\n");
+		}
+		return;
+	}
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 
 	if (readvtoc() != VTOC_OK) {
 		exit(1);		/* Failed to read the VTOC */
@@ -3366,6 +5656,7 @@ writevtoc(void)
 	return (retval);
 }
 
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 /*
  * efi_ioctl
  * issues DKIOCSETEFI IOCTL
@@ -3391,6 +5682,9 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 static int
 clear_efi(void)
 {
+#ifdef NO_SUPPORT_EFI
+	return(VT_ERROR);
+#else	/* NO_SUPPORT_EFI */
 	struct dk_gpt	*efi_vtoc;
 	dk_efi_t	dk_ioc;
 
@@ -3473,7 +5767,9 @@ clear_efi(void)
 	efi_free(efi_vtoc);
 
 	return (0);
+#endif	/* NO_SUPPORT_EFI */
 }
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 
 /*
  * clear_vtoc
@@ -3486,6 +5782,10 @@ clear_vtoc(int table, int part)
 	struct ipart *clr_table;
 	struct dk_label disk_label;
 	int pcyl, ncyl, backup_block, solaris_offset, count, bytes, seek_byte;
+	int ext_offset = 0, internal_offset = 0;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	int extpart = -1, i;
+#endif
 
 #ifdef DEBUG
 	struct dk_label	read_label;
@@ -3493,13 +5793,40 @@ clear_vtoc(int table, int part)
 
 	if (table == OLD) {
 		clr_table = &Old_Table[part];
-	} else {
+	} else if (table == NEW) {
 		clr_table = &Table[part];
 	}
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	else if (table == OLD_LOGI) {
+		clr_table = &Old_LTable[part][0];
+		if (part > 1)
+			internal_offset =
+			    lel(Old_LTable[part - 1][1].relsect);
+	} else {
+		clr_table = &LTable[part][0];
+		if (part > 1)
+		    internal_offset = lel(LTable[part - 1][1].relsect);
+	}
+
+	if ((table == OLD_LOGI) || (table == NEW_LOGI)){
+		for (i = 0; i < FD_NUMPART; i++) {
+			if (isExtended(Table[i].systid)) {
+				extpart = i;
+				break;
+			}
+		}
+
+		if (extpart < 0) {
+			return;
+		}
+		ext_offset = lel(Table[extpart].relsect);
+	}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 
 	(void) memset(&disk_label, 0, sizeof (struct dk_label));
 
-	seek_byte = (lel(clr_table->relsect) * sectsiz) + VTOC_OFFSET;
+	seek_byte = ((lel(clr_table->relsect)  + ext_offset + internal_offset)
+	    * sectsiz) + VTOC_OFFSET;
 
 	if (io_debug) {
 		(void) fprintf(stderr, "\tClearing primary VTOC at byte %d\n",
@@ -3551,7 +5878,7 @@ clear_vtoc(int table, int part)
 
 	/* Clear backup label */
 	pcyl = lel(clr_table->numsect) / (heads * sectors);
-	solaris_offset = lel(clr_table->relsect);
+	solaris_offset = lel(clr_table->relsect) + ext_offset + internal_offset;
 	ncyl = pcyl - acyl;
 
 	backup_block = ((ncyl + acyl - 1) *

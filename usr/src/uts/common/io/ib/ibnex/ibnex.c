@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
+/*
  * The InfiniBand  Nexus driver (IB nexus) is a bus nexus driver for IB bus.
  * It supports  Port nodes, Virtual Physical Point of Attachment nodes (VPPA)
  * for  HCAs registered with IBTL and IOC nodes for all the IOCs present in
@@ -370,7 +374,7 @@ static int	ibnex_hw_status = IBNEX_DEVTREE_NOT_CHECKED;
  *	Loadable module init, called before any other module.
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 	char	**hca_driver_list;
@@ -415,12 +419,13 @@ _init(void)
 }
 
 
+#ifndef	STATIC_DRIVER
 /*
  * _fini
  *	Prepares a module for unloading.
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -434,6 +439,7 @@ _fini(void)
 	cv_destroy(&ibnex.ibnex_reprobe_cv);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 /*
@@ -441,7 +447,7 @@ _fini(void)
  *	Returns information about loadable module.
  */
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	IBTF_DPRINTF_L4("ibnex", "\t_info");
 	return (mod_info(&modlinkage, modinfop));

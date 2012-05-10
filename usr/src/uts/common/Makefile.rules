@@ -23,6 +23,10 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2009 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # uts/common/Makefile.rules
@@ -38,6 +42,7 @@
 #
 #	  Lines whose initial directory components are equal are sorted
 #	  alphabetically by the remaining components.
+
 
 #
 #	Section 1a: C objects build rules
@@ -298,6 +303,10 @@ $(OBJS_DIR)/%.o:		$(UTSBASE)/common/io/vscan/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
 
+$(OBJS_DIR)/%.o:		$(UTSBASE)/common/fs/xramfs/%.c
+	$(COMPILE.c) -o $@ $<
+	$(CTFCONVERT_O)
+
 $(OBJS_DIR)/%.o:		$(UTSBASE)/common/fs/zfs/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
@@ -307,6 +316,10 @@ $(OBJS_DIR)/%.o:		$(COMMONBASE)/xattr/%.c
 	$(CTFCONVERT_O)
 
 $(OBJS_DIR)/%.o:		$(COMMONBASE)/zfs/%.c
+	$(COMPILE.c) -o $@ $<
+	$(CTFCONVERT_O)
+
+$(OBJS_DIR)/%.o:		$(COMMONBASE)/czfs/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
 
@@ -1067,10 +1080,14 @@ $(OBJS_DIR)/%.o:		$(UTSBASE)/common/zmod/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
 
+ZLIB_MAPFILE			= $(UTSBASE)/common/zmod/mapfile
+ZLIB_OBJ_LDFLAGS		= $(REDUCE) -M$(ZLIB_MAPFILE)
+ZLIB_LOCALIZE_SYMBOL		= :
+
 $(OBJS_DIR)/zlib_obj.o:		$(ZLIB_OBJS:%=$(OBJS_DIR)/%)
-	$(LD) -r -Breduce -M$(UTSBASE)/common/zmod/mapfile -o $@ \
-	    $(ZLIB_OBJS:%=$(OBJS_DIR)/%)
+	$(LD) -r $(ZLIB_OBJ_LDFLAGS) -o $@ $(ZLIB_OBJS:%=$(OBJS_DIR)/%)
 	$(CTFMERGE) -t -f -L VERSION -o $@ $(ZLIB_OBJS:%=$(OBJS_DIR)/%)
+	$(ZLIB_LOCALIZE_SYMBOL)
 
 #
 # SVM
@@ -1294,6 +1311,9 @@ $(LINTS_DIR)/%.ln:		$(UTSBASE)/common/fs/ufs_log/%.c
 $(LINTS_DIR)/%.ln:		$(UTSBASE)/common/io/vscan/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))
 
+$(LINTS_DIR)/%.ln:		$(UTSBASE)/common/fs/xramfs/%.c
+	@($(LHEAD) $(LINT.c) $< $(LTAIL))
+
 $(LINTS_DIR)/%.ln:		$(UTSBASE)/common/fs/zfs/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))
 
@@ -1301,6 +1321,9 @@ $(LINTS_DIR)/%.ln:		$(COMMONBASE)/xattr/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))
 
 $(LINTS_DIR)/%.ln:		$(COMMONBASE)/zfs/%.c
+	@($(LHEAD) $(LINT.c) $< $(LTAIL))
+
+$(LINTS_DIR)/%.ln:		$(COMMONBASE)/czfs/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))
 
 $(LINTS_DIR)/%.ln:		$(UTSBASE)/common/gssapi/%.c

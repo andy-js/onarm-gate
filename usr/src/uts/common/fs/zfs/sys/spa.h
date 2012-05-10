@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_SPA_H
 #define	_SYS_SPA_H
 
@@ -34,10 +38,13 @@
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	spa_config_load_arch(nvlist)		1
 
 /*
  * Forward references that lots of things need.
@@ -82,7 +89,9 @@ struct dsl_pool;
  * of COWing a giant block to modify one byte would become excessive.
  */
 #define	SPA_MINBLOCKSHIFT	9
+#ifndef SPA_MAXBLOCKSHIFT
 #define	SPA_MAXBLOCKSHIFT	17
+#endif	/* SPA_MAXBLOCKSHIFT */
 #define	SPA_MINBLOCKSIZE	(1ULL << SPA_MINBLOCKSHIFT)
 #define	SPA_MAXBLOCKSIZE	(1ULL << SPA_MAXBLOCKSHIFT)
 
@@ -103,8 +112,11 @@ struct dsl_pool;
  * All SPA data is represented by 128-bit data virtual addresses (DVAs).
  * The members of the dva_t should be considered opaque outside the SPA.
  */
+#ifndef DVAWORDLEN
+#define	DVAWORDLEN		2
+#endif	/* DVAWORDLEN */
 typedef struct dva {
-	uint64_t	dva_word[2];
+	uint64_t	dva_word[DVAWORDLEN];
 } dva_t;
 
 /*
@@ -171,21 +183,28 @@ typedef struct zio_cksum {
  * fill count	number of non-zero blocks under this bp
  * checksum[4]	256-bit checksum of the data this bp describes
  */
-typedef struct blkptr {
-	dva_t		blk_dva[3];	/* 128-bit Data Virtual Address	*/
-	uint64_t	blk_prop;	/* size, compression, type, etc	*/
-	uint64_t	blk_pad[3];	/* Extra space for the future	*/
-	uint64_t	blk_birth;	/* transaction group at birth	*/
-	uint64_t	blk_fill;	/* fill count			*/
-	zio_cksum_t	blk_cksum;	/* 256-bit checksum		*/
-} blkptr_t;
 
+#ifndef ZFS_COMPACT
 #define	SPA_BLKPTRSHIFT	7		/* blkptr_t is 128 bytes	*/
 #define	SPA_DVAS_PER_BP	3		/* Number of DVAs in a bp	*/
+#endif	/* ZFS_COMPACT */
+
+typedef struct blkptr {
+	dva_t		blk_dva[SPA_DVAS_PER_BP];
+					/* 128-bit Data Virtual Address	*/
+	uint64_t	blk_prop;	/* size, compression, type, etc	*/
+#ifndef ZFS_COMPACT
+	uint64_t	blk_pad[3];	/* Extra space for the future	*/
+#endif	/* ZFS_COMPACT */
+	txg_t		blk_birth;	/* transaction group at birth	*/
+	objid_t		blk_fill;	/* fill count			*/
+	zio_cksum_t	blk_cksum;	/* 256-bit checksum		*/
+} blkptr_t;
 
 /*
  * Macros to get and set fields in a bp or DVA.
  */
+#ifndef ZFS_COMPACT
 #define	DVA_GET_ASIZE(dva)	\
 	BF64_GET_SB((dva)->dva_word[0], 0, 24, SPA_MINBLOCKSHIFT, 0)
 #define	DVA_SET_ASIZE(dva, x)	\
@@ -204,6 +223,7 @@ typedef struct blkptr {
 
 #define	DVA_GET_GANG(dva)	BF64_GET((dva)->dva_word[1], 63, 1)
 #define	DVA_SET_GANG(dva, x)	BF64_SET((dva)->dva_word[1], 63, 1, x)
+#endif	/* ZFS_COMPACT */
 
 #define	BP_GET_LSIZE(bp)	\
 	(BP_IS_HOLE(bp) ? 0 : \
@@ -231,13 +251,14 @@ typedef struct blkptr {
 #define	BP_GET_BYTEORDER(bp)	(0 - BF64_GET((bp)->blk_prop, 63, 1))
 #define	BP_SET_BYTEORDER(bp, x)	BF64_SET((bp)->blk_prop, 63, 1, x)
 
-#define	BP_GET_ASIZE(bp)	\
-	(DVA_GET_ASIZE(&(bp)->blk_dva[0]) + DVA_GET_ASIZE(&(bp)->blk_dva[1]) + \
-		DVA_GET_ASIZE(&(bp)->blk_dva[2]))
-
 #define	BP_GET_UCSIZE(bp) \
 	((BP_GET_LEVEL(bp) > 0 || dmu_ot[BP_GET_TYPE(bp)].ot_metadata) ? \
 	BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp));
+
+#ifndef ZFS_COMPACT
+#define	BP_GET_ASIZE(bp)	\
+	(DVA_GET_ASIZE(&(bp)->blk_dva[0]) + DVA_GET_ASIZE(&(bp)->blk_dva[1]) + \
+		DVA_GET_ASIZE(&(bp)->blk_dva[2]))
 
 #define	BP_GET_NDVAS(bp)	\
 	(!!DVA_GET_ASIZE(&(bp)->blk_dva[0]) + \
@@ -252,6 +273,7 @@ typedef struct blkptr {
 #define	DVA_EQUAL(dva1, dva2)	\
 	((dva1)->dva_word[1] == (dva2)->dva_word[1] && \
 	(dva1)->dva_word[0] == (dva2)->dva_word[0])
+#endif	/* ZFS_COMPACT */
 
 #define	ZIO_CHECKSUM_EQUAL(zc1, zc2) \
 	(0 == (((zc1).zc_word[0] - (zc2).zc_word[0]) | \
@@ -275,6 +297,7 @@ typedef struct blkptr {
 #define	BP_IS_HOLE(bp)		((bp)->blk_birth == 0)
 #define	BP_IS_OLDER(bp, txg)	(!BP_IS_HOLE(bp) && (bp)->blk_birth < (txg))
 
+#ifndef ZFS_COMPACT
 #define	BP_ZERO_DVAS(bp)			\
 {						\
 	(bp)->blk_dva[0].dva_word[0] = 0;	\
@@ -296,6 +319,7 @@ typedef struct blkptr {
 	(bp)->blk_fill = 0;			\
 	ZIO_SET_CHECKSUM(&(bp)->blk_cksum, 0, 0, 0, 0);	\
 }
+#endif	/* ZFS_COMPACT */
 
 /*
  * Note: the byteorder is either 0 or -1, both of which are palindromes.
@@ -307,7 +331,9 @@ typedef struct blkptr {
 #define	ZFS_HOST_BYTEORDER	(-1ULL)
 #endif
 
+#ifndef ZFS_COMPACT
 #define	BP_SHOULD_BYTESWAP(bp)	(BP_GET_BYTEORDER(bp) != ZFS_HOST_BYTEORDER)
+#endif	/* ZFS_COMPACT */
 
 #define	BP_SPRINTF_LEN	320
 
@@ -357,6 +383,7 @@ extern void spa_spare_remove(vdev_t *vd);
 extern boolean_t spa_spare_exists(uint64_t guid, uint64_t *pool);
 extern void spa_spare_activate(vdev_t *vd);
 
+#ifndef ZFS_NO_L2ARC
 /* L2ARC state (which is global across all pools) */
 extern void spa_l2cache_add(vdev_t *vd);
 extern void spa_l2cache_remove(vdev_t *vd);
@@ -364,16 +391,24 @@ extern boolean_t spa_l2cache_exists(uint64_t guid, uint64_t *pool);
 extern void spa_l2cache_activate(vdev_t *vd);
 extern void spa_l2cache_drop(spa_t *spa);
 extern void spa_l2cache_space_update(vdev_t *vd, int64_t space, int64_t alloc);
+#else
+#define	spa_l2cache_add(vd)
+#define	spa_l2cache_remove(vd)
+#define	spa_l2cache_exists(guid, pool)	B_FALSE
+#define	spa_l2cache_activate(vd)
+#define	spa_l2cache_drop(spa)
+#define	spa_l2cache_space_update(vd, space, alloc)
+#endif	/* ZFS_NO_L2ARC */
 
 /* scrubbing */
 extern int spa_scrub(spa_t *spa, pool_scrub_type_t type, boolean_t force);
 extern void spa_scrub_suspend(spa_t *spa);
 extern void spa_scrub_resume(spa_t *spa);
-extern void spa_scrub_restart(spa_t *spa, uint64_t txg);
+extern void spa_scrub_restart(spa_t *spa, txg_t txg);
 
 /* spa syncing */
-extern void spa_sync(spa_t *spa, uint64_t txg); /* only for DMU use */
-extern void spa_sync_allpools(void);
+extern void spa_sync(spa_t *spa, txg_t txg); /* only for DMU use */
+extern int spa_sync_allpools(void);
 
 /*
  * SPA configuration functions in spa_config.c
@@ -382,14 +417,17 @@ extern void spa_sync_allpools(void);
 #define	SPA_CONFIG_UPDATE_POOL	0
 #define	SPA_CONFIG_UPDATE_VDEVS	1
 
+#define	SPA_WAIT	1
+#define	SPA_NOWAIT	2
+
 extern void spa_config_sync(void);
 extern void spa_config_check(const char *, const char *);
 extern void spa_config_load(void);
 extern nvlist_t *spa_all_configs(uint64_t *);
 extern void spa_config_set(spa_t *spa, nvlist_t *config);
-extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg,
+extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, txg_t txg,
     int getstats);
-extern void spa_config_update(spa_t *spa, int what);
+extern int spa_config_update(spa_t *spa, int what);
 
 /*
  * Miscellaneous SPA routines in spa_misc.c
@@ -400,6 +438,8 @@ extern spa_t *spa_lookup(const char *name);
 extern spa_t *spa_add(const char *name, const char *altroot);
 extern void spa_remove(spa_t *spa);
 extern spa_t *spa_next(spa_t *prev);
+extern void spa_errorlist_remove(spa_t *spa);
+extern spa_t *spa_errorlist_next(spa_t *prev);
 
 /* Refcount functions */
 extern void spa_open_ref(spa_t *spa, void *tag);
@@ -407,13 +447,14 @@ extern void spa_close(spa_t *spa, void *tag);
 extern boolean_t spa_refcount_zero(spa_t *spa);
 
 /* Pool configuration lock */
-extern void spa_config_enter(spa_t *spa, krw_t rw, void *tag);
+extern int spa_config_enter(spa_t *spa, krw_t rw, void *tag, int spa_how);
 extern void spa_config_exit(spa_t *spa, void *tag);
 extern boolean_t spa_config_held(spa_t *spa, krw_t rw);
+extern void spa_config_abort(spa_t *spa);
 
 /* Pool vdev add/remove lock */
-extern uint64_t spa_vdev_enter(spa_t *spa);
-extern int spa_vdev_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error);
+extern txg_t spa_vdev_enter(spa_t *spa);
+extern int spa_vdev_exit(spa_t *spa, vdev_t *vd, txg_t txg, int error);
 
 /* Accessor functions */
 extern krwlock_t *spa_traverse_rwlock(spa_t *spa);
@@ -425,11 +466,11 @@ extern void spa_altroot(spa_t *, char *, size_t);
 extern int spa_sync_pass(spa_t *spa);
 extern char *spa_name(spa_t *spa);
 extern uint64_t spa_guid(spa_t *spa);
-extern uint64_t spa_last_synced_txg(spa_t *spa);
-extern uint64_t spa_first_txg(spa_t *spa);
+extern txg_t spa_last_synced_txg(spa_t *spa);
+extern txg_t spa_first_txg(spa_t *spa);
 extern uint64_t spa_version(spa_t *spa);
 extern int spa_state(spa_t *spa);
-extern uint64_t spa_freeze_txg(spa_t *spa);
+extern txg_t spa_freeze_txg(spa_t *spa);
 struct metaslab_class;
 extern uint64_t spa_get_alloc(spa_t *spa);
 extern uint64_t spa_get_space(spa_t *spa);
@@ -448,8 +489,8 @@ extern void spa_strfree(char *);
 extern uint64_t spa_get_random(uint64_t range);
 extern void sprintf_blkptr(char *buf, int len, const blkptr_t *bp);
 extern void spa_freeze(spa_t *spa);
-extern void spa_upgrade(spa_t *spa, uint64_t version);
-extern void spa_evict_all(void);
+extern int spa_upgrade(spa_t *spa, uint64_t version);
+extern int spa_evict_all(void);
 extern vdev_t *spa_lookup_by_guid(spa_t *spa, uint64_t guid);
 extern boolean_t spa_has_spare(spa_t *, uint64_t guid);
 extern uint64_t bp_get_dasize(spa_t *spa, const blkptr_t *bp);
@@ -492,21 +533,26 @@ extern uint64_t spa_get_errlog_size(spa_t *spa);
 extern int spa_get_errlog(spa_t *spa, void *uaddr, size_t *count);
 extern void spa_errlog_rotate(spa_t *spa);
 extern void spa_errlog_drain(spa_t *spa);
-extern void spa_errlog_sync(spa_t *spa, uint64_t txg);
+extern void spa_errlog_sync(spa_t *spa, txg_t txg);
 extern void spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub);
 
 /* vdev cache */
+#ifndef ZFS_NO_VDEVCACHE
 extern void vdev_cache_stat_init(void);
 extern void vdev_cache_stat_fini(void);
+#else
+#define	vdev_cache_stat_init()
+#define	vdev_cache_stat_fini()
+#endif	/* ZFS_NO_VDEVCACHE */
 
 /* Initialization and termination */
 extern void spa_init(int flags);
-extern void spa_fini(void);
+extern int spa_fini(void);
 
 /* properties */
 extern int spa_prop_set(spa_t *spa, nvlist_t *nvp);
 extern int spa_prop_get(spa_t *spa, nvlist_t **nvp);
-extern void spa_prop_clear_bootfs(spa_t *spa, uint64_t obj, dmu_tx_t *tx);
+extern void spa_prop_clear_bootfs(spa_t *spa, objid_t obj, dmu_tx_t *tx);
 
 /* asynchronous event notification */
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, const char *name);

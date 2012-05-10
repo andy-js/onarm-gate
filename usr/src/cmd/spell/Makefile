@@ -28,6 +28,10 @@
 # cmd/spell/Makefile
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 HASHPROG=	hashmk1 spellin1
 SHPROG=		spell compress
 HASHTAB=	hlista hlistb hstop
@@ -78,6 +82,7 @@ $(ROOTSPELLD)/hlista :=	FILEMODE =	0644
 $(ROOTVARADMF) :=	FILEMODE =	0666
 
 spellin1 hashmk1 := CC = $(NATIVECC)
+spellin1 hashmk1 := CFLAGS += $(NATIVE_CPPFLAGS)
 spellin1 hashmk1 := POST_PROCESS =
 spellin1 hashmk1 := CPPFLAGS =
 spellin1 hashmk1 := LDFLAGS =

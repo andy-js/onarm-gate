@@ -28,10 +28,18 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_ASSERT_H
 #define	_ASSERT_H
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.6.1.4 */
+
+#if defined(_AEABI_PORTABILITY_LEVEL)
+#error "not supperted AEABI."
+#endif
 
 #ifdef	__cplusplus
 extern "C" {

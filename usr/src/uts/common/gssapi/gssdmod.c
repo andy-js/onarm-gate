@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -31,7 +35,7 @@
 #include <sys/errno.h>
 #include <gssapi/kgssapi_defs.h>
 
-char _depends_on[] = "strmod/rpcmod misc/rpcsec misc/tlimod";
+MODDRV_DEPENDS_ON("strmod/rpcmod misc/rpcsec misc/tlimod");
 
 static struct modlmisc modlmisc = {
 	&mod_miscops, "in-kernel GSSAPI"
@@ -44,7 +48,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int retval;
 
@@ -60,14 +64,16 @@ _init()
 	return (retval);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

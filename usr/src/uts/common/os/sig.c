@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -192,7 +195,7 @@ eat_signal(kthread_t *t, int sig)
 			setrun_locked(t);
 		} else if (t != curthread && t->t_state == TS_ONPROC) {
 			aston(t);	/* make it do issig promptly */
-			if (t->t_cpu != CPU)
+			if (t->t_cpu != CPU_GLOBAL)
 				poke_cpu(t->t_cpu->cpu_id);
 			rval = 1;
 		} else if (t->t_state == TS_RUN) {
@@ -980,7 +983,7 @@ stop(int why, int what)
 				 * if it is not already there.
 				 */
 				if (tx->t_state == TS_ONPROC &&
-				    tx->t_cpu != CPU)
+				    tx->t_cpu != CPU_GLOBAL)
 					poke_cpu(tx->t_cpu->cpu_id);
 				thread_unlock(tx);
 				lep = p->p_lwpdir[tx->t_dslot].ld_entry;
@@ -1066,6 +1069,9 @@ stop(int why, int what)
 					procstop = 0;
 				break;
 			case TS_SLEEP:
+				/* ignore a thread into holdwatch() */
+				if (tx->t_proc_flag & TP_WATCHSTOP)
+					break;
 				/* not paused for watchpoints? */
 				if (!(tx->t_flag & T_WAKEABLE) ||
 				    tx->t_wchan0 == NULL ||
@@ -1073,7 +1079,9 @@ stop(int why, int what)
 					procstop = 0;
 				break;
 			default:
-				procstop = 0;
+				/* ignore a thread into holdwatch() */
+				if (!(tx->t_proc_flag & TP_WATCHSTOP))
+					procstop = 0;
 				break;
 			}
 			thread_unlock(tx);

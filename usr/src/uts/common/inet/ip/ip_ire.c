@@ -24,6 +24,10 @@
  */
 /* Copyright (c) 1990 Mentat Inc. */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -306,8 +310,16 @@ static ire_t	ire_null;
  * different.  In future, when we have more experience, we
  * may want to change this behavior.
  */
-uint32_t ip_ire_max_bucket_cnt = 10;	/* Setable in /etc/system */
+#ifdef IP_IRE_BUCKET_CNT
+uint32_t ip_ire_max_bucket_cnt = IP_IRE_BUCKET_CNT;
+#else
+uint32_t ip_ire_max_bucket_cnt = 10;
+#endif
+#ifdef IP6_IRE_BUCKET_CNT
+uint32_t ip6_ire_max_bucket_cnt = IP6_IRE_BUCKET_CNT;
+#else
 uint32_t ip6_ire_max_bucket_cnt = 10;
+#endif
 uint32_t ip_ire_cleanup_cnt = 2;
 
 /*
@@ -316,8 +328,16 @@ uint32_t ip_ire_cleanup_cnt = 2;
  * performance of some apps as the temporary IREs are removed too
  * often.
  */
-uint32_t ip_ire_min_bucket_cnt = 3;	/* /etc/system - not used */
+#ifdef IP_IRE_BUCKET_CNT
+uint32_t ip_ire_min_bucket_cnt = IP_IRE_BUCKET_CNT;
+#else
+uint32_t ip_ire_min_bucket_cnt = 3;
+#endif
+#ifdef IP6_IRE_BUCKET_CNT
+uint32_t ip6_ire_min_bucket_cnt = IP6_IRE_BUCKET_CNT;
+#else
 uint32_t ip6_ire_min_bucket_cnt = 3;
+#endif
 
 /*
  * The ratio of memory consumed by IRE used for temporary to available
@@ -339,11 +359,17 @@ typedef struct nce_clookup_s {
  * size and allocate the table in ip_ire_init() when IP is first loaded.
  * We take into account the amount of memory a system has.
  */
+#ifndef IP_MAX_CACHE_TABLE_SIZE
 #define	IP_MAX_CACHE_TABLE_SIZE	4096
+#endif
 
 /* Setable in /etc/system */
 static uint32_t	ip_max_cache_table_size = IP_MAX_CACHE_TABLE_SIZE;
+#ifndef IP6_MAX_CACHE_TABLE_SIZE
 static uint32_t	ip6_max_cache_table_size = IP_MAX_CACHE_TABLE_SIZE;
+#else
+static uint32_t	ip6_max_cache_table_size = IP6_MAX_CACHE_TABLE_SIZE;
+#endif
 
 #define	NUM_ILLS	2	/* To build the ILL list to unlock */
 
@@ -4523,7 +4549,7 @@ power2_roundup(uint32_t *value)
 {
 	int i;
 
-	for (i = 1; i < 31; i++) {
+	for (i = 0; i < 31; i++) {
 		if (*value <= (1 << i))
 			break;
 	}

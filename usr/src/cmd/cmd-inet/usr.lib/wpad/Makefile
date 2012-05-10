@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG =		wpad
 MANIFEST =	wpa.xml
 OBJS =		wpa_supplicant.o wpa.o wpa_enc.o eloop.o \
@@ -35,11 +39,11 @@ include	../../../Makefile.cmd
 
 ROOTMANIFESTDIR = $(ROOTSVCNETWORK)
 
-LDFLAGS   += 	-L/usr/sfw/lib -R/usr/sfw/lib
+LDFLAGS   += 	-L$(ROOT)/usr/sfw/lib -R/usr/sfw/lib
 LDLIBS    += 	-ldladm -ldlpi
 all install := LDLIBS += -lcrypto
 
-CPPFLAGS  += 	-I/usr/sfw/include
+CPPFLAGS  += 	-I$(ROOT)/usr/sfw/include
 LINTFLAGS += 	-u -erroff=E_BAD_PTR_CAST_ALIGN
 
 .KEEP_STATE:

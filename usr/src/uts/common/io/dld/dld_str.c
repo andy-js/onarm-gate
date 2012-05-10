@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -605,8 +609,13 @@ dld_str_init(void)
 	/*
 	 * Create taskq to process DLPI requests.
 	 */
+#ifdef __arm
+	dld_disp_taskq = taskq_create("dld_disp_taskq", 1, MINCLSYSPRI, 1,
+	    INT_MAX, TASKQ_PREPOPULATE);
+#else
 	dld_disp_taskq = taskq_create("dld_disp_taskq", 1024, MINCLSYSPRI, 2,
 	    INT_MAX, TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
+#endif
 
 	/*
 	 * Create a hash table for maintaining dld_str_t's.

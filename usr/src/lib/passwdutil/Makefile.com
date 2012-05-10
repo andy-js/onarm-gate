@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -58,7 +63,9 @@ LIBNAME=	passwdutil
 
 LIBS=		$(DYNLIB) $(LINTLIB)
 $(LINTLIB) :=	SRCS= $(SRCDIR)/$(LINTSRC)
-LDLIBS		+= -lsldap -lnsl -lc
+LIBSLDAP	= -lsldap
+$(ARM_BLD)LIBSLDAP	=
+LDLIBS		+= $(LIBSLDAP) -lnsl -lc
 
 CPPFLAGS	+= -DENABLE_SUNOS_AGING -D_REENTRANT \
 		   -I$(SRC)/lib/libsldap/common -I$(SRC)/lib/libnsl/include

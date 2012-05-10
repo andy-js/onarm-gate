@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* from SVr4.0 1.30 */
 
@@ -42,6 +45,7 @@
 #include <sys/debug.h>
 #include <sys/inline.h>
 #include <sys/disp.h>
+#include <sys/disp_impl.h> /* Must be after disp.h */
 #include <sys/class.h>
 #include <sys/bitmap.h>
 #include <sys/kmem.h>
@@ -59,6 +63,14 @@
 #include <sys/sdt.h>
 
 #include <vm/as.h>
+
+#if defined(DEBUG) && defined(__arm)
+#include <sys/privregs.h>
+#include <asm/cpufunc.h>
+#define	ASSERT_INTR_ENABLED()	ASSERT((READ_CPSR() & PSR_I_BIT) == 0)
+#else
+#define	ASSERT_INTR_ENABLED()
+#endif	/* DEBUG && __arm */
 
 #define	BOUND_CPU	0x1
 #define	BOUND_PARTITION	0x2
@@ -524,7 +536,7 @@ disp_anywork(void)
 		 *	- context switch on an otherwise empty queue.
 		 *	- The CPU isn't running the idle loop.
 		 */
-		for (ocp = cp->cpu_next_part; ocp != cp;
+		for (ocp = cp->cpu_next_part; ocp != CPU_SELF(cp);
 		    ocp = ocp->cpu_next_part) {
 			ASSERT(CPU_ACTIVE(ocp));
 
@@ -842,6 +854,8 @@ swtch()
 
 	TRACE_0(TR_FAC_DISP, TR_SWTCH_START, "swtch_start");
 
+	ASSERT_INTR_ENABLED();
+
 	if (t->t_flag & T_INTR_THREAD)
 		cpu_intr_swtch_enter(t);
 
@@ -861,11 +875,11 @@ swtch()
 	} else {
 #ifdef	DEBUG
 		if (t->t_state == TS_ONPROC &&
-		    t->t_disp_queue->disp_cpu == CPU &&
+		    t->t_disp_queue->disp_cpu == CPU_GLOBAL &&
 		    t->t_preempt == 0) {
 			thread_lock(t);
 			ASSERT(t->t_state != TS_ONPROC ||
-			    t->t_disp_queue->disp_cpu != CPU ||
+			    t->t_disp_queue->disp_cpu != CPU_GLOBAL ||
 			    t->t_preempt != 0);	/* cannot migrate */
 			thread_unlock_nopreempt(t);
 		}
@@ -941,6 +955,7 @@ swtch_from_zombie()
 	TRACE_0(TR_FAC_DISP, TR_SWTCH_START, "swtch_start");
 
 	ASSERT(curthread->t_state == TS_ZOMB);
+	ASSERT_INTR_ENABLED();
 
 	next = disp();			/* returns with spl high */
 	ASSERT(CPU_ON_INTR(CPU) == 0);	/* not called with PIL > 10 */
@@ -972,7 +987,7 @@ thread_on_queue(kthread_t *tp)
 	cpu_t	*self;
 	disp_t	*dp;
 
-	self = CPU;
+	self = CPU_GLOBAL;
 	cp = self->cpu_next_onln;
 	dp = cp->cpu_disp;
 	for (;;) {
@@ -1020,6 +1035,8 @@ swtch_to(kthread_t *next)
 	cpu_t			*cp = CPU;
 
 	TRACE_0(TR_FAC_DISP, TR_SWTCH_START, "swtch_start");
+
+	ASSERT_INTR_ENABLED();
 
 	/*
 	 * Update context switch statistics.
@@ -1077,12 +1094,12 @@ cpu_resched(cpu_t *cp, pri_t tpri)
 		if (tpri >= upreemptpri && cp->cpu_runrun == 0) {
 			cp->cpu_runrun = 1;
 			aston(cp->cpu_dispthread);
-			if (tpri < kpreemptpri && cp != CPU)
+			if (tpri < kpreemptpri && cp != CPU_GLOBAL)
 				call_poke_cpu = 1;
 		}
 		if (tpri >= kpreemptpri && cp->cpu_kprunrun == 0) {
 			cp->cpu_kprunrun = 1;
-			if (cp != CPU)
+			if (cp != CPU_GLOBAL)
 				call_poke_cpu = 1;
 		}
 	}
@@ -1101,6 +1118,9 @@ cpu_resched(cpu_t *cp, pri_t tpri)
  * tp is the thread being enqueued
  * cp is the hint CPU (chosen by cpu_choose()).
  */
+#ifdef	CMT_SCHED_DISABLE
+#define	cmt_balance(tp, cp)	(cp)
+#else	/* !CMT_SCHED_DISABLE */
 static cpu_t *
 cmt_balance(kthread_t *tp, cpu_t *cp)
 {
@@ -1209,6 +1229,7 @@ cmt_balance(kthread_t *tp, cpu_t *cp)
 
 	return (cp);
 }
+#endif	/* !CMT_SCHED_DISABLE */
 
 /*
  * setbackdq() keeps runqs balanced such that the difference in length
@@ -1354,6 +1375,7 @@ setbackdq(kthread_t *tp)
 	THREAD_RUN(tp, &dp->disp_lock);		/* set t_state to TS_RUN */
 	tp->t_disp_queue = dp;
 	tp->t_link = NULL;
+	SETDQ_FLAG_SET(tp, TD_SETBDQ_REQ);
 
 	dq = &dp->disp_q[tpri];
 	dp->disp_nrunnable++;
@@ -1379,7 +1401,7 @@ setbackdq(kthread_t *tp)
 
 	if (!bound && tpri > dp->disp_max_unbound_pri) {
 		if (tp == curthread && dp->disp_max_unbound_pri == -1 &&
-		    cp == CPU) {
+		    cp == CPU_GLOBAL) {
 			/*
 			 * If there are no other unbound threads on the
 			 * run queue, don't allow other CPUs to steal
@@ -1505,6 +1527,7 @@ setfrontdq(kthread_t *tp)
 
 	THREAD_RUN(tp, &dp->disp_lock);		/* set TS_RUN state and lock */
 	tp->t_disp_queue = dp;
+	SETDQ_FLAG_SET(tp, TD_SETFDQ_REQ);
 
 	dq = &dp->disp_q[tpri];
 	dp->disp_nrunnable++;
@@ -1531,7 +1554,7 @@ setfrontdq(kthread_t *tp)
 
 	if (!bound && tpri > dp->disp_max_unbound_pri) {
 		if (tp == curthread && dp->disp_max_unbound_pri == -1 &&
-		    cp == CPU) {
+		    cp == CPU_GLOBAL) {
 			/*
 			 * If there are no other unbound threads on the
 			 * run queue, don't allow other CPUs to steal
@@ -1569,6 +1592,8 @@ setkpdq(kthread_t *tp, int borf)
 	DTRACE_SCHED3(enqueue, kthread_t *, tp, disp_t *, dp, int, borf);
 	THREAD_RUN(tp, &dp->disp_lock);		/* set t_state to TS_RUN */
 	tp->t_disp_queue = dp;
+	SETDQ_FLAG_SET(tp, ((borf == SETKP_BACK) ?
+			    TD_SETBDQ_REQ : TD_SETFDQ_REQ));
 	dp->disp_nrunnable++;
 	dq = &dp->disp_q[tpri];
 
@@ -1651,6 +1676,8 @@ dispdeq(kthread_t *tp)
 	 */
 	if ((tp->t_schedflag & (TS_LOAD | TS_ON_SWAPQ)) != TS_LOAD)
 		return (1);
+
+	SETDQ_FLAG_CLR(tp);
 
 	tpri = DISP_PRIO(tp);
 	dp = tp->t_disp_queue;
@@ -1853,7 +1880,7 @@ cpu_surrender(kthread_t *tp)
 	if (tp != curthread || (lwp = tp->t_lwp) == NULL ||
 	    lwp->lwp_state != LWP_USER) {
 		aston(tp);
-		if (cpup != CPU)
+		if (cpup != CPU_GLOBAL)
 			poke_cpu(cpup->cpu_id);
 	}
 	TRACE_2(TR_FAC_DISP, TR_CPU_SURRENDER,
@@ -1933,8 +1960,9 @@ disp_getwork(cpu_t *cp)
 		 * Try to take a thread from the kp_queue.
 		 */
 		tp = (disp_getbest(kpq));
-		if (tp)
+		if (tp) {
 			return (disp_ratify(tp, kpq));
+		}
 	}
 
 	kpreempt_disable();		/* protect the cpu_active list */
@@ -2015,7 +2043,8 @@ disp_getwork(cpu_t *cp)
 					 * to be stolen again.
 					 */
 					stealtime = ocp->cpu_disp->disp_steal;
-					if (stealtime == 0 ||
+					if (DISP_STEAL_IMMEDIATELY(tcp) ||
+					    stealtime == 0 ||
 					    stealtime - gethrtime() <= 0) {
 						maxpri = pri;
 						tcp = ocp;
@@ -2033,6 +2062,10 @@ disp_getwork(cpu_t *cp)
 				}
 			} while ((ocp = ocp->cpu_next_lpl) != ocp_start);
 
+			if (DISP_STROLL_END(lpl)) {
+				goto strollend;
+			}
+
 			if ((lpl_leaf = lpl->lpl_rset[++leafidx]) == NULL) {
 				leafidx = 0;
 				lpl_leaf = lpl->lpl_rset[leafidx];
@@ -2043,6 +2076,7 @@ disp_getwork(cpu_t *cp)
 		if ((lpl = lpl->lpl_parent) != NULL)
 			lpl_leaf = lpl->lpl_rset[hint];
 	} while (!tcp && lpl);
+strollend:
 
 	kpreempt_enable();
 
@@ -2223,6 +2257,10 @@ disp_getbest(disp_t *dp)
 		 */
 		allbound = B_FALSE;
 
+		if (DISP_STEAL_IMMEDIATELY(tcp)) {
+			break;
+		}
+
 		/*
 		 * The thread is a candidate for stealing from its run queue. We
 		 * don't want to steal threads that became runnable just a
@@ -2288,7 +2326,7 @@ disp_getbest(disp_t *dp)
 			break;
 
 		DTRACE_PROBE4(nosteal, kthread_t *, tp,
-		    cpu_t *, tcp, cpu_t *, cp, hrtime_t, rqtime);
+		    cpu_t *, tcp, cpu_t *, CPU_SELF(cp), hrtime_t, rqtime);
 		scalehrtime(&now);
 		/*
 		 * Calculate when this thread becomes stealable
@@ -2359,7 +2397,8 @@ disp_getbest(disp_t *dp)
 	cp->cpu_dispatch_pri = pri;
 	ASSERT(pri == DISP_PRIO(tp));
 
-	DTRACE_PROBE3(steal, kthread_t *, tp, cpu_t *, tcp, cpu_t *, cp);
+	DTRACE_PROBE3(steal, kthread_t *, tp, cpu_t *, tcp, cpu_t *,
+		      CPU_SELF(cp));
 
 	thread_onproc(tp, cp);			/* set t_state to TS_ONPROC */
 
@@ -2631,6 +2670,12 @@ disp_lowpri_cpu(cpu_t *hint, lpl_t *lpl, pri_t tpri, cpu_t *curcpu)
 					bestpri = cpupri;
 				}
 			} while ((cp = cp->cpu_next_lpl) != cpstart);
+
+			if (DISP_STROLL_END(lpl_leaf)) {
+				ASSERT((bestcpu->cpu_flags &
+						CPU_QUIESCED) == 0);
+				return (bestcpu);
+			}
 		}
 
 		if (bestcpu && (tpri > bestpri)) {
@@ -2689,6 +2734,10 @@ cpu_choose(kthread_t *t, pri_t tpri)
 	if ((((lbolt - t->t_disp_time) > rechoose_interval) &&
 	    t != curthread) || t->t_cpu == cpu_inmotion) {
 		return (disp_lowpri_cpu(t->t_cpu, t->t_lpl, tpri, NULL));
+	}
+
+	if (DISP_CHOOSE_LAST_CPU(t)) {
+		return (t->t_cpu);
 	}
 
 	/*

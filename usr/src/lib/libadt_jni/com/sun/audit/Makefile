@@ -26,6 +26,10 @@
 #ident	"%Z%%M%	%I%	%E% SMI"
 # lib/libadt_jni/com/sun/audit/Makefile
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 include ../Makefile.com
 
 ADT_PKG = com.sun.audit

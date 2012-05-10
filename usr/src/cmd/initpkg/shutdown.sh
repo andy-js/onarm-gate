@@ -25,8 +25,10 @@
 #
 #	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T
 #	  All Rights Reserved
-
-
+#
+#
+# Copyright (c) 2006-2007 NEC Corporation
+#
 
 #ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -44,17 +46,20 @@ usage() {
 }
 
 notify() {
-	/usr/sbin/wall -a <<-!
-	$*
-	!
-	if [ -x /usr/sbin/showmount -a -x /usr/sbin/rwall ]
+	if [ -x /usr/sbin/wall ]
 	then
-		remotes=`/usr/sbin/showmount`
-		if [ "X${remotes}" != "X" ]
+		/usr/sbin/wall -a <<-!
+		$*
+		!
+		if [ -x /usr/sbin/showmount -a -x /usr/sbin/rwall ]
 		then
-			/usr/sbin/rwall -q ${remotes} <<-!
-			$*
-			!
+			remotes=`/usr/sbin/showmount`
+			if [ "X${remotes}" != "X" ]
+			then
+				/usr/sbin/rwall -q ${remotes} <<-!
+				$*
+				!
+			fi
 		fi
 	fi
 }
@@ -78,7 +83,12 @@ fi
 
 if [ -x /usr/bin/id ]
 then
-	eval `/usr/bin/id  |  /usr/bin/sed 's/[^a-z0-9=].*//'`
+	if [ -x /usr/bin/sed ]
+	then
+		eval `/usr/bin/id  |  /usr/bin/sed 's/[^a-z0-9=].*//'`
+	else
+		eval `/usr/bin/id  |  /usr/bin/cut -d'(' -f1`
+	fi
 	if [ "${uid:=0}" -ne 0 ]
 	then
 	        echo "$0:  Only root can run $0"

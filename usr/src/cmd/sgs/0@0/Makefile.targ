@@ -26,6 +26,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 pics/%.o:	../common/%.c
 		$(COMPILE.c) -o $@ $<
 		$(POST_PROCESS_O)
@@ -36,7 +40,7 @@ pics/%.o:	$(CRTSRCS)/%.s
 
 all:		$(DYNLIB)
 
-$(DYNLIB):	pics .WAIT $(CRTS)
+$(DYNLIB):	pics .WAIT $(CRTS) $(MAPFILE)
 
 include		$(SRC)/lib/Makefile.targ
 

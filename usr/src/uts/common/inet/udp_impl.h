@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_UDP_IMPL_H
 #define	_UDP_IMPL_H
 
@@ -141,7 +145,9 @@ typedef struct udp_bits_s {
  * Bind hash list size and hash function.  It has to be a power of 2 for
  * hashing.
  */
+#ifndef	UDP_BIND_FANOUT_SIZE
 #define	UDP_BIND_FANOUT_SIZE	512
+#endif	/* !UDP_BIND_FANOUT_SIZE */
 #define	UDP_BIND_HASH(lport, size) \
 	((ntohs((uint16_t)lport)) & (size - 1))
 

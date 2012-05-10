@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -105,6 +109,12 @@ static int
 socksctpv_open(struct vnode **vpp, int flag, struct cred *cr,
     caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EOPNOTSUPP);
+
+#else
+        /* Orignal Program */
 	struct sonode *so;
 	struct sctp_sonode *ss;
 	struct vnode *vp = *vpp;
@@ -156,6 +166,7 @@ socksctpv_open(struct vnode **vpp, int flag, struct cred *cr,
 	so->so_sndlowat = sbl.sbl_txlowat;
 
 	return (error);
+#endif
 }
 
 /*ARGSUSED*/
@@ -163,6 +174,12 @@ static int
 socksctpv_close(struct vnode *vp, int flag, int count, offset_t offset,
     struct cred *cr, caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (0);
+
+#else
+        /* Orignal Program */
 	struct sonode *so;
 	struct sctp_sonode *ss;
 	struct sctp_sa_id *ssi;
@@ -243,6 +260,7 @@ socksctpv_close(struct vnode *vp, int flag, int count, offset_t offset,
 	mutex_exit(&so->so_lock);
 
 	return (0);
+#endif
 }
 
 /*ARGSUSED2*/
@@ -250,6 +268,12 @@ static int
 socksctpv_read(struct vnode *vp, struct uio *uiop, int ioflag, struct cred *cr,
     caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EOPNOTSUPP);
+
+#else
+/* Orignal Program */
 	struct sonode *so = VTOSO(vp);
 	struct nmsghdr lmsg;
 
@@ -263,6 +287,7 @@ socksctpv_read(struct vnode *vp, struct uio *uiop, int ioflag, struct cred *cr,
 	lmsg.msg_controllen = 0;
 	lmsg.msg_flags = 0;
 	return (sosctp_recvmsg(so, &lmsg, uiop));
+#endif
 }
 
 /*
@@ -273,6 +298,12 @@ static int
 socksctpv_write(struct vnode *vp, struct uio *uiop, int ioflag, struct cred *cr,
     caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+/* Enable SCTP shrinking */
+	return (EOPNOTSUPP);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss;
 	struct sonode *so;
 	mblk_t *head;
@@ -365,6 +396,7 @@ error_ret:
 	mutex_exit(&so->so_lock);
 	freemsg(head);
 	return (error);
+#endif
 }
 
 /*ARGSUSED4*/
@@ -372,6 +404,12 @@ static int
 socksctpv_ioctl(struct vnode *vp, int cmd, intptr_t arg, int mode,
     struct cred *cr, int32_t *rvalp, caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EOPNOTSUPP);
+
+#else
+        /* Orignal Program */
 	struct sonode		*so;
 	struct sctp_sonode	*ss;
 	int32_t			value;
@@ -721,6 +759,7 @@ peelerr:
 	default:
 		return (EINVAL);
 	}
+#endif
 }
 
 /*
@@ -732,6 +771,12 @@ static int
 socksctp_setfl(vnode_t *vp, int oflags, int nflags, cred_t *cr,
     caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (0);
+
+#else
+        /* Orignal Program */
 	struct sonode *so;
 
 	so = VTOSO(vp);
@@ -747,12 +792,18 @@ socksctp_setfl(vnode_t *vp, int oflags, int nflags, cred_t *cr,
 		so->so_state &= ~SS_NONBLOCK;
 	mutex_exit(&so->so_lock);
 	return (0);
+#endif
 }
 
 /*ARGSUSED*/
 static void
 socksctpv_inactive(struct vnode *vp, struct cred *cr, caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sonode *so;
 	struct sctp_sonode *ss;
 	struct sctp_sa_id *ssi;
@@ -809,6 +860,7 @@ socksctpv_inactive(struct vnode *vp, struct cred *cr, caller_context_t *ct)
 	}
 	so->so_priv = NULL;
 	sosctp_free(so);
+#endif
 }
 
 /*
@@ -819,6 +871,12 @@ static int
 socksctpv_poll(struct vnode *vp, short events, int anyyet, short *reventsp,
     struct pollhead **phpp, caller_context_t *ct)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (0);
+
+#else
+        /* Orignal Program */
 	struct sonode *so;
 	struct sctp_sonode *ss;
 	short origevents = events;
@@ -873,4 +931,5 @@ socksctpv_poll(struct vnode *vp, short events, int anyyet, short *reventsp,
 	}
 
 	return (0);
+#endif
 }

@@ -23,6 +23,10 @@
  * All rights reserved.  Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_TMP_H
 #define	_SYS_FS_TMP_H
 
@@ -48,6 +52,8 @@ struct tmount {
 	uint_t		tm_gen;		/* pseudo generation number for files */
 	kmutex_t	tm_contents;	/* lock for tmount structure */
 	kmutex_t	tm_renamelck;	/* rename lock for this mount */
+	uint_t		tm_inummax;	/* file system max number of inode */
+	uint_t		tm_inumcur;	/* current number of inode counter */
 };
 
 /*
@@ -108,9 +114,11 @@ extern	int	tmp_taccess(void *, int, struct cred *);
 extern	int	tmp_sticky_remove_access(struct tmpnode *, struct tmpnode *,
 	struct cred *);
 extern	int	tmp_convnum(char *, pgcnt_t *);
+extern	int	tmp_convfig(char *, uint_t *);
 extern	int	tdirenter(struct tmount *, struct tmpnode *, char *,
 	enum de_op, struct tmpnode *, struct tmpnode *, struct vattr *,
 	struct tmpnode **, struct cred *, caller_context_t *);
+extern	int	tdirincinum(struct tmount *);
 
 #define	TMP_MUSTHAVE	0x01
 

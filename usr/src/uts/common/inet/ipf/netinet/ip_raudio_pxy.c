@@ -9,6 +9,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #define	IPF_RAUDIO_PROXY
@@ -102,13 +106,23 @@ nat_t *nat;
 void *private;
 {
 	raudio_t *rap = aps->aps_data;
+#if defined(_NETWORK_EXTENSION)
+	unsigned char *membuf, *s;
+#define	LBUFFSIZE	(512+1)
+#else
 	unsigned char membuf[512 + 1], *s;
+#endif /* _NETWORK_EXTENSION */
 	u_short id = 0;
 	tcphdr_t *tcp;
 	int off, dlen;
 	int len = 0;
 	mb_t *m;
 
+#if defined(_NETWORK_EXTENSION)
+	KMALLOCS(membuf, unsigned char *, LBUFFSIZE );
+	if(!membuf)
+		return 0;
+#endif /* _NETWORK_EXTENSION */
 	nat = nat;	/* LINT */
 
 	/*
@@ -116,7 +130,14 @@ void *private;
 	 * for the proxy to do.
 	 */
 	if (rap->rap_eos == 1)
+#if defined(_NETWORK_EXTENSION)
+	{
+		KFREES(membuf, LBUFFSIZE );
 		return 0;
+	}
+#else
+		return 0;
+#endif /* _NETWORK_EXTENSION */
 
 	m = fin->fin_m;
 	tcp = (tcphdr_t *)fin->fin_dp;
@@ -129,7 +150,14 @@ void *private;
 	dlen = MSGDSIZE(m) - off;
 #endif
 	if (dlen <= 0)
+#if defined(_NETWORK_EXTENSION)
+	{
+		KFREES(membuf, LBUFFSIZE );
 		return 0;
+	}
+#else
+		return 0;
+#endif /* _NETWORK_EXTENSION */
 
 	if (dlen > sizeof(membuf))
 		dlen = sizeof(membuf);
@@ -146,7 +174,14 @@ void *private;
 	if (rap->rap_seenpna == 0) {
 		s = (u_char *)memstr("PNA", (char *)membuf, 3, dlen);
 		if (s == NULL)
+#if defined(_NETWORK_EXTENSION)
+		{
+			KFREES(membuf, LBUFFSIZE );
 			return 0;
+		}
+#else
+			return 0;
+#endif /* _NETWORK_EXTENSION */
 		s += 3;
 		rap->rap_seenpna = 1;
 	} else
@@ -162,7 +197,14 @@ void *private;
 			s += 2;
 			rap->rap_seenver = 1;
 		} else
+#if defined(_NETWORK_EXTENSION)
+		{
+			KFREES(membuf, LBUFFSIZE );
 			return 0;
+		}
+#else
+			return 0;
+#endif /* _NETWORK_EXTENSION */
 	}
 
 	/*
@@ -198,6 +240,9 @@ void *private;
 			rap->rap_gotid = 0;
 		}
 	}
+#if defined(_NETWORK_EXTENSION)
+	KFREES(membuf, LBUFFSIZE );
+#endif /* _NETWORK_EXTENSION */
 	return 0;
 }
 

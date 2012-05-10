@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	Copyright (c) 1988 AT&T	*/
@@ -56,11 +60,11 @@
 #include "mse.h"
 #include "xpg6.h"
 
-#if defined(__i386) || defined(__amd64) || defined(__sparcv9)
+#if defined(__i386) || defined(__amd64) || defined(__sparcv9) || defined(__arm)
 #define	GETQVAL(arg)	(va_arg(arg, long double))
-#else /* !defined(__i386) && !defined(__sparcv9) */
+#else
 #define	GETQVAL(arg)	*(va_arg(arg, long double *))
-#endif /* !defined(__i386) && !defined(__sparcv9) */
+#endif
 
 #ifdef	_WIDE
 #define	STRCHR	wcschr
@@ -1294,7 +1298,7 @@ _ndoprnt(const char *format, va_list in_args, FILE *iop, int prflag)
 				if (!(flagword & DOTSEEN))
 #if defined(__sparc)
 					prec = HEXFP_QUAD_DIG - 1;
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 					prec = HEXFP_EXTENDED_DIG - 1;
 #else
 #error Unknown architecture

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -32,6 +36,18 @@
 #include <sys/bootconf.h>
 #include <sys/kobj_impl.h>
 #include <sys/cmn_err.h>
+
+#ifndef	STATIC_UNIX
+/*
+ * Standalone copies of some basic routines.  Note that these routines
+ * are transformed via Makefile -D flags into krtld_* routines.  So,
+ * this version of strcmp() will become krtld_strcmp() when built.
+ *
+ * This dubious practice is so that krtld can have its own private
+ * versions of these routines suitable for use during early boot,
+ * when kernel-based routines might not work.  Make sure to use 'nm'
+ * on your krtld to make sure it is calling the appropriate routines.
+ */
 
 /*
  * Standalone utility functions for use within krtld.
@@ -136,3 +152,4 @@ kobj_restore_vectors()
 	kobj_bzero = bzero;
 	kobj_strlcat = strlcat;
 }
+#endif	/* !STATIC_UNIX */

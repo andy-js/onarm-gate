@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_INET_IPCLASSIFIER_H
 #define	_INET_IPCLASSIFIER_H
 
@@ -513,7 +517,11 @@ struct connf_s {
 #define	IPCL_UDP_HASH(lport, ipst)	\
 	IPCL_PORT_HASH(lport, (ipst)->ips_ipcl_udp_fanout_size)
 
+#if defined(_NETWORK_EXTENSION)
+#define	CONN_G_HASH_SIZE	2
+#else
 #define	CONN_G_HASH_SIZE	1024
+#endif /* _NETWORK_EXTENSION */
 
 /* Raw socket hash function. */
 #define	IPCL_RAW_HASH(lport, ipst)	\

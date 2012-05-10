@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -123,7 +126,7 @@ static char *other_ctlrs[] = {
 	};
 #define	OTHER_CTLRS 1
 
-#elif defined(i386)
+#elif defined(i386) || defined(__arm)
 static char *other_ctlrs[] = {
 	"ISP-80"
 	};
@@ -171,6 +174,9 @@ do_options(int argc, char *argv[])
 	expert_mode = 0;
 	need_newline = 0;
 	dev_expert = 0;
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	option_ext = 0;
+#endif
 
 	/*
 	 * Loop through the argument list, incrementing each time by
@@ -251,6 +257,11 @@ do_options(int argc, char *argv[])
 				dev_expert = 1;
 				break;
 #endif
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+			case 'H':
+				option_ext = 1;
+				break;
+#endif
 			default:
 badopt:
 				usage();
@@ -271,6 +282,9 @@ usage()
 	err_print("Usage:  format [-s][-d disk_name]");
 	err_print("[-t disk_type][-p partition_name]\n");
 	err_print("\t[-f cmd_file][-l log_file]");
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	err_print("[-H]");
+#endif
 	err_print("[-x data_file] [-m] [-M] [-e] disk_list\n");
 	fullabort();
 }
@@ -1376,7 +1390,13 @@ do_search(char *arglist[])
 			    strcmp(dp->d_name, "..") == 0)
 				continue;
 			if (!conventional_name(dp->d_name)) {
-				if (!fdisk_physical_name(dp->d_name)) {
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
+				if (!fdisk_physical_name(dp->d_name))
+#else
+				if (!fdisk_physical_name(dp->d_name) &&
+				    !fdisk_logical_name(dp->d_name))
+#endif
+				{
 					/*
 					 * If non-conventional name represents
 					 * a link to non-s2 slice , ignore it.

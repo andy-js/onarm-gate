@@ -26,6 +26,10 @@
  *		All Rights Reserved
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_MNTENT_H
 #define	_SYS_MNTENT_H
 
@@ -59,6 +63,7 @@ extern "C" {
 #define	MNTTYPE_CTFS	"ctfs"		/* Contract file system */
 #define	MNTTYPE_OBJFS	"objfs"		/* Kernel object file system */
 #define	MNTTYPE_SHAREFS	"sharefs"	/* Kernel sharetab file system */
+#define	MNTTYPE_XRAMFS	"xramfs"	/* XRAM file system */
 
 
 #define	MNTOPT_RO	"ro"		/* Read only */

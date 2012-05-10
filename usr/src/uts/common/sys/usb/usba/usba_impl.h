@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_USB_USBA_USBA_IMPL_H
 #define	_SYS_USB_USBA_USBA_IMPL_H
 
@@ -354,6 +358,12 @@ typedef struct node_name_entry {
 	char	*name;
 } node_name_entry_t;
 
+/* soft interrupt priority definition */
+#ifdef __arm
+#define USBA_SOFTINTR_PRI       6
+#else  /* !__arm */
+#define USBA_SOFTINTR_PRI       DDI_INTR_SOFTPRI_MAX
+#endif /* __arm */
 
 /*
  * USB enumeration statistics support

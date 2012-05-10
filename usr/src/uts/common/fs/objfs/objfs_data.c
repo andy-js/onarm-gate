@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <fs/fs_subr.h>
@@ -634,8 +638,12 @@ objfs_data_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr,
 #endif
 #elif defined(__amd64)
 		ehdr.e_machine = EM_AMD64;
-#else
+#elif	defined(__i386)
 		ehdr.e_machine = EM_386;
+#elif defined(__arm)
+		ehdr.e_machine = EM_ARM;
+#else
+#error	"Port me"
 #endif
 
 		ehdr.e_version = EV_CURRENT;

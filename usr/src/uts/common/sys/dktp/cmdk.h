@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_DKTP_CMDK_H
 #define	_SYS_DKTP_CMDK_H
 
@@ -36,7 +40,11 @@ extern "C" {
 #include <sys/cmlb.h>
 #include <sys/dktp/tgdk.h>
 
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 #define	CMDK_UNITSHF	6
+#else /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+#define	CMDK_UNITSHF	7
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 #define	CMDK_MAXPART	(1 << CMDK_UNITSHF)
 
 /*

@@ -21,6 +21,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 
 /*
  *
@@ -125,7 +129,7 @@ static diskaddr_t	lastlba = 0;	/* last LBA on 64-bit VTOC */
 #if defined(sparc)
 static char	*uboot = "boot";
 
-#elif defined(i386)
+#elif defined(i386) || defined(__arm)
 /* use installgrub(1M) to install boot blocks */
 static char *uboot = "";
 #else
@@ -160,14 +164,14 @@ main(int argc, char **argv)
 #if defined(sparc)
 	while ((c = getopt(argc, argv, "ed:u:in:qs:")) != EOF)
 
-#elif defined(i386)
+#elif defined(i386) || defined(__arm)
 	while ((c = getopt(argc, argv, "ed:u:in:qb:p:s:")) != EOF)
 
 #else
 #error No platform defined.
 #endif
 		switch (c) {
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 		case 'p':
 		case 'b':
 			(void) fprintf(stderr,
@@ -636,11 +640,15 @@ load64(FILE *fp, int fd, struct dk_gpt **efi)
 	}
 	max_part++;
 
+#ifdef NO_SUPPORT_EFI
+	exit(1);
+#else
 	if ((i = efi_alloc_and_init(fd, max_part, efi)) < 0) {
 		(void) fprintf(stderr,
 				"efi_alloc_and_init failed: %d\n", i);
 		exit(1);
 	}
+#endif
 	for (i = 0; i < (*efi)->efi_nparts; ++i) {
 		(*efi)->efi_parts[i].p_tag = V_UNASSIGNED;
 		(*efi)->efi_parts[i].p_flag = V_UNMNT;
@@ -681,7 +689,7 @@ usage()
 "Usage:	fmthard [ -i ] [ -n volumename ] [ -s datafile ] [ -d arguments] \
 raw-device\n");
 
-#elif defined(i386)
+#elif defined(i386) || defined(__arm)
 "Usage:	fmthard [ -i ] [ -S ] [-I geom_file]  \
 -n volumename | -s datafile  [ -d arguments] raw-device\n");
 
@@ -884,6 +892,9 @@ vread(int fd, struct vtoc *vtoc, char *devname)
 void
 vread64(int fd, struct dk_gpt **efi_hdr, char *devname)
 {
+#ifdef NO_SUPPORT_EFI
+	exit(1);
+#else
 	int i;
 
 	if ((i = efi_alloc_and_read(fd, efi_hdr)) < 0) {
@@ -898,6 +909,7 @@ vread64(int fd, struct dk_gpt **efi_hdr, char *devname)
 		exit(1);
 	}
 	lastlba = (*efi_hdr)->efi_last_u_lba;
+#endif
 }
 
 /*
@@ -927,6 +939,9 @@ vwrite(int fd, struct vtoc *vtoc, char *devname)
 void
 vwrite64(int fd, struct dk_gpt *efi, char *devname)
 {
+#ifdef NO_SUPPORT_EFI
+	exit(1);
+#else
 	int	i;
 
 	if ((i = efi_write(fd, efi)) != 0) {
@@ -940,4 +955,5 @@ vwrite64(int fd, struct dk_gpt *efi, char *devname)
 		}
 		exit(1);
 	}
+#endif
 }

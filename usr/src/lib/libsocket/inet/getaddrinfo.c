@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -73,7 +77,8 @@ const struct in6_addr in6addr_loopback = IN6ADDR_LOOPBACK_INIT;
 #define	ANY		0
 /* function prototypes for used by getaddrinfo() routine */
 static int get_addr(int family, const char *hostname, struct addrinfo *aip,
-	struct addrinfo *cur, ushort_t port, int version);
+	struct addrinfo *cur, ushort_t port, int version,
+	int get_addr_cnt, struct hostent **ret_hp);
 static uint_t getscopeidfromzone(const struct sockaddr_in6 *sa,
     const char *zone, uint32_t *sin6_scope_id);
 static boolean_t str_isnumber(const char *p);
@@ -179,7 +184,35 @@ static boolean_t str_isnumber(const char *p);
  *  addrinfo structures.
  */
 
+#ifdef GAI_POSIX
+#define	GAI_ERROR_RETURN(err) { \
+	if (search_proto != NULL) { \
+		if (err == EAI_SERVICE) { \
+			if (ret_aip != NULL \
+			 || (search_proto + 1)->socktype != ANY) { \
+				goto success; \
+			} \
+		} \
+	} \
+	if (ret_aip != NULL) { \
+		freeaddrinfo(ret_aip); \
+	} \
+	if (ret_hp != NULL) { \
+		freehostent(ret_hp); \
+	} \
+	return (err); \
+}
+#else /* !GAI_POSIX */
+#define	GAI_ERROR_RETURN(err) return (err)
+#endif
 
+#ifdef GAI_POSIX
+struct gai_search_proto_info {
+	int socktype;
+	int protocol;
+};
+#endif
+	
 static int
 _getaddrinfo(const char *hostname, const char *servname,
 	const struct addrinfo *hints, struct addrinfo **res, int version)
@@ -189,6 +222,24 @@ _getaddrinfo(const char *hostname, const char *servname,
 	struct addrinfo ai;
 	int		error;
 	ushort_t	port;
+	struct hostent *ret_hp = NULL;
+	int get_addr_cnt = 0;
+#ifdef GAI_POSIX
+	int org_socktype;
+	struct gai_search_proto_info *search_proto = NULL;
+	struct gai_search_proto_info serv_proto_tcp[] = {
+		 { SOCK_STREAM, IPPROTO_TCP },
+		 { SOCK_DGRAM, IPPROTO_UDP },
+		 { ANY, ANY },
+	};
+	struct gai_search_proto_info serv_proto_udp[] = {
+		 { SOCK_DGRAM, IPPROTO_UDP },
+		 { SOCK_STREAM, IPPROTO_TCP },
+		 { ANY, ANY },
+	};
+	struct addrinfo	*ret_aip = NULL;
+	struct addrinfo	*ret_last = NULL;
+#endif
 
 	cur = &ai;
 	aip = &ai;
@@ -287,7 +338,11 @@ _getaddrinfo(const char *hostname, const char *servname,
 			return (EAI_SOCKTYPE);
 		}
 	}
+#ifdef GAI_POSIX
+	org_socktype = aip->ai_socktype;
+#endif
 
+serv_search:
 	/*
 	 *  Get the service.
 	 */
@@ -299,6 +354,14 @@ _getaddrinfo(const char *hostname, const char *servname,
 		struct servent *sp;
 		char *proto = NULL;
 
+#ifdef GAI_POSIX
+		if (search_proto != NULL) {
+			cur = &ai;
+			aip->ai_next = NULL;
+			aip->ai_socktype = search_proto->socktype;
+			aip->ai_protocol = search_proto->protocol;
+		}
+#endif
 		switch (aip->ai_socktype) {
 		case ANY:
 			proto = NULL;
@@ -339,12 +402,17 @@ _getaddrinfo(const char *hostname, const char *servname,
 		 */
 		if (aip->ai_flags & AI_NUMERICSERV) {
 			if (!str_isnumber(servname)) {
-				return (EAI_NONAME);
+				GAI_ERROR_RETURN(EAI_NONAME);
 			}
 			port = htons(atoi(servname));
 		} else if (str_isnumber(servname)) {
 			port = htons(atoi(servname));
-			if (aip->ai_socktype == ANY) {
+#ifdef GAI_POSIX
+			if (org_socktype == ANY)
+#else
+			if (aip->ai_socktype == ANY)
+#endif
+			{
 				do {
 					if (buf != NULL)
 						free(buf);
@@ -352,7 +420,7 @@ _getaddrinfo(const char *hostname, const char *servname,
 					buf = malloc(bufsize);
 					if (buf == NULL) {
 						*res = NULL;
-						return (EAI_MEMORY);
+						GAI_ERROR_RETURN(EAI_MEMORY);
 					}
 
 					sp = getservbyport_r(port, proto,
@@ -360,7 +428,7 @@ _getaddrinfo(const char *hostname, const char *servname,
 					if (sp == NULL && errno != ERANGE) {
 						free(buf);
 						*res = NULL;
-						return (EAI_SERVICE);
+						GAI_ERROR_RETURN(EAI_SERVICE);
 					}
 				/*
 				 * errno == ERANGE so our scratch buffer space
@@ -377,7 +445,7 @@ _getaddrinfo(const char *hostname, const char *servname,
 				buf = malloc(bufsize);
 				if (buf == NULL) {
 					*res = NULL;
-					return (EAI_MEMORY);
+					GAI_ERROR_RETURN(EAI_MEMORY);
 				}
 
 				sp = getservbyname_r(servname, proto, &result,
@@ -385,7 +453,7 @@ _getaddrinfo(const char *hostname, const char *servname,
 				if (sp == NULL && errno != ERANGE) {
 					free(buf);
 					*res = NULL;
-					return (EAI_SERVICE);
+					GAI_ERROR_RETURN(EAI_SERVICE);
 				}
 			/*
 			 * errno == ERANGE so our scratch buffer space wasn't
@@ -405,15 +473,25 @@ _getaddrinfo(const char *hostname, const char *servname,
 				 * calling getaddrinfo() with a number and
 				 * ANY protocol we won't add that at this time.
 				 */
-				return (EAI_NONAME);
+				GAI_ERROR_RETURN(EAI_NONAME);
 			}
 
 			if (strcmp(sp->s_proto, "udp") == 0) {
 				aip->ai_socktype = SOCK_DGRAM;
 				aip->ai_protocol = IPPROTO_UDP;
+#ifdef GAI_POSIX
+				if (search_proto == NULL) {
+					search_proto = serv_proto_udp;
+				}
+#endif
 			} else if (strcmp(sp->s_proto, "tcp") == 0) {
 				aip->ai_socktype = SOCK_STREAM;
 				aip->ai_protocol = IPPROTO_TCP;
+#ifdef GAI_POSIX
+				if (search_proto == NULL) {
+					search_proto = serv_proto_tcp;
+				}
+#endif
 			} else if (strcmp(sp->s_proto, "sctp") == 0) {
 				aip->ai_socktype = SOCK_STREAM;
 				aip->ai_protocol = IPPROTO_SCTP;
@@ -423,7 +501,7 @@ _getaddrinfo(const char *hostname, const char *servname,
 
 				*res = NULL;
 				errno = EPROTONOSUPPORT;
-				return (EAI_SYSTEM);
+				GAI_ERROR_RETURN(EAI_SYSTEM);
 			}
 		}
 
@@ -522,17 +600,55 @@ v4only:
 	}
 
 	/* hostname string is a literal address or an alphabetical name */
-	error = get_addr(aip->ai_family, hostname, aip, cur, port, version);
+	error = get_addr(aip->ai_family, hostname, aip, cur, port, version,
+				 get_addr_cnt, &ret_hp);
 	if (error) {
 		*res = NULL;
-		return (error);
+		GAI_ERROR_RETURN(error);
 	}
+#ifdef GAI_POSIX
+	get_addr_cnt++;
+#endif
 
 success:
+#ifdef GAI_POSIX
+	/* link response info */
+	if (ret_aip == NULL) {
+		ret_aip = aip->ai_next;
+	} else {
+		ret_last->ai_next = aip->ai_next;
+	}
+	
+	if (search_proto != NULL) { /* servname != NULL && ai_socktype == ANY */
+		search_proto++;
+
+		/* retry services search */
+		if (search_proto->socktype != ANY) {
+			struct addrinfo *ap;
+
+			for (ap = aip->ai_next;
+					 ap != NULL; ap = ap->ai_next) {
+				ret_last = ap;
+			}
+			goto serv_search;
+		}
+	}
+	*res = ret_aip;
+	if (ret_hp != NULL) {
+		freehostent(ret_hp);
+	}
+#else /* !GAI_POSIX */
 	*res = aip->ai_next;
+#endif
+
 	return (0);
 
 nomem:
+#ifdef GAI_POSIX
+	if (ret_aip) {
+		freeaddrinfo(ret_aip);
+	}
+#endif
 	return (EAI_MEMORY);
 }
 
@@ -552,7 +668,8 @@ __xnet_getaddrinfo(const char *hostname, const char *servname,
 
 static int
 get_addr(int family, const char *hostname, struct addrinfo *aip, struct
-	addrinfo *cur, ushort_t port, int version)
+	addrinfo *cur, ushort_t port, int version,
+	int call_cnt, struct hostent **ret_hp)
 {
 	struct hostent		*hp;
 	char			_hostname[MAXHOSTNAMELEN];
@@ -603,7 +720,17 @@ get_addr(int family, const char *hostname, struct addrinfo *aip, struct
 		}
 	}
 
+#ifdef GAI_POSIX
+	hp = *ret_hp;
+#else
+	hp = NULL;
+#endif
 	/* if hostname argument is literal, name service doesn't get called */
+#ifdef GAI_POSIX
+	if (hp != NULL) {
+		/* reuse previous hostent */
+	} else
+#endif
 	if (family == PF_UNSPEC) {
 		hp = getipnodebyname(_hostname, AF_INET6, AI_ALL |
 		    aip->ai_flags | AI_V4MAPPED, &errnum);
@@ -628,6 +755,11 @@ get_addr(int family, const char *hostname, struct addrinfo *aip, struct
 		}
 	}
 
+#ifdef GAI_POSIX
+	if (call_cnt > 0) {
+		firsttime = B_FALSE;
+	}
+#endif
 	for (i = 0; hp->h_addr_list[i]; i++) {
 		/* Determine if an IPv6 addrinfo structure should be created */
 		create_v6_addrinfo = B_TRUE;
@@ -727,7 +859,12 @@ get_addr(int family, const char *hostname, struct addrinfo *aip, struct
 		cur = nai;
 	}
 	cur->ai_next = NULL;
+#ifdef GAI_POSIX
+	/* return for next search */
+	*ret_hp = hp;
+#else
 	freehostent(hp);
+#endif
 	return (0);
 
 nomem:

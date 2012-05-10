@@ -128,6 +128,8 @@ extern int __is_xdrrec_first(XDR *);
 void __svc_nisplus_enable_timestamps(void);
 void __svc_timeout_nonblock_xprt(void);
 
+static void do_accept(int, char *, char *, struct t_call *, struct cf_rendezvous *);
+
 /*
  * This is intended as a performance improvement on the old string handling
  * stuff by read only moving data into the  text segment.
@@ -664,6 +666,7 @@ svc_fd_xprtcopy(SVCXPRT *parent)
 	return (xprt);
 }
 
+static void do_accept();
 /*
  * This routine is called by svc_getreqset(), when a packet is recd.
  * The listener process creates another end point on which the actual
@@ -679,7 +682,6 @@ rendezvous_request(SVCXPRT *xprt, struct rpc_msg *msg)
 	struct cf_rendezvous *r;
 	char *tpname = NULL;
 	char devbuf[256];
-	static void do_accept();
 
 /* LINTED pointer alignment */
 	r = (struct cf_rendezvous *)xprt->xp_p1;

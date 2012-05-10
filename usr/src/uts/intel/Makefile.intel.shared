@@ -23,6 +23,10 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -112,6 +116,11 @@ ALL_BUILDS		= $(ALL_BUILDS64) $(ALL_BUILDS32)
 INLINES_32		= $(UTSBASE)/intel/ia32/ml/ia32.il
 INLINES_64		= $(UTSBASE)/intel/amd64/ml/amd64.il
 INLINES			+= $(INLINES_$(CLASS))
+
+#
+# Support build-time tunable parameter.
+#
+$(USE_UTSTUNE)include	$(UTSTREE)/intel/Makefile.intel.tune
 
 #
 #	kernel-specific optimizations; override default in Makefile.master
@@ -322,6 +331,8 @@ DRV_KMODS	+= wc
 DRV_KMODS	+= winlock
 DRV_KMODS	+= wpi
 DRV_KMODS	+= xge
+DRV_KMODS	+= xramdev
+DRV_KMODS	+= xramdisk
 DRV_KMODS	+= zcons
 DRV_KMODS	+= chxge
 DRV_KMODS	+= nsmb
@@ -467,9 +478,10 @@ SCHED_KMODS	+= IA RT TS RT_DPTBL TS_DPTBL FSS FX FX_DPTBL
 #	File System Modules (/kernel/fs):
 #
 FS_KMODS	+= autofs cachefs ctfs dev devfs fdfs fifofs hsfs lofs
-FS_KMODS	+= lx_afs lx_proc mntfs namefs nfs objfs zfs
+FS_KMODS	+= lx_afs lx_proc mntfs namefs nfs objfs zfs czfs
 FS_KMODS	+= pcfs procfs sockfs specfs tmpfs udfs ufs sharefs
 FS_KMODS	+= smbfs
+FS_KMODS	+= xramfs
 
 #
 #	Streams Modules (/kernel/strmod):

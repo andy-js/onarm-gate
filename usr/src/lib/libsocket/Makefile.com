@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -42,7 +47,7 @@ include ../../Makefile.lib
 # install this library in the root filesystem
 include ../../Makefile.rootfs
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 SRCS =		$(INETOBJS:%.o=../inet/%.c) $(SOCKOBJS:%.o=../socket/%.c)
 LDLIBS +=	-lnsl -lc
@@ -62,11 +67,11 @@ all:
 lint:	lintcheck
 
 # libsocket build rules
-pics/%.o: ../inet/%.c
+objs/%.o pics/%.o: ../inet/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../socket/%.c
+objs/%.o pics/%.o: ../socket/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

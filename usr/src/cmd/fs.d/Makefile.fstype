@@ -29,6 +29,10 @@
 #	Definitions and targets common to "simple" file system types.
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # FSTYPE is name of filesystem type subdirectory to build
 # PROG is a list of filesystem type programs to be installed BOTH in
 #	../etc/fs/$(FSTYPE) and ../usr/lib/fs/$(FSTYPE)
@@ -66,6 +70,8 @@ $(FSTYPEDIRS) :=	OWNER = root
 $(FSTYPEDIRS) :=	GROUP = sys
 
 CLOBBERFILES +=	$(ETCPROG) $(LIBPROG) $(TYPEPROG)
+
+$(ARM_BLD)$(__GNULD)DYNFLAGS += -_gcc=-nostdlib
 
 .KEEP_STATE:
 

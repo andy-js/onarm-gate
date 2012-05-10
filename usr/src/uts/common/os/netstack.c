@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -1121,6 +1125,9 @@ kstat_create_netstack(char *ks_module, int ks_instance, char *ks_name,
 void
 kstat_delete_netstack(kstat_t *ks, netstackid_t ks_netstackid)
 {
+	if (ks == NULL) {
+		return;
+	}
 	if (ks_netstackid == GLOBAL_NETSTACKID) {
 		netstack_shared_kstat_remove(ks);
 	}

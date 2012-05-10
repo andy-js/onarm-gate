@@ -23,6 +23,9 @@
  * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -53,13 +56,13 @@ struct dk_map2	default_vtoc_map[NDKMAP] = {
 
 #if defined(_SUNOS_VTOC_16)
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 	{	V_BOOT,		V_UNMNT	},		/* i - 8 */
 	{	V_ALTSCTR,	0	},		/* j - 9 */
 
 #else
 #error No VTOC format defined.
-#endif			/* defined(i386) */
+#endif			/* defined(i386) || defined(__arm) */
 
 	{	V_UNASSIGNED,	0	},		/* k - 10 */
 	{	V_UNASSIGNED,	0	},		/* l - 11 */
@@ -225,7 +228,7 @@ change_partition(int num)
 	 * strict bounds checking is done on the values given.
 	 */
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 
 	if (tag != V_UNASSIGNED && tag != V_BACKUP && tag != V_BOOT) {
 		/*
@@ -245,7 +248,7 @@ change_partition(int num)
 			}
 		}
 	}
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 	ioparam.io_bounds.lower = 0;
 	ioparam.io_bounds.upper = ncyl - 1;
@@ -278,7 +281,7 @@ change_partition(int num)
 	}
 
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 
 	if (i < cyl_offset && tag != V_UNASSIGNED && tag != V_BACKUP &&
 	    tag != V_BOOT) {
@@ -302,7 +305,7 @@ change_partition(int num)
 		}
 	}
 
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 	/*
 	 * If user has entered a V_BACKUP tag then the partition

@@ -41,6 +41,10 @@
  * $Id: ppp_mod.c,v 1.3 1999/02/26 10:53:28 paulus Exp $
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -53,7 +57,7 @@
 /*
  * Globals for PPP AHDLC loadable module wrapper
  */
-char _depends_on[] = "drv/sppp";	/* we need some helper routines */
+MODDRV_DEPENDS_ON("drv/sppp");	/* we need some helper routines */
 extern struct streamtab spppasyn_tab;
 extern const char spppasyn_module_description[];
 
@@ -79,19 +83,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

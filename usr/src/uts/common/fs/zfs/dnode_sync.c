@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -33,6 +37,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dataset.h>
 #include <sys/spa.h>
+#include <zfs_types.h>
 
 static void
 dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
@@ -55,7 +60,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(db != NULL);
 
 	dn->dn_phys->dn_nlevels = new_level;
-	dprintf("os=%p obj=%llu, increase to %d\n", dn->dn_objset,
+	dprintf("os=%p obj=%" PRIuOBJID ", increase to %d\n", dn->dn_objset,
 	    dn->dn_object, dn->dn_phys->dn_nlevels);
 
 	/* check for existing blkptrs in the dnode */
@@ -116,7 +121,7 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
 	uint64_t bytesfreed = 0;
 	int i;
 
-	dprintf("os=%p obj=%llx num=%d\n", os, dn->dn_object, num);
+	dprintf("os=%p obj=%" PRIuOBJID " num=%d\n", os, dn->dn_object, num);
 
 	for (i = 0; i < num; i++, bp++) {
 		if (BP_IS_HOLE(bp))
@@ -136,7 +141,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 {
 	int off, num;
 	int i, err, epbs;
-	uint64_t txg = tx->tx_txg;
+	txg_t txg = tx->tx_txg;
 
 	epbs = db->db_dnode->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	off = start - (db->db_blkid * 1<<epbs);
@@ -413,7 +418,7 @@ dnode_undirty_dbufs(list_t *list)
 
 	while (dr = list_head(list)) {
 		dmu_buf_impl_t *db = dr->dr_dbuf;
-		uint64_t txg = dr->dr_txg;
+		txg_t txg = dr->dr_txg;
 
 		mutex_enter(&db->db_mtx);
 		/* XXX - use dbuf_undirty()? */

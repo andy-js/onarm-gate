@@ -23,6 +23,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2009 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -36,10 +41,16 @@ include ../Makefile.cmd
 OWNER = root
 GROUP = sys
 
-LDLIBS_LIST = -lpam -lbsm -lcontract $(ZLAZYLOAD) -lscf
+LDLIBS_LIST		= -lpam -lbsm -lcontract $(ZLAZYLOAD) -lscf
+$(ARM_BLD)LDLIBS_LIST	= -lpam
 lint := LDLIBS_LIST = -lpam -lbsm -lcontract -lscf
 
 LDLIBS += $(LDLIBS_LIST)
+
+$(ARM_BLD)CPPFLAGS	+= -D__WITHOUT_SMF -D__NO_BOOTADM
+$(ARM_BLD)CPPFLAGS	+= -D__WITHOUT_AUDIT -D__ARM_INIT
+$(ARM_BLD)CPPFLAGS	+= -D__WITHOUT_CONTRACTS
+
 LINTFLAGS += -erroff=E_NAME_USED_NOT_DEF2
 CLOBBERFILES= $(STATIC)
 

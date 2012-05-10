@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/systm.h>
@@ -37,7 +41,7 @@
 
 md_ops_t		event_md_ops;
 #ifndef lint
-char			_depends_on[] = "drv/md";
+MODDRV_DEPENDS_ON("drv/md");
 md_ops_t		*md_interface_ops = &event_md_ops;
 #endif
 
@@ -637,15 +641,16 @@ md_ops_t event_md_ops = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	md_event_queue = NULL;
 	mutex_init(&md_eventq_mx, NULL, MUTEX_DEFAULT, NULL);
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int		err = 0;
 
@@ -663,9 +668,10 @@ _fini()
 	mutex_destroy(&md_eventq_mx);
 	return (err);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

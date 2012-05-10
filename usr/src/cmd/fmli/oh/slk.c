@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /* microsecond delay timer not available before SVR4.0   abs k18 */
@@ -177,6 +181,7 @@ static int SLK_level = 0;
 
 static void showslks();
 static bool sfk_prompt();
+static  void	showslks();
 
 extern int Vflag;
 
@@ -513,7 +518,6 @@ struct slk	slks[];
 int flag;
 {
 	register int	i, more_slks;
-	static  void	showslks();
 
 #ifdef _DEBUG
 	_debug(stderr, "in setslk!\n");

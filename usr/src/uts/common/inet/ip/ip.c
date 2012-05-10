@@ -25,6 +25,10 @@
  */
 /* Copyright (c) 1990 Mentat Inc. */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -815,17 +819,33 @@ ulong_t ip_squeue_enter_unbound = 0;
 static ipparam_t	lcl_param_arr[] = {
 	/* min	max	value	name */
 	{  0,	1,	0,	"ip_respond_to_address_mask_broadcast"},
+#if defined(NDD_CUSTOM)
+	{  0,	1,	0,	"ip_respond_to_echo_broadcast"},
+#else /* !NDD_CUSTOM */
 	{  0,	1,	1,	"ip_respond_to_echo_broadcast"},
+#endif /* NDD_CUSTOM */
+#if defined(NDD_CUSTOM)
+	{  0,	1,	0,	"ip_respond_to_echo_multicast"},
+#else /* !NDD_CUSTOM */
 	{  0,	1,	1,	"ip_respond_to_echo_multicast"},
+#endif /* NDD_CUSTOM */
 	{  0,	1,	0,	"ip_respond_to_timestamp"},
 	{  0,	1,	0,	"ip_respond_to_timestamp_broadcast"},
+#if defined(NDD_CUSTOM)
+	{  0,	1,	0,	"ip_send_redirects"},
+#else /* !NDD_CUSTOM */
 	{  0,	1,	1,	"ip_send_redirects"},
+#endif /* NDD_CUSTOM */
 	{  0,	1,	0,	"ip_forward_directed_broadcasts"},
 	{  0,	10,	0,	"ip_mrtdebug"},
 	{  5000, 999999999,	60000, "ip_ire_timer_interval" },
 	{  60000, 999999999,	1200000, "ip_ire_arp_interval" },
 	{  60000, 999999999,	60000, "ip_ire_redirect_interval" },
+#if defined(NDD_CUSTOM)
+        {  1,   255,     64,    "ip_def_ttl" },
+#else /* !NDD_CUSTOM */
 	{  1,	255,	255,	"ip_def_ttl" },
+#endif /* NDD_CUSTOM */
 	{  0,	1,	0,	"ip_forward_src_routed"},
 	{  0,	256,	32,	"ip_wroff_extra" },
 	{  5000, 999999999, 600000, "ip_ire_pathmtu_interval" },
@@ -1402,8 +1422,10 @@ struct streamtab ipinfov6 = {
 	&iprinitv6, &ipwinitv6, &iplrinit, &iplwinit
 };
 
+#ifndef SCTP_SHRINK
 #ifdef	DEBUG
 static boolean_t skip_sctp_cksum = B_FALSE;
+#endif
 #endif
 
 /*
@@ -2137,6 +2159,7 @@ icmp_get_nexthop_addr(ipha_t *ipha, ill_t *ill, zoneid_t zoneid, mblk_t *mp)
 			mutex_exit(&connfp->connf_lock);
 			break;
 		}
+#ifndef SCTP_SHRINK
 		case IPPROTO_SCTP:
 		{
 			in6_addr_t map_src, map_dst;
@@ -2157,6 +2180,7 @@ icmp_get_nexthop_addr(ipha_t *ipha, ill_t *ill, zoneid_t zoneid, mblk_t *mp)
 			}
 			break;
 		}
+#endif
 		default:
 		{
 			ipha_t ripha;
@@ -2539,6 +2563,7 @@ icmp_inbound_error_fanout(queue_t *q, ill_t *ill, mblk_t *mp,
 		    connp, SQTAG_TCP_INPUT_ICMP_ERR);
 		return;
 
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 		/*
 		 * Verify we have at least ICMP_MIN_TP_HDR_LEN bytes of
@@ -2574,7 +2599,7 @@ icmp_inbound_error_fanout(queue_t *q, ill_t *ill, mblk_t *mp,
 		ip_fanout_sctp(first_mp, recv_ill, &ripha, ports, 0,
 		    mctl_present, ip_policy, zoneid);
 		return;
-
+#endif
 	case IPPROTO_ESP:
 	case IPPROTO_AH: {
 		int ipsec_rc;
@@ -5837,6 +5862,7 @@ ip_stack_fini(netstackid_t stackid, void *arg)
 static void
 ip_thread_exit(void *phash)
 {
+#ifdef DEBUG
 	th_hash_t *thh = phash;
 
 	rw_enter(&ip_thread_rwlock, RW_WRITER);
@@ -5844,6 +5870,7 @@ ip_thread_exit(void *phash)
 	rw_exit(&ip_thread_rwlock);
 	mod_hash_destroy_hash(thh->thh_hash);
 	kmem_free(thh, sizeof (*thh));
+#endif
 }
 
 /*
@@ -13358,6 +13385,7 @@ slow_done:
 	return (NULL);
 }
 
+#ifndef SCTP_SHRINK
 /* ARGSUSED */
 static void
 ip_sctp_input(mblk_t *mp, ipha_t *ipha, ill_t *recv_ill, boolean_t mctl_present,
@@ -13533,6 +13561,7 @@ error:
 slow_done:
 	IRE_REFRELE(ire);
 }
+#endif
 
 #define	VER_BITS	0xF0
 #define	VERSION_6	0x60
@@ -15326,6 +15355,7 @@ local:
 			ASSERT(first_mp == mp);
 			ip_udp_input(q, mp, ipha, ire, ill);
 			continue;
+#ifndef SCTP_SHRINK
 		case IPPROTO_SCTP:
 			ASSERT(first_mp == mp);
 			ip_sctp_input(mp, ipha, ill, B_FALSE, ire, mp, 0,
@@ -15333,6 +15363,7 @@ local:
 			/* ire has been released by ip_sctp_input */
 			ire = NULL;
 			continue;
+#endif
 		default:
 			ip_proto_input(q, first_mp, ipha, ire, ill, B_FALSE);
 			continue;
@@ -16962,12 +16993,14 @@ ip_fanout_proto_again(mblk_t *ipsec_mp, ill_t *ill, ill_t *recv_ill, ire_t *ire)
 					squeue_enter_chain(GET_SQUEUE(mp), mp,
 					    mp, 1, SQTAG_IP_PROTO_AGAIN);
 				break;
+#ifndef SCTP_SHRINK
 			case IPPROTO_SCTP:
 				if (!ire_need_rele)
 					IRE_REFHOLD(ire);
 				ip_sctp_input(mp, ipha, ill, B_TRUE, ire,
 				    ipsec_mp, 0, ill->ill_rq, dst);
 				break;
+#endif
 			default:
 				ip_proto_input(ill->ill_rq, ipsec_mp, ipha, ire,
 				    recv_ill, B_FALSE);
@@ -18029,7 +18062,9 @@ int
 ip_snmp_get(queue_t *q, mblk_t *mpctl, int level)
 {
 	ip_stack_t *ipst;
+#ifndef SCTP_SHRINK
 	sctp_stack_t *sctps;
+#endif
 
 	if (q->q_next != NULL) {
 		ipst = ILLQ_TO_IPST(q);
@@ -18037,7 +18072,9 @@ ip_snmp_get(queue_t *q, mblk_t *mpctl, int level)
 		ipst = CONNQ_TO_IPST(q);
 	}
 	ASSERT(ipst != NULL);
+#ifndef SCTP_SHRINK
 	sctps = ipst->ips_netstack->netstack_sctp;
+#endif
 
 	if (mpctl == NULL || mpctl->b_cont == NULL) {
 		return (0);
@@ -18136,9 +18173,11 @@ ip_snmp_get(queue_t *q, mblk_t *mpctl, int level)
 		return (1);
 	}
 
+#ifndef SCTP_SHRINK
 	if ((mpctl = sctp_snmp_get_mib2(q, mpctl, sctps)) == NULL) {
 		return (1);
 	}
+#endif
 	freemsg(mpctl);
 	return (1);
 }
@@ -22417,6 +22456,7 @@ another:;
 				    LENGTH - hlen);
 			}
 		} else {
+#ifndef SCTP_SHRINK
 			sctp_hdr_t	*sctph;
 
 			ASSERT(PROTO == IPPROTO_SCTP);
@@ -22431,6 +22471,7 @@ another:;
 			if (!skip_sctp_cksum)
 #endif
 				sctph->sh_chksum = sctp_cksum(mp, hlen);
+#endif
 		}
 	}
 
@@ -22828,6 +22869,7 @@ broadcast:
 			*up = IP_CSUM(mp, hlen, cksum + IP_TCP_CSUM_COMP);
 		} else if (PROTO == IPPROTO_SCTP &&
 		    (ip_hdr_included != IP_HDR_INCLUDED)) {
+#ifndef SCTP_SHRINK
 			sctp_hdr_t	*sctph;
 
 			hlen = (V_HLEN & 0xF) << 2;
@@ -22838,6 +22880,7 @@ broadcast:
 			if (!skip_sctp_cksum)
 #endif
 				sctph->sh_chksum = sctp_cksum(mp, hlen);
+#endif
 		} else {
 			queue_t *dev_q = stq->q_next;
 
@@ -25160,6 +25203,7 @@ ip_wput_local(queue_t *q, ill_t *ill, ipha_t *ipha, mblk_t *mp, ire_t *ire,
 		    "ip_wput_local_end: q %p (%S)", q, "ip_fanout_tcp");
 		return;
 	}
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 	{
 		uint32_t	ports;
@@ -25170,6 +25214,7 @@ ip_wput_local(queue_t *q, ill_t *ill, ipha_t *ipha, mblk_t *mp, ire_t *ire,
 		    IP_FF_IPINFO, mctl_present, B_FALSE, zoneid);
 		return;
 	}
+#endif
 
 	default:
 		break;
@@ -29250,7 +29295,7 @@ ip_kstat2_init(netstackid_t stackid, ip_stat_t *ip_statisticsp)
 {
 	kstat_t *ksp;
 
-	ip_stat_t template = {
+	static ip_stat_t template = {
 		{ "ipsec_fanout_proto", 	KSTAT_DATA_UINT64 },
 		{ "ip_udp_fannorm", 		KSTAT_DATA_UINT64 },
 		{ "ip_udp_fanmb", 		KSTAT_DATA_UINT64 },
@@ -29323,69 +29368,70 @@ ip_kstat2_fini(netstackid_t stackid, kstat_t *ksp)
 	}
 }
 
+static ip_named_kstat_t ip_mib_template = {
+	{ "forwarding",			KSTAT_DATA_UINT32, 0 },
+	{ "defaultTTL",			KSTAT_DATA_UINT32, 0 },
+	{ "inReceives",			KSTAT_DATA_UINT32, 0 },
+	{ "inHdrErrors",		KSTAT_DATA_UINT32, 0 },
+	{ "inAddrErrors",		KSTAT_DATA_UINT32, 0 },
+	{ "forwDatagrams",		KSTAT_DATA_UINT32, 0 },
+	{ "inUnknownProtos",		KSTAT_DATA_UINT32, 0 },
+	{ "inDiscards",			KSTAT_DATA_UINT32, 0 },
+	{ "inDelivers",			KSTAT_DATA_UINT32, 0 },
+	{ "outRequests",		KSTAT_DATA_UINT32, 0 },
+	{ "outDiscards",		KSTAT_DATA_UINT32, 0 },
+	{ "outNoRoutes",		KSTAT_DATA_UINT32, 0 },
+	{ "reasmTimeout",		KSTAT_DATA_UINT32, 0 },
+	{ "reasmReqds",			KSTAT_DATA_UINT32, 0 },
+	{ "reasmOKs",			KSTAT_DATA_UINT32, 0 },
+	{ "reasmFails",			KSTAT_DATA_UINT32, 0 },
+	{ "fragOKs",			KSTAT_DATA_UINT32, 0 },
+	{ "fragFails",			KSTAT_DATA_UINT32, 0 },
+	{ "fragCreates",		KSTAT_DATA_UINT32, 0 },
+	{ "addrEntrySize",		KSTAT_DATA_INT32, 0 },
+	{ "routeEntrySize",		KSTAT_DATA_INT32, 0 },
+	{ "netToMediaEntrySize",	KSTAT_DATA_INT32, 0 },
+	{ "routingDiscards",		KSTAT_DATA_UINT32, 0 },
+	{ "inErrs",			KSTAT_DATA_UINT32, 0 },
+	{ "noPorts",			KSTAT_DATA_UINT32, 0 },
+	{ "inCksumErrs",		KSTAT_DATA_UINT32, 0 },
+	{ "reasmDuplicates",		KSTAT_DATA_UINT32, 0 },
+	{ "reasmPartDups",		KSTAT_DATA_UINT32, 0 },
+	{ "forwProhibits",		KSTAT_DATA_UINT32, 0 },
+	{ "udpInCksumErrs",		KSTAT_DATA_UINT32, 0 },
+	{ "udpInOverflows",		KSTAT_DATA_UINT32, 0 },
+	{ "rawipInOverflows",		KSTAT_DATA_UINT32, 0 },
+	{ "ipsecInSucceeded",		KSTAT_DATA_UINT32, 0 },
+	{ "ipsecInFailed",		KSTAT_DATA_INT32, 0 },
+	{ "memberEntrySize",		KSTAT_DATA_INT32, 0 },
+	{ "inIPv6",			KSTAT_DATA_UINT32, 0 },
+	{ "outIPv6",			KSTAT_DATA_UINT32, 0 },
+	{ "outSwitchIPv6",		KSTAT_DATA_UINT32, 0 },
+};
+
 static void *
 ip_kstat_init(netstackid_t stackid, ip_stack_t *ipst)
 {
 	kstat_t	*ksp;
-
-	ip_named_kstat_t template = {
-		{ "forwarding",		KSTAT_DATA_UINT32, 0 },
-		{ "defaultTTL",		KSTAT_DATA_UINT32, 0 },
-		{ "inReceives",		KSTAT_DATA_UINT64, 0 },
-		{ "inHdrErrors",	KSTAT_DATA_UINT32, 0 },
-		{ "inAddrErrors",	KSTAT_DATA_UINT32, 0 },
-		{ "forwDatagrams",	KSTAT_DATA_UINT64, 0 },
-		{ "inUnknownProtos",	KSTAT_DATA_UINT32, 0 },
-		{ "inDiscards",		KSTAT_DATA_UINT32, 0 },
-		{ "inDelivers",		KSTAT_DATA_UINT64, 0 },
-		{ "outRequests",	KSTAT_DATA_UINT64, 0 },
-		{ "outDiscards",	KSTAT_DATA_UINT32, 0 },
-		{ "outNoRoutes",	KSTAT_DATA_UINT32, 0 },
-		{ "reasmTimeout",	KSTAT_DATA_UINT32, 0 },
-		{ "reasmReqds",		KSTAT_DATA_UINT32, 0 },
-		{ "reasmOKs",		KSTAT_DATA_UINT32, 0 },
-		{ "reasmFails",		KSTAT_DATA_UINT32, 0 },
-		{ "fragOKs",		KSTAT_DATA_UINT32, 0 },
-		{ "fragFails",		KSTAT_DATA_UINT32, 0 },
-		{ "fragCreates",	KSTAT_DATA_UINT32, 0 },
-		{ "addrEntrySize",	KSTAT_DATA_INT32, 0 },
-		{ "routeEntrySize",	KSTAT_DATA_INT32, 0 },
-		{ "netToMediaEntrySize",	KSTAT_DATA_INT32, 0 },
-		{ "routingDiscards",	KSTAT_DATA_UINT32, 0 },
-		{ "inErrs",		KSTAT_DATA_UINT32, 0 },
-		{ "noPorts",		KSTAT_DATA_UINT32, 0 },
-		{ "inCksumErrs",	KSTAT_DATA_UINT32, 0 },
-		{ "reasmDuplicates",	KSTAT_DATA_UINT32, 0 },
-		{ "reasmPartDups",	KSTAT_DATA_UINT32, 0 },
-		{ "forwProhibits",	KSTAT_DATA_UINT32, 0 },
-		{ "udpInCksumErrs",	KSTAT_DATA_UINT32, 0 },
-		{ "udpInOverflows",	KSTAT_DATA_UINT32, 0 },
-		{ "rawipInOverflows",	KSTAT_DATA_UINT32, 0 },
-		{ "ipsecInSucceeded",	KSTAT_DATA_UINT32, 0 },
-		{ "ipsecInFailed",	KSTAT_DATA_INT32, 0 },
-		{ "memberEntrySize",	KSTAT_DATA_INT32, 0 },
-		{ "inIPv6",		KSTAT_DATA_UINT32, 0 },
-		{ "outIPv6",		KSTAT_DATA_UINT32, 0 },
-		{ "outSwitchIPv6",	KSTAT_DATA_UINT32, 0 },
-	};
+	ip_named_kstat_t *template = &ip_mib_template;
 
 	ksp = kstat_create_netstack("ip", 0, "ip", "mib2", KSTAT_TYPE_NAMED,
-	    NUM_OF_FIELDS(ip_named_kstat_t), 0, stackid);
+	    NUM_OF_FIELDS(ip_named_kstat_t), KSTAT_FLAG_VIRTUAL, stackid);
 	if (ksp == NULL || ksp->ks_data == NULL)
 		return (NULL);
 
-	template.forwarding.value.ui32 = WE_ARE_FORWARDING(ipst) ? 1:2;
-	template.defaultTTL.value.ui32 = (uint32_t)ipst->ips_ip_def_ttl;
-	template.reasmTimeout.value.ui32 = ipst->ips_ip_g_frag_timeout;
-	template.addrEntrySize.value.i32 = sizeof (mib2_ipAddrEntry_t);
-	template.routeEntrySize.value.i32 = sizeof (mib2_ipRouteEntry_t);
+	template->forwarding.value.ui32 = WE_ARE_FORWARDING(ipst) ? 1:2;
+	template->defaultTTL.value.ui32 = (uint32_t)ipst->ips_ip_def_ttl;
+	template->reasmTimeout.value.ui32 = ipst->ips_ip_g_frag_timeout;
+	template->addrEntrySize.value.i32 = sizeof (mib2_ipAddrEntry_t);
+	template->routeEntrySize.value.i32 = sizeof (mib2_ipRouteEntry_t);
 
-	template.netToMediaEntrySize.value.i32 =
+	template->netToMediaEntrySize.value.i32 =
 	    sizeof (mib2_ipNetToMediaEntry_t);
 
-	template.memberEntrySize.value.i32 = sizeof (ipv6_member_t);
+	template->memberEntrySize.value.i32 = sizeof (ipv6_member_t);
 
-	bcopy(&template, ksp->ks_data, sizeof (template));
+	ksp->ks_data = template;
 	ksp->ks_update = ip_kstat_update;
 	ksp->ks_private = (void *)(uintptr_t)stackid;
 
@@ -29397,8 +29443,49 @@ static void
 ip_kstat_fini(netstackid_t stackid, kstat_t *ksp)
 {
 	if (ksp != NULL) {
+		ip_named_kstat_t *template = &ip_mib_template;
+
 		ASSERT(stackid == (netstackid_t)(uintptr_t)ksp->ks_private);
 		kstat_delete_netstack(ksp, stackid);
+
+		template->forwarding.value.ui32 = 0;
+		template->defaultTTL.value.ui32 = 0;
+		template->inReceives.value.ui32 = 0;
+		template->inHdrErrors.value.ui32 = 0;
+		template->inAddrErrors.value.ui32 = 0;
+		template->forwDatagrams.value.ui32 = 0;
+		template->inUnknownProtos.value.ui32 = 0;
+		template->inDiscards.value.ui32 = 0;
+		template->inDelivers.value.ui32 = 0;
+		template->outRequests.value.ui32 = 0;
+		template->outDiscards.value.ui32 = 0;
+		template->outNoRoutes.value.ui32 = 0;
+		template->reasmTimeout.value.ui32 = 0;
+		template->reasmReqds.value.ui32 = 0;
+		template->reasmOKs.value.ui32 = 0;
+		template->reasmFails.value.ui32 = 0;
+		template->fragOKs.value.ui32 = 0;
+		template->fragFails.value.ui32 = 0;
+		template->fragCreates.value.ui32 = 0;
+		template->addrEntrySize.value.i32 = 0;
+		template->routeEntrySize.value.i32 = 0;
+		template->netToMediaEntrySize.value.i32 = 0;
+		template->routingDiscards.value.ui32 = 0;
+		template->inErrs.value.ui32 = 0;
+		template->noPorts.value.ui32 = 0;
+		template->inCksumErrs.value.ui32 = 0;
+		template->reasmDuplicates.value.ui32 = 0;
+		template->reasmPartDups.value.ui32 = 0;
+		template->forwProhibits.value.ui32 = 0;
+		template->udpInCksumErrs.value.ui32 = 0;
+		template->udpInOverflows.value.ui32 = 0;
+		template->rawipInOverflows.value.ui32 = 0;
+		template->ipsecInSucceeded.value.ui32 = 0;
+		template->ipsecInFailed.value.i32 = 0;
+		template->memberEntrySize.value.i32 = 0;
+		template->inIPv6.value.ui32 = 0;
+		template->outIPv6.value.ui32 = 0;
+		template->outSwitchIPv6.value.ui32 = 0;
 	}
 }
 
@@ -29478,54 +29565,54 @@ ip_kstat_update(kstat_t *kp, int rw)
 	return (0);
 }
 
+static icmp_named_kstat_t icmp_mib_template = {
+	{ "inMsgs",		KSTAT_DATA_UINT32 },
+	{ "inErrors",		KSTAT_DATA_UINT32 },
+	{ "inDestUnreachs",	KSTAT_DATA_UINT32 },
+	{ "inTimeExcds",	KSTAT_DATA_UINT32 },
+	{ "inParmProbs",	KSTAT_DATA_UINT32 },
+	{ "inSrcQuenchs",	KSTAT_DATA_UINT32 },
+	{ "inRedirects",	KSTAT_DATA_UINT32 },
+	{ "inEchos",		KSTAT_DATA_UINT32 },
+	{ "inEchoReps",		KSTAT_DATA_UINT32 },
+	{ "inTimestamps",	KSTAT_DATA_UINT32 },
+	{ "inTimestampReps",	KSTAT_DATA_UINT32 },
+	{ "inAddrMasks",	KSTAT_DATA_UINT32 },
+	{ "inAddrMaskReps",	KSTAT_DATA_UINT32 },
+	{ "outMsgs",		KSTAT_DATA_UINT32 },
+	{ "outErrors",		KSTAT_DATA_UINT32 },
+	{ "outDestUnreachs",	KSTAT_DATA_UINT32 },
+	{ "outTimeExcds",	KSTAT_DATA_UINT32 },
+	{ "outParmProbs",	KSTAT_DATA_UINT32 },
+	{ "outSrcQuenchs",	KSTAT_DATA_UINT32 },
+	{ "outRedirects",	KSTAT_DATA_UINT32 },
+	{ "outEchos",		KSTAT_DATA_UINT32 },
+	{ "outEchoReps",	KSTAT_DATA_UINT32 },
+	{ "outTimestamps",	KSTAT_DATA_UINT32 },
+	{ "outTimestampReps",	KSTAT_DATA_UINT32 },
+	{ "outAddrMasks",	KSTAT_DATA_UINT32 },
+	{ "outAddrMaskReps",	KSTAT_DATA_UINT32 },
+	{ "inChksumErrs",	KSTAT_DATA_UINT32 },
+	{ "inUnknowns",		KSTAT_DATA_UINT32 },
+	{ "inFragNeeded",	KSTAT_DATA_UINT32 },
+	{ "outFragNeeded",	KSTAT_DATA_UINT32 },
+	{ "outDrops",		KSTAT_DATA_UINT32 },
+	{ "inOverFlows",	KSTAT_DATA_UINT32 },
+	{ "inBadRedirects",	KSTAT_DATA_UINT32 },
+};
+
 static void *
 icmp_kstat_init(netstackid_t stackid)
 {
 	kstat_t	*ksp;
-
-	icmp_named_kstat_t template = {
-		{ "inMsgs",		KSTAT_DATA_UINT32 },
-		{ "inErrors",		KSTAT_DATA_UINT32 },
-		{ "inDestUnreachs",	KSTAT_DATA_UINT32 },
-		{ "inTimeExcds",	KSTAT_DATA_UINT32 },
-		{ "inParmProbs",	KSTAT_DATA_UINT32 },
-		{ "inSrcQuenchs",	KSTAT_DATA_UINT32 },
-		{ "inRedirects",	KSTAT_DATA_UINT32 },
-		{ "inEchos",		KSTAT_DATA_UINT32 },
-		{ "inEchoReps",		KSTAT_DATA_UINT32 },
-		{ "inTimestamps",	KSTAT_DATA_UINT32 },
-		{ "inTimestampReps",	KSTAT_DATA_UINT32 },
-		{ "inAddrMasks",	KSTAT_DATA_UINT32 },
-		{ "inAddrMaskReps",	KSTAT_DATA_UINT32 },
-		{ "outMsgs",		KSTAT_DATA_UINT32 },
-		{ "outErrors",		KSTAT_DATA_UINT32 },
-		{ "outDestUnreachs",	KSTAT_DATA_UINT32 },
-		{ "outTimeExcds",	KSTAT_DATA_UINT32 },
-		{ "outParmProbs",	KSTAT_DATA_UINT32 },
-		{ "outSrcQuenchs",	KSTAT_DATA_UINT32 },
-		{ "outRedirects",	KSTAT_DATA_UINT32 },
-		{ "outEchos",		KSTAT_DATA_UINT32 },
-		{ "outEchoReps",	KSTAT_DATA_UINT32 },
-		{ "outTimestamps",	KSTAT_DATA_UINT32 },
-		{ "outTimestampReps",	KSTAT_DATA_UINT32 },
-		{ "outAddrMasks",	KSTAT_DATA_UINT32 },
-		{ "outAddrMaskReps",	KSTAT_DATA_UINT32 },
-		{ "inChksumErrs",	KSTAT_DATA_UINT32 },
-		{ "inUnknowns",		KSTAT_DATA_UINT32 },
-		{ "inFragNeeded",	KSTAT_DATA_UINT32 },
-		{ "outFragNeeded",	KSTAT_DATA_UINT32 },
-		{ "outDrops",		KSTAT_DATA_UINT32 },
-		{ "inOverFlows",	KSTAT_DATA_UINT32 },
-		{ "inBadRedirects",	KSTAT_DATA_UINT32 },
-	};
+	icmp_named_kstat_t *template = &icmp_mib_template;
 
 	ksp = kstat_create_netstack("ip", 0, "icmp", "mib2", KSTAT_TYPE_NAMED,
-	    NUM_OF_FIELDS(icmp_named_kstat_t), 0, stackid);
+	    NUM_OF_FIELDS(icmp_named_kstat_t), KSTAT_FLAG_VIRTUAL, stackid);
 	if (ksp == NULL || ksp->ks_data == NULL)
 		return (NULL);
 
-	bcopy(&template, ksp->ks_data, sizeof (template));
-
+	ksp->ks_data = template;
 	ksp->ks_update = icmp_kstat_update;
 	ksp->ks_private = (void *)(uintptr_t)stackid;
 
@@ -29537,8 +29624,44 @@ static void
 icmp_kstat_fini(netstackid_t stackid, kstat_t *ksp)
 {
 	if (ksp != NULL) {
+		icmp_named_kstat_t *template = &icmp_mib_template;
+
 		ASSERT(stackid == (netstackid_t)(uintptr_t)ksp->ks_private);
 		kstat_delete_netstack(ksp, stackid);
+
+		template->inMsgs.value.ui32 = 0;
+		template->inErrors.value.ui32 = 0;
+		template->inDestUnreachs.value.ui32 = 0;
+		template->inTimeExcds.value.ui32 = 0;
+		template->inParmProbs.value.ui32 = 0;
+		template->inSrcQuenchs.value.ui32 = 0;
+		template->inRedirects.value.ui32 = 0;
+                template->inEchos.value.ui32 = 0;
+		template->inEchoReps.value.ui32 = 0;
+		template->inTimestamps.value.ui32 = 0;
+		template->inTimestampReps.value.ui32 = 0;
+		template->inAddrMasks.value.ui32 = 0;
+		template->inAddrMaskReps.value.ui32 = 0;
+		template->outMsgs.value.ui32 = 0;
+		template->outErrors.value.ui32 = 0;
+		template->outDestUnreachs.value.ui32 = 0;
+		template->outTimeExcds.value.ui32 = 0;
+		template->outParmProbs.value.ui32 = 0;
+		template->outSrcQuenchs.value.ui32 = 0;
+		template->outRedirects.value.ui32 = 0;
+		template->outEchos.value.ui32 = 0;
+		template->outEchoReps.value.ui32 = 0;
+		template->outTimestamps.value.ui32 = 0;
+		template->outTimestampReps.value.ui32 = 0;
+		template->outAddrMasks.value.ui32 = 0;
+		template->outAddrMaskReps.value.ui32 = 0;
+		template->inCksumErrs.value.ui32 = 0;
+		template->inUnknowns.value.ui32 = 0;
+		template->inFragNeeded.value.ui32 = 0;
+		template->outFragNeeded.value.ui32 = 0;
+		template->outDrops.value.ui32 = 0;
+		template->inOverflows.value.ui32 = 0;
+		template->inBadRedirects.value.ui32 = 0;
 	}
 }
 
@@ -29615,6 +29738,7 @@ icmp_kstat_update(kstat_t *kp, int rw)
 	return (0);
 }
 
+#ifndef SCTP_SHRINK
 /*
  * This is the fanout function for raw socket opened for SCTP.  Note
  * that it is called after SCTP checks that there is no socket which
@@ -29629,6 +29753,7 @@ ip_fanout_sctp_raw(mblk_t *mp, ill_t *recv_ill, ipha_t *ipha, boolean_t isv4,
     uint32_t ports, boolean_t mctl_present, uint_t flags, boolean_t ip_policy,
     zoneid_t zoneid)
 {
+        /* Original Program */
 	conn_t		*connp;
 	queue_t		*rq;
 	mblk_t		*first_mp;
@@ -29742,6 +29867,7 @@ ip_fanout_sctp_raw(mblk_t *mp, ill_t *recv_ill, ipha_t *ipha, boolean_t isv4,
 	(connp->conn_recv)(connp, mp, NULL);
 	CONN_DEC_REF(connp);
 }
+#endif
 
 #define	UPDATE_IP_MIB_OB_COUNTERS(ill, len)				\
 {									\

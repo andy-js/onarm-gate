@@ -26,6 +26,10 @@
 #
 # cmd/sgs/messages/Makefile.com
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 include		$(SRC)/Makefile.master
 include		$(SRC)/cmd/sgs/Makefile.com
 
@@ -43,10 +47,11 @@ MSGFMT=		msgfmt
 # (.po) - see msgfmt(1).  If the sgsmsg -C option has been employed, each file
 # is formatted as a message text source file (.msg) - see gencat(1).
 
-POFILES=	ld		ldd		libld		liblddbg \
+POFILES-common=	ld		ldd		libld		liblddbg \
 		libldstab	librtld		rtld		libelf \
 		ldprof		libcrle		crle		moe \
 		pvs 		elfdump		elfedit		lari
+POFILES	= $(POFILES-common)
 
 # These message files are generated as a side effect of generating the
 # elfedit messages. Otherwise they are the same thing as POFILES
@@ -55,6 +60,10 @@ POFILES_ELFEDIT_MODULES = \
 		elfedit_shdr 	elfedit_str	elfedit_sym	elfedit_syminfo\
 		lari
 
+# Eliminate catalogs that are not supported on ARM build.
+$(ARM_BLD)SUBDIRFIX_SKIP	= $(SRC)/cmd/sgs/SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(POFILES-common)
+$(ARM_BLD)POFILES		= $(SUBDIR_FIXUP:sh)
 
 # Define a local version of the message catalog.  Test using: LANG=piglatin
 

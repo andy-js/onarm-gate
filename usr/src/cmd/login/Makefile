@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 PROG= login
 OBJS= login.o login_audit.o
 SRCS= $(OBJS:%.o=%.c)
@@ -70,6 +74,8 @@ clean:
 	$(RM) $(OBJS)
 
 lint:	lint_SRCS
+
+$(ARM_BLD)include Makefile.$(MACH)
 
 include ../Makefile.targ
 

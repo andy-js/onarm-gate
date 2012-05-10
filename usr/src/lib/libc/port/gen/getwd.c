@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "synonyms.h"
@@ -43,8 +47,11 @@ getwd(char *pathname)
 	long val;
 
 
-	if ((val = pathconf(".", _PC_PATH_MAX)) == -1)
+	if ((val = pathconf(".", _PC_PATH_MAX)) == -1) {
 		val = MAXPATHLEN + 1;
+	} else {
+		val++;	/* Add 1 byte for the null byte */
+	}
 
 	if ((c = getcwd(pathname, val)) == NULL) {
 		if (errno == EACCES)

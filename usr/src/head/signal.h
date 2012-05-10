@@ -106,7 +106,6 @@ extern int siginterrupt(int, int);
 extern int sigaltstack(const stack_t *_RESTRICT_KYWD, stack_t *_RESTRICT_KYWD);
 extern int sighold(int);
 extern int sigignore(int);
-extern int sigpause(int);
 extern int sigrelse(int);
 extern void (*sigset(int, void (*)(int)))(int);
 #endif /* defined(__EXTENSIONS__) || (!defined(_STRICT_STDC) && ... */
@@ -184,7 +183,6 @@ extern int str2sig();
 extern int sigaltstack();
 extern int sighold();
 extern int sigignore();
-extern int sigpause();
 extern int sigrelse();
 extern void (*sigset())();
 #endif
@@ -278,6 +276,45 @@ extern int sigwait();
 #endif /* __STDC__ */
 
 #endif /* defined(__EXTENSIONS__) || (!defined(_STRICT_STDC) ... */
+
+
+/*
+ * sigpause() prototype is defined here.
+ */
+
+#if defined(__EXTENSIONS__) || (!defined(_STRICT_STDC) && \
+	!defined(__XOPEN_OR_POSIX)) || defined(_XPG4_2)
+
+#if defined(__STRICT_SUNOS) && !defined(__lint)
+
+#if defined(__STDC__)
+extern int __sigpause_svid(int);
+#else
+extern int __sigpause_svid();
+#endif /* __STDC__ */
+
+static int
+#if defined(__STDC__)
+sigpause(int __sig)
+#else
+sigpause(__sig)
+int __sig;
+#endif /* __STDC__ */
+{
+	return (__sigpause_svid(__sig));
+}
+
+#else  /* __STRICT_SUNOS && !__lint */
+
+#if defined(__STDC__)
+extern int sigpause(int);
+#else
+extern int sigpause();
+#endif /* __STDC__ */
+
+#endif /* __STRICT_SUNOS && !__lint */
+
+#endif /* defined(__EXTENSIONS__) || (!defined(_STRICT_STDC) && ... */
 
 #ifdef	__cplusplus
 }

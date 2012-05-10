@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -46,6 +50,24 @@ int
 __flt_rounds(void)
 {
 	switch (_QgetRD()) {
+	case fp_tozero:
+		return (0);
+
+	case fp_positive:
+		return (2);
+
+	case fp_negative:
+		return (3);
+	}
+	return (1);
+}
+
+#elif defined(__arm) 
+
+int
+__fltrounds(void)
+{
+	switch (__xgetRD()) {
 	case fp_tozero:
 		return (0);
 

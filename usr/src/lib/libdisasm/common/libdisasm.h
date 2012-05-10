@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_LIBDISASM_H
 #define	_LIBDISASM_H
 
@@ -53,6 +57,9 @@ typedef struct dis_handle dis_handle_t;
 /* generic disassembler flags */
 #define	DIS_OCTAL		0x40
 #define	DIS_NOIMMSYM		0x80
+
+/* ARM disassembler flags */
+#define	DIS_ARM_VFP2		0x100
 
 typedef int (*dis_lookup_f)(void *, uint64_t, char *, size_t, uint64_t *,
     size_t *);

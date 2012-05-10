@@ -26,8 +26,14 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2009 NEC Corporation
+#
+
 TXTS= nsswitch.conf netconfig hosts services
 DEFAULTFILES= nss.dfl
+
+$(ARM_BLD)DONT_USE_MACH_ROOTETC	= $(POUND_SIGN)
 
 include ../Makefile.cmd
 

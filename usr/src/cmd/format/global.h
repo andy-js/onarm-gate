@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_GLOBAL_H
 #define	_GLOBAL_H
 
@@ -97,6 +101,9 @@ int	expert_mode;			/* enable for expert mode */
 int	need_newline;			/* for correctly formatted output */
 int	dev_expert;			/* enable for developer mode */
 					/* commands */
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+int	option_ext;			/* extended function option (-H) */
+#endif
 
 /*
  * These declarations are used for quick access to information about

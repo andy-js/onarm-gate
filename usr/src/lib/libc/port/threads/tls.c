@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
@@ -41,6 +45,42 @@ int primary_link_map;
 #else
 #define	ALIGN	8
 #endif
+
+/*
+ * TLS block layout for ARM architecture differs from others.
+ */
+#ifdef	__arm
+
+#define	TLS_ULWP_RSIZE			roundup64(sizeof(ulwp_t))
+
+/*
+ * Runtime linker sets (module ID + 1) into ti_moduleid to satisfy
+ * ARM EABI specification.
+ */
+#define	TLS_LOOKUP_MODID(tlidx)		((tlidx)->ti_moduleid - 1)
+
+/* Convert thread pointer to TLS base address. */
+#define	TLS_TP2BASE(tp, tlsm)	((caddr_t)(tp) + TLS_ULWP_RSIZE)
+
+/* Convert thread pointer to TLS block. */
+#define	TLS_TP2BLOCK(tp, tlsp)						\
+	((caddr_t)(tp) + TLS_ULWP_RSIZE + (tlsp)->tm_stattlsoffset)
+
+/* Convert TLS base address to TLS block. */
+#define	TLS_BASE2BLOCK(base, size, tlsp)		\
+	((caddr_t)(base) + (tlsp)->tm_stattlsoffset)
+
+#else	/* !__arm */
+
+#define	TLS_LOOKUP_MODID(tlidx)		((tlidx)->ti_moduleid)
+#define	TLS_TP2BASE(tp, tlsm)				\
+	((caddr_t)(tp) - (tlsm)->static_tls.tls_size)
+#define	TLS_TP2BLOCK(tp, tlsp)				\
+	((caddr_t)(tp) - (tlsp)->tm_stattlsoffset)
+#define	TLS_BASE2BLOCK(base, size, tlsp)			\
+	((caddr_t)(base) + (size) - (tlsp)->tm_stattlsoffset)
+
+#endif	/* __arm */
 
 /*
  * Grow the TLS module information array as necessary to include the
@@ -91,7 +131,6 @@ __tls_static_mods(TLS_modinfo **tlslist, unsigned long statictlssize)
 	TLS_modinfo *tlsp;
 	TLS_modinfo *modinfo;
 	caddr_t data;
-	caddr_t data_end;
 	int max_modid;
 
 	primary_link_map = 1;		/* inform libc_init */
@@ -117,7 +156,6 @@ __tls_static_mods(TLS_modinfo **tlslist, unsigned long statictlssize)
 	 */
 	ASSERT((statictlssize & (ALIGN - 1)) == 0);
 	tlsm->static_tls.tls_data = data = lmalloc(statictlssize);
-	data_end = data + statictlssize;
 	tlsm->static_tls.tls_size = statictlssize;
 	/*
 	 * Initialize the static TLS template.
@@ -133,10 +171,17 @@ __tls_static_mods(TLS_modinfo **tlslist, unsigned long statictlssize)
 		ASSERT(tlsp->tm_stattlsoffset <= statictlssize);
 		ASSERT((tlsp->tm_stattlsoffset & (ALIGN - 1)) == 0);
 		ASSERT(tlsp->tm_filesz <= tlsp->tm_memsz);
+#ifndef	__arm
 		ASSERT(tlsp->tm_memsz <= tlsp->tm_stattlsoffset);
-		if (tlsp->tm_filesz)
-			(void) _private_memcpy(data_end-tlsp->tm_stattlsoffset,
-				tlsp->tm_tlsblock, tlsp->tm_filesz);
+#endif	/* !__arm */
+
+		if (tlsp->tm_filesz) {
+			caddr_t	addr;
+
+			addr = TLS_BASE2BLOCK(data, statictlssize, tlsp);
+			(void)_private_memcpy(addr, tlsp->tm_tlsblock,
+					      tlsp->tm_filesz);
+		}
 		if (max_modid < tlsp->tm_modid)
 			max_modid = tlsp->tm_modid;
 	}
@@ -208,6 +253,15 @@ const Lc_interface tls_rtldinfo[] = {
 	{CI_NULL,	(int(*)())NULL}
 };
 
+#if defined(__GNUC__) && defined(__arm) && !defined(PIC)
+#pragma init(__tls_rtld_init)
+void
+__tls_rtld_init(void) {
+	__tls_static_mods(NULL,0UL);
+	libc_init() ;
+}
+#endif
+
 /*
  * Return the address of a TLS variable for the current thread.
  * Run the constructors for newly-allocated dynamic TLS.
@@ -230,7 +284,7 @@ slow_tls_get_addr(TLS_index *tls_index)
 	 */
 	sigoff(self);
 	lmutex_lock(&tlsm->tls_lock);
-	if ((moduleid = tls_index->ti_moduleid) < self->ul_ntlsent)
+	if ((moduleid = TLS_LOOKUP_MODID(tls_index))  < self->ul_ntlsent)
 		tlsent = self->ul_tlsent;
 	else {
 		ASSERT(moduleid < tlsm->tls_modinfo.tls_size);
@@ -251,10 +305,30 @@ slow_tls_get_addr(TLS_index *tls_index)
 			base = NULL;
 		} else if (tlsp->tm_flags & TM_FLG_STATICTLS) {
 			/* static TLS is already allocated/initialized */
-			base = (caddr_t)self - tlsp->tm_stattlsoffset;
+			base = TLS_TP2BLOCK(self, tlsp);
 			tlsent->tls_data = base;
 			tlsent->tls_size = 0;	/* don't lfree() this space */
-		} else {
+		}
+#ifdef	__arm
+		else if (tlsp->tm_stattlsoffset != 0) {
+			/*
+			 * Static TLS has been loaded after process
+			 * initialization, and runtime linker has already
+			 * verifies that this TLS can be allocated from
+			 * reserved static TLS. So we should use it.
+			 */
+			ASSERT(tlsp->tm_filesz == 0);
+
+			base = TLS_TP2BLOCK(self, tlsp);
+			tlsent->tls_data = base;
+			tlsent->tls_size = 0;	/* don't lfree() this space */
+
+			/* remember the constructors */
+			arraycnt = tlsp->tm_tlsinitarraycnt;
+			initarray = tlsp->tm_tlsinitarray;
+		}
+#endif	/* __arm */
+		else {
 			/* allocate/initialize the dynamic TLS */
 			base = lmalloc(tlsp->tm_memsz);
 			if (tlsp->tm_filesz != 0)
@@ -323,7 +397,7 @@ tls_setup()
 		return;
 
 	/* static TLS initialization */
-	(void) _private_memcpy((caddr_t)self - tlsm->static_tls.tls_size,
+	(void) _private_memcpy(TLS_TP2BASE(self, tlsm),
 		tlsm->static_tls.tls_data, tlsm->static_tls.tls_size);
 
 	/* call TLS constructors for the static TLS just initialized */

@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 PROG=		ar
 XPG4PROG=	ar
 
@@ -62,4 +66,5 @@ CLEANFILES +=	$(OBJS) $(XPG4OBJS) $(LINTOUTS)
 # needed to run this application on older releases are established:
 #	i18n support requires libintl.so.1 prior to 2.6
 
-package :=	LDLIBS += /usr/lib/libintl.so.1
+LIBINTL	=	/usr/lib/libintl.so.1
+package :=	LDLIBS += $(LIBINTL)

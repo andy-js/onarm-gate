@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -56,13 +60,15 @@
 #undef verify
 #include <libzfs.h>
 
+#include "zfs_types.h"
+
 const char cmdname[] = "zdb";
 uint8_t dump_opt[256];
 
-typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
+typedef void object_viewer_t(objset_t *, objid_t, void *data, size_t size);
 
 extern void dump_intent_log(zilog_t *);
-uint64_t *zopt_object = NULL;
+objid_t *zopt_object = NULL;
 int zopt_objects = 0;
 int zdb_advance = ADVANCE_PRE;
 zbookmark_t zdb_noread = { 0, 0, ZB_NO_LEVEL, 0 };
@@ -166,6 +172,18 @@ dump_nvlist(nvlist_t *list, int indent)
 			}
 			break;
 
+#ifdef ZFS_COMPACT
+		case DATA_TYPE_UINT32:
+			{
+				uint32_t value;
+
+				VERIFY(nvpair_value_uint32(elem, &value) == 0);
+				(void) printf("%*s%s=%u\n", indent, "",
+				    nvpair_name(elem), value);
+			}
+			break;
+#endif	/* ZFS_COMPACT */
+
 		case DATA_TYPE_NVLIST:
 			{
 				nvlist_t *value;
@@ -203,7 +221,7 @@ dump_nvlist(nvlist_t *list, int indent)
 
 /* ARGSUSED */
 static void
-dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
+dump_packed_nvlist(objset_t *os, objid_t object, void *data, size_t size)
 {
 	nvlist_t *nv;
 	size_t nvsize = *(uint64_t *)data;
@@ -249,7 +267,7 @@ dump_zap_histogram(uint64_t histo[ZAP_HISTOGRAM_SIZE])
 }
 
 static void
-dump_zap_stats(objset_t *os, uint64_t object)
+dump_zap_stats(objset_t *os, objid_t object)
 {
 	int error;
 	zap_stats_t zs;
@@ -313,25 +331,31 @@ dump_zap_stats(objset_t *os, uint64_t object)
 
 /*ARGSUSED*/
 static void
-dump_none(objset_t *os, uint64_t object, void *data, size_t size)
+dump_none(objset_t *os, objid_t object, void *data, size_t size)
 {
 }
 
 /*ARGSUSED*/
 void
-dump_uint8(objset_t *os, uint64_t object, void *data, size_t size)
+dump_uint8(objset_t *os, objid_t object, void *data, size_t size)
 {
 }
 
 /*ARGSUSED*/
 static void
-dump_uint64(objset_t *os, uint64_t object, void *data, size_t size)
+dump_uint64(objset_t *os, objid_t object, void *data, size_t size)
 {
 }
 
 /*ARGSUSED*/
 static void
-dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
+dump_objid(objset_t *os, objid_t object, void *data, size_t size)
+{
+}
+
+/*ARGSUSED*/
+static void
+dump_zap(objset_t *os, objid_t object, void *data, size_t size)
 {
 	zap_cursor_t zc;
 	zap_attribute_t attr;
@@ -381,7 +405,7 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 
 /*ARGSUSED*/
 static void
-dump_zpldir(objset_t *os, uint64_t object, void *data, size_t size)
+dump_zpldir(objset_t *os, objid_t object, void *data, size_t size)
 {
 	zap_cursor_t zc;
 	zap_attribute_t attr;
@@ -562,7 +586,7 @@ dump_dtl(vdev_t *vd, int indent)
 
 /*ARGSUSED*/
 static void
-dump_dnode(objset_t *os, uint64_t object, void *data, size_t size)
+dump_dnode(objset_t *os, objid_t object, void *data, size_t size)
 {
 }
 
@@ -684,10 +708,10 @@ out:
 
 /*ARGSUSED*/
 static void
-dump_indirect(objset_t *os, uint64_t object, void *data, size_t size)
+dump_indirect(objset_t *os, objid_t object, void *data, size_t size)
 {
 	traverse_handle_t *th;
-	uint64_t objset = dmu_objset_id(os);
+	objid_t objset = dmu_objset_id(os);
 	int advance = zdb_advance;
 
 	(void) printf("Indirect blocks:\n");
@@ -699,7 +723,7 @@ dump_indirect(objset_t *os, uint64_t object, void *data, size_t size)
 	    ZIO_FLAG_CANFAIL);
 	th->th_noread = zdb_noread;
 
-	traverse_add_dnode(th, 0, -1ULL, objset, object);
+	traverse_add_dnode(th, 0, (txg_t)-1, objset, object);
 
 	while (traverse_more(th) == EAGAIN)
 		continue;
@@ -711,7 +735,7 @@ dump_indirect(objset_t *os, uint64_t object, void *data, size_t size)
 
 /*ARGSUSED*/
 static void
-dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
+dump_dsl_dir(objset_t *os, objid_t object, void *data, size_t size)
 {
 	dsl_dir_phys_t *dd = data;
 	time_t crtime;
@@ -751,7 +775,7 @@ dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
 
 /*ARGSUSED*/
 static void
-dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
+dump_dsl_dataset(objset_t *os, objid_t object, void *data, size_t size)
 {
 	dsl_dataset_phys_t *ds = data;
 	time_t crtime;
@@ -800,7 +824,7 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 }
 
 static void
-dump_bplist(objset_t *mos, uint64_t object, char *name)
+dump_bplist(objset_t *mos, objid_t object, char *name)
 {
 	bplist_t bpl = { 0 };
 	blkptr_t blk, *bp = &blk;
@@ -897,11 +921,11 @@ dump_uidgid(objset_t *os, znode_phys_t *zp)
 
 	/* Load domain table, if not already loaded */
 	if (!fuid_table_loaded && (uid_idx || gid_idx)) {
-		uint64_t fuid_obj;
+		objid_t fuid_obj;
 
 		/* first find the fuid object.  It lives in the master node */
 		VERIFY(zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES,
-		    8, 1, &fuid_obj) == 0);
+		    sizeof (fuid_obj), 1, &fuid_obj) == 0);
 		(void) zfs_fuid_table_load(os, fuid_obj,
 		    &idx_tree, &domain_tree);
 		fuid_table_loaded = B_TRUE;
@@ -913,7 +937,7 @@ dump_uidgid(objset_t *os, znode_phys_t *zp)
 
 /*ARGSUSED*/
 static void
-dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
+dump_znode(objset_t *os, objid_t object, void *data, size_t size)
 {
 	znode_phys_t *zp = data;
 	time_t z_crtime, z_atime, z_mtime, z_ctime;
@@ -955,20 +979,20 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 
 /*ARGSUSED*/
 static void
-dump_acl(objset_t *os, uint64_t object, void *data, size_t size)
+dump_acl(objset_t *os, objid_t object, void *data, size_t size)
 {
 }
 
 /*ARGSUSED*/
 static void
-dump_dmu_objset(objset_t *os, uint64_t object, void *data, size_t size)
+dump_dmu_objset(objset_t *os, objid_t object, void *data, size_t size)
 {
 }
 
 static object_viewer_t *object_viewer[DMU_OT_NUMTYPES] = {
 	dump_none,		/* unallocated			*/
 	dump_zap,		/* object directory		*/
-	dump_uint64,		/* object array			*/
+	dump_objid,		/* object array			*/
 	dump_none,		/* packed nvlist		*/
 	dump_packed_nvlist,	/* packed nvlist size		*/
 	dump_none,		/* bplist			*/
@@ -1006,7 +1030,7 @@ static object_viewer_t *object_viewer[DMU_OT_NUMTYPES] = {
 };
 
 static void
-dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
+dump_object(objset_t *os, objid_t object, int verbosity, int *print_header)
 {
 	dmu_buf_t *db = NULL;
 	dmu_object_info_t doi;
@@ -1028,7 +1052,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 	} else {
 		error = dmu_bonus_hold(os, object, FTAG, &db);
 		if (error)
-			fatal("dmu_bonus_hold(%llu) failed, errno %u",
+			fatal("dmu_bonus_hold(%" PRIuOBJID ") failed, errno %u",
 			    object, error);
 		bonus = db->db_data;
 		bsize = db->db_size;
@@ -1080,7 +1104,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 		 */
 		uint64_t start = 0;
 		uint64_t end;
-		uint64_t blkfill = 1;
+		objid_t blkfill = 1;
 		int minlvl = 1;
 
 		if (dn->dn_type == DMU_OT_DNODE) {
@@ -1118,8 +1142,9 @@ static void
 dump_dir(objset_t *os)
 {
 	dmu_objset_stats_t dds;
-	uint64_t object, object_count;
-	uint64_t refdbytes, usedobjs, scratch;
+	uint64_t refdbytes, scratch;
+	objid_t object, object_count, usedobjs;
+	objid_t scratch_obj;
 	char numbuf[8];
 	char blkbuf[BP_SPRINTF_LEN];
 	char osname[MAXNAMELEN];
@@ -1139,7 +1164,8 @@ dump_dir(objset_t *os)
 		refdbytes =
 		    os->os->os_spa->spa_dsl_pool->dp_mos_dir->dd_used_bytes;
 	} else {
-		dmu_objset_space(os, &refdbytes, &scratch, &usedobjs, &scratch);
+		dmu_objset_space(os, &refdbytes, &scratch,
+		    &usedobjs, &scratch_obj);
 	}
 
 	ASSERT3U(usedobjs, ==, os->os->os_rootbp->blk_fill);
@@ -1790,7 +1816,7 @@ dump_zpool(spa_t *spa)
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	int rc = 0;
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 
 	if (dump_opt['u'])
 		dump_uberblock(&spa->spa_uberblock);
@@ -1847,10 +1873,15 @@ zdb_print_blkptr(blkptr_t *bp, int flags)
 		(void) printf("\tDVA[%d]: vdev_id %lld / %llx\n", d,
 		    (longlong_t)DVA_GET_VDEV(&dva[d]),
 		    (longlong_t)DVA_GET_OFFSET(&dva[d]));
-		(void) printf("\tDVA[%d]:       GANG: %-5s  GRID:  %04llx\t"
+		(void) printf("\tDVA[%d]:       GANG: %-5s"
+#ifndef ZFS_COMPACT
+		    "  GRID:  %04llx\t"
+#endif	/* ZFS_COMPACT */
 		    "ASIZE: %llx\n", d,
 		    DVA_GET_GANG(&dva[d]) ? "TRUE" : "FALSE",
+#ifndef ZFS_COMPACT
 		    (longlong_t)DVA_GET_GRID(&dva[d]),
+#endif	/* ZFS_COMPACT */
 		    (longlong_t)DVA_GET_ASIZE(&dva[d]));
 		(void) printf("\tDVA[%d]: :%llu:%llx:%llx:%s%s%s%s\n", d,
 		    (u_longlong_t)DVA_GET_VDEV(&dva[d]),
@@ -2329,8 +2360,10 @@ main(int argc, char **argv)
 			break;
 		case 'B':
 			endstr = optarg - 1;
-			zdb_noread.zb_objset = strtoull(endstr + 1, &endstr, 0);
-			zdb_noread.zb_object = strtoull(endstr + 1, &endstr, 0);
+			zdb_noread.zb_objset =
+			    (objid_t)strtoull(endstr + 1, &endstr, 0);
+			zdb_noread.zb_object =
+			    (objid_t)strtoull(endstr + 1, &endstr, 0);
 			zdb_noread.zb_level = strtol(endstr + 1, &endstr, 0);
 			zdb_noread.zb_blkid = strtoull(endstr + 1, &endstr, 16);
 			(void) printf("simulating bad block "
@@ -2398,7 +2431,9 @@ main(int argc, char **argv)
 		flagbits['b'] = ZDB_FLAG_PRINT_BLKPTR;
 		flagbits['c'] = ZDB_FLAG_CHECKSUM;
 		flagbits['d'] = ZDB_FLAG_DECOMPRESS;
+#ifndef ZFS_COMPACT
 		flagbits['e'] = ZDB_FLAG_BSWAP;
+#endif	/* ZFS_COMPACT */
 		flagbits['g'] = ZDB_FLAG_GBH;
 		flagbits['i'] = ZDB_FLAG_INDIRECT;
 		flagbits['p'] = ZDB_FLAG_PHYS;

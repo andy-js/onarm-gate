@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -131,8 +135,11 @@ static struct modlinkage modlinkage = {
 	}
 };
 
+/* Internal prototypes */
+static void	rpcmod_release(queue_t *, mblk_t *);
+
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int error = 0;
 	callb_id_t cid;
@@ -176,18 +183,20 @@ _init(void)
 	return (error);
 }
 
+#ifndef	STATIC_DRIVER
 /*
  * The unload entry point fails, because we advertise entry points into
  * rpcmod from the rest of kRPC: rpcmod_release().
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -570,7 +579,6 @@ rpcmodopen(queue_t *q, dev_t *devp, int flag, int sflag, cred_t *crp)
 	struct rpcm *rmp;
 
 	extern void (*rpc_rele)(queue_t *, mblk_t *);
-	static void rpcmod_release(queue_t *, mblk_t *);
 
 	TRACE_0(TR_FAC_KRPC, TR_RPCMODOPEN_START, "rpcmodopen_start:");
 

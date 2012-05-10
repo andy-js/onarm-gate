@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -58,6 +62,7 @@
 #include <sys/ksyms.h>
 #include <sys/disp.h>
 #include <sys/modctl.h>
+#include <sys/modstatic.h>
 #include <sys/varargs.h>
 #include <sys/kstat.h>
 #include <sys/kobj_impl.h>
@@ -82,12 +87,14 @@
 #define	DOSYM_UNDEF		-1	/* undefined symbol */
 #define	DOSYM_UNSAFE		-2	/* MT-unsafe driver symbol */
 
+#ifndef	STATIC_UNIX
 #if !defined(_OBP)
 static void synthetic_bootaux(char *, val_t *);
 #endif
 
 static struct module *load_exec(val_t *, char *);
 static void load_linker(val_t *);
+#endif	/* !STATIC_UNIX */
 static struct modctl *add_primary(const char *filename, int);
 static int bind_primary(val_t *, int);
 static int load_primary(struct module *, int);
@@ -97,27 +104,67 @@ static int get_syms(struct module *, struct _buf *);
 static int get_ctf(struct module *, struct _buf *);
 static void get_signature(struct module *, struct _buf *);
 static int do_common(struct module *);
+#ifndef	STATIC_UNIX
 static void add_dependent(struct module *, struct module *);
+#endif	/* !STATIC_UNIX */
 static int do_dependents(struct modctl *, char *, size_t);
 static int do_symbols(struct module *, Elf64_Addr);
 static void module_assign(struct modctl *, struct module *);
 static void free_module_data(struct module *);
 static char *depends_on(struct module *);
+#ifdef	STATIC_UNIX
+static char *getmodpath(void);
+#else	/* !STATIC_UNIX */
 static char *getmodpath(const char *);
+#endif	/* STATIC_UNIX */
 static char *basename(char *);
 static void attr_val(val_t *);
 static char *find_libmacro(char *);
 static char *expand_libmacro(char *, char *, char *);
 static int read_bootflags(void);
+
+#ifdef	STATIC_UNIX
+/*
+ * Static unix doesn't need to consider compressed file.
+ */
+#define	kobj_read_blks(file, buf, size, off)	\
+	kobj_read((file)->_fd, buf, size, off)
+#else	/* !STATIC_UNIX */
 static int kobj_comp_setup(struct _buf *, struct compinfo *);
 static int kobj_uncomp_blk(struct _buf *, caddr_t, uint_t);
 static int kobj_read_blks(struct _buf *, caddr_t, uint_t, uint_t);
+#endif	/* STATIC_UNIX */
+
+/* Export some symbols only on STATIC_UNIX. */
+#ifdef	STATIC_UNIX
+#define	EXPORT_STATIC_UNIX
+#define	KOBJ_NOTIFY		kobj_static_notify
+#define	KOBJ_ADD_DEPENDENT	kobj_static_add_dependent
+#else	/* STATIC_UNIX */
+#define	EXPORT_STATIC_UNIX	static
+#define	KOBJ_NOTIFY		kobj_notify
+#define	KOBJ_ADD_DEPENDENT	add_dependent
+#endif	/* STATIC_UNIX */
+
+#ifdef	__arm
+
+/* Currently, file access while bootstrapping is not supported on ARM. */
+#define	kobj_boot_open(filename, flags)	(-1)
+#define	kobj_boot_close(fd)		(-1)
+#define	kobj_boot_seek(fd, hi, lo)	(-1)
+#define	kobj_boot_read(fd, buf, size)	(-1)
+#define	kobj_boot_fstat(fd, stp)	(-1)
+
+#else	/* !__arm */
+
 static int kobj_boot_open(char *, int);
 static int kobj_boot_close(int);
 static int kobj_boot_seek(int, off_t, off_t);
 static int kobj_boot_read(int, caddr_t, size_t);
 static int kobj_boot_fstat(int, struct bootstat *);
 static int kobj_boot_compinfo(int, struct compinfo *);
+
+#endif	/* __arm */
 
 static Sym *lookup_one(struct module *, const char *);
 static void sym_insert(struct module *, char *, symid_t);
@@ -290,8 +337,12 @@ extern caddr_t _edata;
 Addr dynseg = 0;	/* load address of "dynamic" segment */
 size_t dynsize;		/* "dynamic" segment size */
 
-
+#ifdef	STATIC_UNIX
+#define	standalone	0		/* krtld is already linked to kernel */
+#else	/* !STATIC_UNIX */
 int standalone = 1;			/* an unwholey kernel? */
+#endif	/* STATIC_UNIX */
+
 int use_iflush;				/* iflush after relocations */
 
 /*
@@ -335,6 +386,8 @@ get_weakish_pointer(void **ptrp)
 	return (ptrp == NULL ? 0 : *ptrp);
 }
 
+/* Static unix never uses kobj_init(). */
+#ifndef	STATIC_UNIX
 /*
  * XXX fix dependencies on "kernel"; this should work
  * for other standalone binaries as well.
@@ -986,6 +1039,7 @@ load_linker(val_t *bootaux)
 	}
 
 }
+#endif	/* !STATIC_UNIX */
 
 static kobj_notify_list_t **
 kobj_notify_lookup(uint_t type)
@@ -1044,8 +1098,8 @@ kobj_notify_remove(kobj_notify_list_t *knp)
 /*
  * Notify all interested callbacks of a specified change in module state.
  */
-static void
-kobj_notify(int type, struct modctl *modp)
+EXPORT_STATIC_UNIX void
+KOBJ_NOTIFY(int type, struct modctl *modp)
 {
 	kobj_notify_list_t *knp;
 
@@ -1069,10 +1123,20 @@ kobj_notify(int type, struct modctl *modp)
 /*
  * Create the module path.
  */
+#ifdef	STATIC_UNIX
+static char *
+getmodpath(void)
+{
+	extern char	plat_mod_defpath[];
+
+	return plat_mod_defpath;
+}
+#else	/* !STATIC_UNIX */
 static char *
 getmodpath(const char *filename)
 {
 	char *path = kobj_zalloc(MAXPATHLEN, KM_WAIT);
+	char	*defpath;
 
 	/*
 	 * Platform code gets first crack, then add
@@ -1083,6 +1147,7 @@ getmodpath(const char *filename)
 		(void) strcat(path, " ");
 	return (strcat(path, MOD_DEFPATH));
 }
+#endif	/* STATIC_UNIX */
 
 static struct modctl *
 add_primary(const char *filename, int lmid)
@@ -1340,7 +1405,7 @@ load_primary(struct module *mp, int lmid)
 			return (-1);
 		}
 
-		add_dependent(mp, dmp);
+		KOBJ_ADD_DEPENDENT(mp, dmp);
 		dmp->flags |= KOBJ_PRIM;
 
 		/*
@@ -1376,6 +1441,10 @@ console_is_usb_serial(void)
 static int
 load_kmdb(val_t *bootaux)
 {
+#ifdef	__arm
+	/* Not supported yet. */
+	return (-1);
+#else	/* !__arm */
 	struct modctl *mctl;
 	struct module *mp;
 	Sym *sym;
@@ -1426,6 +1495,7 @@ load_kmdb(val_t *bootaux)
 		return (-1);
 
 	return (0);
+#endif	/* __arm */
 }
 
 /*
@@ -1811,6 +1881,9 @@ void
 kobj_set_ctf(struct module *mp, caddr_t data, size_t size)
 {
 	if (!standalone) {
+		if (mod_static_ctf_update(mp, data, size)) {
+			return;
+		}
 		if (mp->ctfdata != NULL) {
 			if (vmem_contains(ctf_arena, mp->ctfdata,
 			    mp->ctfsize)) {
@@ -1846,6 +1919,12 @@ kobj_load_module(struct modctl *modp, int use_path)
 #ifdef MODDIR_SUFFIX
 	int no_suffixdir_drv = 0;
 #endif
+	int	ret;
+
+	if ((ret = mod_static_load(modp)) >= 0) {
+		/* Module is statically linked. */
+		return ret;
+	}
 
 	mp = kobj_zalloc(sizeof (struct module), KM_WAIT);
 
@@ -1950,7 +2029,7 @@ kobj_load_module(struct modctl *modp, int use_path)
 		goto bad;
 	}
 
-	kobj_notify(KOBJ_NOTIFY_MODLOADING, modp);
+	KOBJ_NOTIFY(KOBJ_NOTIFY_MODLOADING, modp);
 	module_assign(modp, mp);
 
 	/* read in sections */
@@ -2062,7 +2141,7 @@ kobj_load_module(struct modctl *modp, int use_path)
 		/* sync_instruction_memory */
 		kobj_sync_instruction_memory(mp->text, mp->text_size);
 		kobj_export_module(mp);
-		kobj_notify(KOBJ_NOTIFY_MODLOADED, modp);
+		KOBJ_NOTIFY(KOBJ_NOTIFY_MODLOADED, modp);
 	}
 	kobj_close_file(file);
 	return (0);
@@ -2076,6 +2155,7 @@ bad:
 	return ((file == (struct _buf *)-1) ? ENOENT : EINVAL);
 }
 
+#ifndef	STATIC_UNIX
 int
 kobj_load_primary_module(struct modctl *modp)
 {
@@ -2100,7 +2180,7 @@ kobj_load_primary_module(struct modctl *modp)
 		return (-1);
 	}
 
-	add_dependent(mp, dep->mod_mp);
+	KOBJ_ADD_DEPENDENT(mp, dep->mod_mp);
 
 	/*
 	 * Relocate it.  This module may not be part of a link map, so we
@@ -2119,6 +2199,7 @@ kobj_load_primary_module(struct modctl *modp)
 
 	return (0);
 }
+#endif	/* !STATIC_UNIX */
 
 static void
 module_assign(struct modctl *cp, struct module *mp)
@@ -2144,7 +2225,11 @@ kobj_unload_module(struct modctl *modp)
 		mp->text = NULL;	/* don't actually free it */
 	}
 
-	kobj_notify(KOBJ_NOTIFY_MODUNLOADING, modp);
+	KOBJ_NOTIFY(KOBJ_NOTIFY_MODUNLOADING, modp);
+
+	if (mod_static_unload(modp) != -1) {
+		return;
+	}
 
 	/*
 	 * Null out mod_mp first, so consumers (debuggers) know not to look
@@ -2154,7 +2239,7 @@ kobj_unload_module(struct modctl *modp)
 	modp->mod_mp = NULL;
 	mutex_exit(&mod_lock);
 
-	kobj_notify(KOBJ_NOTIFY_MODUNLOADED, modp);
+	KOBJ_NOTIFY(KOBJ_NOTIFY_MODUNLOADED, modp);
 	free_module_data(mp);
 }
 
@@ -2185,10 +2270,12 @@ free_module_data(struct module *mp)
 	rw_exit(&ksyms_lock);
 
 	if (mp->ctfdata) {
-		if (vmem_contains(ctf_arena, mp->ctfdata, mp->ctfsize))
+		if (vmem_contains(ctf_arena, mp->ctfdata, mp->ctfsize)) {
 			vmem_free(ctf_arena, mp->ctfdata, mp->ctfsize);
-		else
+		}
+		else if (!mod_is_static_module(mp)) {
 			kobj_free(mp->ctfdata, mp->ctfsize);
+		}
 	}
 
 	if (mp->sigdata)
@@ -2787,8 +2874,8 @@ get_signature(struct module *mp, struct _buf *file)
 	kobj_free(shstrtab, shstrlen);
 }
 
-static void
-add_dependent(struct module *mp, struct module *dep)
+EXPORT_STATIC_UNIX void
+KOBJ_ADD_DEPENDENT(struct module *mp, struct module *dep)
 {
 	struct module_list *lp;
 
@@ -2894,7 +2981,7 @@ do_dependents(struct modctl *modp, char *modname, size_t modnamelen)
 			continue;
 		}
 
-		add_dependent(mp, req->mod_mp);
+		KOBJ_ADD_DEPENDENT(mp, req->mod_mp);
 		mod_release_mod(req);
 
 	}
@@ -3724,6 +3811,13 @@ kobj_open_file(char *name)
 	file->_ptr = file->_base;
 	(void) strcpy(file->_name, name);
 
+#ifdef	STATIC_UNIX
+	/*
+	 * Compressed file is not supported.
+	 */
+	file->_base = kobj_zalloc(MAXBSIZE, KM_WAIT);
+	file->_bsize = MAXBSIZE;
+#else	/* !STATIC_UNIX */
 	/*
 	 * Before root is mounted, we must check
 	 * for a compressed file and do our own
@@ -3748,9 +3842,11 @@ kobj_open_file(char *name)
 			file->_bsize = cbuf.blksize;
 		}
 	}
+#endif	/* STATIC_UNIX */
 	return (file);
 }
 
+#ifndef	STATIC_UNIX
 static int
 kobj_comp_setup(struct _buf *file, struct compinfo *cip)
 {
@@ -3778,6 +3874,7 @@ kobj_comp_setup(struct _buf *file, struct compinfo *cip)
 	file->_bsize = hdr->ch_blksize;
 	return (0);
 }
+#endif	/* !STATIC_UNIX */
 
 void
 kobj_close_file(struct _buf *file)
@@ -3887,6 +3984,7 @@ kobj_read_file(struct _buf *file, char *buf, uint_t size, uint_t off)
 	return (count);
 }
 
+#ifndef	STATIC_UNIX
 static int
 kobj_read_blks(struct _buf *file, char *buf, uint_t size, uint_t off)
 {
@@ -3932,6 +4030,7 @@ kobj_uncomp_blk(struct _buf *file, char *buf, uint_t off)
 		return (-1);
 	return (dlen);
 }
+#endif	/* !STATIC_UNIX */
 
 int
 kobj_filbuf(struct _buf *f)
@@ -4016,15 +4115,18 @@ kobj_sync(void)
 	ctf_arena = vmem_create("ctf", NULL, 0, sizeof (uint_t),
 	    segkmem_alloc, segkmem_free, heap_arena, 0, VM_SLEEP);
 
-	/*
-	 * Move symbol tables from boot memory to ksyms_arena.
-	 */
-	for (lpp = kobj_linkmaps; *lpp != NULL; lpp++) {
-		for (lp = *lpp; lp != NULL; lp = lp->modl_next)
-			kobj_export_module(mod(lp));
+	if (!MOD_STATIC_UNIX()) {
+		/*
+		 * Move symbol tables from boot memory to ksyms_arena.
+		 */
+		for (lpp = kobj_linkmaps; *lpp != NULL; lpp++) {
+			for (lp = *lpp; lp != NULL; lp = lp->modl_next)
+				kobj_export_module(mod(lp));
+		}
 	}
 }
 
+#ifndef	STATIC_UNIX
 caddr_t
 kobj_segbrk(caddr_t *spp, size_t size, size_t align, caddr_t limit)
 {
@@ -4073,6 +4175,7 @@ kobj_segbrk(caddr_t *spp, size_t size, size_t align, caddr_t limit)
 
 	return ((caddr_t)va);
 }
+#endif	/* !STATIC_UNIX */
 
 /*
  * Calculate the number of output hash buckets.
@@ -4473,6 +4576,8 @@ kobj_record_file(char *filename)
 	buf += n;
 }
 
+#ifndef	__arm
+
 static int
 kobj_boot_fstat(int fd, struct bootstat *stp)
 {
@@ -4545,3 +4650,53 @@ kobj_boot_compinfo(int fd, struct compinfo *cb)
 {
 	return (boot_compinfo(fd, cb));
 }
+
+#endif	/* !__arm */
+
+#ifdef	STATIC_UNIX
+
+#undef	bcopy
+#undef	bzero
+#undef	strlcat
+
+/*
+ * void
+ * kobj_static_init(void)
+ *	Static-linked unix specific initialization.
+ */
+void
+kobj_static_init(void)
+{
+	ops = bootops;
+	_kobj_printf = (void (*)(void *, const char *, ...))ops->bsys_printf;
+	kobj_bcopy = bcopy;
+	kobj_bzero = bzero;
+	kobj_strlcat = strlcat;
+	kobj_module_path = getmodpath();
+}
+
+/*ARGSUSED*/
+static void
+kprintf(void *op, const char *fmt, ...)
+{
+	va_list adx;
+
+	va_start(adx, fmt);
+	vprintf(fmt, adx);
+	va_end(adx);
+}
+
+/*
+ * void
+ * kobj_static_printf_init(void)
+ *	Initialize _kobj_printf.
+ *
+ * Remarks:
+ *	This function must be called after kmem_init() is called.
+ */
+void
+kobj_static_printf_init(void)
+{
+	_kobj_printf = kprintf;
+}
+#endif	/* STATIC_UNIX */

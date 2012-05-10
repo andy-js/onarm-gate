@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -36,6 +40,7 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/dmu_zfetch.h>
+#include <zfs_types.h>
 
 static void dbuf_destroy(dmu_buf_impl_t *db);
 static int dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
@@ -50,6 +55,10 @@ int zfs_mdcomp_disable = 0;
  * Global data structures and functions for the dbuf cache.
  */
 static kmem_cache_t *dbuf_cache;
+
+#ifdef ZFS_COMPACT
+static kmem_cache_t *dn_bonus_cache;
+#endif	/* ZFS_COMPACT */
 
 /* ARGSUSED */
 static int
@@ -82,7 +91,7 @@ static dbuf_hash_table_t dbuf_hash_table;
 static uint64_t dbuf_hash_count;
 
 static uint64_t
-dbuf_hash(void *os, uint64_t obj, uint8_t lvl, uint64_t blkid)
+dbuf_hash(void *os, objid_t obj, uint8_t lvl, uint64_t blkid)
 {
 	uintptr_t osv = (uintptr_t)os;
 	uint64_t crc = -1ULL;
@@ -113,7 +122,7 @@ dbuf_find(dnode_t *dn, uint8_t level, uint64_t blkid)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	objset_impl_t *os = dn->dn_objset;
-	uint64_t obj = dn->dn_object;
+	objid_t obj = dn->dn_object;
 	uint64_t hv = DBUF_HASH(os, obj, level, blkid);
 	uint64_t idx = hv & h->hash_table_mask;
 	dmu_buf_impl_t *db;
@@ -144,7 +153,7 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	objset_impl_t *os = db->db_objset;
-	uint64_t obj = db->db.db_object;
+	objid_t obj = db->db.db_object;
 	int level = db->db_level;
 	uint64_t blkid = db->db_blkid;
 	uint64_t hv = DBUF_HASH(os, obj, level, blkid);
@@ -237,7 +246,7 @@ dbuf_evict(dmu_buf_impl_t *db)
 void
 dbuf_init(void)
 {
-	uint64_t hsize = 1ULL << 16;
+	uint64_t hsize = 1ULL << 13;
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	int i;
 
@@ -259,9 +268,14 @@ retry:
 		goto retry;
 	}
 
-	dbuf_cache = kmem_cache_create("dmu_buf_impl_t",
+	dbuf_cache = kmem_cache_create(KMEM_DMU_BUF_IMPL_T,
 	    sizeof (dmu_buf_impl_t),
 	    0, dbuf_cons, dbuf_dest, NULL, NULL, NULL, 0);
+
+#ifdef ZFS_COMPACT
+	dn_bonus_cache = kmem_cache_create(KMEM_DN_BONUS_BUF,
+	    DN_MAX_BONUSLEN, 0, NULL, NULL, NULL, NULL, NULL, 0);
+#endif	/* ZFS_COMPACT */
 
 	for (i = 0; i < DBUF_MUTEXES; i++)
 		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_DEFAULT, NULL);
@@ -277,6 +291,9 @@ dbuf_fini(void)
 		mutex_destroy(&h->hash_mutexes[i]);
 	kmem_free(h->hash_table, (h->hash_table_mask + 1) * sizeof (void *));
 	kmem_cache_destroy(dbuf_cache);
+#ifdef ZFS_COMPACT
+	kmem_cache_destroy(dn_bonus_cache);
+#endif	/* ZFS_COMPACT */
 }
 
 /*
@@ -471,7 +488,11 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 		int bonuslen = db->db_dnode->dn_bonuslen;
 
 		ASSERT3U(bonuslen, <=, db->db.db_size);
+#ifndef ZFS_COMPACT
 		db->db.db_data = zio_buf_alloc(DN_MAX_BONUSLEN);
+#else
+		db->db.db_data = kmem_cache_alloc(dn_bonus_cache, KM_SLEEP);
+#endif	/* ZFS_COMPACT */
 		arc_space_consume(DN_MAX_BONUSLEN);
 		if (bonuslen < DN_MAX_BONUSLEN)
 			bzero(db->db.db_data, DN_MAX_BONUSLEN);
@@ -635,7 +656,7 @@ dbuf_noread(dmu_buf_impl_t *db)
  * dbuf list for the dnode.
  */
 static void
-dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
+dbuf_fix_old_data(dmu_buf_impl_t *db, txg_t txg)
 {
 	dbuf_dirty_record_t *dr = db->db_last_dirty;
 
@@ -659,7 +680,11 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	ASSERT(dr->dr_txg >= txg - 2);
 	if (db->db_blkid == DB_BONUS_BLKID) {
 		/* Note that the data bufs here are zio_bufs */
+#ifndef ZFS_COMPACT
 		dr->dt.dl.dr_data = zio_buf_alloc(DN_MAX_BONUSLEN);
+#else
+		dr->dt.dl.dr_data = kmem_cache_alloc(dn_bonus_cache, KM_SLEEP);
+#endif	/* ZFS_COMPACT */
 		arc_space_consume(DN_MAX_BONUSLEN);
 		bcopy(db->db.db_data, dr->dt.dl.dr_data, DN_MAX_BONUSLEN);
 	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
@@ -677,7 +702,7 @@ void
 dbuf_unoverride(dbuf_dirty_record_t *dr)
 {
 	dmu_buf_impl_t *db = dr->dr_dbuf;
-	uint64_t txg = dr->dr_txg;
+	txg_t txg = dr->dr_txg;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(dr->dt.dl.dr_override_state != DR_IN_DMU_SYNC);
@@ -709,7 +734,7 @@ void
 dbuf_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db, *db_next;
-	uint64_t txg = tx->tx_txg;
+	txg_t txg = tx->tx_txg;
 
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu\n", blkid, nblks);
 	mutex_enter(&dn->dn_dbufs_mtx);
@@ -786,7 +811,7 @@ static int
 dbuf_block_freeable(dmu_buf_impl_t *db)
 {
 	dsl_dataset_t *ds = db->db_objset->os_dsl_dataset;
-	uint64_t birth_txg = 0;
+	txg_t birth_txg = 0;
 
 	/*
 	 * We don't need any locking to protect db_blkptr:
@@ -1113,7 +1138,7 @@ static int
 dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 {
 	dnode_t *dn = db->db_dnode;
-	uint64_t txg = tx->tx_txg;
+	txg_t txg = tx->tx_txg;
 	dbuf_dirty_record_t *dr, **drp;
 
 	ASSERT(txg != 0);
@@ -1282,7 +1307,11 @@ dbuf_clear(dmu_buf_impl_t *db)
 	if (db->db_state == DB_CACHED) {
 		ASSERT(db->db.db_data != NULL);
 		if (db->db_blkid == DB_BONUS_BLKID) {
+#ifndef ZFS_COMPACT
 			zio_buf_free(db->db.db_data, DN_MAX_BONUSLEN);
+#else
+			kmem_cache_free(dn_bonus_cache, db->db.db_data);
+#endif	/* ZFS_COMPACT */
 			arc_space_return(DN_MAX_BONUSLEN);
 		}
 		db->db.db_data = NULL;
@@ -1504,6 +1533,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	arc_space_return(sizeof (dmu_buf_impl_t));
 }
 
+#ifndef ZFS_NO_PREFETCH
 void
 dbuf_prefetch(dnode_t *dn, uint64_t blkid)
 {
@@ -1551,6 +1581,7 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid)
 			dbuf_rele(db, NULL);
 	}
 }
+#endif	/* ZFS_NO_PREFETCH */
 
 /*
  * Returns with db_holds incremented, and db_mtx not held.
@@ -1875,6 +1906,9 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	zio_nowait(zio);
 }
 
+/* To prevent stack overflow */
+static void dbuf_sync_leaf(dbuf_dirty_record_t *, dmu_tx_t *) __NOINLINE;
+
 static void
 dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 {
@@ -1882,7 +1916,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 	dnode_t *dn = db->db_dnode;
 	objset_impl_t *os = dn->dn_objset;
-	uint64_t txg = tx->tx_txg;
+	txg_t txg = tx->tx_txg;
 	int checksum, compress;
 	int blksz;
 
@@ -1920,7 +1954,11 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		ASSERT3U(dn->dn_phys->dn_bonuslen, <=, DN_MAX_BONUSLEN);
 		bcopy(*datap, DN_BONUS(dn->dn_phys), dn->dn_phys->dn_bonuslen);
 		if (*datap != db->db.db_data) {
+#ifndef ZFS_COMPACT
 			zio_buf_free(*datap, DN_MAX_BONUSLEN);
+#else
+			kmem_cache_free(dn_bonus_cache, *datap);
+#endif	/* ZFS_COMPACT */
 			arc_space_return(DN_MAX_BONUSLEN);
 		}
 		db->db_data_pending = NULL;
@@ -2075,7 +2113,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, int checksum,
 	dnode_t *dn = db->db_dnode;
 	objset_impl_t *os = dn->dn_objset;
 	dmu_buf_impl_t *parent = db->db_parent;
-	uint64_t txg = tx->tx_txg;
+	txg_t txg = tx->tx_txg;
 	zbookmark_t zb;
 	zio_t *zio;
 	int zio_flags;
@@ -2122,7 +2160,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	dnode_t *dn = db->db_dnode;
 	objset_impl_t *os = dn->dn_objset;
 	blkptr_t *bp_orig = &zio->io_bp_orig;
-	uint64_t fill = 0;
+	objid_t fill = 0;
 	int old_size, new_size, i;
 
 	dprintf_dbuf_bp(db, bp_orig, "bp_orig: %s", "");
@@ -2195,7 +2233,7 @@ static void
 dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
 	dmu_buf_impl_t *db = vdb;
-	uint64_t txg = zio->io_txg;
+	txg_t txg = zio->io_txg;
 	dbuf_dirty_record_t **drp, *dr;
 
 	ASSERT3U(zio->io_error, ==, 0);

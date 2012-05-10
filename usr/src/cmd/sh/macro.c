@@ -26,6 +26,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 /*
  * UNIX shell
@@ -170,7 +174,7 @@ int trimflag; /* flag to check if an argument is going to be trimmed, here docum
 	 */
 {
 	unsigned int	d;
-	int atflag;  /* flag to check if $@ has already been seen within double 
+	int atflag = 0;	/* flag to check if $@ has already been seen within double 
 		        quotes */
 retry:
 	d = readwc();

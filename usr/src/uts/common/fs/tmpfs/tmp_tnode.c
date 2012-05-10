@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -188,9 +192,11 @@ tmpnode_init(struct tmount *tm, struct tmpnode *t, vattr_t *vap, cred_t *cred)
 	t->tn_blksize = PAGESIZE;
 	t->tn_nblocks = 0;
 	gethrestime(&now);
+	mutex_enter(&t->tn_tlock);
 	t->tn_atime = now;
 	t->tn_mtime = now;
 	t->tn_ctime = now;
+	mutex_exit(&t->tn_tlock);
 	t->tn_seq = 0;
 	t->tn_dir = NULL;
 
@@ -350,8 +356,10 @@ tmpnode_trunc(
 
 stamp_out:
 	gethrestime(&now);
+	mutex_enter(&tp->tn_tlock);
 	tp->tn_mtime = now;
 	tp->tn_ctime = now;
+	mutex_exit(&tp->tn_tlock);
 out:
 	/*
 	 * tmpnode_trunc() cannot fail when newsize == 0.

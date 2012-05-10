@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef _AUDIO_AU_H
 #define	_AUDIO_AU_H
 
@@ -123,7 +127,7 @@ typedef struct au_filehdr au_filehdr_t;
 			    ((char *)(to))[3] = ((char *)(from))[0];
 #endif /* byte swapping */
 
-#if defined(__sparc) || defined(__i386) || defined(__amd64)
+#if defined(__sparc) || defined(__i386) || defined(__amd64) || defined(__arm)
 #define	AUDIO_AU_HOST2FILE(from, to)	AUDIO_AU_FILE2HOST((from), (to))
 #else
 #error unknown machine type;

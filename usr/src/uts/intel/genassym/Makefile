@@ -22,6 +22,12 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 #	This makefile drives the production of genassym.h through
@@ -56,6 +62,8 @@ INC_PATH	+= -I$(UTSBASE)/common/brand/lx
 CLEANFILES	= Nothing_to_remove
 CLOBBERFILES	= $(GENASSYM_H) Nothing_to_remove
 
+USE_MODTUNE	= $(POUND_SIGN)
+
 #
 #	Default build targets.
 #
@@ -76,7 +84,9 @@ install:	def
 #
 # Create genassym.h
 #
-$(GENASSYM_H): $(OFFSETS_SRC)
+GENASSYM_H_DEPS	= $(ARCH_MODTUNE_H) $(OFFSETS_SRC)
+
+$(GENASSYM_H):	$(GENASSYM_H_DEPS)
 	$(OFFSETS_CREATE) <$(OFFSETS_SRC) >$@
 
 #

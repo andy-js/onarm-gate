@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <alloca.h>
@@ -43,6 +47,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zio.h>
 #include <strings.h>
+#include <zfs_types.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
@@ -88,6 +93,7 @@ zpool_get_all_props(zpool_handle_t *zhp)
 	return (0);
 }
 
+#ifndef	ZFS_CMD_MINIMUMSET
 static int
 zpool_props_refresh(zpool_handle_t *zhp)
 {
@@ -127,6 +133,7 @@ zpool_get_prop_string(zpool_handle_t *zhp, zpool_prop_t prop,
 
 	return (value);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 uint64_t
 zpool_get_prop_int(zpool_handle_t *zhp, zpool_prop_t prop, zprop_source_t *src)
@@ -154,6 +161,7 @@ zpool_get_prop_int(zpool_handle_t *zhp, zpool_prop_t prop, zprop_source_t *src)
 	return (value);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Map VDEV STATE to printed strings.
  */
@@ -263,6 +271,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
 
 	return (0);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Check if the bootfs name has the same pool name as it is set to.
@@ -283,6 +292,7 @@ bootfs_name_valid(const char *pool, char *bootfs)
 	return (B_FALSE);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Given an nvlist of zpool properties to be set, validate that they are
  * correct, and parse any numeric properties (index, boolean, etc) if they are
@@ -525,6 +535,7 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
 
 	return (0);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 
 /*
@@ -687,6 +698,7 @@ zpool_open_silent(libzfs_handle_t *hdl, const char *pool, zpool_handle_t **ret)
 	return (0);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Similar to zpool_open_canfail(), but refuses to open pools in the faulted
  * state.
@@ -708,6 +720,7 @@ zpool_open(libzfs_handle_t *hdl, const char *pool)
 
 	return (zhp);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Close the handle.  Simply frees the memory associated with the handle.
@@ -734,6 +747,7 @@ zpool_get_name(zpool_handle_t *zhp)
 }
 
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Return the state of the pool (ACTIVE or UNAVAILABLE)
  */
@@ -2230,12 +2244,12 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 
 		if (nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_SLEEP) != 0)
 			goto nomem;
-		if (nvlist_add_uint64(nv, ZPOOL_ERR_DATASET,
+		if (nvlist_add_objid(nv, ZPOOL_ERR_DATASET,
 		    zb[i].zb_objset) != 0) {
 			nvlist_free(nv);
 			goto nomem;
 		}
-		if (nvlist_add_uint64(nv, ZPOOL_ERR_OBJECT,
+		if (nvlist_add_objid(nv, ZPOOL_ERR_OBJECT,
 		    zb[i].zb_object) != 0) {
 			nvlist_free(nv);
 			goto nomem;
@@ -2273,6 +2287,7 @@ zpool_upgrade(zpool_handle_t *zhp, uint64_t new_version)
 		    zhp->zpool_name));
 	return (0);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 void
 zpool_set_history_str(const char *subcommand, int argc, char **argv,
@@ -2311,6 +2326,7 @@ zpool_stage_history(libzfs_handle_t *hdl, const char *history_str)
 	return (0);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Perform ioctl to get some command history of a pool.
  *
@@ -2463,7 +2479,7 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 
 	/* get the dataset's name */
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	zc.zc_obj = dsobj;
+	zc.zc_obj = (objid_t)dsobj;
 	if (ioctl(zhp->zpool_hdl->libzfs_fd,
 	    ZFS_IOC_DSOBJ_TO_DSNAME, &zc) != 0) {
 		/* just write out a path of two object numbers */
@@ -2478,7 +2494,7 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 
 	/* get the corrupted object's path */
 	(void) strlcpy(zc.zc_name, dsname, sizeof (zc.zc_name));
-	zc.zc_obj = obj;
+	zc.zc_obj = (objid_t)obj;
 	if (ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_OBJ_TO_PATH,
 	    &zc) == 0) {
 		if (mounted) {
@@ -2493,7 +2509,9 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	}
 	free(mntpnt);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
+#ifndef NO_SUPPORT_EFI
 #define	RDISK_ROOT	"/dev/rdsk"
 #define	BACKUP_SLICE	"s2"
 /*
@@ -2628,7 +2646,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	 * can get, in the absence of V_OTHER.
 	 */
 	vtoc->efi_parts[0].p_tag = V_USR;
-	(void) strcpy(vtoc->efi_parts[0].p_name, "zfs");
+	(void) strcpy(vtoc->efi_parts[0].p_name, ZFS_MODULE);
 
 	vtoc->efi_parts[8].p_start = slice_size + start_block;
 	vtoc->efi_parts[8].p_size = resv;
@@ -2654,3 +2672,4 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	efi_free(vtoc);
 	return (0);
 }
+#endif	/* NO_SUPPORT_EFI */

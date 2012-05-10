@@ -23,6 +23,11 @@
  * Copyright 2003 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -169,7 +174,8 @@ audit_crontab_get_diffs(char *cf, char *tmp_name, char **bufptr)
 	struct stat st, st_tmp;
 	uid_t	euid;
 	int	len, r = AUDIT_GET_DIFFS_CRONTAB;
-	char	*buf = NULL, err_buf[128];
+	char	*buf = NULL;
+	static char	err_buf[128];
 
 	(void) memset(err_buf, 0, 128);
 	euid = geteuid();

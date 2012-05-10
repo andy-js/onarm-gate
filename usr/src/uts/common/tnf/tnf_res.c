@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -31,7 +35,6 @@
  * driver is not loaded.
  */
 
-#ifndef NPROBE
 #include <sys/types.h>
 #include <sys/systm.h>
 #include <sys/thread.h>
@@ -51,6 +54,7 @@
 #include "tnf_types.h"
 #include "tnf_trace.h"
 
+#ifndef NPROBE
 /*
  * Defines
  */

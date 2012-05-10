@@ -26,6 +26,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -102,11 +107,21 @@ ld_main(int argc, char **argv)
 		return (1);
 	}
 
+	ld_mach_ofl_init(ofl);
+
 	/*
 	 * At this point a call such as ld -V is considered complete.
 	 */
 	if (ofl->ofl_flags1 & FLG_OF1_DONE)
 		return (0);
+
+#ifdef	CROSS_BUILD
+	if (sysroot_path == NULL) {
+		/* Use default sysroot path. */
+		sysroot_path = DEFAULT_SYSROOT_PATH;
+		sysroot_pathlen = strlen(sysroot_path);
+	}
+#endif	/* CROSS_BUILD */
 
 	/*
 	 * Determine whether any support libraries been loaded (either through

@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -677,7 +681,7 @@ rx_copy:
 			 * buffer will have to be retained for future
 			 * packet reception.
 			 */
-			bcopy(rx_buf->address, nmp->b_wptr, length);
+			E1000G_BCOPY(rx_buf->address, nmp->b_wptr, length);
 		}
 
 		/*

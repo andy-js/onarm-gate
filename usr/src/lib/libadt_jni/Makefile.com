@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -33,7 +38,7 @@ OBJECTS=	adt_jni.o	\
 
 include		$(SRC)/lib/Makefile.lib
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 SRCDIR =	../common
 
@@ -58,7 +63,7 @@ lint:		lintcheck
 
 include		$(SRC)/lib/Makefile.targ
 
-pics/%.o: ../common/%.c
+objs/%.o pics/%.o: ../common/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

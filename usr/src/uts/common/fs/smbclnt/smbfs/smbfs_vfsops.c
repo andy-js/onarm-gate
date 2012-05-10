@@ -37,6 +37,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/systm.h>
@@ -132,7 +136,7 @@ static void	smbfs_freevfs(vfs_t *);
  * initialization to be done when the module is loaded.
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int		status;
 
@@ -156,12 +160,13 @@ _init(void)
 	return (status);
 }
 
+#ifndef	STATIC_DRIVER
 /*
  * Free kernel module resources that were allocated in _init
  * and remove the linkage information into the kernel
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -189,12 +194,13 @@ _fini(void)
 	smbfsfini();
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * Return information about the module
  */
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info((struct modlinkage *)&modlinkage, modinfop));
 }

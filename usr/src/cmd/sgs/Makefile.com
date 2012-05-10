@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 .KEEP_STATE:
 .KEEP_STATE_FILE: .make.state.$(MACH)
 
@@ -35,6 +39,7 @@ SRCBASE =	../../../..
 
 i386_ARCH =	$(VAR_I386_ARCH)
 sparc_ARCH =	sparc
+arm_ARCH =	arm
 
 ARCH =		$($(MACH)_ARCH)
 
@@ -76,6 +81,10 @@ SGSONLD =	$(ROOT)/opt/SUNWonld
 SGSRPATH =	/usr/lib
 SGSRPATH64 =	$(SGSRPATH)/$(MACH64)
 
+CROSSPROTO =	$(SGSHOME)/proto/cross/$(MACH)
+CROSSBIN =	$(CROSSPROTO)/bin
+CROSSLIB =	$(CROSSPROTO)/lib
+
 #
 # Macros to be used to include link against libconv and include vernote.o
 #
@@ -115,6 +124,27 @@ CHKMSGFLAGS =	$(SGSMSGTARG:%=-m %) $(SGSMSGCHK:%=-m %)
 native :=	DYNFLAGS = -R$(SGSPROTO) -L$(SGSPROTO) $(ZNOVERSION)
 
 USE_PROTO =	-Yl,$(SGSPROTO)
+
+# Macros for cross builds.
+CROSS_AW	= AW_AS_DIR=$(NATIVE_GNU_ROOT)/bin \
+		  AW_AS_NAME=gas \
+		  AW_CPP_DIR=$(NATIVE_GNU_ROOT)/bin \
+		  AW_CPP_NAME=cpp $($(NATIVE_MACH)_AS)
+cross	:=	DYNFLAGS = '-R$$ORIGIN/../lib' -L$(CROSSLIB) $(ZNOVERSION)
+
+cross	:=	CC = GNU_ROOT=$(NATIVE_GNU_ROOT) $($(NATIVE_MACH)_CC)
+cross	:=	AS = $(CROSS_AW)
+cross	:=	CFLAGS = $(NATIVE_CFLAGS)
+cross	:= 	ASFLAGS = $($(NATIVE_MACH)_ASFLAGS) $($(NATIVE_MACH)_AS_XARCH)
+cross	:=	CPPFLAGS += -DCROSS_BUILD
+cross	:=	COMPILE.s = $(AS) $(ASFLAGS) $(AS_CPPFLAGS)
+cross	:=	LDFLAGS += -L$(CROSSLIB)
+$(ARM_BLD)cross	:=	CPPFLAGS += -D__arm
+cross	:=	VERS_SCRIPT =
+
+# Don't generate CTF header on cross build because ctfconvert can't handle
+# objects other than target architecture.
+cross	:=	POST_PROCESS_O = :
 
 #
 # lint-related stuff

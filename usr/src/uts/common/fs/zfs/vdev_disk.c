@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -477,6 +481,11 @@ vdev_disk_io_start(zio_t *zio)
 		error = vdev_writeable(vd) ? vdev_error_inject(vd, zio) : ENXIO;
 	else
 		error = vdev_readable(vd) ? vdev_error_inject(vd, zio) : ENXIO;
+
+	if (spa_state(vd->vdev_spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(vd->vdev_spa) == ZIO_FAILURE_MODE_ABORT)
+		error = EIO;
+
 	error = (vd->vdev_remove_wanted || vd->vdev_is_failing) ? ENXIO : error;
 
 	if (error) {

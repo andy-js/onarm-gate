@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -59,7 +63,7 @@ extern int tnf_mod_unload(struct modlinkage *mlp);
 #endif
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int status;
 
@@ -116,13 +120,14 @@ _init()
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&ibmf_modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int status;
 	status = mod_remove(&ibmf_modlinkage);
@@ -147,3 +152,4 @@ _fini()
 #endif
 	return (status);
 }
+#endif	/* !STATIC_DRIVER */

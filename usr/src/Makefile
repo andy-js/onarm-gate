@@ -23,6 +23,11 @@
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
+
+#
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
 #
 # Makefile for system source
 #
@@ -34,6 +39,9 @@ include Makefile.master
 include Targetdirs
 
 COMMON_SUBDIRS=	uts lib cmd ucblib ucbcmd
+
+# ARM build doesn't support UCB compatible modules.
+$(ARM_BLD)COMMON_SUBDIRS	= uts lib cmd
 
 #
 # sparc needs to build both stand and psm, in that order
@@ -87,14 +95,22 @@ _msg :=			TARGET= _msg
 
 .KEEP_STATE:
 
+# ARM build doesn't support Solaris packages.
+BUILD_PKG		= cd pkgdefs; pwd; $(MAKE) all
+$(ARM_BLD)BUILD_PKG	= :
+
 #
 # Note: install only builds the all target for the pkgdefs
 #       directory.  We are not yet ready to have an install
 #	build create 'packages' also.  To build packages
 #	cd pkgdefs and do a 'make install'
 #
+# Note: It seems that dmake sometimes skips over 'dmake _msg' in $(MSGSUBDIRS).
+#       So we decide to invoke '_msg' target separately.
+#
 all: mapfiles closedbins sgs .WAIT $(SUBDIRS) pkg_all
-install: mapfiles closedbins sgs .WAIT $(SUBDIRS) pkg_all .WAIT _msg
+install: mapfiles closedbins sgs .WAIT $(SUBDIRS) pkg_all
+	@$(MAKE) _msg
 	@cd pkgdefs/SUNW0on; pwd; $(MAKE) _msg
 	@rm -rf "$(ROOT)/catalog"
 
@@ -112,7 +128,7 @@ crankturn: sgs uts pkg_all
 	@cd ucbcmd; pwd; $(MAKE) all
 
 pkg_all:
-	@cd pkgdefs; pwd; $(MAKE) all
+	@$(BUILD_PKG)
 
 #
 # target for building a proto area for reference via the ROOT macro
@@ -129,19 +145,27 @@ ucblibs:
 rootlibs: sgs
 	@cd lib; pwd; $(MAKE) install
 
+$(ARM_BLD)JA_JP.PCK_ABI			= ja_JP.PCK_EABI
+$(ARM_BLD)$(GNUC_ARM_OABI)JA_JP.PCK_ABI	= ja_JP.PCK_OABI
+
+RELEASE_ROOT_SUFFIX		= -nd
+$(ARM_BLD)RELEASE_ROOT_SUFFIX	=
+
 closedbins: FRC $(ROOTDIRS)
-	@CLOSED_ROOT="$$ON_CLOSED_BINS/root_$(MACH)$${RELEASE_BUILD+-nd}"; \
+	@CLOSED_ROOT="$$ON_CLOSED_BINS/root_$(MACH)$${RELEASE_BUILD+$(RELEASE_ROOT_SUFFIX)}"; \
 	if [ "$$CLOSED_IS_PRESENT" = no ]; then \
 		if [ ! -d "$$CLOSED_ROOT" ]; then \
 			$(ECHO) "Error: if closed sources are not present," \
 			    "ON_CLOSED_BINS must point to closed binaries."; \
-			$(ECHO) "root_$(MACH)$${RELEASE_BUILD+-nd} is not" \
+			$(ECHO) "root_$(MACH)$${RELEASE_BUILD+$(RELEASE_ROOT_SUFFIX)} is not" \
 			    "present in $$ON_CLOSED_BINS."; \
 			exit 1; \
 		fi; \
 		$(ECHO) "Copying closed binaries from $$CLOSED_ROOT"; \
 		(cd $$CLOSED_ROOT; tar cf - .) | \
 		    (cd $(ROOT); tar xBpf -); \
+# $(ARM_BLD)	$(RM) -r $(ROOT)/usr/lib/locale/ja_JP.PCK; \
+# $(ARM_BLD)	$(SYMLINK) $(JA_JP.PCK_ABI) $(ROOT)/usr/lib/locale/ja_JP.PCK; \
 	fi
 
 #
@@ -160,6 +184,17 @@ $(SUBDIRS) head ucbhead pkgdefs: FRC
 sgs: rootdirs .WAIT sysheaders userheaders .WAIT \
 	libheaders ucbheaders cmdheaders
 
+# Setup tools before build.
+SETUP_UTSTUNE			=
+$(USE_UTSTUNE)SETUP_UTSTUNE	= cd uts; pwd; $(MAKE) tune-setup
+setup-tools:
+	@cd tools; pwd; $(MAKE) $@
+	@$(SETUP_UTSTUNE)
+
+SETUP_TOOLS			=
+$(STATIC_UNIX)SETUP_TOOLS	= setup-tools
+$(USE_UTSTUNE)SETUP_TOOLS	= setup-tools
+
 #
 # Top-level setup target to setup the development environment that includes
 # headers, tools and generated mapfiles.  For open-only builds (i.e.: source
@@ -168,7 +203,7 @@ sgs: rootdirs .WAIT sysheaders userheaders .WAIT \
 # dependent on a number of constant mapfiles, the tools themselves are
 # required to build the generated mapfiles.
 #
-setup: bldtools mapfiles
+setup: $(SETUP_TOOLS) bldtools mapfiles
 
 bldtools: closedbins sgs
 	@cd tools; pwd; $(MAKE) install
@@ -200,8 +235,11 @@ sysheaders: FRC
 ucbheaders: FRC
 	@cd ucbhead; pwd; $(MAKE) install_h
 
+CMD_FM_DIR		= cmd/fm
+$(ARM_BLD)CMD_FM_DIR	= cmd/fm/fmd
+
 cmdheaders: FRC
-	@cd cmd/fm; pwd; $(MAKE) install_h
+	@cd $(CMD_FM_DIR); pwd; $(MAKE) install_h
 	@cd cmd/mdb; pwd; $(MAKE) install_h
 
 # each xmod target depends on a corresponding MACH-specific pseudotarget

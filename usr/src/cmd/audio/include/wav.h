@@ -25,6 +25,10 @@
  */
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * This header file defines the .wav audio file format.
  */
 
@@ -131,7 +135,7 @@ typedef struct wav_filehdr wav_filehdr_t;
 #define	AUDIO_WAV_HOST2FILE_SHORT(from, to)				\
 		AUDIO_WAV_FILE2HOST_SHORT((from), (to))
 
-#elif defined(__i386) || defined(__amd64)	/* little endian */
+#elif defined(__i386) || defined(__amd64) || defined(__arm) /* little endian */
 #define	AUDIO_WAV_FILE2HOST_INT(from, to)				\
 		*((int *)(to)) = *((int *)(from))
 #define	AUDIO_WAV_FILE2HOST_SHORT(from, to)				\

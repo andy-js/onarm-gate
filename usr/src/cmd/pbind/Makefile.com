@@ -37,7 +37,6 @@ include ../../Makefile.cmd
 OWNER = root
 GROUP = sys
 LDLIBS += -lproc
-
 .KEEP_STATE:
 
 %.o:	../%.c

@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -52,6 +55,7 @@
 #include <sys/fcntl.h>
 #include <sys/lwpchan_impl.h>
 #include <sys/nbmlock.h>
+#include <sys/lpg_config.h>
 
 #include <vm/hat.h>
 #include <vm/as.h>
@@ -59,11 +63,13 @@
 #include <vm/seg_dev.h>
 #include <vm/seg_vn.h>
 
+#ifndef	LPG_DISABLE
 int use_brk_lpg = 1;
 int use_stk_lpg = 1;
 
 static int brk_lpg(caddr_t nva);
 static int grow_lpg(caddr_t sp);
+#endif	/* LPG_DISABLE */
 
 int
 brk(caddr_t nva)
@@ -77,7 +83,7 @@ brk(caddr_t nva)
 	 * and p_brkpageszc.
 	 */
 	as_rangelock(p->p_as);
-	if (use_brk_lpg && (p->p_flag & SAUTOLPG) != 0) {
+	if (LPG_EVAL(use_brk_lpg) && (p->p_flag & SAUTOLPG) != 0) {
 		error = brk_lpg(nva);
 	} else {
 		error = brk_internal(nva, p->p_brkpageszc);
@@ -86,6 +92,7 @@ brk(caddr_t nva)
 	return ((error != 0 ? set_errno(error) : 0));
 }
 
+#ifndef	LPG_DISABLE
 /*
  * Algorithm: call arch-specific map_pgsz to get best page size to use,
  * then call brk_internal().
@@ -158,6 +165,7 @@ brk_lpg(caddr_t nva)
 	ASSERT(err == 0);
 	return (err);		/* should always be 0 */
 }
+#endif	/* !LPG_DISABLE */
 
 /*
  * Returns 0 on success.
@@ -174,13 +182,15 @@ brk_internal(caddr_t nva, uint_t brkszc)
 	uint_t szc;
 	rctl_qty_t as_rctl;
 
+	SZC_ASSERT(brkszc);
+
 	/*
 	 * extend heap to brkszc alignment but use current p->p_brkpageszc
 	 * for the newly created segment. This allows the new extension
 	 * segment to be concatenated successfully with the existing brk
 	 * segment.
 	 */
-	if ((szc = brkszc) != 0) {
+	if ((szc = SZC_EVAL(brkszc)) != 0) {
 		pgsz = page_get_pagesize(szc);
 		ASSERT(pgsz > PAGESIZE);
 	} else {
@@ -255,7 +265,7 @@ brk_internal(caddr_t nva, uint_t brkszc)
 		 * via map_pgszcvec(). Use AS_MAP_HEAP to get intermediate
 		 * page sizes if ova is not aligned to szc's pgsz.
 		 */
-		if (szc > 0) {
+		if (SZC_EVAL(szc) > 0) {
 			caddr_t rbss;
 
 			rbss = (caddr_t)P2ROUNDUP((uintptr_t)p->p_bssbase,
@@ -307,10 +317,11 @@ grow(caddr_t sp)
 	 * and p_stkpageszc.
 	 */
 	as_rangelock(as);
-	if (use_stk_lpg && (p->p_flag & SAUTOLPG) != 0) {
+	if (LPG_EVAL(use_stk_lpg) && (p->p_flag & SAUTOLPG) != 0) {
 		err = grow_lpg(sp);
 	} else {
-		err = grow_internal(sp, p->p_stkpageszc);
+		SZC_ASSERT(p->p_stkpageszc);
+		err = grow_internal(sp, SZC_EVAL(p->p_stkpageszc));
 	}
 	as_rangeunlock(as);
 
@@ -327,6 +338,7 @@ grow(caddr_t sp)
 	return ((err == 0 ? 1 : 0));
 }
 
+#ifndef	LPG_DISABLE
 /*
  * Algorithm: call arch-specific map_pgsz to get best page size to use,
  * then call grow_internal().
@@ -396,6 +408,7 @@ grow_lpg(caddr_t sp)
 	ASSERT(err == 0);
 	return (err);		/* should always be 0 */
 }
+#endif	/* !LPG_DISABLE */
 
 /*
  * This routine assumes that the stack grows downward.
@@ -413,6 +426,8 @@ grow_internal(caddr_t sp, uint_t growszc)
 	struct segvn_crargs crargs = SEGVN_ZFOD_ARGS(PROT_ZFOD, PROT_ALL);
 
 	ASSERT(sp < p->p_usrstack);
+	SZC_ASSERT(growszc);
+
 	sp = (caddr_t)P2ALIGN((uintptr_t)sp, PAGESIZE);
 
 	/*
@@ -421,7 +436,7 @@ grow_internal(caddr_t sp, uint_t growszc)
 	 * increase the szc, this allows the new extension segment to be
 	 * concatenated successfully with the existing stack segment.
 	 */
-	if ((szc = growszc) != 0) {
+	if ((szc = SZC_EVAL(growszc)) != 0) {
 		pgsz = page_get_pagesize(szc);
 		ASSERT(pgsz > PAGESIZE);
 		newsize = p->p_usrstack - (caddr_t)P2ALIGN((uintptr_t)sp, pgsz);
@@ -459,7 +474,7 @@ grow_internal(caddr_t sp, uint_t growszc)
 	 * map_pgszcvec(). Use AS_MAP_STACK to get intermediate page sizes
 	 * if not aligned to szc's pgsz.
 	 */
-	if (szc > 0) {
+	if (SZC_EVAL(szc) > 0) {
 		caddr_t oldsp = p->p_usrstack - oldsize;
 		caddr_t austk = (caddr_t)P2ALIGN((uintptr_t)p->p_usrstack,
 		    pgsz);
@@ -867,6 +882,9 @@ struct mmaplf32a {
 	uint32_t prot;
 	uint32_t flags;
 	uint32_t fd;
+#if defined(__arm) && defined(__ARM_EABI__) && !defined(ARM_OABI_USER)
+	uint32_t pad;
+#endif
 	uint32_t offhi;
 	uint32_t offlo;
 #endif

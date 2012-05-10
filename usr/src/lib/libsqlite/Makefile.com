@@ -5,6 +5,10 @@
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 SQLITE_VERSION = 2.8.15-repcached
 
 LIBRARY = libsqlite.a
@@ -180,6 +184,7 @@ ENCODING  = ISO8859
 
 LINTSRC=    ../llib-lsqlite
 
+$(__LINT)LINTTARGET	= $(ROOTLIBDIR)/llib-lsqlite.ln
 
 .PARALLEL: $(OBJS) $(OBJS:%.o=%-native.o)
 .KEEP_STATE:
@@ -189,7 +194,7 @@ LINTSRC=    ../llib-lsqlite
 #
 all:		$(LIBS)
 install:	all $(ROOTLIBDIR)/$(RELOC) $(ROOTLIBDIR)/$(NATIVERELOC) \
-		$(ROOTLIBDIR)/llib-lsqlite.ln $(SMBSRVLIBDIR)/$(DYNLIB)
+		$(LINTTARGET) $(SMBSRVLIBDIR)/$(DYNLIB)
 
 $(ROOTLIBDIR)/$(RELOC)		:= FILEMODE= 644
 $(ROOTLIBDIR)/$(NATIVERELOC)	:= FILEMODE= 644

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -144,24 +148,26 @@ static struct modlinkage modlinkage = {
 	MODREV_1, (void *)&modlfs, NULL
 };
 
-char _depends_on[] = "fs/specfs";
+MODDRV_DEPENDS_ON("fs/specfs");
 
 int32_t udf_fstype = -1;
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

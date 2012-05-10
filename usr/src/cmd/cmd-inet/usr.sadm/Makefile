@@ -27,15 +27,18 @@
 #
 # cmd/cmd-inet/usr.sadm/Makefile
 
-SUBDIRS1=	dhcpmgr
+# SUBDIRS1=	dhcpmgr
+SUBDIRS1=
 SUBDIRS2=	scripts
 
 include ../../Makefile.cmd
 #
 # Message catalog
 #
-POFILES= dhcpmgr/lib/dhcpmgr.po
-POFILE= usr.sadm.po
+# POFILES= dhcpmgr/lib/dhcpmgr.po
+# POFILE= usr.sadm.po
+POFILES=
+POFILE=
 
 all:=		TARGET= all
 install:=	TARGET= install

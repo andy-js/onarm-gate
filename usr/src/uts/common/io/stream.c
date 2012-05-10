@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -162,7 +166,37 @@ static size_t dblk_sizes[] = {
 	DBLK_MAX_CACHE, 0
 };
 
-static struct kmem_cache *dblk_cache[DBLK_MAX_CACHE / DBLK_MIN_SIZE];
+/*
+ * dblk_cache[] index calculation
+ */
+#if	defined(__arm)
+#define	DBLK_CTBL_BUF0		3968
+#define	DBLK_CTBL_BUF1		8192
+
+#define	DBLK_CTBL_SHIFT0	6	/* log2(DBLK_CACHE_ALIGN) */
+#define	DBLK_CTBL_SHIFT1	13	/* log2(8192) */
+
+#define	DBLK_CTBL_MAXINDEX0	((DBLK_CTBL_BUF0 - 1) >> DBLK_CTBL_SHIFT0)
+#define	DBLK_CTBL_MAXINDEX1						\
+	(((DBLK_MAX_CACHE - 1) >> DBLK_CTBL_SHIFT1) * 2 + 1		\
+						 + DBLK_CTBL_MAXINDEX0)
+#define	DBLK_CTBL_MAX		(DBLK_CTBL_MAXINDEX1 + 1)
+
+#define	DBLK_CTBL_INDEX(size)						\
+	(								\
+	(size) <= DBLK_CTBL_BUF0 ?					\
+		((size) - 1) >> DBLK_CTBL_SHIFT0 :			\
+	(((size) & DBLK_CTBL_BUF1 - 1) != 0 &&				\
+	 P2PHASE((size), DBLK_CTBL_BUF1) <= DBLK_CTBL_BUF0) ?		\
+		(((size) - 1) >> DBLK_CTBL_SHIFT1) * 2 + DBLK_CTBL_MAXINDEX0 : \
+	(((size) - 1) >> DBLK_CTBL_SHIFT1) * 2 + 1 + DBLK_CTBL_MAXINDEX0 \
+	)
+#else	/* !__arm */
+#define	DBLK_CTBL_MAX		(DBLK_MAX_CACHE / DBLK_MIN_SIZE)
+#define	DBLK_CTBL_INDEX(size)	(((size) - 1)  >> DBLK_SIZE_SHIFT)
+#endif	/* __arm */
+
+static struct kmem_cache *dblk_cache[DBLK_CTBL_MAX];
 static struct kmem_cache *mblk_cache;
 static struct kmem_cache *dblk_esb_cache;
 static struct kmem_cache *fthdr_cache;
@@ -194,9 +228,9 @@ dblk_constructor(void *buf, void *cdrarg, int kmflags)
 
 	ASSERT(msg_size != 0);
 
-	index = (msg_size - 1) >> DBLK_SIZE_SHIFT;
+	index = DBLK_CTBL_INDEX(msg_size);
 
-	ASSERT(index < (DBLK_MAX_CACHE >> DBLK_SIZE_SHIFT));
+	ASSERT(index < DBLK_CTBL_MAX);
 
 	if ((dbp->db_mblk = kmem_cache_alloc(mblk_cache, kmflags)) == NULL)
 		return (-1);
@@ -351,7 +385,7 @@ streams_msg_init(void)
 			(void *)(size), NULL, dblk_kmem_flags);
 
 		while (lastsize <= size) {
-			dblk_cache[(lastsize - 1) >> DBLK_SIZE_SHIFT] = cp;
+			dblk_cache[DBLK_CTBL_INDEX(lastsize)] = cp;
 			lastsize += DBLK_MIN_SIZE;
 		}
 	}
@@ -380,9 +414,9 @@ allocb(size_t size, uint_t pri)
 	mblk_t *mp;
 	size_t index;
 
-	index =  (size - 1)  >> DBLK_SIZE_SHIFT;
+	index = DBLK_CTBL_INDEX(size);
 
-	if (index >= (DBLK_MAX_CACHE >> DBLK_SIZE_SHIFT)) {
+	if (index >= DBLK_CTBL_MAX) {
 		if (size != 0) {
 			mp = allocb_oversize(size, KM_NOSLEEP);
 			goto out;
@@ -984,10 +1018,10 @@ allocb_wait(size_t size, uint_t pri, uint_t flags, int *error)
 	mblk_t *mp;
 	size_t index;
 
-	index = (size -1) >> DBLK_SIZE_SHIFT;
+	index = DBLK_CTBL_INDEX(size);
 
 	if (flags & STR_NOSIG) {
-		if (index >= (DBLK_MAX_CACHE >> DBLK_SIZE_SHIFT)) {
+		if (index >= DBLK_CTBL_MAX) {
 			if (size != 0) {
 				mp = allocb_oversize(size, KM_SLEEP);
 				FTRACE_1("allocb_wait (NOSIG): mp=0x%lx",

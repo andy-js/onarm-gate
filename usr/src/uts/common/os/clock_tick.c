@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/thread.h>
@@ -304,8 +308,9 @@ clock_tick_process(cpu_t *cp, clock_t mylbolt, int pending)
 	 * point we can check (again) if the thread is exiting
 	 * and either drop the lock or do the tick processing.
 	 */
+	cp = CPU_SELF(cp);
 	t = cp->cpu_thread;	/* Current running thread */
-	if (CPU == cp) {
+	if (CPU_GLOBAL == cp) {
 		/*
 		 * 't' will be the tick processing thread on this
 		 * CPU.  Use the pinned thread (if any) on this CPU
@@ -337,7 +342,7 @@ clock_tick_process(cpu_t *cp, clock_t mylbolt, int pending)
 	 * Make sure the thread is still on the CPU.
 	 */
 	if ((t != cp->cpu_thread) &&
-	    ((cp != CPU) || (t != cp->cpu_thread->t_intr))) {
+	    ((cp != CPU_GLOBAL) || (t != cp->cpu_thread->t_intr))) {
 		/*
 		 * We could not locate the thread. Skip this CPU. Race
 		 * conditions while performing these checks are benign.
@@ -486,7 +491,7 @@ clock_tick_schedule(int one_sec)
 		 * So, CPU online/offline cannot muck with this while
 		 * we are picking our CPU to X-call.
 		 */
-		if (cp == CPU)
+		if (cp == CPU_GLOBAL)
 			cp = cp->cpu_next_onln;
 
 		/*
@@ -541,14 +546,16 @@ clock_tick_execute_common(int start, int scan, int end, clock_t mylbolt,
 	 */
 	for (i = scan; i < end; i++) {
 		cp = clock_tick_cpus[i];
-		if ((cp == NULL) || (cp == CPU) || (cp->cpu_id == clock_cpu_id))
+		if ((cp == NULL) || (cp == CPU_GLOBAL) ||
+		    (cp->cpu_id == clock_cpu_id))
 			continue;
 		clock_tick_process(cp, mylbolt, pending);
 	}
 
 	for (i = start; i < scan; i++) {
 		cp = clock_tick_cpus[i];
-		if ((cp == NULL) || (cp == CPU) || (cp->cpu_id == clock_cpu_id))
+		if ((cp == NULL) || (cp == CPU_GLOBAL) ||
+		    (cp->cpu_id == clock_cpu_id))
 			continue;
 		clock_tick_process(cp, mylbolt, pending);
 	}

@@ -26,6 +26,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -49,6 +54,22 @@ char		*Plibpath;	/* User specified -YP or defaults to LIBPATH */
 char		*Llibdir;	/* User specified -YL */
 char		*Ulibdir;	/* User specified -YU */
 Listnode	*insert_lib;	/* insertion point for -L libraries */
+
+#ifdef	CROSS_BUILD
+
+/*
+ * Default root filesystem.
+ * This is used to set up library search path for cross build environment.
+ */
+char		*sysroot_path;
+size_t		sysroot_pathlen;
+
+/*
+ * Determine sysroot search order.
+ */
+sysroot_order_t	sysroot_order = SRORDER_FIRST;
+
+#endif	/* CROSS_BUILD */
 
 /*
  * A default library search path is used if one was not supplied on the command

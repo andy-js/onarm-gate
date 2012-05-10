@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4 */
 
 /*
@@ -147,7 +151,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 
@@ -163,13 +167,14 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -180,6 +185,7 @@ _fini(void)
 	mutex_destroy(&oprom_lock);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 static dev_info_t *opdip;
 static pnode_t options_nodeid;
@@ -364,7 +370,7 @@ opromioctl_cb(void *avp, int has_changed)
 	 * and weed out unsupported commands on x86 platform
 	 */
 	switch (cmd) {
-#if !defined(__i386) && !defined(__amd64)
+#if !defined(__i386) && !defined(__amd64) && !defined(__arm)
 	case OPROMLISTKEYSLEN:
 		valsize = prom_asr_list_keys_len();
 		opp = (struct openpromio *)kmem_zalloc(
@@ -434,12 +440,12 @@ opromioctl_cb(void *avp, int has_changed)
 
 	case OPROMSETOPT:
 	case OPROMSETOPT2:
-#if !defined(__i386) && !defined(__amd64)
+#if !defined(__i386) && !defined(__amd64) && !defined(__arm)
 		if (mode & FWRITE) {
 			node_id = options_nodeid;
 			break;
 		}
-#endif /* !__i386 && !__amd64 */
+#endif /* !__i386 && !__amd64 && !__arm */
 		return (EPERM);
 
 	case OPROMNEXT:
@@ -463,22 +469,22 @@ opromioctl_cb(void *avp, int has_changed)
 	case OPROMGETVERSION:
 	case OPROMPATH2DRV:
 	case OPROMPROM2DEVNAME:
-#if !defined(__i386) && !defined(__amd64)
+#if !defined(__i386) && !defined(__amd64) && !defined(__arm)
 	case OPROMGETFBNAME:
 	case OPROMDEV2PROMNAME:
 	case OPROMREADY64:
-#endif	/* !__i386 && !__amd64 */
+#endif	/* !__i386 && !__amd64 && !__arm */
 		if ((mode & FREAD) == 0) {
 			return (EPERM);
 		}
 		break;
 
-#if !defined(__i386) && !defined(__amd64)
+#if !defined(__i386) && !defined(__amd64) && !defined(__arm)
 	case WANBOOT_SETKEY:
 		if (!(mode & FWRITE))
 			return (EPERM);
 		break;
-#endif	/* !__i386 && !defined(__amd64) */
+#endif	/* !__i386 && !defined(__amd64) && !__arm */
 
 	default:
 		return (EINVAL);
@@ -813,7 +819,7 @@ opromioctl_cb(void *avp, int has_changed)
 			error = EFAULT;
 		break;
 
-#if !defined(__i386) && !defined(__amd64)
+#if !defined(__i386) && !defined(__amd64) && !defined(__arm)
 	case OPROMGETFBNAME:
 		/*
 		 * Return stdoutpath, if it's a frame buffer.
@@ -1018,7 +1024,7 @@ opromioctl_cb(void *avp, int has_changed)
 			}
 		break;
 	}	/* case WANBOOT_SETKEY */
-#endif	/* !__i386 && !__amd64 */
+#endif	/* !__i386 && !__amd64 && !__arm */
 	}	/* switch (cmd)	*/
 
 	kmem_free(opp, userbufsize + sizeof (uint_t) + 1);

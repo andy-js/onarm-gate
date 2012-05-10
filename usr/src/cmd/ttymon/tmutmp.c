@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<unistd.h>
@@ -50,6 +54,7 @@
 #include	<security/pam_appl.h>
 
 #include	"sac.h"
+#include	"tmstruct.h"
 #include	"tmextern.h"
 
 extern	char	*lastname();

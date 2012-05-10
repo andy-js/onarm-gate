@@ -45,6 +45,14 @@ string_table.o:	../common/string_table.c
 		$(NATIVECC) $(DEBUG) $(NATIVECC_CFLAGS) -c \
 		    ../common/string_table.c
 
+assfail.o:	../common/assfail.c
+		$(NATIVECC) $(DEBUG) $(NATIVECC_CFLAGS) -c \
+		    ../common/assfail.c
+
+findprime.o:	../common/findprime.c
+		$(NATIVECC) $(DEBUG) $(NATIVECC_CFLAGS) -c \
+		    ../common/findprime.c
+
 avl.o:		$(VAR_AVLDIR)/avl.c
 		$(NATIVECC) $(DEBUG) $(NATIVECC_CFLAGS) -c \
 		    $(VAR_AVLDIR)/avl.c

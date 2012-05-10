@@ -416,7 +416,7 @@ vdev_cache_fini(vdev_t *vd)
 void
 vdev_cache_stat_init(void)
 {
-	vdc_ksp = kstat_create("zfs", 0, "vdev_cache_stats", "misc",
+	vdc_ksp = kstat_create(ZFS_MODULE, 0, "vdev_cache_stats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (vdc_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
 	if (vdc_ksp != NULL) {

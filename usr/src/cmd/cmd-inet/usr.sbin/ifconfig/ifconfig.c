@@ -10,6 +10,10 @@
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #include "defs.h"
 #include "strings.h"
 #include "ifconfig.h"
@@ -55,7 +59,9 @@ static if_flags_t	if_flags_tbl[] = {
 	{ IFF_ANYCAST,		"ANYCAST" },
 	{ IFF_NORTEXCH,		"NORTEXCH" },
 	{ IFF_IPV4,		"IPv4" },
+#ifdef USE_INET6
 	{ IFF_IPV6,		"IPv6" },
+#endif /* USE_INET6 */
 	{ IFF_NOFAILOVER,	"NOFAILOVER" },
 	{ IFF_FAILED,		"FAILED" },
 	{ IFF_STANDBY,		"STANDBY" },
@@ -233,16 +239,20 @@ struct	cmd {
 	{ "-private",	-IFF_PRIVATE,	setifflags,	0,	AF_ANY },
 	{ "xmit",	-IFF_NOXMIT,	setifflags,	0,	AF_ANY },
 	{ "-xmit",	IFF_NOXMIT,	setifflags,	0,	AF_ANY },
+#ifdef USE_INET6
 	{ "-nud",	IFF_NONUD,	setifflags,	0,	AF_INET6 },
 	{ "nud",	-IFF_NONUD,	setifflags,	0,	AF_INET6 },
+#endif /* USE_INET6 */
 	{ "anycast",	IFF_ANYCAST,	setifflags,	0,	AF_ANY },
 	{ "-anycast",	-IFF_ANYCAST,	setifflags,	0,	AF_ANY },
 	{ "local",	-IFF_NOLOCAL,	setifflags,	0,	AF_ANY },
 	{ "-local",	IFF_NOLOCAL,	setifflags,	0,	AF_ANY },
 	{ "deprecated",	IFF_DEPRECATED,	setifflags,	0,	AF_ANY },
 	{ "-deprecated", -IFF_DEPRECATED, setifflags,	0,	AF_ANY },
+#ifdef USE_INET6
 	{ "preferred",	IFF_PREFERRED,	setifflags,	0,	AF_INET6 },
 	{ "-preferred",	-IFF_PREFERRED,	setifflags,	0,	AF_INET6 },
+#endif /* USE_INET6 */
 	{ "debug",	0,		setdebugflag,	0,	AF_ANY },
 	{ "verbose",	0,		setverboseflag,	0,	AF_ANY },
 	{ NETMASK_CMD,	NEXTARG,	setifnetmask,	0,	AF_INET },
@@ -254,7 +264,9 @@ struct	cmd {
 	{ "plumb",	0,		inetplumb,	1,	AF_ANY },
 	{ "unplumb",	0,		inetunplumb,	0,	AF_ANY },
 	{ "subnet",	NEXTARG,	setifsubnet,	0,	AF_ANY },
+#ifdef USE_INET6
 	{ "token",	NEXTARG,	setiftoken,	0,	AF_INET6 },
+#endif /* USE_INET6 */
 	{ "tsrc",	NEXTARG,	setiftsrc,	0,	AF_ANY },
 	{ "tdst",	NEXTARG,	setiftdst,	0,	AF_ANY },
 	{ "encr_auth_algs", NEXTARG,	set_tun_esp_auth_alg, 0, AF_ANY },
@@ -334,7 +346,9 @@ struct afswtch {
 	void (*af_configinfo)();
 } afs[] = {
 	{ "inet", AF_INET, in_status, in_getaddr, in_configinfo },
+#ifdef USE_INET6
 	{ "inet6", AF_INET6, in6_status, in6_getaddr, in6_configinfo },
+#endif	/* USE_INET6 */
 	{ 0, 0,	0, 0, 0 }
 };
 
@@ -1616,6 +1630,7 @@ print_ifether(char *ifname)
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (fd == -1 || ioctl(fd, SIOCGLIFFLAGS, &lifr) == -1) {
+#ifdef USE_INET6
 		/*
 		 * It's possible the interface is only configured for
 		 * IPv6; check again with AF_INET6.
@@ -1626,6 +1641,10 @@ print_ifether(char *ifname)
 			(void) close(fd);
 			return;
 		}
+#else
+		(void) close(fd);
+		return;
+#endif /* USE_INET6 */
 	}
 	(void) close(fd);
 
@@ -2178,6 +2197,7 @@ setifgroupname(char *grpname, int64_t param)
 		/* connect succeeded, mpathd is already running */
 		return (0);
 	}
+#ifdef USE_INET6
 	/*
 	 * Try to connect to in.mpathd using IPv6. If we succeed,
 	 * we conclude that in.mpathd is running, and quit.
@@ -2186,6 +2206,7 @@ setifgroupname(char *grpname, int64_t param)
 		/* connect succeeded, mpathd is already running */
 		return (0);
 	}
+#endif /* USE_INET6 */
 
 	/*
 	 * in.mpathd may not be running. Start it now. If it is already
@@ -4609,9 +4630,13 @@ setifdhcp(const char *caller, const char *ifname, int argc, char *argv[])
 static void
 usage(void)
 {
+#ifdef USE_INET6
 	(void) fprintf(stderr,
 	    "usage: ifconfig <interface> | -a[ 4 | 6 | D ][ u | d ][ Z ]\n");
-
+#else
+	(void) fprintf(stderr,
+	    "usage: ifconfig <interface> | -a[ 4 | D ][ u | d ][ Z ]\n");
+#endif /* USE_INET6 */
 	(void) fprintf(stderr, "%s",
 	    "\t[ <addr_family> ]\n"
 	    "\t[ <address>[/<prefix_length>] [ <dest_address> ] ]\n"
@@ -4654,9 +4679,13 @@ usage(void)
 	    "\t[ all-zones ]\n");
 
 	(void) fprintf(stderr, "or\n");
+#ifdef USE_INET6
 	(void) fprintf(stderr,
 	    "\tifconfig <interface> |  -a[ 4 | 6 | D ] [ u | d ]\n");
-
+#else
+	(void) fprintf(stderr,
+	    "\tifconfig <interface> |  -a[ 4 | D ] [ u | d ]\n");
+#endif /* USE_INET6 */
 	(void) fprintf(stderr, "%s", "\tauto-dhcp | dhcp\n"
 	    "\t[ wait <time> | forever ]\n\t[ primary ]\n"
 	    "\tstart | drop | ping | release | status | inform\n");

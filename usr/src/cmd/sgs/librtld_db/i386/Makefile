@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 PLTOBJS =	plt32_resolution.o
 PLTSRCS =	plt32_resolution.c
 
@@ -37,8 +41,7 @@ SGSMSGTARG +=	$(SGSMSGINTEL)
 
 all:		$(DYNLIB) $(LINTLIB)
 
-install:	all $(ROOTFS_DYNLIB) $(ROOTFS_LINKS) \
-		$(ROOTFS_LIBDIR)/$(LINTLIB) $(ROOTFS_LIBDIR)/$(LINTLIBSRC)
+install:	all $(ROOTFS_DYNLIB) $(ROOTFS_LINKS) $(LINTLIB_TARGET)
 
 lint:		$(LINTLIB) $(LINTOUT32) $(SGSLINTOUT)
 

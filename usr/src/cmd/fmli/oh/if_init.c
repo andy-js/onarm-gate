@@ -28,6 +28,10 @@
 /*	Copyright (c) 1984, 1985, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<stdio.h>
@@ -227,6 +231,9 @@ char *strnsave();
 static int settoggle();
 static struct fm_mn Inits;
 
+static char *set_default();
+static int center_it();
+
 /*
 ** Front-end to parser(), which sets up defaults.
 */
@@ -236,8 +243,6 @@ char *initfile;
 {
 	register int i, numslks;
 	char  *permmsg, *get_def();
-	static char *set_default();
-	static int center_it();
 	static int free_inits = FALSE;
 	int sbutton;
 	FILE *fp;

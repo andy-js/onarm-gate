@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -48,6 +52,7 @@
 #include <sys/acl.h>
 #include <sys/atomic.h>
 #include <sys/cred.h>
+#include <zfs_types.h>
 
 /*
  * Functions to replay ZFS intent log (ZIL) records
@@ -57,7 +62,7 @@
 
 static void
 zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
-	uint64_t uid, uint64_t gid, uint64_t rdev, uint64_t nodeid)
+	uint64_t uid, uint64_t gid, uint64_t rdev, objid_t nodeid)
 {
 	bzero(vap, sizeof (*vap));
 	vap->va_mask = (uint_t)mask;
@@ -76,6 +81,7 @@ zfs_replay_error(zfsvfs_t *zfsvfs, lr_t *lr, boolean_t byteswap)
 	return (ENOTSUP);
 }
 
+#ifndef ZFS_COMPACT
 static void
 zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 {
@@ -396,6 +402,11 @@ bail:
 
 	return (error);
 }
+#else
+#define	zfs_replay_xvattr(lrattr, xvap)
+#define	zfs_replay_fuid_domain(buf, end, uid, gid)	NULL
+#define	zfs_replay_swap_attrs(lrattr)
+#endif	/* ZFS_COMPACT */
 
 static int
 zfs_replay_create(zfsvfs_t *zfsvfs, lr_create_t *lr, boolean_t byteswap)
@@ -743,6 +754,7 @@ zfs_replay_setattr(zfsvfs_t *zfsvfs, lr_setattr_t *lr, boolean_t byteswap)
 	return (error);
 }
 
+#ifndef ZFS_COMPACT
 static int
 zfs_replay_acl_v0(zfsvfs_t *zfsvfs, lr_acl_v0_t *lr, boolean_t byteswap)
 {
@@ -848,6 +860,7 @@ zfs_replay_acl(zfsvfs_t *zfsvfs, lr_acl_t *lr, boolean_t byteswap)
 
 	return (error);
 }
+#endif	/* ZFS_COMPACT */
 
 /*
  * Callback vectors for replaying records
@@ -868,9 +881,9 @@ zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_acl_v0,	/* TX_ACL_V0 */
 	zfs_replay_acl,		/* TX_ACL */
 	zfs_replay_create_acl,	/* TX_CREATE_ACL */
-	zfs_replay_create,	/* TX_CREATE_ATTR */
+	zfs_replay_create_attr,	/* TX_CREATE_ATTR */
 	zfs_replay_create_acl,	/* TX_CREATE_ACL_ATTR */
 	zfs_replay_create_acl,	/* TX_MKDIR_ACL */
-	zfs_replay_create,	/* TX_MKDIR_ATTR */
+	zfs_replay_create_attr,	/* TX_MKDIR_ATTR */
 	zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
 };

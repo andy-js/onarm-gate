@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -34,7 +39,7 @@ include ../../Makefile.lib
 # install this library in the root filesystem
 include ../../Makefile.rootfs
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 SRCDIR =	../common
 COMDIR =	$(SRC)/common/net/dhcp
@@ -54,7 +59,7 @@ all: $(LIBS)
 
 lint: lintcheck
 
-pics/%.o: $(COMDIR)/%.c
+objs/%.o pics/%.o: $(COMDIR)/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

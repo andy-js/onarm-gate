@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -176,7 +180,7 @@ static void			destroy_client();
 static void			sweep_clients();
 static void			drop_lru_client();
 static void			insert_client();
-static bool_t			check_verf();
+static bool_t			check_verf(struct rpc_msg *, gss_ctx_id_t, int *);
 static bool_t			rpc_gss_refresh_svc_cred();
 static bool_t			set_response_verf();
 static void			retrans_add(svc_rpc_gss_data *, uint32_t,
@@ -964,7 +968,7 @@ __svcrpcsec_gss(rqst, msg, no_dispatch)
 		 * note parameters we will need for response in gss_parms.
 		 */
 		if (!check_verf(msg, client_data->context,
-						&gss_parms->qop_rcvd)) {
+						(int *)&gss_parms->qop_rcvd)) {
 			ret = RPCSEC_GSS_NOCRED;
 			goto error2;
 		}

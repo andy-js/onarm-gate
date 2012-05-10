@@ -23,6 +23,11 @@
 # Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 #ident	"%Z%%M%	%I%	%E% SMI"
 
 PROG =		svcs
@@ -34,7 +39,11 @@ include ../../Makefile.cmd
 include ../Makefile.ctf
 
 POFILE =	$(PROG)_all.po
-LDLIBS +=	-lcontract -lscf -luutil -lumem
+
+LIBUMEM			= -lumem
+$(ARM_BLD)LIBUMEM	=
+
+LDLIBS +=	-lcontract -lscf -luutil $(LIBUMEM)
 
 lint := LINTFLAGS = -ux
 

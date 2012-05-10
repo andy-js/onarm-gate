@@ -23,12 +23,20 @@
 # Use is subject to license terms.
 #
 #ident	"%Z%%M%	%I%	%E% SMI"
+
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 #
 #	This Makefiles contains the common targets and definitions for
 #	all kernels. It is to be included in the Makefiles for specific
 #	implementation architectures and processor architecture dependent
 #	modules: i.e.: all driving kernel Makefiles.
 #
+
+$(USE_UTSTUNE)include	$(SRC)/uts/Makefile.targ.pre-tune
+$(STATIC_UNIX)include	$(SRC)/uts/Makefile.targ.pre-static
 
 #
 #	Default rule for building the lint library directory:
@@ -55,7 +63,9 @@ $(OBJECTS): $(INLINES)
 #
 $(BINARY):		$(OBJECTS)
 	$(LD) -r $(LDFLAGS) -o $@ $(OBJECTS)
+	$(POST_PROCESS_BEFORE_CTFMERGE)
 	$(CTFMERGE_UNIQUIFY_AGAINST_GENUNIX)
+	$(POST_PROCESS_AFTER_CTFMERGE)
 	$(POST_PROCESS)
 	$(ELFSIGN_MOD)
 
@@ -474,5 +484,11 @@ lint32:
 	@for file in $(LINT32_FILES); do \
 		if [ ! -f $$file ]; then touch $$file; fi \
 	done
+
+# Include targets for static linking.
+$(STATIC_UNIX)include	$(SRC)/uts/Makefile.targ.static
+
+# Include targets for build-time tunable parameters.
+$(USE_UTSTUNE)include	$(SRC)/uts/Makefile.targ.tune
 
 FRC:

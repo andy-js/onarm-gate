@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
 
 #ifndef	_PCONTROL_H
 #define	_PCONTROL_H
@@ -278,6 +281,8 @@ extern char	procfs_path[PATH_MAX];
 #define	BPT	((instr_t)0x91d02001)
 #elif defined(__i386) || defined(__amd64)
 #define	BPT	((instr_t)0xcc)
+#elif defined(__arm)
+#define	BPT	((instr_t)0xe1200070)
 #endif
 
 /*

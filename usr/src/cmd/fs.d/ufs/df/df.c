@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -1022,6 +1026,9 @@ mkmntlist()
 	struct mntlist *mntl;
 	struct mntlist *mntst = NULL;
 	struct extmnttab mnt;
+#ifdef MNTFS_DISABLE
+	struct mnttab	gmtab;
+#endif	/* MNTFS_DISABLE */
 
 	if ((mounted = fopen(MNTTAB, "r")) == NULL) {
 		(void) fprintf(stderr, "df : ");
@@ -1029,7 +1036,26 @@ mkmntlist()
 		exit(1);
 	}
 	resetmnttab(mounted);
+#ifndef MNTFS_DISABLE
 	while (getextmntent(mounted, &mnt, sizeof (struct extmnttab)) == NULL) {
+#else
+	while (getmntent(mounted, &gmtab) == NULL) {
+		struct stat64 msb;
+
+		if (stat64(gmtab.mnt_mountp, &msb) == -1) {
+			(void) fprintf(stderr, "df: ");
+			perror(gmtab.mnt_mountp);
+			exit(1);
+		}
+		mnt.mnt_special = gmtab.mnt_special;
+		mnt.mnt_mountp = gmtab.mnt_mountp;
+		mnt.mnt_fstype = gmtab.mnt_fstype;
+		mnt.mnt_mntopts = gmtab.mnt_mntopts;
+		mnt.mnt_time = gmtab.mnt_time;
+		mnt.mnt_major = (uint_t) major(msb.st_dev);
+		mnt.mnt_minor = (uint_t) minor(msb.st_dev);
+
+#endif	/* MNTFS_DISABLE */
 		mntl = (struct mntlist *)xmalloc(sizeof (*mntl));
 		mntl->mntl_mnt = mntdup((struct mnttab *)(&mnt));
 		mntl->mntl_next = mntst;

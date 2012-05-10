@@ -19,8 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
  */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
@@ -73,6 +77,7 @@
  * is not yet known, always read 1k.
  */
 #define	PC_SAFESECSIZE	(PC_SECSIZE * 2)
+#define	MS_FAT_SPEC
 
 static int pcfs_pseudo_floppy(dev_t);
 
@@ -87,11 +92,20 @@ static int pcfs_sync(struct vfs *, short, struct cred *);
 static int pcfs_vget(struct vfs *vfsp, struct vnode **vpp, struct fid *fidp);
 static void pcfs_freevfs(vfs_t *vfsp);
 
-static int pc_readfat(struct pcfs *fsp, uchar_t *fatp);
+#ifdef PCFS_ENABLE_CACHE
+static int pc_initfatcache(struct pcfs *);
+static int pc_fatcache_check(struct pcfs *, char *, size_t, size_t);
+static int pc_readfat_cache(struct pcfs *, daddr_t, struct pcfs_fatcache_unit *,
+	int32_t);
+static int pc_writefat(struct pcfs *, daddr_t, struct pcfs_fatcache_unit *);
+#else
 static int pc_writefat(struct pcfs *fsp, daddr_t start);
+#endif	/* PCFS_ENABLE_CACHE */
 
+static int pc_readfat(struct pcfs *fsp, uchar_t *fatp, daddr_t start,
+	size_t fatsize);
 static int pc_getfattype(struct pcfs *fsp);
-static void pcfs_parse_mntopts(struct pcfs *fsp, struct mounta *uap);
+static void pcfs_parse_mntopts(struct pcfs *fsp);
 
 
 /*
@@ -165,7 +179,7 @@ extern struct mod_ops mod_fsops;
 
 static struct modlfs modlfs = {
 	&mod_fsops,
-	"PC filesystem v1.2",
+	"PC filesystem",
 	&vfw
 };
 
@@ -176,7 +190,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 
@@ -195,8 +209,9 @@ _init(void)
 	return (error);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -222,9 +237,10 @@ _fini(void)
 	vn_freevnodeops(pcfs_dvnodeops);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -527,7 +543,7 @@ pcfs_device_ismounted(
  * that don't support the DKIOCGMEDIAINFO ioctl for autodetection.
  */
 static void
-pcfs_parse_mntopts(struct pcfs *fsp, struct mounta *uap)
+pcfs_parse_mntopts(struct pcfs *fsp)
 {
 	char *c;
 	char *endptr;
@@ -536,11 +552,6 @@ pcfs_parse_mntopts(struct pcfs *fsp, struct mounta *uap)
 
 	ASSERT(fsp->pcfs_secondswest == 0);
 	ASSERT(fsp->pcfs_secsize == 0);
-
-	if (uap->flags & MS_RDONLY) {
-		vfsp->vfs_flag |= VFS_RDONLY;
-		vfs_setmntopt(vfsp, MNTOPT_RO, NULL, 0);
-	}
 
 	if (vfs_optionisset(vfsp, MNTOPT_PCFS_HIDDEN, NULL))
 		fsp->pcfs_flags |= PCFS_HIDDEN;
@@ -651,6 +662,18 @@ pcfs_mount(
 		    "Ignoring mount(2) 'dataptr' argument.");
 
 	/*
+	 * This is needed early, to make sure the access / open calls
+	 * are done using the correct mode. Processing this mount option
+	 * only when calling pcfs_parse_mntopts() would lead us to attempt
+	 * a read/write access to a possibly writeprotected device, and
+	 * a readonly mount attempt might fail because of that.
+	 */
+	if (uap->flags & MS_RDONLY) {
+		vfsp->vfs_flag |= VFS_RDONLY;
+		vfs_setmntopt(vfsp, MNTOPT_RO, NULL, 0);
+	}
+
+	/*
 	 * For most filesystems, this is just a lookupname() on the
 	 * mount pathname string. PCFS historically has to do its own
 	 * partition table parsing because not all Solaris architectures
@@ -707,14 +730,8 @@ pcfs_mount(
 	fsp->pcfs_devvp = devvp;
 	fsp->pcfs_ldrive = dos_ldrive;
 	mutex_init(&fsp->pcfs_lock, NULL, MUTEX_DEFAULT, NULL);
-	vfsp->vfs_data = fsp;
-	vfsp->vfs_dev = pseudodev;
-	vfsp->vfs_fstype = pcfstype;
-	vfs_make_fsid(&vfsp->vfs_fsid, pseudodev, pcfstype);
-	vfsp->vfs_bcount = 0;
-	vfsp->vfs_bsize = fsp->pcfs_clsize;
 
-	pcfs_parse_mntopts(fsp, uap);
+	pcfs_parse_mntopts(fsp);
 
 	/*
 	 * This is the actual "mount" - the PCFS superblock check.
@@ -729,6 +746,17 @@ pcfs_mount(
 	 */
 	if (error = pc_getfattype(fsp))
 		goto errout;
+
+	/*
+	 * Now that the BPB has been parsed, this structural information
+	 * is available and known to be valid. Initialize the VFS.
+	 */
+	vfsp->vfs_data = fsp;
+	vfsp->vfs_dev = pseudodev;
+	vfsp->vfs_fstype = pcfstype;
+	vfs_make_fsid(&vfsp->vfs_fsid, pseudodev, pcfstype);
+	vfsp->vfs_bcount = 0;
+	vfsp->vfs_bsize = fsp->pcfs_clsize;
 
 	/*
 	 * Validate that we can access the FAT and that it is, to the
@@ -890,7 +918,7 @@ pcfs_statvfs(
 	sp->f_fsid = d32;
 	(void) strcpy(sp->f_basetype, vfssw[vfsp->vfs_fstype].vsw_name);
 	sp->f_flag = vf_to_stf(vfsp->vfs_flag);
-	sp->f_namemax = PCFNAMESIZE;
+	sp->f_namemax = PCMAXNAMLEN;
 	return (0);
 }
 
@@ -1017,13 +1045,29 @@ pc_unlockfs(struct pcfs *fsp)
 	}
 }
 
+#ifdef PCFS_ENABLE_FASTCACHE
 int
 pc_syncfat(struct pcfs *fsp)
+{
+	return (pc_syncfatcache(fsp, PCFS_SYNCCACHE_ALL));
+}
+
+int
+pc_syncfatcache(struct pcfs *fsp, int bsyncall)
+#else
+int
+pc_syncfat(struct pcfs *fsp)
+#endif	/* PCFS_ENABLE_FASTCACHE */
 {
 	struct buf *bp;
 	int nfat;
 	int	error = 0;
 	struct fat_od_fsi *fsinfo_disk;
+#ifdef PCFS_ENABLE_CACHE
+	struct pcfs_fatcache_unit *unitp;
+	int cacheerror, dirtycount = 0;
+#endif	/* PCFS_ENABLE_CACHE */
+	int start_fat, end_fat;
 
 	if ((fsp->pcfs_fatp == (uchar_t *)0) ||
 	    !(fsp->pcfs_flags & PCFS_FATMOD))
@@ -1033,7 +1077,45 @@ pc_syncfat(struct pcfs *fsp)
 	 */
 	fsp->pcfs_flags &= ~PCFS_FATMOD;
 	fsp->pcfs_fattime = gethrestime_sec() + PCFS_DISKTIMEOUT;
-	for (nfat = 0; nfat < fsp->pcfs_numfat; nfat++) {
+
+	if (IS_FAT32(fsp) && (fsp->pcfs_extflags & BPB_EXTFLAG_MIRROR_MASK)) {
+		start_fat = fsp->pcfs_extflags & BPB_EXTFLAG_ACTIVEFAT_MASK;
+		end_fat = start_fat + 1;
+	} else {
+		start_fat = 0;
+		end_fat = fsp->pcfs_numfat;
+	}
+
+#ifdef PCFS_ENABLE_CACHE
+	LIST_FOREACH(unitp, &fsp->pcfs_fatcache.mru_list, entries) {
+		int one_error = 0;
+
+		if (unitp->dirty == 0)
+			continue;
+
+		for (nfat = start_fat; nfat < end_fat; nfat++) {
+			dirtycount++;
+			cacheerror = pc_writefat(fsp,
+			    fsp->pcfs_fatstart + nfat * fsp->pcfs_fatsec,
+			    unitp);
+			one_error |= cacheerror;
+		}
+		if (!one_error)
+			unitp->dirty = 0;
+		error |= one_error;
+#ifdef PCFS_ENABLE_FASTCACHE
+		if (error || !bsyncall) {
+			break;
+		}
+#endif	/* PCFS_ENABLE_FASTCACHE */
+	}
+
+	if (error) {
+		pc_mark_irrecov(fsp);
+		return (EIO);
+	}
+#else
+	for (nfat = start_fat; nfat < end_fat; nfat++) {
 		error = pc_writefat(fsp, pc_dbdaddr(fsp,
 		    fsp->pcfs_fatstart + nfat * fsp->pcfs_fatsec));
 		if (error) {
@@ -1042,11 +1124,19 @@ pc_syncfat(struct pcfs *fsp)
 		}
 	}
 	pc_clear_fatchanges(fsp);
+#endif	/* PCFS_ENABLE_CACHE */
 
 	/*
 	 * Write out fsinfo sector.
 	 */
+#ifdef PCFS_ENABLE_CACHE
+#ifdef PCFS_ENABLE_FASTCACHE
+	if (IS_FAT32(fsp) && dirtycount && bsyncall) {
+#endif	/* PCFS_ENABLE_FASTCACHE */
+	if (IS_FAT32(fsp) && dirtycount) {
+#else
 	if (IS_FAT32(fsp)) {
+#endif	/* PCFS_ENABLE_CACHE */
 		bp = bread(fsp->pcfs_xdev,
 		    pc_dbdaddr(fsp, fsp->pcfs_fsistart), fsp->pcfs_secsize);
 		if (bp->b_flags & (B_ERROR | B_STALE)) {
@@ -1081,10 +1171,15 @@ pc_invalfat(struct pcfs *fsp)
 	/*
 	 * Release FAT
 	 */
+#ifdef PCFS_ENABLE_CACHE
+	kmem_free(fsp->pcfs_fatcache.unit, PCFS_FATCACHE_LISTSIZE(fsp));
+	kmem_free(fsp->pcfs_fatp, PCFS_FATCACHE_SIZE(fsp));
+#else
 	kmem_free(fsp->pcfs_fatp, fsp->pcfs_fatsec * fsp->pcfs_secsize);
-	fsp->pcfs_fatp = NULL;
 	kmem_free(fsp->pcfs_fat_changemap, fsp->pcfs_fat_changemapsize);
 	fsp->pcfs_fat_changemap = NULL;
+#endif	/* PCFS_ENABLE_CACHE */
+	fsp->pcfs_fatp = NULL;
 	/*
 	 * Invalidate all the blocks associated with the device.
 	 * Not needed if stateless.
@@ -1248,19 +1343,23 @@ pcfs_vget(struct vfs *vfsp, struct vnode **vpp, struct fid *fidp)
  * fat a chunk at a time.
  */
 static int
-pc_readfat(struct pcfs *fsp, uchar_t *fatp)
+pc_readfat(struct pcfs *fsp, uchar_t *fatp, daddr_t start, size_t fatsize)
 {
 	struct buf *bp;
 	size_t off;
 	size_t readsize;
 	daddr_t diskblk;
-	size_t fatsize = fsp->pcfs_fatsec * fsp->pcfs_secsize;
-	daddr_t start = fsp->pcfs_fatstart;
 
+#ifdef PCFS_ENABLE_CACHE
+	readsize = fatsize;
+#else
 	readsize = fsp->pcfs_clsize;
+#endif	/* PCFS_ENABLE_CACHE */
 	for (off = 0; off < fatsize; off += readsize, fatp += readsize) {
+#ifndef PCFS_ENABLE_CACHE
 		if (readsize > (fatsize - off))
 			readsize = fatsize - off;
+#endif	/* !PCFS_ENABLE_CACHE */
 		diskblk = pc_dbdaddr(fsp, start +
 		    pc_cltodb(fsp, pc_lblkno(fsp, off)));
 		bp = bread(fsp->pcfs_xdev, diskblk, readsize);
@@ -1289,6 +1388,7 @@ pc_readfat(struct pcfs *fsp, uchar_t *fatp)
  * callers can use it to write either the primary or any of the alternate
  * FAT tables.
  */
+#ifndef PCFS_ENABLE_CACHE
 static int
 pc_writefat(struct pcfs *fsp, daddr_t start)
 {
@@ -1306,11 +1406,10 @@ pc_writefat(struct pcfs *fsp, daddr_t start)
 		if (!pc_fat_is_changed(fsp, pc_lblkno(fsp, off))) {
 			continue;
 		}
-		bp = ngeteblk(writesize);
-		bp->b_edev = fsp->pcfs_xdev;
-		bp->b_dev = cmpdev(bp->b_edev);
-		bp->b_blkno = pc_dbdaddr(fsp, start +
-		    pc_cltodb(fsp, pc_lblkno(fsp, off)));
+
+		bp = getblk(fsp->pcfs_xdev,
+		    pc_dbdaddr(fsp, start +
+		    pc_cltodb(fsp, pc_lblkno(fsp, off))), writesize);
 		bcopy(fatp, bp->b_un.b_addr, writesize);
 		bwrite2(bp);
 		error = geterror(bp);
@@ -1365,6 +1464,150 @@ pc_fat_is_changed(struct pcfs *fsp, pc_cluster32_t bn)
 {
 	return (fsp->pcfs_fat_changemap[bn] == 1);
 }
+
+#else
+static int
+pc_writefat(struct pcfs *fsp, daddr_t start, struct pcfs_fatcache_unit *unitp)
+{
+	struct buf *bp;
+	int	error;
+	size_t writesize = PCFS_FATCACHE_UNITSIZE(fsp);
+	uchar_t *fatp = unitp->fatp;
+	int32_t offset = unitp->offset;
+	daddr_t ofsdb = offset / writesize * PCFS_FATCACHE_UNITSEC(fsp);
+
+	if (fsp->pcfs_fatsec < (ofsdb + PCFS_FATCACHE_UNITSEC(fsp))) {
+		writesize = (fsp->pcfs_fatsec - ofsdb) * fsp->pcfs_secsize;
+	}
+	bp = getblk(fsp->pcfs_xdev, pc_dbdaddr(fsp, start + ofsdb), writesize);
+	bcopy(fatp, bp->b_un.b_addr, writesize);
+	bwrite2(bp);
+	error = geterror(bp);
+	brelse(bp);
+	if (error)
+		return (error);
+	return (0);
+}
+
+struct pcfs_fatcache_unit *
+pc_fatcachesearch(struct pcfs *fsp, int32_t offset, int *errorp)
+{
+	struct pcfs_fatcache_unit *unitp;
+	struct pcfs_fatcache_unit *lastp = NULL;
+	daddr_t startaddr;
+	int error;
+
+	if (errorp == NULL)
+		errorp = &error;
+
+	*errorp = 0;
+
+	LIST_FOREACH(unitp, &fsp->pcfs_fatcache.mru_list, entries) {
+		lastp = unitp;
+		if (unitp->offset < 0)
+			break;
+		if (unitp->offset <= offset &&
+		    unitp->offset + PCFS_FATCACHE_UNITSIZE(fsp) > offset)
+			break;
+	}
+
+	if (unitp != NULL && unitp->offset >= 0) {
+		if (unitp != LIST_FIRST(&fsp->pcfs_fatcache.mru_list)) {
+			LIST_REMOVE(unitp, entries);
+			LIST_INSERT_HEAD(&fsp->pcfs_fatcache.mru_list, unitp,
+			    entries);
+		}
+	} else {
+		LIST_REMOVE(lastp, entries);
+		LIST_INSERT_HEAD(&fsp->pcfs_fatcache.mru_list, lastp, entries);
+		if (lastp->dirty) {
+#ifdef PCFS_ENABLE_FASTCACHE
+			*errorp = pc_syncfatcache(fsp, PCFS_SYNCCACHE_UNIT);
+#else
+			*errorp = pc_syncfat(fsp);
+#endif	/* PCFS_ENABLE_FASTCACHE */
+			if (*errorp)
+				return (NULL);
+		}
+
+		startaddr = fsp->pcfs_fatstart + ((IS_FAT32(fsp) &&
+		    (fsp->pcfs_extflags & BPB_EXTFLAG_MIRROR_MASK)) ?
+		    fsp->pcfs_extflags & BPB_EXTFLAG_ACTIVEFAT_MASK : 0) *
+		    fsp->pcfs_fatsec;
+
+		offset -= offset % PCFS_FATCACHE_UNITSIZE(fsp);
+		*errorp = pc_readfat_cache(fsp, startaddr, lastp, offset);
+		if (*errorp)
+			return (NULL);
+		unitp = lastp;
+	}
+	return (unitp);
+}
+
+static int
+pc_readfat_cache(struct pcfs *fsp, daddr_t startaddr,
+    struct pcfs_fatcache_unit *cacheunit, int32_t offset)
+{
+	int retcode;
+	daddr_t ofsdb;
+	size_t readsize = PCFS_FATCACHE_UNITSIZE(fsp);
+
+	ofsdb = offset / readsize * PCFS_FATCACHE_UNITSEC(fsp);
+	if (fsp->pcfs_fatsec < (ofsdb + PCFS_FATCACHE_UNITSEC(fsp)))
+		readsize = (fsp->pcfs_fatsec - ofsdb) * fsp->pcfs_secsize;
+	retcode = pc_readfat(fsp, cacheunit->fatp, startaddr + ofsdb, readsize);
+
+	if (!retcode) {
+		cacheunit->offset = offset;
+		cacheunit->dirty = 0;
+	}
+	return (retcode);
+}
+
+static int
+pc_initfatcache(struct pcfs *fsp)
+{
+	struct pcfs_fatcache_unit *unitp;
+	int unitnumber = PCFS_FATCACHE_UNITS(fsp);
+	int unitsize   = PCFS_FATCACHE_UNITSIZE(fsp);
+	uchar_t *fatp;
+	uint32_t uidx, offset;
+
+	fsp->pcfs_fatcache.unit =
+	    kmem_alloc(PCFS_FATCACHE_LISTSIZE(fsp), KM_SLEEP);
+
+	LIST_INIT(&fsp->pcfs_fatcache.mru_list);
+	fatp = fsp->pcfs_fatp;
+	offset = 0;
+
+	for (uidx = 0; uidx < unitnumber; uidx++) {
+		unitp = fsp->pcfs_fatcache.unit + uidx;
+		memset(unitp, 0x00, sizeof (*unitp));
+		unitp->fatp = fatp;
+		unitp->offset = -1;
+		fatp += unitsize;
+
+		LIST_INSERT_HEAD(&fsp->pcfs_fatcache.mru_list, unitp, entries);
+	}
+	return (0);
+}
+
+static int
+pc_fatcache_check(struct pcfs *fsp, char *chkb, size_t offset, size_t checksize)
+{
+	struct pcfs_fatcache_unit *unitp;
+	int error = 0;
+
+	unitp = pc_fatcachesearch(fsp, offset, &error);
+	if (unitp == NULL || error)
+		return (1);
+
+	if (memcmp(chkb, unitp->fatp, checksize))
+		return (1);
+
+	return (0);
+}
+#endif	/* !PCFS_ENABLE_CACHE */
 
 /*
  * Implementation of VFS_FREEVFS() to support forced umounts.
@@ -1792,6 +2035,7 @@ found:
 }
 
 
+#ifndef MS_FAT_SPEC
 static fattype_t
 secondaryBPBChecks(struct pcfs *fsp, uchar_t *bpb, size_t secsize)
 {
@@ -1847,6 +2091,7 @@ secondaryBPBChecks(struct pcfs *fsp, uchar_t *bpb, size_t secsize)
 	 */
 	return (FAT_UNKNOWN);
 }
+#endif	/* !MS_FAT_SPEC */
 
 /*
  * Check to see if the BPB we found is correct.
@@ -1854,8 +2099,38 @@ secondaryBPBChecks(struct pcfs *fsp, uchar_t *bpb, size_t secsize)
  * This looks far more complicated that it needs to be for pure structural
  * validation. The reason for this is that parseBPB() is also used for
  * debugging purposes (mdb dcmd) and we therefore want a bitmap of which
- * BPB fields have 'known good' values, even if we do not reject the BPB
- * when attempting to mount the filesystem.
+ * BPB fields (do not) have 'known good' values, even if we (do not) reject
+ * the BPB when attempting to mount the filesystem.
+ *
+ * Real-world usage of FAT shows there are a lot of corner-case situations
+ * and, following the specification strictly, invalid filesystems out there.
+ * Known are situations such as:
+ *	- FAT12/FAT16 filesystems with garbage in either totsec16/32
+ *	  instead of the zero in one of the fields mandated by the spec
+ *	- filesystems that claim to be larger than the partition they're in
+ *	- filesystems without valid media descriptor
+ *	- FAT32 filesystems with RootEntCnt != 0
+ *	- FAT32 filesystems with less than 65526 clusters
+ *	- FAT32 filesystems without valid FSI sector
+ *	- FAT32 filesystems with FAT size in fatsec16 instead of fatsec32
+ *
+ * Such filesystems are accessible by PCFS - if it'd know to start with that
+ * the filesystem should be treated as a specific FAT type. Before S10, it
+ * relied on the PC/fdisk partition type for the purpose and almost completely
+ * ignored the BPB; now it ignores the partition type for anything else but
+ * logical drive enumeration, which can result in rejection of (invalid)
+ * FAT32 - if the partition ID says FAT32, but the filesystem, for example
+ * has less than 65526 clusters.
+ *
+ * Without a "force this fs as FAT{12,16,32}" tunable or mount option, it's
+ * not possible to allow all such mostly-compliant filesystems in unless one
+ * accepts false positives (definitely invalid filesystems that cause problems
+ * later). This at least allows to pinpoint why the mount failed.
+ *
+ * Due to the use of FAT on removeable media, all relaxations of the rules
+ * here need to be carefully evaluated wrt. to potential effects on PCFS
+ * resilience. A faulty/"mis-crafted" filesystem must not cause a panic, so
+ * beware.
  */
 static int
 parseBPB(struct pcfs *fsp, uchar_t *bpb, int *valid)
@@ -1924,6 +2199,12 @@ parseBPB(struct pcfs *fsp, uchar_t *bpb, int *valid)
 
 	if (fsp->pcfs_mediasize == 0) {
 		mediasize = (len_t)totsec * (len_t)secsize;
+		/*
+		 * This is not an error because not all devices support the
+		 * dkio(7i) mediasize queries, and/or not all devices are
+		 * partitioned. If we have not been able to figure out the
+		 * size of the underlaying medium, we have to trust the BPB.
+		 */
 		PC_DPRINTF4(3, "!pcfs: parseBPB: mediasize autodetect failed "
 		    "on device (%x.%x):%d, trusting BPB totsec (%lld Bytes)\n",
 		    getmajor(fsp->pcfs_xdev), getminor(fsp->pcfs_xdev),
@@ -1989,17 +2270,20 @@ parseBPB(struct pcfs *fsp, uchar_t *bpb, int *valid)
 	    size_t, rdirsec, blkcnt_t, datasec);
 
 	/*
-	 * UINT32_MAX is an underflow check - we calculate in "blkcnt_t" which
-	 * is 64bit in order to be able to catch "impossible" sector counts.
-	 * A sector count in FAT must fit 32bit unsigned int.
+	 * 'totsec' is taken directly from the BPB and guaranteed to fit
+	 * into a 32bit unsigned integer. The calculation of 'datasec',
+	 * on the other hand, could underflow for incorrect values in
+	 * rdirsec/reserved/fatsec. Check for that.
+	 * We also check that the BPB conforms to the FAT specification's
+	 * requirement that either of the 16/32bit total sector counts
+	 * must be zero.
 	 */
 	if (totsec != 0 &&
 	    (totsec16 == totsec32 || totsec16 == 0 || totsec32 == 0) &&
-	    (len_t)totsec * (len_t)secsize <= mediasize &&
 	    datasec < totsec && datasec <= UINT32_MAX)
 		validflags |= BPB_TOTSEC_OK;
 
-	if (mediasize >= (len_t)datasec * (len_t)secsize)
+	if ((len_t)totsec * (len_t)secsize <= mediasize)
 		validflags |= BPB_MEDIASZ_OK;
 
 	if (VALID_SECSIZE(secsize))
@@ -2066,7 +2350,25 @@ parseBPB(struct pcfs *fsp, uchar_t *bpb, int *valid)
 	 * Note also that the numbers are correct.  The first number for
 	 * FAT12 is 4085; the second number for FAT16 is 65525. These numbers
 	 * and the '<' signs are not wrong.
-	 *
+	 */
+#ifdef MS_FAT_SPEC
+	/*
+	 * Refuse to recognize improper media.
+	 */
+
+	if (ncl <= PCF_FIRSTCLUSTER) {
+		type = FAT_UNKNOWN;
+	} else if (ncl < 4085) {
+		type = FAT12;
+	} else if (ncl < 65525) {
+		type = FAT16;
+	} else if (ncl < PCF_LASTCLUSTER32) {
+		type = FAT32;
+	} else {
+		type = FAT_UNKNOWN;
+	}
+#else
+	/*
 	 * We "specialdetect" the corner cases, and use at least one "extra"
 	 * criterion to decide whether it's FAT16 or FAT32 if the cluster
 	 * count is dangerously close to the boundaries.
@@ -2087,6 +2389,7 @@ parseBPB(struct pcfs *fsp, uchar_t *bpb, int *valid)
 	} else {
 		type = FAT_UNKNOWN;
 	}
+#endif	/* MS_FAT_SPEC */
 
 	DTRACE_PROBE4(parseBPB__initial,
 	    struct pcfs *, fsp, unsigned char *, bpb,
@@ -2175,14 +2478,17 @@ recheck:
 			 * contains the root cluster number on FAT32.
 			 * That's a mis-use and would better be changed.
 			 */
-			fsp->pcfs_rdirstart = (daddr_t)fsp->pcfs_rootclnum;
+			fsp->pcfs_rdirstart = (daddr_t)fsp->pcfs_rootclnum &
+			    ~PCFS_CLUSTER_RESERVEDMASK;
 
 			if ((validflags & FAT32_VALIDMSK) != FAT32_VALIDMSK)
 				type = FAT_UNKNOWN;
 			break;
+#ifndef MS_FAT_SPEC
 		case FAT_QUESTIONABLE:
 			type = secondaryBPBChecks(fsp, bpb, secsize);
 			goto recheck;
+#endif	/* !MS_FAT_SPEC */
 		default:
 			ASSERT(type == FAT_UNKNOWN);
 			break;
@@ -2191,6 +2497,13 @@ recheck:
 	ASSERT(type != FAT_QUESTIONABLE);
 
 	fsp->pcfs_fattype = type;
+	if (IS_FAT32(fsp)) {
+		fsp->pcfs_extflags = bpb_get_ExtFlags32(bpb);
+		if ((fsp->pcfs_extflags & BPB_EXTFLAG_MIRROR_MASK) &&
+		    (fsp->pcfs_extflags & BPB_EXTFLAG_ACTIVEFAT_MASK) >=
+		    fsp->pcfs_numfat)
+			return (EINVAL);
+	}
 
 	if (valid)
 		*valid = validflags;
@@ -2481,6 +2794,9 @@ pc_getfat(struct pcfs *fsp)
 	int nfat;
 	int altfat_mustmatch = 0;
 	int fatsize = fsp->pcfs_fatsec * fsp->pcfs_secsize;
+#ifdef PCFS_ENABLE_CACHE
+	uchar_t mediadescriptor;
+#endif	/* PCFS_ENABLE_CACHE */
 
 	if (fsp->pcfs_fatp) {
 		/*
@@ -2506,27 +2822,41 @@ pc_getfat(struct pcfs *fsp)
 	/*
 	 * Get FAT and check it for validity
 	 */
+#ifdef PCFS_ENABLE_CACHE
+	fatp = kmem_alloc(PCFS_FATCACHE_SIZE(fsp), KM_SLEEP);
+	fsp->pcfs_fatp = fatp;
+	error = pc_initfatcache(fsp);
+#else
 	fatp = kmem_alloc(fatsize, KM_SLEEP);
-	error = pc_readfat(fsp, fatp);
-	if (error) {
-		flags = B_ERROR;
-		goto out;
-	}
+	error = pc_readfat(fsp, fatp, fsp->pcfs_fatstart, fatsize);
 	fat_changemapsize = (fatsize / fsp->pcfs_clsize) + 1;
 	fat_changemap = kmem_zalloc(fat_changemapsize, KM_SLEEP);
 	fsp->pcfs_fatp = fatp;
 	fsp->pcfs_fat_changemapsize = fat_changemapsize;
 	fsp->pcfs_fat_changemap = fat_changemap;
+#endif	/* PCFS_ENABLE_CACHE */
+	if (error) {
+		flags = B_ERROR;
+		goto out;
+	}
 
 	/*
 	 * The only definite signature check is that the
 	 * media descriptor byte should match the first byte
 	 * of the FAT block.
 	 */
+#ifdef PCFS_ENABLE_CACHE
+	error = pc_get_fat_mediadescriptor(fsp, &mediadescriptor);
+	if (error || mediadescriptor != fsp->pcfs_mediadesc) {
+		cmn_err(CE_NOTE, "!pcfs: FAT signature mismatch, "
+		    "media descriptor %x, mdesc lowbyte %x\n",
+		    (uint32_t)fsp->pcfs_mediadesc, (uint32_t)mediadescriptor);
+#else
 	if (fatp[0] != fsp->pcfs_mediadesc) {
 		cmn_err(CE_NOTE, "!pcfs: FAT signature mismatch, "
 		    "media descriptor %x, FAT[0] lowbyte %x\n",
 		    (uint32_t)fsp->pcfs_mediadesc, (uint32_t)fatp[0]);
+#endif	/* PCFS_ENABLE_CACHE */
 		cmn_err(CE_NOTE, "!pcfs: Enforcing alternate FAT validation\n");
 		altfat_mustmatch = 1;
 	}
@@ -2546,12 +2876,23 @@ pc_getfat(struct pcfs *fsp)
 		startsec = pc_dbdaddr(fsp,
 		    fsp->pcfs_fatstart + nfat * fsp->pcfs_fatsec);
 
+#ifdef PCFS_ENABLE_CACHE
+		for (off = 0; off < fatsize;
+		    off += PCFS_FATCACHE_UNITSIZE(fsp)) {
+			daddr_t fatblk = pc_dbdaddr(fsp, startsec +
+			    (off / PCFS_FATCACHE_UNITSIZE(fsp) *
+			    PCFS_FATCACHE_UNITSEC(fsp)));
+
+			bp = bread(fsp->pcfs_xdev, fatblk,
+			    MIN(PCFS_FATCACHE_UNITSIZE(fsp), fatsize - off));
+#else
 		for (off = 0; off < fatsize; off += fsp->pcfs_clsize) {
 			daddr_t fatblk = startsec + pc_dbdaddr(fsp,
 			    pc_cltodb(fsp, pc_lblkno(fsp, off)));
 
 			bp = bread(fsp->pcfs_xdev, fatblk,
 			    MIN(fsp->pcfs_clsize, fatsize - off));
+#endif	/* PCFS_ENABLE_CACHE */
 			if (bp->b_flags & (B_ERROR | B_STALE)) {
 				cmn_err(CE_NOTE,
 				    "!pcfs: alternate FAT #%d (start LBA %p)"
@@ -2566,8 +2907,13 @@ pc_getfat(struct pcfs *fsp)
 				goto out;
 			}
 			bp->b_flags |= B_STALE | B_AGE;
+#ifdef PCFS_ENABLE_CACHE
+			if (pc_fatcache_check(fsp, bp->b_un.b_addr, off,
+			    MIN(PCFS_FATCACHE_UNITSIZE(fsp), fatsize - off))) {
+#else
 			if (bcmp(bp->b_un.b_addr, fatp + off,
 			    MIN(fsp->pcfs_clsize, fatsize - off))) {
+#endif	/* PCFS_ENABLE_CACHE */
 				cmn_err(CE_NOTE,
 				    "!pcfs: alternate FAT #%d (start LBA %p)"
 				    " corrupted at offset %ld on device"
@@ -2615,6 +2961,9 @@ pc_getfat(struct pcfs *fsp)
 			fsp->pcfs_flags &= ~PCFS_FSINFO_OK;
 			fsp->pcfs_fsinfo.fs_free_clusters = FSINFO_UNKNOWN;
 			fsp->pcfs_fsinfo.fs_next_free = FSINFO_UNKNOWN;
+			flags = B_ERROR;
+			error = EINVAL;
+			goto out;
 		} else {
 			bp->b_flags |= B_STALE | B_AGE;
 			fsinfo_disk = (fat_od_fsi_t *)(bp->b_un.b_addr);
@@ -2638,10 +2987,17 @@ out:
 	cmn_err(CE_NOTE, "!pcfs: illegal disk format");
 	if (bp)
 		brelse(bp);
-	if (fatp)
+	if (fatp) {
+#ifdef PCFS_ENABLE_CACHE
+		kmem_free(fsp->pcfs_fatcache.unit, PCFS_FATCACHE_LISTSIZE(fsp));
+		kmem_free(fatp, PCFS_FATCACHE_SIZE(fsp));
+	}
+#else
 		kmem_free(fatp, fatsize);
+	}
 	if (fat_changemap)
 		kmem_free(fat_changemap, fat_changemapsize);
+#endif	/* PCFS_ENABLE_CACHE */
 
 	if (flags) {
 		pc_mark_irrecov(fsp);

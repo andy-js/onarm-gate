@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_SYSEVENT_EVENTDEFS_H
 #define	_SYS_SYSEVENT_EVENTDEFS_H
 
@@ -52,6 +56,7 @@ extern "C" {
 #define	EC_DEV_BRANCH	"EC_dev_branch"	/* device tree branch event class */
 #define	EC_FM		"EC_fm"		/* FMA error report event */
 #define	EC_ZFS		"EC_zfs"	/* ZFS event */
+#define	EC_CZFS		"EC_czfs"	/* CZFS (Compactified ZFS) event */
 
 /*
  * The following event class is reserved for exclusive use

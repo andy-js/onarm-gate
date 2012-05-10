@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 SHELL=/usr/bin/ksh
 
 LIBRARY=	libast.a
@@ -689,6 +693,7 @@ CPPFLAGS = \
 	-I$(SRCDIR)/misc \
 	-I$(SRCDIR)/string \
 	-Iinclude/ast \
+	-I$(ROOT)/usr/include \
 	'-DCONF_LIBSUFFIX=".so"' \
 	'-DCONF_LIBPREFIX="lib"' \
 	-DERROR_CATALOG=\""libast"\" \

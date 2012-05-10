@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 include		../../../Makefile.master
 
 HDRS=		os_version.h port_ipv6.h
@@ -54,7 +58,10 @@ clobber: clean
 os_version.h: make_os_version FRC
 	./make_os_version
 
+PROBE_CC		= $(CC)
+$(ARM_BLD)PROBE_CC	= $(CC) $(CPPFLAGS)
+
 port_ipv6.h: probe_ipv6 FRC
-	CC="$(CC)" ./probe_ipv6
+	CC="$(PROBE_CC)" ./probe_ipv6
 
 FRC:

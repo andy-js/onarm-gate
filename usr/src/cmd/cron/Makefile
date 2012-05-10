@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -35,6 +40,7 @@ ROOTMANIFESTDIR = $(ROOTSVCSYSTEM)
 ROOTMETHOD =	$(ROOTLIBSVCMETHOD)/svc-cron
 
 CPPFLAGS +=	-D_FILE_OFFSET_BITS=64 -I $(SRC)/common/util
+$(ARM_BLD)CPPFLAGS +=	-D__READONLY_FS
 
 ROOTVAR =	$(ROOT)/var
 
@@ -240,5 +246,7 @@ lint :		lint_SRCS
 
 strip :
 		$(STRIP) $(PROG) $(XPG4) $(XPG6)
+
+$(ARM_BLD)include Makefile.$(MACH)
 
 include		../Makefile.targ

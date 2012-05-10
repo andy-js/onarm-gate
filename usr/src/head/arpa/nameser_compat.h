@@ -62,6 +62,10 @@
  *	$Id: nameser_compat.h,v 8.15 2002/07/17 07:01:02 marka Exp $
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef _ARPA_NAMESER_COMPAT_H
 #define	_ARPA_NAMESER_COMPAT_H
 
@@ -87,7 +91,7 @@ extern "C" {
 #if defined(vax) || defined(ns32000) || defined(sun386) || defined(i386) || \
 	defined(__i386) || defined(__amd64) || \
 	defined(MIPSEL) || defined(_MIPSEL) || defined(BIT_ZERO_ON_RIGHT) || \
-	defined(__alpha__) || defined(__alpha) || \
+	defined(__alpha__) || defined(__alpha) || defined(__ARMEL__) || \
 	(defined(__Lynx__) && defined(__x86__))
 #define	BYTE_ORDER	LITTLE_ENDIAN
 #endif
@@ -100,7 +104,7 @@ extern "C" {
     defined(__hppa) || defined(__hp9000) || \
     defined(__hp9000s300) || defined(__hp9000s700) || \
     defined(__hp3000s900) || defined(MPE) || \
-    defined(BIT_ZERO_ON_LEFT) || defined(m68k) || \
+    defined(BIT_ZERO_ON_LEFT) || defined(m68k) || defined(__ARMEB__) || \
 	(defined(__Lynx__) && \
 	(defined(__68k__) || defined(__sparc__) || defined(__powerpc__)))
 #define	BYTE_ORDER	BIG_ENDIAN

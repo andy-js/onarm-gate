@@ -22,6 +22,12 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -103,70 +109,76 @@ NIS= $(NIS_GEN) $(NIS_CACHE)
 
 KEY= publickey.o xcrypt.o gen_dhkeys.o
 
+$(__ARLIB)$(ARM_BLD)STRADDR= straddr.o
+
 OBJECTS= $(COMMON) $(DES) $(DIAL) $(IPSEC) $(NETDIR) $(NSS) $(NETSELECT) \
-	 $(NSL) $(WRAPPERS) $(RPC) $(SAF) $(YP) $(NIS) $(KEY)
+	 $(NSL) $(WRAPPERS) $(RPC) $(SAF) $(YP) $(NIS) $(KEY) $(STRADDR)
 
 # libnsl build rules
-pics/%.o: ../common/%.c
+objs/%.o pics/%.o: ../common/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../des/%.c
+objs/%.o pics/%.o: ../des/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../dial/%.c
+objs/%.o pics/%.o: ../dial/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../ipsec/%.c
+objs/%.o pics/%.o: ../ipsec/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../netdir/%.c
+objs/%.o pics/%.o: ../netdir/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../nss/%.c
+objs/%.o pics/%.o: ../nss/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../netselect/%.c
+objs/%.o pics/%.o: ../netselect/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../nsl/%.c
+objs/%.o pics/%.o: ../nsl/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../rpc/%.c
+objs/%.o pics/%.o: ../rpc/%.c
 	$(COMPILE.c) -DPORTMAP -DNIS  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../saf/%.c
+objs/%.o pics/%.o: ../saf/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../yp/%.c
+objs/%.o pics/%.o: ../yp/%.c
 	$(COMPILE.c)   -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../key/%.c
+objs/%.o pics/%.o: ../key/%.c
 	$(COMPILE.c)   -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../nis/gen/%.c ../nis/gen/nis_clnt.h
+objs/%.o pics/%.o: ../nis/gen/%.c ../nis/gen/nis_clnt.h
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../nis/cache/%.c ../nis/cache/nis_clnt.h
+objs/%.o pics/%.o: ../nis/cache/%.c ../nis/cache/nis_clnt.h
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: ../nis/cache/%.cc ../nis/gen/nis_clnt.h \
+objs/%.o pics/%.o: ../nis/cache/%.cc ../nis/gen/nis_clnt.h \
 	../nis/cache/nis_clnt.h ../nis/cache/nis_cache.h
 	$(COMPILE.cc) -o $@ $<
 	$(POST_PROCESS_O)
+
+$(__ARLIB)$(ARM_BLD)objs/%.o pics/%.o: ../../nametoaddr/straddr/common/%.c
+$(__ARLIB)$(ARM_BLD)	$(COMPILE.c) -o $@ $<
+$(__ARLIB)$(ARM_BLD)	$(POST_PROCESS_O)
 
 # include library definitions
 include ../../Makefile.lib
@@ -174,7 +186,7 @@ include ../../Makefile.lib
 # install this library in the root filesystem
 include ../../Makefile.rootfs
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 SRCDIR=		../common
 MAPFILES +=	mapfile-vers
@@ -202,10 +214,13 @@ CCFLAGS64 += $(NOEXCEPTIONS)
 
 CPPFLAGS +=	-I$(SRC)/lib/common/inc -I$(SRC)/lib/libnsl/include -D_REENTRANT
 CPPFLAGS +=	-I$(SRC)/lib/libnsl/dial
+$(__ARLIB)$(ARM_BLD)CPPFLAGS +=	-DSTATIC_LINK
 
 CFLAGS +=	$(CCVERBOSE)
 
-LAZYLIBS = $(ZLAZYLOAD) -lmp -lmd -lscf $(ZNOLAZYLOAD)
+LIBSCF =	-lscf
+$(ARM_BLD)LIBSCF =
+LAZYLIBS = $(ZLAZYLOAD) -lmp -lmd $(LIBSCF) $(ZNOLAZYLOAD)
 lint := LAZYLIBS = -lmd
 LDLIBS +=	$(LAZYLIBS) -lc
 
@@ -229,7 +244,8 @@ SRCS=	$(DES:%.o=../des/%.c)			\
 	$(SAF:%.o=../saf/%.c)			\
 	$(YP:%.o=../yp/%.c)			\
 	$(NIS_GEN:%.o=../nis/gen/%.c)		\
-	$(COMMON:%.o=../common/%.c)
+	$(COMMON:%.o=../common/%.c)		\
+	$(STRADDR:%.o=../../nametoaddr/straddr/common/%.c)
 
 lint:
 	@echo $(LINT.c) ...

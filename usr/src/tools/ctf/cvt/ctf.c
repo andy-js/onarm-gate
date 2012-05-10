@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -796,8 +800,10 @@ resurrect_objects(ctf_header_t *h, tdata_t *td, tdesc_t **tdarr, int tdsize,
 		ii = iidesc_new(symit_name(si));
 		ii->ii_dtype = tdarr[id];
 		if (GELF_ST_BIND(sym->st_info) == STB_LOCAL) {
+			char	*curfile = symit_curfile(si);
+
 			ii->ii_type = II_SVAR;
-			ii->ii_owner = xstrdup(symit_curfile(si));
+			ii->ii_owner = (curfile) ? xstrdup(curfile) : NULL;
 		} else
 			ii->ii_type = II_GVAR;
 		hash_add(td->td_iihash, ii);
@@ -846,8 +852,10 @@ resurrect_functions(ctf_header_t *h, tdata_t *td, tdesc_t **tdarr, int tdsize,
 		ii = iidesc_new(symit_name(si));
 		ii->ii_dtype = tdarr[retid];
 		if (GELF_ST_BIND(sym->st_info) == STB_LOCAL) {
+			char	*curfile = symit_curfile(si);
+
 			ii->ii_type = II_SFUN;
-			ii->ii_owner = xstrdup(symit_curfile(si));
+			ii->ii_owner = (curfile) ? xstrdup(curfile) : NULL;
 		} else
 			ii->ii_type = II_GFUN;
 		ii->ii_nargs = CTF_INFO_VLEN(info);

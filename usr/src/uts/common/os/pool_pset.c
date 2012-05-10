@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/pool.h>
@@ -786,15 +790,18 @@ pool_cpu_propput(processorid_t cpuid, nvpair_t *pair)
 		mutex_enter(&cpu_lock);
 		if ((cpu = cpu_get(cpuid)) == NULL)
 			ret = EINVAL;
-		if (cpu->cpu_props == NULL) {
-			(void) nvlist_alloc(&cpu->cpu_props,
-			    NV_UNIQUE_NAME, KM_SLEEP);
-			(void) nvlist_add_string(cpu->cpu_props,
-			    "cpu.comment", "");
+		else {
+			if (cpu->cpu_props == NULL) {
+				(void) nvlist_alloc(&cpu->cpu_props,
+				    NV_UNIQUE_NAME, KM_SLEEP);
+				(void) nvlist_add_string(cpu->cpu_props,
+				    "cpu.comment", "");
+			}
+			ret = pool_propput_common(cpu->cpu_props, pair,
+				pool_cpu_props);
+			if (ret == 0)
+				pool_cpu_mod = gethrtime();
 		}
-		ret = pool_propput_common(cpu->cpu_props, pair, pool_cpu_props);
-		if (ret == 0)
-			pool_cpu_mod = gethrtime();
 		mutex_exit(&cpu_lock);
 	}
 	return (ret);

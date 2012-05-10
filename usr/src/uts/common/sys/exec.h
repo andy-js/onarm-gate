@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #ifndef _SYS_EXEC_H
 #define	_SYS_EXEC_H
@@ -67,13 +70,6 @@ typedef struct execenv {
 
 #ifdef _KERNEL
 
-#define	LOADABLE_EXEC(e)	((e)->exec_lock)
-#define	LOADED_EXEC(e)		((e)->exec_func)
-
-extern int nexectype;		/* number of elements in execsw */
-extern struct execsw execsw[];
-extern kmutex_t execsw_lock;
-
 /*
  * User argument structure for passing exec information around between the
  * common and machine-dependent portions of exec and the exec modules.
@@ -108,6 +104,7 @@ typedef struct uarg {
 	char	*emulator;
 	char	*brandname;
 	char	*auxp_brand; /* address of first brand auxv on user stack */
+	void	*private;
 } uarg_t;
 
 /*
@@ -183,6 +180,13 @@ struct execsw {
 	krwlock_t	*exec_lock;
 };
 
+#define	LOADABLE_EXEC(e)	((e)->exec_lock)
+#define	LOADED_EXEC(e)		((e)->exec_func)
+
+extern int nexectype;		/* number of elements in execsw */
+extern struct execsw execsw[];
+extern kmutex_t execsw_lock;
+
 extern short elfmagic;
 extern short intpmagic;
 extern short javamagic;
@@ -208,7 +212,7 @@ extern int exec_args(execa_t *, uarg_t *, intpdata_t *, void **);
 extern int exec(const char *fname, const char **argp);
 extern int exece(const char *fname, const char **argp, const char **envp);
 extern int exec_common(const char *fname, const char **argp,
-    const char **envp, int brand_action);
+    const char **envp, int brand_action, void *private);
 extern int gexec(vnode_t **vp, struct execa *uap, struct uarg *args,
     struct intpdata *idata, int level, long *execsz, caddr_t exec_file,
     struct cred *cred, int brand_action);

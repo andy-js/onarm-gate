@@ -30,7 +30,11 @@
 
 /* ONC_PLUS EXTRACT END */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.51	*/
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
+#pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.51  */
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -171,6 +175,10 @@ offset_t llseek32();
 int	sysi86();
 #endif
 
+#if defined(__arm)
+int	sysarm();
+#endif
+
 int	acl();
 int	facl();
 long	priocntlsys();
@@ -182,6 +190,7 @@ caddr_t smmap32();
 int	smmaplf32();
 int	mprotect();
 int	munmap();
+int64_t	pspawn();
 #if (defined(__i386) && !defined(__amd64)) || defined(__i386_COMPAT)
 int	xstat();
 int	lxstat();
@@ -399,6 +408,12 @@ typedef int64_t	(*llfcn_t)();	/* for casting one-word returns */
 #define	IF_386_ABI(true, false)	false
 #endif
 
+#if defined(__arm)
+#define	IF_arm(true, false)	true
+#else
+#define	IF_arm(true, false)	false
+#endif
+
 /*
  * Define system calls that return a native 'long' quantity i.e. a 32-bit
  * or 64-bit integer - depending on how the kernel is itself compiled
@@ -422,6 +437,17 @@ typedef int64_t	(*llfcn_t)();	/* for casting one-word returns */
 #define	SYSENT_NOSYS()		SYSENT_C("nosys", nosys, 0)
 
 struct sysent nosys_ent = SYSENT_NOSYS();
+
+/*
+ * Padding for long long offset argument.
+ *   In ARM EABI mode, a long long argument is allocated to
+ *   the even register number because double-word alignment is required.
+ */
+#if defined(__arm) && defined(__ARM_EABI__) && !defined(ARM_OABI_USER)
+#define	LLOPAD		1
+#else
+#define	LLOPAD		0
+#endif
 
 /* ONC_PLUS EXTRACT START */
 /*
@@ -490,13 +516,15 @@ struct sysent sysent[NSYSCALL] =
 	/* 49 */ SYSENT_LOADABLE(),			/* msgsys */
 	/* 50 */ IF_x86(
 			SYSENT_CI("sysi86",	sysi86,		4),
-			SYSENT_LOADABLE()),		/* (was sys3b) */
+			IF_arm(
+				SYSENT_CI("sysarm", sysarm,     4),
+				SYSENT_LOADABLE())),	/* (was sys3b) */
 	/* 51 */ SYSENT_LOADABLE(),			/* sysacct */
 	/* 52 */ SYSENT_LOADABLE(),			/* shmsys */
 	/* 53 */ SYSENT_LOADABLE(),			/* semsys */
 	/* 54 */ SYSENT_CI("ioctl",		ioctl,		3),
 	/* 55 */ SYSENT_CI("uadmin",		uadmin,		3),
-	/* 56 */ SYSENT_LOADABLE(),
+	/* 56 */ SYSENT_2CI("pspawn",		pspawn,		4),
 	/* 57 */ IF_LP64(
 			SYSENT_2CI("utssys",	utssys64,	4),
 			SYSENT_2CI("utssys",	utssys32,	4)),
@@ -661,7 +689,7 @@ struct sysent sysent[NSYSCALL] =
 	 */
 	/* 175 */ IF_LP64(
 			SYSENT_NOSYS(),
-			SYSENT_C("llseek",	llseek32,	4)),
+			SYSENT_C("llseek",	llseek32,	4 + LLOPAD)),
 	/* 176 */ SYSENT_LOADABLE(),		/* inst_sync */
 	/* 177 */ SYSENT_CI("brandsys",		brandsys,	6),
 	/* 178 */ SYSENT_LOADABLE(),		/* kaio */
@@ -713,7 +741,7 @@ struct sysent sysent[NSYSCALL] =
 			SYSENT_CI("getdents64",	getdents64,	3)),
 	/* 214 */ IF_LP64(
 			SYSENT_NOSYS(),
-			SYSENT_AP("smmaplf32",	smmaplf32,	7)),
+			SYSENT_AP("smmaplf32",	smmaplf32,	7 + LLOPAD)),
 	/* 215 */ IF_LP64(
 			SYSENT_NOSYS(),
 			SYSENT_CI("stat64",	stat64, 	2)),
@@ -737,10 +765,10 @@ struct sysent sysent[NSYSCALL] =
 			SYSENT_CI("getrlimit64", getrlimit64, 	2)),
 	/* 222 */ IF_LP64(
 			SYSENT_NOSYS(),
-			SYSENT_CI("pread64",	pread64, 	5)),
+			SYSENT_CI("pread64",	pread64, 	5 + LLOPAD)),
 	/* 223 */ IF_LP64(
 			SYSENT_NOSYS(),
-			SYSENT_CI("pwrite64", 	pwrite64, 	5)),
+			SYSENT_CI("pwrite64", 	pwrite64, 	5 + LLOPAD)),
 	/* 224 */ IF_LP64(
 			SYSENT_NOSYS(),
 			SYSENT_CI("creat64",	creat64,	2)),

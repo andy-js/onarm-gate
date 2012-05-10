@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -54,6 +58,7 @@
 #include <sys/zap.h>
 #include "fs/fs_subr.h"
 #include <acl/acl_common.h>
+#include <zfs_types.h>
 
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE
 #define	DENY	ACE_ACCESS_DENIED_ACE_TYPE
@@ -93,6 +98,7 @@
 #define	ZFS_ACL_WIDE_FLAGS (V4_ACL_WIDE_FLAGS|ZFS_ACL_TRIVIAL|ZFS_INHERIT_ACE|\
     ZFS_ACL_OBJ_ACE)
 
+#ifndef ZFS_COMPACT
 static uint16_t
 zfs_ace_v0_get_type(void *acep)
 {
@@ -943,7 +949,7 @@ zfs_acl_node_read_internal(znode_t *zp, boolean_t will_modify)
 static int
 zfs_acl_node_read(znode_t *zp, zfs_acl_t **aclpp, boolean_t will_modify)
 {
-	uint64_t extacl = zp->z_phys->zp_acl.z_acl_extern_obj;
+	objid_t extacl = zp->z_phys->zp_acl.z_acl_extern_obj;
 	zfs_acl_t	*aclp;
 	size_t		aclsize;
 	size_t		acl_count;
@@ -1002,7 +1008,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr,
 	znode_phys_t	*zphys = zp->z_phys;
 	zfs_acl_phys_t	*zacl = &zphys->zp_acl;
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
-	uint64_t	aoid = zphys->zp_acl.z_acl_extern_obj;
+	objid_t		aoid = zphys->zp_acl.z_acl_extern_obj;
 	uint64_t	off = 0;
 	dmu_object_type_t otype;
 	zfs_acl_node_t	*aclnode;
@@ -1754,6 +1760,7 @@ zfs_acl_inherit(znode_t *zp, zfs_acl_t *paclp)
 	}
 	return (aclp);
 }
+#endif	/* ZFS_COMPACT */
 
 /*
  * Create file system object initial permissions
@@ -1831,6 +1838,7 @@ zfs_perm_init(znode_t *zp, znode_t *parent, int flag,
 	zp->z_phys->zp_gid = fgid;
 	zp->z_phys->zp_mode = mode;
 
+#ifndef ZFS_COMPACT
 	if (aclp == NULL) {
 		mutex_enter(&parent->z_lock);
 		if (parent->z_phys->zp_flags & ZFS_INHERIT_ACE) {
@@ -1867,8 +1875,10 @@ zfs_perm_init(znode_t *zp, znode_t *parent, int flag,
 
 	if (aclp != setaclp)
 		zfs_acl_free(aclp);
+#endif	/* ZFS_COMPACT */
 }
 
+#ifndef ZFS_COMPACT
 /*
  * Retrieve a files ACL
  */
@@ -2581,6 +2591,7 @@ zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr)
 
 	return (zfs_delete_final_check(zp, dzp, cr));
 }
+#endif	/* ZFS_COMPACT */
 
 int
 zfs_zaccess_rename(znode_t *sdzp, znode_t *szp, znode_t *tdzp,
@@ -2624,3 +2635,104 @@ zfs_zaccess_rename(znode_t *sdzp, znode_t *szp, znode_t *tdzp,
 
 	return (error);
 }
+
+#ifdef ZFS_COMPACT
+/*
+ * ==========================================================================
+ * The functions when not supporting ACL
+ * ==========================================================================
+ */
+
+int
+zfs_acl_chmod_setattr(znode_t *zp, zfs_acl_t **aclp, uint64_t mode)
+{
+	mutex_enter(&zp->z_lock);
+	zp->z_phys->zp_mode = mode;
+	mutex_exit(&zp->z_lock);
+	return (0);
+}
+
+int
+zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
+{
+	uint32_t new_mask = 0;
+
+	if (mode & (ACE_READ_ACL | ACE_WRITE_ACL | ACE_WRITE_ATTRIBUTES |
+	    ACE_WRITE_OWNER))
+		return (EACCES);
+
+	if (mode & ACE_READ_ATTRIBUTES)
+		return (0);
+
+	/*
+	 * Convert v4 access mask to unix access mask
+	 */
+	if (mode & (ACE_READ_DATA | ACE_LIST_DIRECTORY |
+	    ACE_READ_ATTRIBUTES | ACE_READ_ACL))
+		new_mask |= S_IROTH;
+	if (mode & (ACE_WRITE_DATA | ACE_APPEND_DATA |
+	    ACE_WRITE_ATTRIBUTES | ACE_ADD_FILE | ACE_WRITE_NAMED_ATTRS))
+		new_mask |= S_IWOTH;
+	if (mode & (ACE_EXECUTE | ACE_READ_NAMED_ATTRS))
+		new_mask |= S_IXOTH;
+
+	return (zfs_zaccess_rwx(zp, (new_mask << 6),flags, cr));
+}
+
+/*
+ * Unix VREAD/VWRITE/VEXEC mode form is checked as it is.
+ */
+int
+zfs_zaccess_rwx(znode_t *zp, mode_t mode, int flags, cred_t *cr)
+{
+	int	shift = 0;
+
+	if ((mode & VWRITE) && (!IS_DEVVP(ZTOV(zp))) &&
+	    (zp->z_zfsvfs->z_vfs->vfs_flag & VFS_RDONLY))
+		return (EROFS);
+
+	/*
+	 * Access check is based on only one of owner, group, public.
+	 * If not owner, then check group.
+	 * If not a member of the group, then check public access.
+	 */
+	if (crgetuid(cr) != zp->z_phys->zp_uid) {
+		shift += 3;
+		if (!groupmember((gid_t)zp->z_phys->zp_gid, cr))
+			shift += 3;
+	}
+
+	mode &= ~(zp->z_phys->zp_mode << shift);
+
+	if (mode == 0)
+		return (0);
+
+	/* test missing privilege bits */
+	return (secpolicy_vnode_access(cr, ZTOV(zp), zp->z_phys->zp_uid, mode));
+}
+
+/*
+ * Access function for secpolicy_vnode_setattr
+ */
+int
+zfs_zaccess_unix(znode_t *zp, mode_t mode, cred_t *cr)
+{
+	return (zfs_zaccess_rwx(zp, mode, 0, cr));
+}
+
+int
+zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr)
+{
+	int error;
+
+	/*
+	 * Execute access is required to search the directory.
+	 * Access for write is interpreted as allowing
+	 * deletion of files in the directory.
+	 */
+	if ((error = zfs_zaccess_rwx(dzp, (VWRITE | VEXEC), 0, cr)) == 0)
+		return (zfs_sticky_remove_access(dzp, zp, cr));
+
+	return (error);
+}
+#endif	/* ZFS_COMPACT */

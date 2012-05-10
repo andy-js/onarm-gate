@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/errno.h>
@@ -79,9 +83,13 @@ static dtrace_provider_id_t profile_id;
 #define	PROF_ARTIFICIAL_FRAMES	4
 #else
 #define	PROF_ARTIFICIAL_FRAMES	3
-#endif
-#endif
-#endif
+#endif /* DEBUG */
+#else
+#ifdef __arm
+#define	PROF_ARTIFICIAL_FRAMES	5
+#endif /* __arm */
+#endif /* __sparc */
+#endif /* __x86 */
 
 #define	PROF_NAMELEN		15
 
@@ -558,19 +566,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */

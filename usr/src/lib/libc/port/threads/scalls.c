@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
@@ -674,7 +678,15 @@ _close(int fildes)
 	extern int __close(int);
 	int rv;
 
-	_aio_close(fildes);
+	/* 
+	 * If we call _aio_close() while in a critical region, 
+	 * we will draw an ASSERT() failure, so don't do it. 
+	 * No calls to close() from within libc need _aio_close(); 
+	 * only the application's calls to close() need this, 
+	 * and such calls are never from a libc critical region. 
+	 */ 
+	if (curthread->ul_critical == 0) 
+		_aio_close(fildes); 
 	PERFORM(__close(fildes))
 }
 

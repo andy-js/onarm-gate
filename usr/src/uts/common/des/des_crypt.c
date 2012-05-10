@@ -26,6 +26,10 @@
 /*	  All Rights Reserved  	*/
 
 /*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
+/*
  * Portions of this source code were derived from Berkeley 4.3 BSD
  * under license from the Regents of the University of California.
  */
@@ -262,7 +266,7 @@ static crypto_provider_info_t des_prov_info = {
 static crypto_kcf_provider_handle_t des_prov_handle = NULL;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int ret;
 
@@ -285,7 +289,7 @@ _init(void)
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

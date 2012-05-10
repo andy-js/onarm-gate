@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -77,7 +81,7 @@
 #include <sys/priv_names.h>
 
 #ifndef	lint
-char 		_depends_on[] = "strmod/rpcmod";
+MODDRV_DEPENDS_ON("strmod/rpcmod");
 #endif	/* lint */
 int		md_init_debug	= 0;	/* module binding debug */
 
@@ -330,7 +334,7 @@ md_global_alloc_free(int alloc)
 }
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	set_t	s;
 	int	err;
@@ -367,8 +371,9 @@ _init(void)
 	return (err);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	err;
 
@@ -384,9 +389,10 @@ _fini(void)
 	MD_CLR_IN(IN_FINI);
 	return (err);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

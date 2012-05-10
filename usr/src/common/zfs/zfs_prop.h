@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_ZFS_PROP_H
 #define	_ZFS_PROP_H
 
@@ -34,6 +38,9 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	MAXBLOCKSIZE_STR	"128k"
+#define	COPIES_STR		"1 | 2 | 3"
 
 /*
  * For index types (e.g. compression and checksum), we want the numeric value

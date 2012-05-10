@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -701,17 +705,22 @@ sockinit(int fstype, char *name)
 		goto failure;
 	}
 
+#if defined(SOCKFS_SHRINK) && defined(SCTP_SHRINK)
+#else
 	error = sosctp_init();
 	if (error != 0) {
 		err_str = NULL;
 		goto failure;
 	}
+#endif
 
+#ifndef SOCKFS_SHRINK
 	error = sosdp_init();
 	if (error != 0) {
 		err_str = NULL;
 		goto failure;
 	}
+#endif
 
 	/*
 	 * Create sonode caches.  We create a special one for AF_UNIX so

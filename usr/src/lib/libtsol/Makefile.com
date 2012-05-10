@@ -22,6 +22,10 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2007 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -39,7 +43,7 @@ include ../../Makefile.lib
 # install this library in the root filesystem
 include ../../Makefile.rootfs
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 LDLIBS +=	-lsecdb -lc
 
 SRCDIR =	../common

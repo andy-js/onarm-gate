@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -58,6 +62,9 @@ static int pc_is_short_file_name(char *namep, int foldcase);
 static int shortname_exists(struct pcnode *dp, char *fname, char *fext);
 static int pc_dirfixdotdot(struct pcnode *cdp, struct pcnode *opdp,
     struct pcnode *npdp);
+static int pc_dircheckpath(struct pcnode *, struct pcnode *);
+static int pc_utf8_conv_cp932(char *, char *);
+static int pc_do_conversion(char *, char *, char *, char *);
 /*
  * Tunables
  */
@@ -128,7 +135,8 @@ pc_direnter(
 	struct pcnode *dp,		/* directory to make entry in */
 	char *namep,			/* name of entry */
 	struct vattr *vap,		/* attributes of new entry */
-	struct pcnode **pcpp)
+	struct pcnode **pcpp,
+	struct cred *cr)
 {
 	int error;
 	struct pcslot slot;
@@ -188,7 +196,8 @@ pc_direnter(
 		 * directory to see if entry can be created.
 		 */
 		if (dp->pc_entry.pcd_attr & PCA_RDONLY) {
-			return (EPERM);
+			if (cr == NULL || crgetuid(cr) != 0)
+				return (EACCES);
 		}
 		error = 0;
 		/*
@@ -280,6 +289,7 @@ pc_makedirentry(struct pcnode *dp, struct pcdir *direntries,
 	int	i;
 	struct buf *bp = NULL;
 	timestruc_t now;
+	int	find_unused = 0;
 
 	if (vap != NULL && vap->va_mask & (AT_ATIME|AT_MTIME))
 		return (EOPNOTSUPP);
@@ -289,6 +299,8 @@ pc_makedirentry(struct pcnode *dp, struct pcdir *direntries,
 	if (error = pc_tvtopct(&now, &ep->pcd_mtime))
 		return (error);
 
+	dp->pc_entry.pcd_mtime = ep->pcd_mtime;
+	dp->pc_flags |= PC_CHG;
 	ep->pcd_crtime = ep->pcd_mtime;
 	ep->pcd_ladate = ep->pcd_mtime.pct_date;
 	ep->pcd_crtime_msec = 0;
@@ -310,17 +322,17 @@ pc_makedirentry(struct pcnode *dp, struct pcdir *direntries,
 		/*
 		 * Make dot and dotdot entries for a new directory.
 		 */
-		cn = pc_alloccluster(fsp, 0);
+		error = pc_alloccluster(fsp, 0, &cn);
+		if (error)
+			return (error);
 		switch (cn) {
 		case PCF_FREECLUSTER:
 			return (ENOSPC);
 		case PCF_ERRORCLUSTER:
 			return (EIO);
 		}
-		bp = ngeteblk(fsp->pcfs_clsize);
-		bp->b_edev = fsp->pcfs_xdev;
-		bp->b_dev = cmpdev(bp->b_edev);
-		bp->b_blkno = pc_cldaddr(fsp, cn);
+		bp = getblk(fsp->pcfs_xdev,
+		    pc_cldaddr(fsp, cn), fsp->pcfs_clsize);
 		clrbuf(bp);
 		pc_setstartcluster(fsp, ep, cn);
 		pc_setstartcluster(fsp, &dirtemplate.t_dot, cn);
@@ -364,10 +376,18 @@ pc_makedirentry(struct pcnode *dp, struct pcdir *direntries,
 			if (error)
 				return (error);
 		}
+		if (ep->pcd_filename[0] == PCD_UNUSED)
+			find_unused = 1;
 
 		*ep = direntries[i];
 		offset += sizeof (struct pcdir);
 	}
+	if (find_unused) {
+		boff = pc_blkoff(fsp, offset);
+		if (boff != 0)
+			ep->pcd_filename[0] = PCD_UNUSED;
+	}
+
 	if (bp != NULL) {
 		/* always modified */
 		bwrite2(bp);
@@ -388,7 +408,8 @@ pc_dirremove(
 	char *namep,
 	struct vnode *cdir,
 	enum vtype type,
-	caller_context_t *ctp)
+	caller_context_t *ctp,
+	struct cred *cr)
 {
 	struct pcslot slot;
 	struct pcnode *pcp;
@@ -396,11 +417,13 @@ pc_dirremove(
 	struct vnode *vp = PCTOV(dp);
 	struct pcfs *fsp = VFSTOPCFS(vp->v_vfsp);
 	offset_t lfn_offset = -1;
+	timestruc_t now;
 
 	PC_DPRINTF2(4, "pc_dirremove (dp %p name %s)\n", (void *)dp, namep);
 	if ((dp->pc_entry.pcd_attr & PCA_RDONLY) ||
 	    PCA_IS_HIDDEN(fsp, dp->pc_entry.pcd_attr)) {
-		return (EPERM);
+		if (cr == NULL || crgetuid(cr) != 0)
+			return (EACCES);
 	}
 	error = pc_findentry(dp, namep, &slot, &lfn_offset);
 	if (error)
@@ -408,7 +431,7 @@ pc_dirremove(
 	if (slot.sl_flags == SL_DOT) {
 		error = EINVAL;
 	} else if (slot.sl_flags == SL_DOTDOT) {
-		error = ENOTEMPTY;
+		error = EEXIST;
 	} else {
 		pcp =
 		    pc_getnode(VFSTOPCFS(vp->v_vfsp),
@@ -423,13 +446,13 @@ pc_dirremove(
 			if (PCTOV(pcp) == cdir)
 				error = EINVAL;
 			else if (!pc_dirempty(pcp))
-				error = ENOTEMPTY;
+				error = EEXIST;
 		} else {
 			error = ENOTDIR;
 		}
 	} else {
 		if (pcp->pc_entry.pcd_attr & PCA_DIR)
-			error = EISDIR;
+			error = EPERM;
 	}
 	if (error == 0) {
 		/*
@@ -467,6 +490,10 @@ pc_dirremove(
 	}
 
 	if (error == 0) {
+		gethrestime(&now);
+		if (pc_tvtopct(&now, &dp->pc_entry.pcd_mtime) == 0) {
+			dp->pc_flags |= PC_CHG;
+		}
 		if (type == VDIR) {
 			vnevent_rmdir(PCTOV(pcp), vp, namep, ctp);
 		} else {
@@ -498,6 +525,8 @@ pc_dirempty(struct pcnode *pcp)
 
 	offset = 0;
 	for (;;) {
+		if (offset >= PCFS_ENTRYMAXSIZE)
+			break;
 
 		/*
 		 * If offset is on a block boundary,
@@ -558,7 +587,8 @@ pc_rename(
 	struct pcnode *tdp,		/* target directory */
 	char *snm,			/* source file name */
 	char *tnm,			/* target file name */
-	caller_context_t *ctp)
+	caller_context_t *ctp,
+	struct cred *cr)
 {
 	struct pcnode *pcp;	/* pcnode we are trying to rename */
 	struct pcnode *tpcp;	/* pcnode that's in our way */
@@ -569,6 +599,7 @@ pc_rename(
 	struct pcfs *fsp = VFSTOPCFS(vp->v_vfsp);
 	int filecasechange = 0;
 	int oldisdir = 0;
+	char attr;
 
 	PC_DPRINTF3(4, "pc_rename(0x%p, %s, %s)\n", (void *)dp, snm, tnm);
 	/*
@@ -582,6 +613,11 @@ pc_rename(
 	if (PC_NAME_IS_DOT(snm) || PC_NAME_IS_DOTDOT(snm) ||
 	    PC_NAME_IS_DOT(tnm) || PC_NAME_IS_DOTDOT(tnm))
 		return (EINVAL);
+	attr = tdp->pc_entry.pcd_attr;
+	if (PCA_IS_HIDDEN(fsp, attr) || attr & PCA_RDONLY) {
+		if (cr == NULL || crgetuid(cr) != 0)
+			return (EACCES);
+	}
 	/*
 	 * Get the source node.  We'll jump back to here if trying to
 	 * move on top of an existing file, after deleting that file.
@@ -607,13 +643,21 @@ top:
 			VN_RELE(svp);
 		return (EINVAL);
 	}
+	error = pc_dircheckpath(pcp, tdp);
+	if (error) {
+		if (svp)
+			VN_RELE(svp);
+		return (error);
+	}
 
 	/*
 	 * Are we just changing the case of an existing name?
 	 */
 	if ((dp->pc_scluster == tdp->pc_scluster) &&
 	    (strcasecmp(snm, tnm) == 0)) {
-		filecasechange = 1;
+		if (svp)
+			VN_RELE(svp);
+		return (0);
 	}
 
 	oldisdir = pcp->pc_entry.pcd_attr & PCA_DIR;
@@ -650,7 +694,7 @@ top:
 			} else {
 				/* nondir/nondir, remove target */
 				error = pc_dirremove(tdp, tnm,
-				    (struct vnode *)NULL, VREG, ctp);
+				    (struct vnode *)NULL, VREG, ctp, NULL);
 				if (error == 0) {
 					VN_RELE(PCTOV(pcp));
 					goto top;
@@ -659,7 +703,7 @@ top:
 		} else if (oldisdir) {
 			/* dir/dir, remove target */
 			error = pc_dirremove(tdp, tnm,
-			    (struct vnode *)NULL, VDIR, ctp);
+			    (struct vnode *)NULL, VDIR, ctp, NULL);
 			if (error == 0) {
 				VN_RELE(PCTOV(pcp));
 				goto top;
@@ -693,6 +737,7 @@ top:
 		ushort_t ladate;
 		ushort_t eattr;
 		uchar_t	crtime_msec;
+		timestruc_t now;
 
 		/*
 		 * Rename the source.
@@ -811,7 +856,11 @@ top:
 				return (error);
 			}
 		}
-		if ((error = pc_nodeupdate(pcp)) != 0) {
+		gethrestime(&now);
+		if (pc_tvtopct(&now, &dp->pc_entry.pcd_mtime) == 0)
+			dp->pc_flags |= PC_CHG;
+		if ((error = pc_syncfat(fsp)) != 0 ||
+		    (error = pc_nodeupdate(pcp)) != 0) {
 			VN_RELE(PCTOV(pcp));
 			return (error);
 		}
@@ -860,6 +909,7 @@ pc_dirfixdotdot(struct pcnode *dp,	/* child directory being moved */
 	    !PC_SHORTNAME_IS_DOTDOT(ep->pcd_filename)) {
 		PC_DPRINTF0(1, "pc_dirfixdotdot: mangled directory entry\n");
 		error = ENOTDIR;
+		brelse(bp);
 		return (error);
 	}
 	cn = pc_getstartcluster(fsp, &npdp->pc_entry);
@@ -914,6 +964,13 @@ pc_findentry(
 	slotp->sl_bp = NULL;
 	offset = 0;
 	for (;;) {
+		if (offset >= PCFS_ENTRYMAXSIZE) {
+			if (slotp->sl_status == SL_NONE) {
+				slotp->sl_status = SL_EXTEND;
+				slotp->sl_offset = (int)offset;
+			}
+			break;
+		}
 		/*
 		 * If offset is on a block boundary,
 		 * read in the next directory block.
@@ -1029,7 +1086,7 @@ pc_parsename(
 	char *fnamep,
 	char *fextp)
 {
-	int n;
+	int n, wait_secondbyte = 0;
 	char c;
 
 	n = PCFNAMESIZE;
@@ -1054,9 +1111,18 @@ pc_parsename(
 		 */
 		do {
 			if (n-- > 0) {
-				c = toupper(c);
-				if (!pc_validchar(c))
-					return (EINVAL);
+				if (wait_secondbyte) {
+					wait_secondbyte = 0;
+				} else {
+					if (pc_is_cp932mb1st(c)) {
+						wait_secondbyte = 1;
+					} else {
+						c = toupper(c);
+						if (!pc_validchar(c)) {
+							return (EINVAL);
+						}
+					}
+				}
 				*fnamep++ = c;
 			} else {
 				/* not short */
@@ -1065,6 +1131,8 @@ pc_parsename(
 			}
 		} while ((c = *namep++) != '\0' && c != '.');
 	}
+	if (wait_secondbyte)
+		return (EINVAL);
 	while (n-- > 0) {		/* fill with blanks */
 		*fnamep++ = ' ';
 	}
@@ -1074,12 +1142,21 @@ pc_parsename(
 	n = PCFEXTSIZE;
 	if (c == '.') {
 		while ((c = *namep++) != '\0' && n--) {
-			c = toupper(c);
-			if (!pc_validchar(c))
-				return (EINVAL);
+			if (wait_secondbyte) {
+				wait_secondbyte = 0;
+			} else {
+				if (pc_is_cp932mb1st(c)) {
+					wait_secondbyte = 1;
+				} else {
+					c = toupper(c);
+					if (!pc_validchar(c)) {
+						return (EINVAL);
+					}
+				}
+			}
 			*fextp++ = c;
 		}
-		if (enable_long_filenames && (c != '\0')) {
+		if (wait_secondbyte || (enable_long_filenames && (c != '\0'))) {
 			/* not short */
 			return (EINVAL);
 		}
@@ -1140,21 +1217,21 @@ pc_match_short_fn(struct pcnode *pcp, char *namep, struct pcdir **epp,
 	struct vnode *vp = PCTOV(pcp);
 	struct pcfs *fsp = VFSTOPCFS(vp->v_vfsp);
 	int boff = pc_blkoff(fsp, *offset);
+	char cp932[PCMAXNAMLEN + 1];
 
 	if (PCA_IS_HIDDEN(fsp, ep->pcd_attr)) {
-		*offset += sizeof (struct pcdir);
-		ep++;
-		*epp = ep;
-		return (ENOENT);
+		error = ENOENT;
+		goto out;
 	}
 
-	error = pc_parsename(namep, fname, fext);
-	if (error) {
-		*offset += sizeof (struct pcdir);
-		ep++;
-		*epp = ep;
-		return (error);
-	}
+	error = pc_utf8_conv_cp932(namep, cp932);
+	if (error)
+		goto out;
+	error = pc_parsename(cp932, fname, fext);
+	if (error)
+		goto out;
+	if (fname[0] == PCD_ERASED)
+		fname[0] = PCD_ESCAPE;
 
 	if ((bcmp(fname, ep->pcd_filename, PCFNAMESIZE) == 0) &&
 	    (bcmp(fext, ep->pcd_ext, PCFEXTSIZE) == 0)) {
@@ -1175,10 +1252,13 @@ pc_match_short_fn(struct pcnode *pcp, char *namep, struct pcdir **epp,
 		slotp->sl_ep = ep;
 		return (0);
 	}
+	error = ENOENT;
+
+out:
 	*offset += sizeof (struct pcdir);
 	ep++;
 	*epp = ep;
-	return (ENOENT);
+	return (error);
 }
 
 /*
@@ -1261,6 +1341,10 @@ pc_find_free_space(struct pcnode *pcp, int ndirentries)
 
 	spaceoffset = offset;
 	while (spaceneeded > spaceavail) {
+		if (offset >= PCFS_ENTRYMAXSIZE) {
+			spaceoffset = -1;
+			break;
+		}
 		/*
 		 * If offset is on a block boundary,
 		 * read in the next directory block.
@@ -1280,6 +1364,8 @@ pc_find_free_space(struct pcnode *pcp, int ndirentries)
 				if (!IS_FAT32(fsp) && (vp->v_flag & VROOT))
 					return (-1);
 				while (spaceneeded > spaceavail) {
+					if (offset >= PCFS_ENTRYMAXSIZE)
+						return (-1);
 					error = pc_balloc(pcp,
 					    pc_lblkno(fsp, offset), 1, &bn);
 					if (error)
@@ -1323,12 +1409,17 @@ direntries_needed(struct pcnode *dp, char *namep)
 	uint16_t *w2_str;
 	size_t  u8l, u16l;
 	int ret;
+	char cp932[PCMAXNAMLEN + 1];
 
 	if (enable_long_filenames == 0) {
 		return (1);
 	}
-	if (pc_is_short_file_name(namep, 0)) {
-		(void) pc_parsename(namep, ep.pcd_filename, ep.pcd_ext);
+
+	ret = pc_utf8_conv_cp932(namep, cp932);
+	if (ret)
+		return (-1);
+	if (pc_is_short_file_name(cp932, 0)) {
+		(void) pc_parsename(cp932, ep.pcd_filename, ep.pcd_ext);
 		if (!shortname_exists(dp, ep.pcd_filename, ep.pcd_ext)) {
 			return (1);
 		}
@@ -1373,12 +1464,19 @@ pc_name_to_pcdir(struct pcnode *dp, char *namep, int ndirentries, int *errret)
 	char	*nameend;
 	uint16_t *w2_str;
 	size_t  u8l, u16l;
-	int ret;
+	char cp932[PCMAXNAMLEN + 1];
 
 	bpcdir = kmem_zalloc(ndirentries * sizeof (struct pcdir), KM_SLEEP);
 	ep = &bpcdir[ndirentries - 1];
 	if (ndirentries == 1) {
-		(void) pc_parsename(namep, ep->pcd_filename, ep->pcd_ext);
+		error = pc_utf8_conv_cp932(namep, cp932);
+		if (error != 0)
+			goto err;
+		error = pc_parsename(cp932, ep->pcd_filename, ep->pcd_ext);
+		if (error != 0)
+			goto err;
+		if (ep->pcd_filename[0] == PCD_ERASED)
+			ep->pcd_filename[0] = PCD_ESCAPE;
 		return (bpcdir);
 	}
 
@@ -1387,18 +1485,17 @@ pc_name_to_pcdir(struct pcnode *dp, char *namep, int ndirentries, int *errret)
 	u16l = PCMAXNAMLEN + 1;
 	w2_str = (uint16_t *)kmem_zalloc(PCMAXNAM_UTF16, KM_SLEEP);
 	u8l = strlen(namep);
-	ret = uconv_u8tou16((const uchar_t *)namep, &u8l, w2_str, &u16l,
+	error = uconv_u8tou16((const uchar_t *)namep, &u8l, w2_str, &u16l,
 	    UCONV_OUT_LITTLE_ENDIAN);
-	if (ret != 0) {
+	if (error != 0) {
 		kmem_free((caddr_t)w2_str, PCMAXNAM_UTF16);
-		*errret = ret;
-		return (NULL);
+		goto err;
 	}
 	nameend = (char *)(w2_str + u16l);
 	u16l %= PCLFNCHUNKSIZE;
 	if (u16l != 0) {
 		nchars = u16l + 1;
-		nameend += 2;
+		nameend += sizeof (uint16_t);
 	} else {
 		nchars = PCLFNCHUNKSIZE;
 	}
@@ -1406,10 +1503,9 @@ pc_name_to_pcdir(struct pcnode *dp, char *namep, int ndirentries, int *errret)
 
 	/* short file name */
 	error = generate_short_name(dp, namep, ep);
-	if (error) {
-		kmem_free(bpcdir, ndirentries * sizeof (struct pcdir));
-		*errret = error;
-		return (NULL);
+	if (error != 0) {
+		kmem_free((caddr_t)w2_str, PCMAXNAM_UTF16);
+		goto err;
 	}
 	cksum = pc_checksum_long_fn(ep->pcd_filename, ep->pcd_ext);
 	for (i = 0; i < (ndirentries - 1); i++) {
@@ -1426,6 +1522,11 @@ pc_name_to_pcdir(struct pcnode *dp, char *namep, int ndirentries, int *errret)
 	lep = (struct pcdir_lfn *)&bpcdir[0];
 	lep->pcdl_ordinal |= 0x40;
 	return (bpcdir);
+
+err:
+	kmem_free(bpcdir, ndirentries * sizeof (struct pcdir));
+	*errret = error;
+	return (NULL);
 }
 
 static int
@@ -1442,6 +1543,11 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 	struct	pcslot slot;
 	char	shortname[20];
 	int	force_tilde = 0;
+	char	*cp932, *cp932_nospc, *cp932_tail;
+	char	cp932_to_utf8[PCMAXNAMLEN + 1];
+	int	nospc_size, cp932_size;
+	int	wait_secondbyte = 0;
+	int	maxunderscore, underscores;
 
 	/*
 	 * generate a unique short file name based on the long input name.
@@ -1455,7 +1561,33 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 	 * lookup routine, we need to look for it ourselves. But luckily
 	 * we don't need to look at the lfn entries themselves.
 	 */
-	force_tilde = !pc_is_short_file_name(namep, 1);
+	cp932_size = strlen(namep) + 1;
+	cp932 = kmem_zalloc(cp932_size, KM_SLEEP);
+
+	error = pc_utf8_conv_cp932(namep, cp932);
+	if (error) {
+		kmem_free(cp932, cp932_size);
+		return (EINVAL);
+	}
+
+	cp932_nospc = cp932;
+	for (; *cp932_nospc == ' '; cp932_nospc++)
+		;
+
+	cp932_tail = cp932_nospc + strlen(cp932_nospc) - 1;
+	for (; cp932_nospc <= cp932_tail &&
+	    (*cp932_tail == ' ' || *cp932_tail == '.'); cp932_tail--)
+		;
+	cp932_tail++;
+	*cp932_tail = '\0';
+
+	if (*cp932_nospc == '\0') {
+		kmem_free(cp932, cp932_size);
+		return (EINVAL);
+	}
+
+	force_tilde = !pc_is_short_file_name(cp932_nospc, 1);
+	namep = cp932_nospc;
 
 	/*
 	 * Strip off leading invalid characters.
@@ -1463,18 +1595,37 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 	 * short name needs to be something like LOGIN~1.
 	 */
 	for (; *namep != '\0'; namep++) {
+		if (pc_is_cp932mb1st(*namep))
+			break;
 		if (*namep == ' ')
 			continue;
 		if (!pc_validchar(*namep) && !pc_validchar(toupper(*namep)))
 			continue;
 		break;
 	}
+	if (*namep == '\0') {
+		kmem_free(cp932, cp932_size);
+		return (EINVAL);
+	}
 	dot = strrchr(namep, '.');
+	bzero(fext, sizeof (fext));
 	if (dot != NULL) {
 		dot++;
 		for (j = 0, i = 0; j < PCFEXTSIZE; i++) {
 			if (dot[i] == '\0')
 				break;
+			if (wait_secondbyte) {
+				wait_secondbyte = 0;
+				if (j + 1 < PCFEXTSIZE) {
+					fext[j++] = dot[i - 1];
+					fext[j++] = dot[i];
+				}
+				continue;
+			}
+			if (pc_is_cp932mb1st(dot[i])) {
+				wait_secondbyte = 1;
+				continue;
+			}
 			/* skip valid, but not generally good characters */
 			if (dot[i] == ' ' || dot[i] == '\\')
 				continue;
@@ -1500,7 +1651,8 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 		rev = 0;
 	else
 		rev = 1;
-	for (;;) {
+	for (maxunderscore = 0; ; maxunderscore++) {
+		underscores = maxunderscore;
 		bzero(fname, sizeof (fname));
 		nchars = PCFNAMESIZE;
 		if (rev) {
@@ -1511,12 +1663,26 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 				i /= 10;
 			} while (i);
 			if (nchars <= 0) {
+				kmem_free(cp932, cp932_size);
 				return (ENOSPC);
 			}
 		}
+		wait_secondbyte = 0;
 		for (j = 0, i = 0; j < nchars; i++) {
 			if ((&namep[i] == dot) || (namep[i] == '\0'))
 				break;
+			if (wait_secondbyte) {
+				wait_secondbyte = 0;
+				if (j + 1 < nchars) {
+					fname[j++] = namep[i - 1];
+					fname[j++] = namep[i];
+				}
+				continue;
+			}
+			if (pc_is_cp932mb1st(namep[i])) {
+				wait_secondbyte = 1;
+				continue;
+			}
 			/* skip valid, but not generally good characters */
 			if (namep[i] == ' ' || namep[i] == '\\')
 				continue;
@@ -1524,6 +1690,15 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 				fname[j++] = namep[i];
 			else if (pc_validchar(toupper(namep[i])))
 				fname[j++] = toupper(namep[i]);
+			else if (underscores > 0) {
+				fname[j++] = '_';
+				underscores--;
+			}
+		}
+		if (j == 0) {
+			/* no characters in the prefix? */
+			kmem_free(cp932, cp932_size);
+			return (EINVAL);
 		}
 		if (rev) {
 			(void) sprintf(scratch, "~%d", rev);
@@ -1533,7 +1708,10 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 			fname[i] = ' ';
 		/* now see if it exists */
 		(void) pc_fname_ext_to_name(shortname, fname, fext, 0);
-		error = pc_findentry(dp, shortname, &slot, NULL);
+		error = pc_cp932_conv_utf8(shortname, cp932_to_utf8);
+		if (error)
+			goto end;
+		error = pc_findentry(dp, cp932_to_utf8, &slot, NULL);
 		if (error == 0) {
 			/* found it */
 			brelse(slot.sl_bp);
@@ -1544,8 +1722,13 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 			break;
 		rev++;
 	}
+	if (fname[0] == PCD_ERASED)
+		fname[0] = PCD_ESCAPE;
 	(void) strncpy(inep->pcd_filename, fname, PCFNAMESIZE);
 	(void) strncpy(inep->pcd_ext, fext, PCFEXTSIZE);
+
+end:
+	kmem_free(cp932, cp932_size);
 	return (0);
 }
 
@@ -1555,21 +1738,29 @@ generate_short_name(struct pcnode *dp, char *namep, struct pcdir *inep)
 static int
 pc_is_short_file_name(char *namep, int foldcase)
 {
-	int	i;
+	int	i, wait_secondbyte = 0;
 	char	c;
 
 	for (i = 0; i < PCFNAMESIZE; i++, namep++) {
 		if (*namep == '\0')
-			return (1);
-		if (*namep == '.')
-			break;
-		if (foldcase)
-			c = toupper(*namep);
-		else
-			c = *namep;
-		if (!pc_validchar(c))
-			return (0);
+			return (wait_secondbyte ? 0 : 1);
+		else if (wait_secondbyte)
+			wait_secondbyte = 0;
+		else if (pc_is_cp932mb1st(*namep))
+			wait_secondbyte = 1;
+		else {
+			if (*namep == '.')
+				break;
+			if (foldcase)
+				c = toupper(*namep);
+			else
+				c = *namep;
+			if (!pc_validchar(c))
+				return (0);
+		}
 	}
+	if (wait_secondbyte)
+		return (0);
 	if (*namep == '\0')
 		return (1);
 	if (*namep != '.')
@@ -1578,14 +1769,22 @@ pc_is_short_file_name(char *namep, int foldcase)
 	for (i = 0; i < PCFEXTSIZE; i++, namep++) {
 		if (*namep == '\0')
 			return (1);
-		if (foldcase)
-			c = toupper(*namep);
-		else
-			c = *namep;
-		if (!pc_validchar(c))
-			return (0);
+		else if (wait_secondbyte)
+			wait_secondbyte = 0;
+		else if (pc_is_cp932mb1st(*namep))
+			wait_secondbyte = 1;
+		else {
+			if (foldcase)
+				c = toupper(*namep);
+			else
+				c = *namep;
+			if (!pc_validchar(c))
+				return (0);
+		}
 	}
 	/* we should be done. If not... */
+	if (wait_secondbyte)
+		return (0);
 	if (*namep == '\0')
 		return (1);
 	return (0);
@@ -1613,6 +1812,8 @@ shortname_exists(struct pcnode *dp, char *fname, char *fext)
 	int	error = 0;
 
 	for (;;) {
+		if (offset >= PCFS_ENTRYMAXSIZE)
+			break;
 		boff = pc_blkoff(fsp, offset);
 		if (boff == 0 || bp == NULL || boff >= bp->b_bcount) {
 			if (bp != NULL) {
@@ -1638,6 +1839,8 @@ shortname_exists(struct pcnode *dp, char *fname, char *fext)
 		 * in use, and a short file name (either standalone
 		 * or associated with a long name
 		 */
+		if (fname[0] == PCD_ERASED)
+			fname[0] = PCD_ESCAPE;
 		if ((bcmp(fname, ep->pcd_filename, PCFNAMESIZE) == 0) &&
 		    (bcmp(fext, ep->pcd_ext, PCFEXTSIZE) == 0)) {
 			match = 1;
@@ -1664,6 +1867,7 @@ pc_getstartcluster(struct pcfs *fsp, struct pcdir *ep)
 		hi16 = ltohs(ep->un.pcd_scluster_hi);
 		lo16 = ltohs(ep->pcd_scluster_lo);
 		cn = (hi16 << 16) | lo16;
+		cn = cn & ~PCFS_CLUSTER_RESERVEDMASK;
 		return (cn);
 	} else {
 		return (ltohs(ep->pcd_scluster_lo));
@@ -1679,7 +1883,9 @@ pc_setstartcluster(struct pcfs *fsp, struct pcdir *ep, pc_cluster32_t cln)
 
 		hi16 = (cln >> 16) & 0xFFFF;
 		lo16 = cln & 0xFFFF;
-		ep->un.pcd_scluster_hi = htols(hi16);
+		ep->un.pcd_scluster_hi = (ep->un.pcd_scluster_hi &
+		    PCFS_CLUSTER_RESERVEDMASKHI) |
+		    (htols(hi16) & ~PCFS_CLUSTER_RESERVEDMASKHI);
 		ep->pcd_scluster_lo = htols(lo16);
 	} else {
 		pc_cluster16_t cln16;
@@ -1687,4 +1893,84 @@ pc_setstartcluster(struct pcfs *fsp, struct pcdir *ep, pc_cluster32_t cln)
 		cln16 = (pc_cluster16_t)cln;
 		ep->pcd_scluster_lo = htols(cln16);
 	}
+}
+
+static int
+pc_dircheckpath(struct pcnode *fromnode, struct pcnode *toparent)
+{
+	struct pcnode *pdir, *dotdot;
+	int error;
+
+	error = pc_dirlook(toparent, "..", &dotdot);
+	if (error)
+		return (error);
+	if (dotdot == NULL)
+		return (ENOENT);
+	if (dotdot == toparent) {
+		VN_RELE(PCTOV(dotdot));
+		return (0);
+	}
+	for (;;) {
+		if (dotdot == fromnode) {
+			VN_RELE(PCTOV(dotdot));
+			error = EINVAL;
+			break;
+		}
+		pdir = dotdot;
+		error = pc_dirlook(pdir, "..", &dotdot);
+		if (error) {
+			VN_RELE(PCTOV(pdir));
+			break;
+		}
+		if (pdir == dotdot) {
+			VN_RELE(PCTOV(pdir));
+			VN_RELE(PCTOV(dotdot));
+			break;
+		}
+		VN_RELE(PCTOV(pdir));
+	}
+	return (error);
+}
+
+int
+pc_cp932_conv_utf8(char *inbuf, char *outbuf)
+{
+	return (pc_do_conversion("CP932", "UTF-8", inbuf, outbuf));
+}
+
+static int
+pc_utf8_conv_cp932(char *inbuf, char *outbuf)
+{
+	return (pc_do_conversion("UTF-8", "CP932", inbuf, outbuf));
+}
+
+static int
+pc_do_conversion(char *fromcode, char *tocode, char *inbuf, char *outbuf)
+{
+	char ib[PCMAXNAMLEN + 1];
+	size_t inlen, outlen = PCMAXNAMLEN + 1;
+	size_t ret;
+	int err;
+
+	if (strlcpy(ib, inbuf, sizeof (ib)) >= sizeof (ib))
+		return (ENAMETOOLONG);
+	inlen = strlen(ib) + 1;
+
+	ret = kiconvstr((const char *)tocode, (const char *)fromcode,
+	    inbuf, &inlen, outbuf, &outlen,
+	    (KICONV_IGNORE_NULL|KICONV_REPLACE_INVALID), &err);
+	if (ret == (size_t)-1)
+		return (err);
+
+	return (0);
+}
+
+int
+pc_is_cp932mb1st(char code)
+{
+	if ((0x81 <= (uchar_t)code && (uchar_t)code <= 0x9f) ||
+	    (0xe0 <= (uchar_t)code && (uchar_t)code <= 0xfc))
+		return (1);
+	else
+		return (0);
 }

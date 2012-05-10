@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_DT_IMPL_H
 #define	_DT_IMPL_H
@@ -132,6 +135,15 @@ typedef struct dt_module {
 #define	DT_DM_LOADED	0x1	/* module symbol and type data is loaded */
 #define	DT_DM_KERNEL	0x2	/* module is associated with a kernel object */
 #define	DT_DM_PRIMARY	0x4	/* module is a krtld primary kernel object */
+#ifdef	STATIC_UNIX
+#define	DT_DM_STATIC	0x8	/* module is a static linked object */
+#else	/* !STATIC_UNIX */
+#define	DT_DM_STATIC	0x0	/* no module is statically linked */
+#endif	/* STATIC_UNIX */
+
+#ifdef	STATIC_UNIX
+#define	STATIC_UNIX_MODNAME	"unix"
+#endif	/* STATIC_UNIX */
 
 typedef struct dt_provmod {
 	char *dp_name;				/* name of provider module */

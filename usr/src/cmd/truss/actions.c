@@ -27,6 +27,10 @@
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -616,6 +620,12 @@ sysexit(private_t *pri, int dotrace)
 			pri->length +=
 				7 + printf("\t(returning as child ...)");
 		}
+		if (what == SYS_pspawn 
+		    && pri->Errno == 0 && pri->Rval1 == 0) {
+			pri->length &= ~07;
+			pri->length +=
+				7 + printf("\t(returning as child ...)");
+		}
 		if (what == SYS_lwp_create &&
 		    pri->Errno == 0 && pri->Rval1 == 0) {
 			pri->length &= ~07;
@@ -833,7 +843,8 @@ sysexit(private_t *pri, int dotrace)
 		if (what == SYS_forkall ||
 		    what == SYS_vfork ||
 		    what == SYS_fork1 ||
-		    what == SYS_forksys) {
+		    what == SYS_forksys ||
+		    what == SYS_pspawn) {
 			if (pri->Rval2 == 0)		/* child was created */
 				pri->child = pri->Rval1;
 			else if (cflag && istraced)	/* this is the child */
@@ -947,6 +958,12 @@ showargs(private_t *pri, int raw)
 
 	pri->length = 0;
 	ptrsize = (data_model == PR_MODEL_LP64)? 8 : 4;
+
+#if defined(__arm)
+	ap = (long)Lsp->pr_reg[R_SP];
+	fail = (Pread(Proc, &nargs, sizeof (nargs), ap) != sizeof (nargs));
+	ap += ptrsize;
+#endif /* __arm */
 
 #if defined(__i386) || defined(__amd64)	/* XX64 */
 	ap = (long)Lsp->pr_reg[R_SP];

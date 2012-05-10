@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_INET_SCTP_SCTP_IMPL_H
 #define	_INET_SCTP_SCTP_IMPL_H
 
@@ -360,7 +364,9 @@ typedef struct {
  * Bind hash array size and hash function.  The size must be a power
  * of 2 and lport must be in host byte order.
  */
+#ifndef SCTP_BIND_FANOUT_SIZE
 #define	SCTP_BIND_FANOUT_SIZE	2048
+#endif
 #define	SCTP_BIND_HASH(lport)	(((lport) * 31) & (SCTP_BIND_FANOUT_SIZE - 1))
 
 /* options that SCTP negotiates during association establishment */
@@ -370,7 +376,9 @@ typedef struct {
  * Listener hash array size and hash function.  The size must be a power
  * of 2 and lport must be in host byte order.
  */
+#ifndef SCTP_LISTEN_FANOUT_SIZE
 #define	SCTP_LISTEN_FANOUT_SIZE	512
+#endif
 #define	SCTP_LISTEN_HASH(lport) (((lport) * 31) & (SCTP_LISTEN_FANOUT_SIZE - 1))
 
 typedef struct sctp_tf_s {

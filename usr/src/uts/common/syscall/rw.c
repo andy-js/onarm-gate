@@ -32,6 +32,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -929,8 +933,13 @@ out:
  * This syscall supplies 64-bit file offsets to 32-bit applications only.
  */
 ssize32_t
+#if defined(__arm) && defined(__ARM_EABI__) && !defined(ARM_OABI_USER)
+pread64(int fdes, void *cbuf, size32_t count, uint32_t pad,
+    uint32_t offset_1, uint32_t offset_2)
+#else
 pread64(int fdes, void *cbuf, size32_t count, uint32_t offset_1,
     uint32_t offset_2)
+#endif
 {
 	struct uio auio;
 	struct iovec aiov;
@@ -1052,8 +1061,13 @@ out:
  * This syscall supplies 64-bit file offsets to 32-bit applications only.
  */
 ssize32_t
+#if defined(__arm) && defined(__ARM_EABI__) && !defined(ARM_OABI_USER)
+pwrite64(int fdes, void *cbuf, size32_t count, uint32_t pad,
+    uint32_t offset_1, uint32_t offset_2)
+#else
 pwrite64(int fdes, void *cbuf, size32_t count, uint32_t offset_1,
     uint32_t offset_2)
+#endif
 {
 	struct uio auio;
 	struct iovec aiov;

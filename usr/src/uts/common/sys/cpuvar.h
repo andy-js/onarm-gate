@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_CPUVAR_H
 #define	_SYS_CPUVAR_H
 
@@ -535,6 +539,9 @@ extern struct cpu *curcpup(void);
 #define	CPU		(curthread->t_cpu)	/* Pointer to current CPU */
 #endif
 
+#define	CPU_SELF(cp)		(cp)
+#define	CPU_GLOBAL		CPU_SELF(CPU)
+
 /*
  * CPU_CURRENT indicates to thread_affinity_set to use CPU->cpu_id
  * as the target and to grab cpu_lock instead of requiring the caller
@@ -631,6 +638,10 @@ int	cpu_intr_on(cpu_t *cp);		/* CPU taking I/O interrupts? */
 void	cpu_intr_enable(cpu_t *cp);	/* enable I/O interrupts */
 int	cpu_intr_disable(cpu_t *cp);	/* disable I/O interrupts */
 void	cpu_intr_alloc(cpu_t *cp, int n); /* allocate interrupt threads */
+void	cpu_intr_init(cpu_t *cp, int n);  /* initialize interrupt threads */
+void	cpu_intr_mp_init(cpu_t *cp);	/* initialize mp interrupt threads */
+void	cpu_intr_append(int pri_level);	/* append interrupt thread */
+void	cpu_intr_add(cpu_t *cp);	/* allocate a interrupt thread to *cp */
 
 /*
  * Routines for checking CPU states.
@@ -727,6 +738,15 @@ extern void cpu_state_change_notify(int, cpu_setup_t);
 extern void init_cpu_info(struct cpu *);
 extern void cpu_vm_data_init(struct cpu *);
 extern void cpu_vm_data_destroy(struct cpu *);
+
+#define	CPU_INTR_THREAD_LOCK_DECL
+#define	CPU_INTR_THREAD_LOCK()
+#define	CPU_INTR_THREAD_UNLOCK()
+
+#if	defined(__arm) && defined(_KERNEL_BUILD_TREE)
+/* Import ARM specific definitions. */
+#include <sys/cpuvar_impl.h>
+#endif	/* defined(__arm) && defined(_KERNEL_BUILD_TREE) */
 
 #endif	/* _KERNEL */
 

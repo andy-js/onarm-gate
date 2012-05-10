@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -212,9 +216,11 @@ void	(*init_tbl[])(void) = {
 	anon_init,
 	segvn_init,
 	flk_init,
+#ifndef	CMT_SCHED_DISABLE
 	pg_init,
 	pg_cmt_class_init,
 	pg_cpu0_init,
+#endif
 	schedctl_init,
 	fdb_init,
 	deadman_init,
@@ -515,6 +521,17 @@ char hw_provider[SYS_NMLN] = "";
  */
 char architecture[] = "amd64";
 char architecture_32[] = "i386";
+char hw_serial[11] = "0";
+char hw_provider[SYS_NMLN] = "";
+
+#elif defined(__arm)
+
+/*
+ * On ARM machines, read hw_serial from the firmware at boot time.
+ * Hardware provider is initialized by machine dependant layer.
+ */
+char architecture[] = "arm";
+char architecture_32[] = "arm";
 char hw_serial[11] = "0";
 char hw_provider[SYS_NMLN] = "";
 

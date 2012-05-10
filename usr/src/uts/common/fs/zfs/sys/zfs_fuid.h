@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_ZFS_FUID_H
 #define	_SYS_FS_ZFS_FUID_H
 
@@ -35,6 +39,7 @@
 #include <sys/zfs_vfsops.h>
 #endif
 #include <sys/avl.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -115,7 +120,7 @@ extern boolean_t zfs_groupmember(zfsvfs_t *, uint64_t, cred_t *);
 #endif
 
 char *zfs_fuid_idx_domain(avl_tree_t *, uint32_t);
-uint64_t zfs_fuid_table_load(objset_t *, uint64_t, avl_tree_t *, avl_tree_t *);
+uint64_t zfs_fuid_table_load(objset_t *, objid_t, avl_tree_t *, avl_tree_t *);
 void zfs_fuid_table_destroy(avl_tree_t *, avl_tree_t *);
 
 #ifdef	__cplusplus

@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_NAMENODE_H
 #define	_SYS_FS_NAMENODE_H
 
@@ -75,12 +79,23 @@ struct namenode {
 #define	VTONM(vp) ((struct namenode *)((vp)->v_data))
 #define	NMTOV(nm) ((nm)->nm_vnode)
 
+#ifdef	_KERNEL_BUILD_TREE
+#include <fs/namefs/namenode_impl.h>
+#else
 #define	NM_FILEVP_HASH_SIZE	64
+#endif	/* _KERNEL_BUILD_TREE */
+
 #define	NM_FILEVP_HASH_MASK	(NM_FILEVP_HASH_SIZE - 1)
 #define	NM_FILEVP_HASH_SHIFT	7
+
+#if ((NM_FILEVP_HASH_SIZE & NM_FILEVP_HASH_MASK) == 0)
 #define	NM_FILEVP_HASH(vp)	(&nm_filevp_hash[(((uintptr_t)vp) >> \
 	NM_FILEVP_HASH_SHIFT) & NM_FILEVP_HASH_MASK])
-
+#else
+#define	NM_FILEVP_HASH(vp)	(&nm_filevp_hash[(((uintptr_t)vp) >> \
+	NM_FILEVP_HASH_SHIFT) % NM_FILEVP_HASH_SIZE])
+#endif
+	
 extern struct namenode *nm_filevp_hash[NM_FILEVP_HASH_SIZE];
 extern struct vfs namevfs;
 

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -95,9 +99,13 @@ static struct dev_priv {
 	const char *write_priv;
 } netdev_privs[] = {
 	{"icmp", PRIVONLY_DEV,	PRIV_NET_ICMPACCESS,	PRIV_NET_ICMPACCESS},
+#ifdef USE_INET6
 	{"icmp6", PRIVONLY_DEV,	PRIV_NET_ICMPACCESS,	PRIV_NET_ICMPACCESS},
+#endif /*USE_INET6*/
 	{"ip", PRIVONLY_DEV,	PRIV_NET_RAWACCESS,	PRIV_NET_RAWACCESS},
+#ifdef USE_INET6
 	{"ip6", PRIVONLY_DEV,	PRIV_NET_RAWACCESS,	PRIV_NET_RAWACCESS},
+#endif /*USE_INET6*/
 	{"keysock", PRIVONLY_DEV, PRIV_SYS_IP_CONFIG,	PRIV_SYS_IP_CONFIG},
 	{"ipsecah", PRIVONLY_DEV, PRIV_SYS_IP_CONFIG,	PRIV_SYS_IP_CONFIG},
 	{"ipsecesp", PRIVONLY_DEV, PRIV_SYS_IP_CONFIG,	PRIV_SYS_IP_CONFIG},

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/systm.h>
@@ -221,21 +225,22 @@ pg_init(void)
 void
 pg_cpu0_init(void)
 {
+	cpu_t	*cp = CPU_GLOBAL;
 	extern void pghw_physid_create();
 
 	/*
 	 * Create the physical ID cache for the boot CPU
 	 */
-	pghw_physid_create(CPU);
+	pghw_physid_create(cp);
 
 	/*
 	 * pg_cpu_* require that cpu_lock be held
 	 */
 	mutex_enter(&cpu_lock);
 
-	pg_cpu_init(CPU);
-	pg_cpupart_in(CPU, &cp_default);
-	pg_cpu_active(CPU);
+	pg_cpu_init(cp);
+	pg_cpupart_in(cp, &cp_default);
+	pg_cpu_active(cp);
 
 	mutex_exit(&cpu_lock);
 }
@@ -250,14 +255,16 @@ pg_cpu0_init(void)
 void
 pg_cpu0_reinit(void)
 {
-	mutex_enter(&cpu_lock);
-	pg_cpu_inactive(CPU);
-	pg_cpupart_out(CPU, &cp_default);
-	pg_cpu_fini(CPU);
+	cpu_t	*cp = CPU_GLOBAL;
 
-	pg_cpu_init(CPU);
-	pg_cpupart_in(CPU, &cp_default);
-	pg_cpu_active(CPU);
+	mutex_enter(&cpu_lock);
+	pg_cpu_inactive(cp);
+	pg_cpupart_out(cp, &cp_default);
+	pg_cpu_fini(cp);
+
+	pg_cpu_init(cp);
+	pg_cpupart_in(cp, &cp_default);
+	pg_cpu_active(cp);
 	mutex_exit(&cpu_lock);
 }
 

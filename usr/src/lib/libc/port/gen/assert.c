@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	Copyright (c) 1988 AT&T	*/
@@ -32,6 +36,9 @@
 
 #pragma weak _assert = __assert
 #pragma weak _assert_c99 = __assert_c99
+#if defined(__ARM_EABI__)
+#pragma weak __aeabi_assert = _assert
+#endif
 
 #include "synonyms.h"
 #include "_libc_gettext.h"

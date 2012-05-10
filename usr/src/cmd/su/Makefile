@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # build two versions, su and su.static
@@ -32,6 +37,13 @@ ROOTFS_PROG =	su.static
 DEFAULTFILES =	su.dfl
 
 include		../Makefile.cmd
+
+LDLIBS2			= -lbsm -lsecdb
+LINT_PROG		= lint_PROG
+_MACH			=
+$(ARM_BLD)LDLIBS2	=
+$(ARM_BLD)LINT_PROG	=
+$(ARM_BLD)_MACH		= _$(MACH)
 
 EMB_PROG =	embedded_su
 ROOTEMB_PROG =	$(ROOTLIB)/$(EMB_PROG)
@@ -48,17 +60,19 @@ $(PROG_STATIC) := FILEMODE = 0555
 # A reduced su.static is created, with just enough functionality
 # to satisfy the needs of a single-user login with /usr not mounted.
 # In particular, nss_files.so.1 may be dlopen()'ed at runtime.
-$(ROOTFS_PROG) :=	LDLIBS += -lbsm -lpam -lsecdb
+$(ROOTFS_PROG) :=	LDLIBS += -lpam $(LDLIBS2)
 
 # The standard su is fully functional.
 $(PROG) :=	CPPFLAGS += -DDYNAMIC_SU
-$(PROG) :=	LDLIBS += -lbsm -lpam -lsecdb
+$(PROG) :=	LDLIBS += -lpam $(LDLIBS2)
 
 LINTFLAGS += -DDYNAMIC_SU
 
 CLOBBERFILES	+= $(ROOTFS_PROG) $(EMB_PROG)
 
-lint :=		LDLIBS += -lbsm -lpam -lsecdb
+lint :=		LDLIBS += -lpam $(LDLIBS2)
+
+$(ARM_BLD)include Makefile.$(MACH)
 
 .KEEP_STATE:
 
@@ -66,8 +80,8 @@ all:		$(PROG) $(ROOTFS_PROG) $(EMB_PROG)
 
 # install rule for non-setuid /sbin/su.static
 # (exec'd by /sbin/sulogin when booting single user)
-$(ROOTFS_PROG):	$(PROG).c
-		$(LINK.c) $(PROG).c -o $@ $(LDLIBS)
+$(PROG) $(ROOTFS_PROG):	$(PROG)$(_MACH).c
+		$(LINK.c) $(PROG)$(_MACH).c -o $@ $(LDLIBS)
 		$(POST_PROCESS)
 
 install:	all $(PROG_STATIC) $(ROOTPROG) $(ROOTSBINPROG) \
@@ -87,6 +101,7 @@ $(EMB_PROG):
 
 clean:
 
-lint:		lint_PROG
+lint:		$(LINT_PROG)
+$(ARM_BLD)	$(LINT.c) $(PROG)$(_MACH).c $(LDLIBS)
 
 include		../Makefile.targ

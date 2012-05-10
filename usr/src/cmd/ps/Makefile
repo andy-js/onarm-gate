@@ -24,6 +24,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # cmd/ps/Makefile
 #
 
@@ -51,8 +56,8 @@ all:	$(SUBDIRS)
 clean clobber lint:	$(SUBDIRS)
 
 install:	$(SUBDIRS)
-	-$(RM) $(ROOTPROG)
-	-$(LN) $(ISAEXEC) $(ROOTPROG)
+	-$(USE_ISAEXEC)$(RM) $(ROOTPROG)
+	-$(USE_ISAEXEC)$(LN) $(ISAEXEC) $(ROOTPROG)
 
 $(SUBDIRS):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)

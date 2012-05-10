@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -53,6 +57,7 @@
 #include <sys/cmn_err.h>
 #include <sys/callb.h>
 #include <sys/mem_config.h>
+#include <sys/mem_cage.h>
 #include <sys/mman.h>
 
 #include <vm/hat.h>
@@ -597,7 +602,11 @@ seg_ppurge(struct seg *seg)
 	mutex_exit(&seg_pmem);
 }
 
+#ifdef	KCAGE_DISABLE
+#define	seg_pinit_mem_config()	((void)0)
+#else	/* !KCAGE_DISABLE */
 static void seg_pinit_mem_config(void);
+#endif	/* KCAGE_DISABLE */
 
 /*
  * setup the pagelock cache
@@ -860,6 +869,7 @@ seg_free(struct seg *seg)
 	kmem_cache_free(seg_cache, seg);
 }
 
+#ifndef	KCAGE_DISABLE
 /*ARGSUSED*/
 static void
 seg_p_mem_config_post_add(
@@ -868,6 +878,7 @@ seg_p_mem_config_post_add(
 {
 	/* Nothing to do. */
 }
+#endif	/* !KCAGE_DISABLE */
 
 void
 seg_p_enable(void)
@@ -913,6 +924,8 @@ seg_p_disable(void)
 	}
 	return (SEGP_SUCCESS);
 }
+
+#ifndef	KCAGE_DISABLE
 
 /*
  * Attempt to purge seg_pcache.  May need to return before this has
@@ -970,6 +983,8 @@ seg_pinit_mem_config(void)
 	 */
 	ASSERT(ret == 0);
 }
+
+#endif	/* !KCAGE_DISABLE */
 
 extern struct seg_ops segvn_ops;
 extern struct seg_ops segspt_shmops;

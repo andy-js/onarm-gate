@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef _CMD_MODLOAD_ADDREM_H
 #define	_CMD_MODLOAD_ADDREM_H
@@ -69,6 +72,16 @@ extern "C" {
 				CLEAN_DEV_POLICY | CLEAN_DRV_PRIV)
 
 /* add_drv/rem_drv database files */
+#ifdef	__READONLY_FS
+#define	DRIVER_ALIAS	"/var/etc/driver_aliases"
+#define	DRIVER_CLASSES	"/var/etc/driver_classes"
+#define	MINOR_PERM	"/var/etc/minor_perm"
+#define	NAM_TO_MAJ	"/var/etc/name_to_major"
+#define	REM_NAM_TO_MAJ	"/var/etc/rem_name_to_major"
+
+#define	ADD_REM_LOCK	"/tmp/AdDrEm.lck"
+#define	TMPHOLD		"/var/etc/TmPhOlD"
+#else	/* __READONLY_FS */
 #define	DRIVER_ALIAS	"/etc/driver_aliases"
 #define	DRIVER_CLASSES	"/etc/driver_classes"
 #define	MINOR_PERM	"/etc/minor_perm"
@@ -77,6 +90,7 @@ extern "C" {
 
 #define	ADD_REM_LOCK	"/tmp/AdDrEm.lck"
 #define	TMPHOLD		"/etc/TmPhOlD"
+#endif	/* !__READONLY_FS */
 
 #if defined(__x86)
 #define	DRVDIR64	"amd64"

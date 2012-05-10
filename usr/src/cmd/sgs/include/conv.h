@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_CONV_H
 #define	_CONV_H
 
@@ -692,6 +696,7 @@ extern	const char	*conv_ver_index(Versym, int, Conv_inv_buf_t *);
 #define	conv_reloc_386_type	conv64_reloc_386_type
 #define	conv_reloc_amd64_type	conv64_reloc_amd64_type
 #define	conv_reloc_SPARC_type	conv64_reloc_SPARC_type
+#define	conv_reloc_ARM_type	conv64_reloc_ARM_type
 #define	conv_sec_flags		conv64_sec_flags
 #define	conv_sec_linkinfo	conv64_sec_linkinfo
 #define	conv_sec_type		conv64_sec_type
@@ -732,6 +737,7 @@ extern	const char	*conv_ver_index(Versym, int, Conv_inv_buf_t *);
 #define	conv_reloc_386_type	conv32_reloc_386_type
 #define	conv_reloc_amd64_type	conv32_reloc_amd64_type
 #define	conv_reloc_SPARC_type	conv32_reloc_SPARC_type
+#define	conv_reloc_ARM_type	conv32_reloc_ARM_type
 #define	conv_sec_flags		conv32_sec_flags
 #define	conv_sec_linkinfo	conv32_sec_linkinfo
 #define	conv_sec_type		conv32_sec_type
@@ -794,6 +800,8 @@ extern	const char	*conv_reloc_386_type(Word, Conv_fmt_flags_t,
 extern	const char	*conv_reloc_amd64_type(Word, Conv_fmt_flags_t,
 			    Conv_inv_buf_t *);
 extern	const char	*conv_reloc_SPARC_type(Word, Conv_fmt_flags_t,
+			    Conv_inv_buf_t *);
+extern	const char	*conv_reloc_ARM_type(Word, Conv_fmt_flags_t,
 			    Conv_inv_buf_t *);
 extern	const char	*conv_sec_flags(Xword, Conv_fmt_flags_t,
 			    Conv_sec_flags_buf_t *);

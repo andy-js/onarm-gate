@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -207,6 +211,8 @@ pcfs_close(
 	struct cred *cr,
 	caller_context_t *ct)
 {
+	cleanlocks(vp, ttoproc(curthread)->p_pid, 0);
+	cleanshares(vp, ttoproc(curthread)->p_pid);
 	return (0);
 }
 
@@ -420,14 +426,23 @@ rwpcp(
 				}
 				if (!error &&
 				    ncl < (uint_t)howmany(uio->uio_loffset + n,
-				    fsp->pcfs_clsize))
+				    fsp->pcfs_clsize)) {
 					/*
 					 * allocate clusters w/o zerofill
+					 *
+					 * Implement zerofill for the last
+					 * cluster when "loffset + n" isn't
+					 * aligned at cluster boundary.
 					 */
+					int zw = 0;
+					if (((uio->uio_loffset + n) &
+					    (fsp->pcfs_clsize - 1)) != 0)
+						zw = 2;
 					error = pc_balloc(pcp,
 					    (daddr_t)pc_lblkno(fsp,
 					    uio->uio_loffset + n - 1),
-					    0, &bn);
+					    zw, &bn);
+				}
 
 				pcp->pc_flags |= PC_CHG;
 
@@ -843,7 +858,8 @@ pcfs_access(
 	if ((pcp = VTOPC(vp)) == NULL || pcp->pc_flags & PC_INVAL)
 		return (EIO);
 	if ((mode & VWRITE) && (pcp->pc_entry.pcd_attr & PCA_RDONLY))
-		return (EACCES);
+		if (cr == NULL || crgetuid(cr) != 0)
+			return (EACCES);
 
 	/*
 	 * If this is a boot partition, privileged users have full access while
@@ -1065,7 +1081,7 @@ pcfs_create(
 		pcp = VTOPC(dvp);
 		error = EEXIST;
 	} else {
-		error = pc_direnter(VTOPC(dvp), nm, vap, &pcp);
+		error = pc_direnter(VTOPC(dvp), nm, vap, &pcp, cr);
 	}
 	/*
 	 * if file exists and this is a nonexclusive create,
@@ -1134,7 +1150,7 @@ pcfs_remove(
 			return (EACCES);
 		}
 	}
-	error = pc_dirremove(pcp, nm, (struct vnode *)0, VREG, ct);
+	error = pc_dirremove(pcp, nm, (struct vnode *)0, VREG, ct, cr);
 	pc_unlockfs(fsp);
 	return (error);
 }
@@ -1179,7 +1195,7 @@ pcfs_rename(
 		pc_unlockfs(fsp);
 		return (EIO);
 	}
-	error = pc_rename(dp, tdp, snm, tnm, ct);
+	error = pc_rename(dp, tdp, snm, tnm, ct, cr);
 	pc_unlockfs(fsp);
 	return (error);
 }
@@ -1218,7 +1234,7 @@ pcfs_mkdir(
 		}
 	}
 
-	error = pc_direnter(VTOPC(dvp), nm, vap, &pcp);
+	error = pc_direnter(VTOPC(dvp), nm, vap, &pcp, cr);
 
 	if (!error) {
 		pcp -> pc_flags |= PC_EXTERNAL;
@@ -1262,7 +1278,7 @@ pcfs_rmdir(
 		}
 	}
 
-	error = pc_dirremove(pcp, nm, cdir, VDIR, ct);
+	error = pc_dirremove(pcp, nm, cdir, VDIR, ct, cr);
 	pc_unlockfs(fsp);
 	return (error);
 }
@@ -1359,6 +1375,12 @@ pcfs_readdir(
 	}
 
 	for (;;) {
+		if (offset >= PCFS_ENTRYMAXSIZE) {
+			error = 0;
+			if (eofp)
+				*eofp = 1;
+			break;
+		}
 		boff = pc_blkoff(fsp, offset);
 		if (boff == 0 || bp == NULL || boff >= bp->b_bcount) {
 			if (bp != NULL) {
@@ -1953,59 +1975,15 @@ pcfs_pathconf(
 	struct cred *cr,
 	caller_context_t *ct)
 {
-	ulong_t val;
-	int error = 0;
-	struct statvfs64 vfsbuf;
 	struct pcfs *fsp = VFSTOPCFS(vp->v_vfsp);
 
 	switch (cmd) {
-
 	case _PC_LINK_MAX:
-		val = 1;
-		break;
+		*valp = 1;
+		return (0);
 
-	case _PC_MAX_CANON:
-		val = MAX_CANON;
-		break;
-
-	case _PC_MAX_INPUT:
-		val = MAX_INPUT;
-		break;
-
-	case _PC_NAME_MAX:
-		bzero(&vfsbuf, sizeof (vfsbuf));
-		if (error = VFS_STATVFS(vp->v_vfsp, &vfsbuf))
-			break;
-		val = vfsbuf.f_namemax;
-		break;
-
-	case _PC_PATH_MAX:
-	case _PC_SYMLINK_MAX:
-		val = PCMAXPATHLEN;
-		break;
-
-	case _PC_PIPE_BUF:
-		val = PIPE_BUF;
-		break;
-
-	case _PC_NO_TRUNC:
-		val = (ulong_t)-1; 	/* Will truncate long file name */
-		break;
-
-	case _PC_VDISABLE:
-		val = _POSIX_VDISABLE;
-		break;
-
-	case _PC_CHOWN_RESTRICTED:
-		if (rstchown)
-			val = rstchown;		/* chown restricted enabled */
-		else
-			val = (ulong_t)-1;
-		break;
-
-	case _PC_ACL_ENABLED:
-		val = 0;
-		break;
+	case _PC_CASE_BEHAVIOR:
+		return (EINVAL);
 
 	case _PC_FILESIZEBITS:
 		/*
@@ -2013,16 +1991,13 @@ pcfs_pathconf(
 		 * FAT12 can only go up to the maximum filesystem capacity
 		 * which is ~509MB.
 		 */
-		val = IS_FAT12(fsp) ? 30 : 33;
-		break;
+		*valp = IS_FAT12(fsp) ? 30 : 33;
+		return (0);
+
 	default:
-		error = EINVAL;
-		break;
+		return (fs_pathconf(vp, cmd, valp, cr, ct));
 	}
 
-	if (error == 0)
-		*valp = val;
-	return (error);
 }
 
 /* ARGSUSED */
@@ -2374,6 +2349,9 @@ pc_read_short_fn(struct vnode *dvp, struct uio *uiop, struct pc_dirent *ld,
 	offset_t	oldoffset = uiop->uio_loffset;
 	int	error;
 	int	foldcase;
+	char	cp932[PCFNAMESIZE + 1 + PCFEXTSIZE + 1];
+	char	fname[PCFNAMESIZE];
+	char	ext[PCFEXTSIZE];
 
 	if (PCA_IS_HIDDEN(fsp, ep->pcd_attr)) {
 		uiop->uio_loffset += sizeof (struct pcdir);
@@ -2386,8 +2364,19 @@ pc_read_short_fn(struct vnode *dvp, struct uio *uiop, struct pc_dirent *ld,
 	    boff, ep->pcd_attr, pc_getstartcluster(fsp, ep),
 	    pc_direntpersec(fsp));
 	foldcase = (fsp->pcfs_flags & PCFS_FOLDCASE);
-	error = pc_fname_ext_to_name(&ld->d_name[0], &ep->pcd_filename[0],
-	    &ep->pcd_ext[0], foldcase);
+
+	memcpy(fname, ep->pcd_filename, sizeof (fname));
+	memcpy(ext, ep->pcd_ext, sizeof (ext));
+
+	if (fname[0] == PCD_ESCAPE)
+		fname[0] = PCD_ERASED;
+
+	error = pc_fname_ext_to_name(cp932, fname, ext, foldcase);
+	if (error) {
+		uiop->uio_loffset += sizeof (struct pcdir);
+		goto err;
+	}
+	error = pc_cp932_conv_utf8(cp932, &ld->d_name[0]);
 	if (error == 0) {
 		ld->d_reclen = DIRENT64_RECLEN(strlen(ld->d_name));
 		if (ld->d_reclen > uiop->uio_resid) {
@@ -2402,6 +2391,8 @@ pc_read_short_fn(struct vnode *dvp, struct uio *uiop, struct pc_dirent *ld,
 	} else {
 		uiop->uio_loffset += sizeof (struct pcdir);
 	}
+
+err:
 	*offset += sizeof (struct pcdir);
 	ep++;
 	*epp = ep;

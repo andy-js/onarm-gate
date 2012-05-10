@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -32,7 +37,11 @@ PICS=   pics/res_comp.o pics/res_debug.o pics/res_init.o \
 	pics/res_mkquery.o pics/res_query.o pics/res_send.o \
 	pics/res_gethost.o pics/res_sethost.o
 
-pics/%.o: %.c
+OBJS=   objs/res_comp.o objs/res_debug.o objs/res_init.o \
+	objs/res_mkquery.o objs/res_query.o objs/res_send.o \
+	objs/res_gethost.o objs/res_sethost.o
+
+objs/%.o pics/%.o: %.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
@@ -57,15 +66,13 @@ C99MODE=	$(C99_DISABLE)
 CPPFLAGS = -I. -I../common/inc $(CPPFLAGS.master) -DDEBUG -DSYSV -D_REENTRANT
 LDLIBS += -lsocket -lnsl -lc
 
-ROOTDYNLIBS=	$(DYNLIB:%=$(ROOTLIBDIR)/%)
-
 .KEEP_STATE:
 
-LIBS = $(DYNLIB)
+LIBS = $(ARLIB) $(DYNLIB)
 
 all: $(LIBS)
 
-install: all $(ROOTDYNLIBS)
+install: all $(ROOTLIBS)
 
 lint: lintcheck
 

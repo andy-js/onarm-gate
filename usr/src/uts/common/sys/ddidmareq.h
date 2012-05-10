@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef	_SYS_DDIDMAREQ_H
 #define	_SYS_DDIDMAREQ_H
 
@@ -207,7 +211,7 @@ typedef struct ddi_dma_lim {
 
 } ddi_dma_lim_t;
 
-#elif defined(__x86)
+#elif defined(__x86) || defined(__arm)
 
 /*
  * values for dlim_minxfer

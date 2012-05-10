@@ -29,6 +29,10 @@
  */
 
 /*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
+/*
  * An application should not include this header directly.  Instead it
  * should be included only through the inclusion of other Sun headers.
  *
@@ -50,6 +54,10 @@
 
 #ifdef	__cplusplus
 extern "C" {
+#endif
+
+#if defined(_AEABI_PORTABILITY_LEVEL)
+#error "not supported AEABI."
 #endif
 
 #if __cplusplus >= 199711L

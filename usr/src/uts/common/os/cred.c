@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -89,7 +93,11 @@ static cred_t		*dummycr;
 
 int rstlink;		/* link(2) restricted to files owned by user? */
 
+#ifdef	_C2_AUDIT_STUB
+#define	get_c2audit_load()	(0)
+#else	/* !_C2_AUDIT_STUB */
 static int get_c2audit_load(void);
+#endif	/* _C2_AUDIT_STUB */
 
 #define	CR_AUINFO(c)	(auditinfo_addr_t *)((audoff == 0) ? NULL : \
 			    ((char *)(c)) + audoff)
@@ -958,6 +966,7 @@ crgetref(const cred_t *cr)
 	return (cr->cr_ref);
 }
 
+#ifndef	_C2_AUDIT_STUB
 static int
 get_c2audit_load(void)
 {
@@ -973,6 +982,7 @@ get_c2audit_load(void)
 	gotit++;
 	return (c2audit_load);
 }
+#endif	/* !_C2_AUDIT_STUB */
 
 int
 get_audit_ucrsize(void)

@@ -31,6 +31,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -241,7 +245,11 @@ lseek32(int32_t fdes, off32_t off, int32_t stype)
  * 64-bit seeks from 32-bit applications
  */
 offset_t
+#if defined(__arm) && defined(__ARM_EABI__) && !defined(ARM_OABI_USER)
+llseek32(int32_t fdes, uint32_t pad, uint32_t off1, uint32_t off2, int stype)
+#else
 llseek32(int32_t fdes, uint32_t off1, uint32_t off2, int stype)
+#endif
 {
 	file_t *fp;
 	int error;

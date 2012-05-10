@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #pragma weak door_create = _door_create
@@ -284,6 +288,8 @@ door_return(char *data_ptr, size_t data_size,
 #if defined(__sparc)
 	reserve = SA(MINFRAME);
 #elif defined(__x86)
+	reserve = SA(512);
+#elif defined(__arm)
 	reserve = SA(512);
 #else
 #error need to define stack base reserve

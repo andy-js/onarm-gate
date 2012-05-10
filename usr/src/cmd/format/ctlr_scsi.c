@@ -23,6 +23,9 @@
  * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -101,9 +104,9 @@ static int	scsi_repair(uint64_t, int);
 static int	scsi_read_defect_data(struct defect_list *, int);
 static int	scsi_ck_format(void);
 
-#ifdef i386
+#if defined(i386) || defined(__arm)
 static int	scsi_rdwr(int, int, diskaddr_t, int, caddr_t, int, int *);
-#endif /* i386 */
+#endif /* i386 || __arm */
 
 #else	/* __STDC__ */
 
@@ -132,9 +135,9 @@ static int	scsi_repair();
 static int	scsi_read_defect_data();
 static int	scsi_ck_format();
 
-#ifdef i386
+#if defined(i386) || defined(__arm)
 static int	scsi_rdwr(int, int, diskaddr_t, int, caddr_t, int, int *);
-#endif /* i386 */
+#endif /* i386 || __arm */
 
 #endif	/* __STDC__ */
 
@@ -316,11 +319,11 @@ scsi_rdwr(dir, fd, blkno, secnt, bufaddr, flags, xfercntp)
  * If we are able to read the first track, we conclude that
  * the disk has been formatted.
  */
-#ifdef i386
+#if defined(i386) || defined(__arm)
 static int
-#else /* i386 */
+#else /* i386 || __arm */
 static int
-#endif /* i386 */
+#endif /* i386 || __arm */
 scsi_ck_format(void)
 {
 	int	status;

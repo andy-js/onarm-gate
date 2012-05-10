@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -202,7 +206,7 @@ panicsys(const char *format, va_list alist, struct regs *rp, int on_panic_stack)
 {
 	int s = spl8();
 	kthread_t *t = curthread;
-	cpu_t *cp = CPU;
+	cpu_t *cp = CPU_GLOBAL;
 
 	caddr_t intr_stack = NULL;
 	uint_t intr_actv;
@@ -398,6 +402,12 @@ spin:
 		;
 }
 
+/*
+ * On ARM architecture, panic() is implemented as assembler routine,
+ * because need to save lr on stack for a stack backtrace.
+ */
+
+#if	!defined(__arm)
 void
 panic(const char *format, ...)
 {
@@ -407,3 +417,4 @@ panic(const char *format, ...)
 	vpanic(format, alist);
 	va_end(alist);
 }
+#endif	/* !__arm */

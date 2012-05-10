@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -88,7 +92,11 @@
 #include <sys/systeminfo.h>
 #define	MAXISALEN	257	/* based on sysinfo(2) man page */
 
+#ifndef NO_SUPPORT_SHARE
 static int zfs_share_proto(zfs_handle_t *, zfs_share_proto_t *);
+#else
+#define	zfs_share_proto(zhp, proto)	0
+#endif	/* NO_SUPPORT_SHARE */
 zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
     zfs_share_proto_t);
 
@@ -230,6 +238,89 @@ dir_is_empty(const char *dirname)
 	return (B_TRUE);
 }
 
+static boolean_t
+is_mounted_without_mntfs(libzfs_handle_t *zfs_hdl, const char *special,
+    char **where)
+{
+	zfs_cmd_t zc = { 0 };
+	char mountpoint[MAXPATHLEN], z_root[MAXPATHLEN];
+	char *value, *source;
+	nvlist_t *prop, *nv;
+	int errno;
+	boolean_t is_mounted;
+
+	(void) strlcpy(zc.zc_name, special, sizeof (zc.zc_name));
+
+	if (zcmd_alloc_dst_nvlist(zfs_hdl, &zc, 0) != 0) {
+		return (B_FALSE);
+	}
+
+	if (ioctl(zfs_hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, &zc) != 0) {
+		zcmd_free_nvlists(&zc);
+		return (B_FALSE);
+	}
+
+	(void) strlcpy(z_root, zc.zc_value, sizeof (z_root));
+
+	if (zcmd_read_dst_nvlist(zfs_hdl, &zc, &prop) != 0) {
+		zcmd_free_nvlists(&zc);
+		return (B_FALSE);
+	}
+
+	if (nvlist_lookup_boolean_value(prop, ZPROP_ISMOUNTED,
+	    &is_mounted) != 0) {
+		zcmd_free_nvlists(&zc);
+		return (B_FALSE);
+	}
+
+	if (nvlist_lookup_nvlist(prop,
+	    zfs_prop_to_name(ZFS_PROP_MOUNTPOINT), &nv) == 0) {
+		verify(nvlist_lookup_string(nv, ZPROP_VALUE, &value) == 0);
+		(void) nvlist_lookup_string(nv, ZPROP_SOURCE, &source);
+	} else {
+		if ((value = (char *)zfs_prop_default_string(
+		    ZFS_PROP_MOUNTPOINT)) == NULL) {
+			value = "";
+		}
+		source = "";
+	}
+
+	if (value[0] == '\0') {
+		(void) snprintf(mountpoint, sizeof (mountpoint),
+		    "%s/zfs/%s", z_root, zc.zc_name);
+	} else if (value[0] == '/') {
+		const char *relpath = zc.zc_name + strlen(source);
+
+		if (relpath[0] == '/') {
+			relpath++;
+		}
+		if (value[1] == '\0') {
+			value++;
+		}
+
+		if (relpath[0] == '\0') {
+			(void) snprintf(mountpoint, sizeof (mountpoint),
+			    "%s%s", z_root, value);
+		} else {
+			(void) snprintf(mountpoint, sizeof (mountpoint),
+			    "%s%s%s%s", z_root, value,
+			    relpath[0] == '@' ? "" : "/", relpath);
+		}
+	} else {
+		/* 'legacy' or 'none' */
+		(void) strlcpy(mountpoint, value, sizeof (mountpoint));
+	}
+
+	zcmd_free_nvlists(&zc);
+
+	if (where != NULL) {
+		*where = zfs_strdup(zfs_hdl, mountpoint);
+	}
+
+	return (is_mounted);
+
+}
+
 /*
  * Checks to see if the mount is active.  If the filesystem is mounted, we fill
  * in 'where' with the current mountpoint, and return 1.  Otherwise, we return
@@ -239,7 +330,16 @@ boolean_t
 is_mounted(libzfs_handle_t *zfs_hdl, const char *special, char **where)
 {
 	struct mnttab search = { 0 }, entry;
+	struct stat msb;
 
+	/*
+	 * Enable this function even if mntfs isn't mounted.
+	 * Confirm the filesystem type to judge whether mntfs
+	 * is mounted or not.
+	 */
+	if (stat(MNTTAB, &msb) != 0 || strcmp(msb.st_fstype, "mntfs") != 0) {
+		return (is_mounted_without_mntfs(zfs_hdl, special, where));
+	}
 	/*
 	 * Search for the entry in /etc/mnttab.  We don't bother getting the
 	 * mountpoint, as we can just search for the special device.  This will
@@ -393,13 +493,20 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 {
 	struct mnttab search = { 0 }, entry;
 	char *mntpt = NULL;
+	struct stat msb;
 
 	/* check to see if need to unmount the filesystem */
 	search.mnt_special = zhp->zfs_name;
 	search.mnt_fstype = MNTTYPE_ZFS;
 	rewind(zhp->zfs_hdl->libzfs_mnttab);
-	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
-	    getmntany(zhp->zfs_hdl->libzfs_mnttab, &entry, &search) == 0)) {
+	/*
+	 * Enable this function even if mntfs isn't mounted.
+	 * Confirm the filesystem type to judge whether mntfs
+	 * is mounted or not.
+	 */
+	if (stat(MNTTAB, &msb) == 0 && strcmp(msb.st_fstype, "mntfs") == 0 &&
+	   (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
+	    getmntany(zhp->zfs_hdl->libzfs_mnttab, &entry, &search) == 0))) {
 
 		/*
 		 * mountpoint may have come from a call to
@@ -419,6 +526,25 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 			return (-1);
 
 		if (unmount_one(zhp->zfs_hdl, mntpt, flags) != 0) {
+			free(mntpt);
+			(void) zfs_shareall(zhp);
+			return (-1);
+		}
+		free(mntpt);
+
+	} else if ((zfs_is_mounted(zhp, &mntpt)) && (mountpoint != NULL ||
+	    (zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM))) {
+
+		if (mountpoint == NULL)
+			mountpoint = mntpt;
+
+		/*
+		 * Unshare and unmount the filesystem
+		 */
+		if (zfs_unshare_proto(zhp, mountpoint, share_all_proto) != 0)
+			return (-1);
+
+		if (unmount_one(zhp->zfs_hdl, mountpoint, flags) != 0) {
 			free(mntpt);
 			(void) zfs_shareall(zhp);
 			return (-1);
@@ -466,6 +592,7 @@ zfs_is_shared(zfs_handle_t *zhp)
 	return (rc ? B_TRUE : B_FALSE);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 int
 zfs_share(zfs_handle_t *zhp)
 {
@@ -483,6 +610,7 @@ zfs_unshare(zfs_handle_t *zhp)
 
 	return (zfs_unshareall(zhp));
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Check to see if the filesystem is currently shared.
@@ -725,6 +853,7 @@ zfs_sa_disable_share(sa_share_t share, char *proto)
 	return (SA_CONFIG_ERR);
 }
 
+#ifndef NO_SUPPORT_SHARE
 /*
  * Share the given filesystem according to the options in the specified
  * protocol specific properties (sharenfs, sharesmb).  We rely
@@ -819,6 +948,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	}
 	return (0);
 }
+#endif	/* NO_SUPPORT_SHARE */
 
 
 int
@@ -1087,6 +1217,7 @@ zfs_unshare_iscsi(zfs_handle_t *zhp)
 	return (0);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 typedef struct mount_cbdata {
 	zfs_handle_t	**cb_datasets;
 	int 		cb_used;
@@ -1225,6 +1356,7 @@ out:
 
 	return (ret);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 
 static int
@@ -1257,6 +1389,7 @@ mountpoint_compare(const void *a, const void *b)
 	return (strcmp(mountb, mounta));
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Unshare and unmount all datasets within the given pool.  We don't want to
  * rely on traversing the DSL to discover the filesystems within the pool,
@@ -1399,3 +1532,4 @@ out:
 
 	return (ret);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */

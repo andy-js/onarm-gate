@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -411,8 +415,10 @@ wrtmp(
 				tp->tn_mode &= ~(S_ISUID | S_ISGID);
 			}
 			gethrestime(&now);
+			mutex_enter(&tp->tn_tlock);
 			tp->tn_mtime = now;
 			tp->tn_ctime = now;
+			mutex_exit(&tp->tn_tlock);
 		}
 	} while (error == 0 && uio->uio_resid > 0 && bytes != 0);
 
@@ -549,7 +555,9 @@ rdtmp(
 	} while (error == 0 && uio->uio_resid > 0);
 
 out:
+	mutex_enter(&tp->tn_tlock);
 	gethrestime(&tp->tn_atime);
+	mutex_exit(&tp->tn_tlock);
 
 	/*
 	 * If we've already done a partial read, terminate
@@ -719,6 +727,7 @@ tmp_setattr(
 	int error = 0;
 	struct vattr *get;
 	long mask;
+	int renaming = 0;
 
 	/*
 	 * Cannot set these attributes
@@ -727,6 +736,18 @@ tmp_setattr(
 		return (EINVAL);
 
 	mutex_enter(&tp->tn_tlock);
+
+	/*
+	 * We must not change the access permission of the source entry
+	 * during renaming. Therefore we enter the rename lock.
+	 */
+	if ((vap->va_mask & (AT_UID | AT_GID | AT_MODE)) &&
+	    (tp->tn_status & TMPRENAMING)) {
+		mutex_exit(&tp->tn_tlock);
+		renaming = 1;
+		mutex_enter(&tm->tm_renamelck);
+		mutex_enter(&tp->tn_tlock);
+	}
 
 	get = &tp->tn_attr;
 	/*
@@ -778,6 +799,9 @@ tmp_setattr(
 out:
 	mutex_exit(&tp->tn_tlock);
 out1:
+	if (renaming) {
+		mutex_exit(&tm->tm_renamelck);
+	}
 	return (error);
 }
 
@@ -855,9 +879,18 @@ tmp_lookup(
 				return (error);
 			}
 
+			tm = VTOTM(dvp);
+			if (tdirincinum(tm) != 0) {
+				rw_exit(&tp->tn_rwlock);
+#if DEBUG
+				cmn_err(CE_NOTE, "%s: out of inodes",
+				    tm->tm_mntpath);
+#endif
+				return (ENOSPC);
+			}
+
 			xdp = tmp_memalloc(sizeof (struct tmpnode),
 			    TMP_MUSTHAVE);
-			tm = VTOTM(dvp);
 			tmpnode_init(tm, xdp, &tp->tn_attr, NULL);
 			/*
 			 * Fix-up fields unique to attribute directories.
@@ -1022,6 +1055,19 @@ again:
 		return (error);
 
 	rw_enter(&parent->tn_rwlock, RW_WRITER);
+
+	/*
+	 * TMPSTALE means already truncated tmpnode by rename.
+	 * return a ESTALE, requests to call again with new parent node.
+	 */
+	mutex_enter(&parent->tn_tlock);
+	if (parent->tn_nlink == 0 && (parent->tn_status & TMPSTALE)) {
+		mutex_exit(&parent->tn_tlock);
+		rw_exit(&parent->tn_rwlock);
+		return (ESTALE);
+	}
+	mutex_exit(&parent->tn_tlock);
+
 	error = tdirenter(tm, parent, nm, DE_CREATE,
 	    (struct tmpnode *)NULL, (struct tmpnode *)NULL,
 	    vap, &self, cred, ct);
@@ -1053,8 +1099,14 @@ again:
 
 		newvp = specvp(*vpp, (*vpp)->v_rdev, (*vpp)->v_type, cred);
 		VN_RELE(*vpp);
-		if (newvp == NULL)
+		if (newvp == NULL) {
+			rw_enter(&parent->tn_rwlock, RW_WRITER);
+			rw_enter(&self->tn_rwlock, RW_WRITER);
+			error = tdirdelete(parent, self, nm, DR_REMOVE, cred);
+			rw_exit(&self->tn_rwlock);
+			rw_exit(&parent->tn_rwlock);
 			return (ENOSYS);
+		}
 		*vpp = newvp;
 	}
 	TRACE_3(TR_FAC_TMPFS, TR_TMPFS_CREATE,
@@ -1143,6 +1195,19 @@ tmp_link(
 		return (error);
 
 	rw_enter(&parent->tn_rwlock, RW_WRITER);
+
+	/*
+	 * TMPSTALE means already truncated tmpnode by rename.
+	 * return a ESTALE, requests to call again with new parent node.
+	 */
+	mutex_enter(&parent->tn_tlock);
+	if (parent->tn_nlink == 0 && (parent->tn_status & TMPSTALE)) {
+		mutex_exit(&parent->tn_tlock);
+		rw_exit(&parent->tn_rwlock);
+		return (ESTALE);
+	}
+	mutex_exit(&parent->tn_tlock);
+
 	error = tdirenter(tm, parent, tnm, DE_LINK, (struct tmpnode *)NULL,
 	    from, NULL, (struct tmpnode **)NULL, cred, ct);
 	rw_exit(&parent->tn_rwlock);
@@ -1191,14 +1256,28 @@ tmp_rename(
 		return (error);
 	}
 
+	mutex_enter(&fromtp->tn_tlock);
+	fromtp->tn_status |= TMPRENAMING;
+	mutex_exit(&fromtp->tn_tlock);
+
+	mutex_enter(&fromparent->tn_tlock);
 	/*
 	 * Make sure we can delete the old (source) entry.  This
 	 * requires write permission on the containing directory.  If
 	 * that directory is "sticky" it requires further checks.
 	 */
 	if (((error = tmp_taccess(fromparent, VWRITE, cred)) != 0) ||
-	    (error = tmp_sticky_remove_access(fromparent, fromtp, cred)) != 0)
-		goto done;
+	    (error = tmp_sticky_remove_access(fromparent, fromtp, cred)) != 0) {
+		mutex_exit(&fromparent->tn_tlock);
+		goto done1;
+	}
+
+	/*
+	 * We set the status info during renaming because we can
+	 * keep the access permission for old entry.
+	 */
+	fromparent->tn_status |= TMPRENAMING;
+	mutex_exit(&fromparent->tn_tlock);
 
 	/*
 	 * Check for renaming to or from '.' or '..' or that
@@ -1228,6 +1307,20 @@ tmp_rename(
 	 * Link source to new target
 	 */
 	rw_enter(&toparent->tn_rwlock, RW_WRITER);
+
+	/*
+	 * TMPSTALE means already truncated tmpnode by rename.
+	 * return a ESTALE, requests to call again with new parent node.
+	 */
+	mutex_enter(&toparent->tn_tlock);
+	if (toparent->tn_nlink == 0 && (toparent->tn_status & TMPSTALE)) {
+		mutex_exit(&toparent->tn_tlock);
+		rw_exit(&toparent->tn_rwlock);
+		error = ESTALE;
+		goto done;
+	}
+	mutex_exit(&toparent->tn_tlock);
+
 	error = tdirenter(tm, toparent, nnm, DE_RENAME,
 	    fromparent, fromtp, (struct vattr *)NULL,
 	    (struct tmpnode **)NULL, cred, ct);
@@ -1275,6 +1368,14 @@ tmp_rename(
 	rw_exit(&fromtp->tn_rwlock);
 	rw_exit(&fromparent->tn_rwlock);
 done:
+	mutex_enter(&fromparent->tn_tlock);
+	fromparent->tn_status &= ~TMPRENAMING;
+	mutex_exit(&fromparent->tn_tlock);
+done1:
+	mutex_enter(&fromtp->tn_tlock);
+	fromtp->tn_status &= ~TMPRENAMING;
+	mutex_exit(&fromtp->tn_tlock);
+
 	tmpnode_rele(fromtp);
 	mutex_exit(&tm->tm_renamelck);
 
@@ -1309,10 +1410,14 @@ tmp_mkdir(
 	 * Might be dangling directory.  Catch it here,
 	 * because a ENOENT return from tdirlookup() is
 	 * an "o.k. return".
+	 *
+	 * Correcting it as follows.
+	 * Checking tn_nlink after parent's rwlocked.
+	 * because it might be changed.
+ 	 *
+	 *if (parent->tn_nlink == 0)
+	 * 	return (ENOENT);
 	 */
-	if (parent->tn_nlink == 0)
-		return (ENOENT);
-
 	error = tdirlookup(parent, nm, &self, cred);
 	if (error == 0) {
 		ASSERT(self);
@@ -1323,6 +1428,24 @@ tmp_mkdir(
 		return (error);
 
 	rw_enter(&parent->tn_rwlock, RW_WRITER);
+
+	/*
+	 * TMPSTALE means already truncated tmpnode by rename. 
+	 * return a ESTALE, requests to call again with new parent node.
+	 */
+	mutex_enter(&parent->tn_tlock);
+	if (parent->tn_nlink == 0) {
+		if (parent->tn_status & TMPSTALE) {
+			error = ESTALE;
+		} else {
+			error = ENOENT;
+		}
+		mutex_exit(&parent->tn_tlock);
+		rw_exit(&parent->tn_rwlock);
+		return (error);
+	}
+	mutex_exit(&parent->tn_tlock);
+
 	error = tdirenter(tm, parent, nm, DE_MKDIR, (struct tmpnode *)NULL,
 	    (struct tmpnode *)NULL, va, &self, cred, ct);
 	if (error) {
@@ -1398,11 +1521,6 @@ tmp_rmdir(
 	 */
 	if (self->tn_dirents > 2) {
 		error = EEXIST;		/* SIGH should be ENOTEMPTY */
-		/*
-		 * Update atime because checking tn_dirents is logically
-		 * equivalent to reading the directory
-		 */
-		gethrestime(&self->tn_atime);
 		goto done;
 	}
 
@@ -1525,7 +1643,9 @@ tmp_readdir(
 			*eofp = 0;
 		uiop->uio_offset = offset;
 	}
+	mutex_enter(&tp->tn_tlock);
 	gethrestime(&tp->tn_atime);
+	mutex_exit(&tp->tn_tlock);
 	kmem_free(outbuf, bufsize);
 	return (error);
 }
@@ -1568,25 +1688,41 @@ tmp_symlink(
 	}
 
 	rw_enter(&parent->tn_rwlock, RW_WRITER);
-	error = tdirenter(tm, parent, lnm, DE_CREATE, (struct tmpnode *)NULL,
-	    (struct tmpnode *)NULL, tva, &self, cred, ct);
-	rw_exit(&parent->tn_rwlock);
 
-	if (error) {
-		if (self)
-			tmpnode_rele(self);
-		return (error);
+	/*
+	 * TMPSTALE means already truncated tmpnode by rename.
+	 * return a ESTALE, requests to call again with new parent node.
+	 */
+	mutex_enter(&parent->tn_tlock);
+	if (parent->tn_nlink == 0 && (parent->tn_status & TMPSTALE)) {
+		mutex_exit(&parent->tn_tlock);
+		rw_exit(&parent->tn_rwlock);
+		return (ESTALE);
 	}
+	mutex_exit(&parent->tn_tlock);
+
 	len = strlen(tnm) + 1;
 	cp = tmp_memalloc(len, 0);
 	if (cp == NULL) {
-		tmpnode_rele(self);
+		rw_exit(&parent->tn_rwlock);
 		return (ENOSPC);
 	}
 	(void) strcpy(cp, tnm);
 
+	error = tdirenter(tm, parent, lnm, DE_CREATE, (struct tmpnode *)NULL,
+	    (struct tmpnode *)NULL, tva, &self, cred, ct);
+
+	if (error) {
+		rw_exit(&parent->tn_rwlock);
+		if (self)
+			tmpnode_rele(self);
+		tmp_memfree(cp, len);
+		return (error);
+	}
 	self->tn_symlink = cp;
 	self->tn_size = len - 1;
+	rw_exit(&parent->tn_rwlock);
+
 	tmpnode_rele(self);
 	return (error);
 }
@@ -1608,7 +1744,9 @@ tmp_readlink(
 	rw_enter(&tp->tn_rwlock, RW_READER);
 	rw_enter(&tp->tn_contents, RW_READER);
 	error = uiomove(tp->tn_symlink, tp->tn_size, UIO_READ, uiop);
+	mutex_enter(&tp->tn_tlock);
 	gethrestime(&tp->tn_atime);
+	mutex_exit(&tp->tn_tlock);
 	rw_exit(&tp->tn_contents);
 	rw_exit(&tp->tn_rwlock);
 	return (error);
@@ -1799,9 +1937,13 @@ tmp_getpage(
 		    protp, pl, plsz, seg, addr, rw, cr);
 
 	gethrestime(&now);
+	mutex_enter(&tp->tn_tlock);
 	tp->tn_atime = now;
-	if (rw == S_WRITE)
+	if (rw == S_WRITE) {
 		tp->tn_mtime = now;
+		tp->tn_ctime = now;
+	}
+	mutex_exit(&tp->tn_tlock);
 
 out:
 	rw_exit(&tp->tn_contents);

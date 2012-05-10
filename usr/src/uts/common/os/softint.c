@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -208,7 +212,7 @@ softcall_init(void)
 static int
 softcall_choose_cpu()
 {
-	cpu_t *cplist = CPU;
+	cpu_t *cplist = CPU_GLOBAL;
 	cpu_t *cp;
 	int intr_load = INT_MAX;
 	int cpuid = -1;

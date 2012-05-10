@@ -29,6 +29,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -804,14 +808,23 @@ void
 __nis_print_call(CLIENT *clnt, int proc)
 {
 	char *name;
-	char *pname;
+	char *pname = NULL;
 	char lbuf[10];
+	char noname[] = "<unknown>";
 
 	name = handle_to_server_name(clnt);
 	if (proc > NIS_UPDKEYS)
 		(void) sprintf(lbuf, "%d", proc);
 	else
 		pname = call_names[proc];
+
+	if (name == NULL) {
+		name = noname;
+	}
+	if (pname == NULL) {
+		pname = noname;
+	}
+	
 	(void) fprintf(__nis_debug_file, "calling server %s for %s\n",
 	    name, pname);
 }

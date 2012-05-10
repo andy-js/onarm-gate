@@ -187,7 +187,11 @@ typedef	struct	ani_free {
 			/* XXX 64 = cacheline size */
 } ani_free_t;
 
+#if defined(__arm)
+#define	ANI_MAX_POOL	4	/* same as NCPU */
+#else
 #define	ANI_MAX_POOL	128
+#endif
 extern	ani_free_t	ani_free_pool[];
 
 #define	ANI_ADD(inc)	{ \

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -52,6 +56,7 @@
 #include <sys/sysmacros.h>
 #include <sys/dacf.h>
 #include <vm/seg_kmem.h>
+#include <sys/modstatic.h>
 
 struct hwc_class *hcl_head;	/* head of list of classes */
 static kmutex_t hcl_lock;	/* for accessing list of classes */
@@ -762,6 +767,14 @@ mod_read_system_file(int ask)
 
 	mod_sysfile_arena = vmem_create("mod_sysfile", NULL, 0, 8,
 	    segkmem_alloc, segkmem_free, heap_arena, 0, VM_SLEEP);
+
+	/* Currently, /etc/system is not supported on static-linked unix. */
+	if (MOD_STATIC_UNIX()) {
+		param_preset();
+		(void) mod_sysctl(SYS_SET_KVAR, NULL);
+		param_check();
+		return;
+	}
 
 	if (ask)
 		mod_askparams();
@@ -2071,6 +2084,10 @@ hwc_parse_now(char *fname, struct par_list **pl, ddi_prop_t **props)
 	 * an ISA-specific subdirectory.
 	 */
 	if ((file = kobj_open_path(fname, 1, 0)) == (struct _buf *)-1) {
+		if (mod_static_load_drvconf(fname, pl, props,
+					    add_spec) == 0) {
+			return 0;
+		}
 		if (moddebug & MODDEBUG_ERRMSG)
 			cmn_err(CE_WARN, "Cannot open %s", fname);
 		return (-1);
@@ -2141,6 +2158,7 @@ hwc_parse_now(char *fname, struct par_list **pl, ddi_prop_t **props)
 	return (0);	/* always return success */
 }
 
+#ifndef	STATIC_UNIX
 void
 make_aliases(struct bind **bhash)
 {
@@ -2247,6 +2265,7 @@ make_aliases(struct bind **bhash)
 
 	kobj_close_file(file);
 }
+#endif	/* !STATIC_UNIX */
 
 
 /*
@@ -2803,6 +2822,7 @@ get_class(const char *exporter, char **buf)
 	return (n);
 }
 
+#ifndef	STATIC_UNIX
 void
 read_class_file(void)
 {
@@ -2887,6 +2907,7 @@ read_class_file(void)
 	}
 	kobj_close_file(file);
 }
+#endif	/* !STATIC_UNIX */
 
 /*
  * Given par_list, get a list of parent major number

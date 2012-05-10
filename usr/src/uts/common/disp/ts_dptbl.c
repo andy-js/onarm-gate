@@ -28,6 +28,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989, 1990 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/proc.h>
@@ -63,13 +67,13 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	return (mod_install(&modlinkage));
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -161,6 +165,7 @@ tsdpent_t	config_ts_dptbl[] = {
 	TSGPUP0+59,	 2,	49,	59,	32000,	59
 };
 
+#ifndef TS_DPTBL_EXT_DISABLE
 /*
  * config_ts_dptbl_server[] is an alternate dispatch table that may
  * deliver better performance on large server configurations.
@@ -231,7 +236,7 @@ tsdpent_t	config_ts_dptbl_server[] = {
 	TSGPUP0+58,	34,	48,	59,	    2,	59,
 	TSGPUP0+59,	34,	49,	59,	    2,	59
 };
-
+#endif
 
 
 pri_t config_ts_maxumdpri = sizeof (config_ts_dptbl) / sizeof (tsdpent_t) - 1;
@@ -253,10 +258,14 @@ ts_getdptbl()
 	 * If ts_dispatch_extended is non-zero, use the
 	 * "large server style" TS dispatch table.
 	 */
+#ifdef TS_DPTBL_EXT_DISABLE
+	return (config_ts_dptbl);
+#else
 	if (ts_dispatch_extended)
 		return (config_ts_dptbl_server);
 	else
 		return (config_ts_dptbl);
+#endif
 }
 
 /*
@@ -279,6 +288,8 @@ ts_getmaxumdpri()
 	 * the config_ts_dptbl table.
 	 */
 	/*LINTED*/
+#ifndef TS_DPTBL_EXT_DISABLE
 	ASSERT(sizeof (config_ts_dptbl) == sizeof (config_ts_dptbl_server));
+#endif
 	return (config_ts_maxumdpri);
 }

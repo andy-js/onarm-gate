@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DBUF_H
 #define	_SYS_DBUF_H
 
@@ -35,10 +39,14 @@
 #include <sys/arc.h>
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	KMEM_DMU_BUF_IMPL_T		"dmu_buf_impl_t"
+#define	KMEM_DN_BONUS_BUF		"dn_bonus_buf"
 
 #define	DB_BONUS_BLKID (-1ULL)
 #define	IN_DMU_SYNC 2
@@ -53,6 +61,11 @@ extern "C" {
 #define	DB_RF_NOPREFETCH	(1 << 3)
 #define	DB_RF_NEVERWAIT		(1 << 4)
 #define	DB_RF_CACHED		(1 << 5)
+
+#ifdef ZFS_NO_PREFETCH
+#undef	DB_RF_NOPREFETCH
+#define	DB_RF_NOPREFETCH        0
+#endif	/* ZFS_NO_PREFETCH */
 
 /*
  * The state transition diagram for dbufs looks like:
@@ -99,7 +112,7 @@ typedef struct dbuf_dirty_record {
 	list_node_t dr_dirty_node;
 
 	/* transaction group this data will sync in */
-	uint64_t dr_txg;
+	txg_t dr_txg;
 
 	/* zio of outstanding write IO */
 	zio_t *dr_zio;
@@ -227,7 +240,11 @@ typedef struct dmu_buf_impl {
 } dmu_buf_impl_t;
 
 /* Note: the dbuf hash table is exposed only for the mdb module */
+#ifdef ZFS_DBUF_MUTEXES
+#define	DBUF_MUTEXES ZFS_DBUF_MUTEXES
+#else
 #define	DBUF_MUTEXES 256
+#endif	/* ZFS_DBUF_MUTEXES */
 #define	DBUF_HASH_MUTEX(h, idx) (&(h)->hash_mutexes[(idx) & (DBUF_MUTEXES-1)])
 typedef struct dbuf_hash_table {
 	uint64_t hash_table_mask;
@@ -294,12 +311,12 @@ void dbuf_fini(void);
 #define	dprintf_dbuf(dbuf, fmt, ...) do { \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) { \
 	char __db_buf[32]; \
-	uint64_t __db_obj = (dbuf)->db.db_object; \
+	objid_t __db_obj = (dbuf)->db.db_object; \
 	if (__db_obj == DMU_META_DNODE_OBJECT) \
 		(void) strcpy(__db_buf, "mdn"); \
 	else \
-		(void) snprintf(__db_buf, sizeof (__db_buf), "%lld", \
-		    (u_longlong_t)__db_obj); \
+		(void) snprintf(__db_buf, sizeof (__db_buf), "%"PRIuOBJID, \
+		    __db_obj); \
 	dprintf_ds((dbuf)->db_objset->os_dsl_dataset, \
 	    "obj=%s lvl=%u blkid=%lld " fmt, \
 	    __db_buf, (dbuf)->db_level, \

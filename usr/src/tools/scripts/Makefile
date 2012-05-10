@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 SHFILES= \
 	Install \
 	acr \
@@ -64,13 +68,16 @@ SHFILES= \
 PERLFILES= \
 	cddlchk \
 	check_rtime \
+	genconst \
 	hdrchk \
 	jstyle \
 	mkreadme_osol \
 	mktpl \
+	subdirfix \
 	validate_flg \
 	validate_paths \
-	wdiff
+	wdiff \
+	xheader
 
 PYFILES= \
 	wsdiff
@@ -85,6 +92,7 @@ MAN1FILES= \
 	check_rtime.1 \
 	cstyle.1 \
 	flg.flp.1 \
+	genconst.1 \
 	jstyle.1 \
 	mkacr.1 \
 	nightly.1 \
@@ -92,16 +100,25 @@ MAN1FILES= \
 	sccscp.1 \
 	sccsmv.1 \
 	sccsrm.1 \
+	subdirfix.1 \
 	webrev.1 \
 	ws.1 \
 	wsdiff.1 \
 	wx.1 \
+	xheader.1 \
 	xref.1
 
 MAKEFILES= \
 	xref.mk
 
-CLEANFILES = $(SHFILES) $(PERLFILES) $(PYFILES) cddlchk.1
+POD2MANFILES	= 	\
+	cddlchk.1	\
+	genconst.1	\
+	subdirfix.1	\
+	xheader.1
+
+CLEANFILES = $(SHFILES) $(PERLFILES) $(PYFILES)
+CLEANFILES = $(SHFILES) $(PERLFILES) $(PYFILES) $(POD2MANFILES)
 
 include ../Makefile.tools
 
@@ -130,9 +147,16 @@ nightly: nightly.sh stdenv.sh
 	sed -e '/# STDENV_START/ r stdenv.sh' nightly.sh > nightly
 	$(CHMOD) +x $@ 
 
-cddlchk.1: cddlchk.pl
-	/usr/perl5/bin/pod2man --center='User Commands' --name=cddlchk \
-	--section=1 --release='SunOS $(RELEASE)' $? > $@
+cddlchk.1:	cddlchk.pl
+	$(POD2MAN_BUILD)
+
+genconst.1:	genconst.pl
+	$(POD2MAN_BUILD)
+
+subdirfix.1:	subdirfix.pl
+	$(POD2MAN_BUILD)
+
+xheader.1:	xheader.pl
+	$(POD2MAN_BUILD)
 
 include ../Makefile.targ
-

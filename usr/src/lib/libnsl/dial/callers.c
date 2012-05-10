@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "mt.h"
@@ -48,6 +52,12 @@ static int gdial(char *, char *[], int);
 static int	Modemctrl;
 static unsigned connecttime;
 static int (*Setup)();
+
+static int pop_push(int);
+static void setdevcfg(char *, char *);
+static void ttygenbrk(int);
+static void dialreset(void);
+static struct netbuf	*stoa(char *, struct netbuf *);
 
 /*
  *	to add a new caller:
@@ -178,12 +188,9 @@ processdev(char *flds[], char *dev[])
 	struct caller	*ca;
 	char *args[D_MAX+1], dcname[20];
 	char **sdev;
-	static int pop_push(int);
-	static void setdevcfg(char *, char *);
 	int nullfd;
 	char *phonecl;			/* clear phone string */
 	char phoneex[2*(MAXPH+2)];	/* expanded phone string */
-	static void ttygenbrk(int);
 	struct termio tty_orig;
 	int ret_orig = -1;
 
@@ -409,7 +416,6 @@ gdial(char *type, char *arps[], int narps)
 {
 	static char *info;	/* dynamically allocated MAXLINE */
 	int na;
-	static void dialreset(void);
 #ifndef SMALL
 	static char *currdial(void);
 #endif
@@ -474,8 +480,6 @@ tlicall(char *flds[], char *dev[])
 	struct t_bind	*bind_ret = 0;
 	struct t_info	tinfo;
 	struct t_call	*sndcall = 0, *rcvcall = 0;
-
-	static struct netbuf	*stoa(char *, struct netbuf *);
 
 	if (dev[D_LINE][0] != '/') {
 		/*	dev holds device name relative to /dev	*/

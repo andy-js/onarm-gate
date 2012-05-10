@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -67,7 +71,7 @@ static struct modlinkage modlinkage = {
 	MODREV_1, (void *)&modlmisc, NULL
 };
 
-char _depends_on[] = "misc/bootdev";	/* i_devname_to_promname() */
+MODDRV_DEPENDS_ON("misc/bootdev");	/* i_devname_to_promname() */
 
 int cpr_reusable_mode;
 
@@ -83,7 +87,7 @@ major_t		cpr_device = 0;		/* major number for S3 on one device */
  * All the loadable module related code follows
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	register int e;
 
@@ -93,8 +97,9 @@ _init(void)
 	return (e);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	register int e;
 
@@ -103,9 +108,10 @@ _fini(void)
 	}
 	return (e);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

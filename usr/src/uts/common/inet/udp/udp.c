@@ -24,6 +24,10 @@
  */
 /* Copyright (c) 1990 Mentat Inc. */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 const char udp_version[] = "%Z%%M%	%I%	%E% SMI";
@@ -7775,12 +7779,12 @@ udp_stack_fini(netstackid_t stackid, void *arg)
 	kmem_free(us, sizeof (*us));
 }
 
+
 static void *
 udp_kstat2_init(netstackid_t stackid, udp_stat_t *us_statisticsp)
 {
 	kstat_t *ksp;
-
-	udp_stat_t template = {
+	static udp_stat_t template = {
 		{ "udp_ip_send",		KSTAT_DATA_UINT64 },
 		{ "udp_ip_ire_send",		KSTAT_DATA_UINT64 },
 		{ "udp_ire_null",		KSTAT_DATA_UINT64 },
@@ -7839,31 +7843,32 @@ udp_kstat2_fini(netstackid_t stackid, kstat_t *ksp)
 	}
 }
 
+static udp_named_kstat_t udp_mib_template = {
+	{ "inDatagrams",	KSTAT_DATA_UINT64, 0 },
+	{ "inErrors",		KSTAT_DATA_UINT32, 0 },
+	{ "outDatagrams",	KSTAT_DATA_UINT64, 0 },
+	{ "entrySize",		KSTAT_DATA_INT32, 0 },
+	{ "entry6Size",		KSTAT_DATA_INT32, 0 },
+	{ "outErrors",		KSTAT_DATA_UINT32, 0 },
+};
+
 static void *
 udp_kstat_init(netstackid_t stackid)
 {
 	kstat_t	*ksp;
-
-	udp_named_kstat_t template = {
-		{ "inDatagrams",	KSTAT_DATA_UINT64, 0 },
-		{ "inErrors",		KSTAT_DATA_UINT32, 0 },
-		{ "outDatagrams",	KSTAT_DATA_UINT64, 0 },
-		{ "entrySize",		KSTAT_DATA_INT32, 0 },
-		{ "entry6Size",		KSTAT_DATA_INT32, 0 },
-		{ "outErrors",		KSTAT_DATA_UINT32, 0 },
-	};
+	udp_named_kstat_t *template = &udp_mib_template;
 
 	ksp = kstat_create_netstack(UDP_MOD_NAME, 0, UDP_MOD_NAME, "mib2",
 	    KSTAT_TYPE_NAMED,
-	    NUM_OF_FIELDS(udp_named_kstat_t), 0, stackid);
+	    NUM_OF_FIELDS(udp_named_kstat_t), KSTAT_FLAG_VIRTUAL, stackid);
 
 	if (ksp == NULL || ksp->ks_data == NULL)
 		return (NULL);
 
-	template.entrySize.value.ui32 = sizeof (mib2_udpEntry_t);
-	template.entry6Size.value.ui32 = sizeof (mib2_udp6Entry_t);
+	template->entrySize.value.ui32 = sizeof (mib2_udpEntry_t);
+	template->entry6Size.value.ui32 = sizeof (mib2_udp6Entry_t);
 
-	bcopy(&template, ksp->ks_data, sizeof (template));
+	ksp->ks_data = template;
 	ksp->ks_update = udp_kstat_update;
 	ksp->ks_private = (void *)(uintptr_t)stackid;
 
@@ -7875,8 +7880,17 @@ static void
 udp_kstat_fini(netstackid_t stackid, kstat_t *ksp)
 {
 	if (ksp != NULL) {
+		udp_named_kstat_t *template = &udp_mib_template;
+
 		ASSERT(stackid == (netstackid_t)(uintptr_t)ksp->ks_private);
 		kstat_delete_netstack(ksp, stackid);
+
+		template->inDatagrams.value.ui32 = 0;
+		template->inErrors.value.ui32 = 0;
+		template->outDatagrams.value.ui32 = 0;
+		template->entrySize.value.i32 = 0;
+		template->entry6Size.value.i32 = 0;
+		template->outErrors.value.ui32 = 0;
 	}
 }
 

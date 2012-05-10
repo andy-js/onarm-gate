@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -55,6 +59,12 @@
 sctp_assoc_t
 sosctp_aid_get(struct sctp_sonode *ss)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (-1);
+
+#else
+        /* Original Program */
 	sctp_assoc_t id, size, ralloc;
 	struct sctp_sa_id *assocs = ss->ss_assocs;
 
@@ -74,6 +84,7 @@ sosctp_aid_get(struct sctp_sonode *ss)
 		return (id);
 	}
 	return (-1);
+#endif
 }
 
 /*
@@ -82,6 +93,11 @@ sosctp_aid_get(struct sctp_sonode *ss)
 void
 sosctp_aid_reserve(struct sctp_sonode *ss, sctp_assoc_t id, int incr)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct sctp_sa_id *assocs = ss->ss_assocs;
 	sctp_assoc_t pid;
 
@@ -91,6 +107,7 @@ sosctp_aid_reserve(struct sctp_sonode *ss, sctp_assoc_t id, int incr)
 	for (pid = id; pid >= 0; pid = (pid & (pid + 1)) - 1) {
 		assocs[pid].ssi_alloc += incr;
 	}
+#endif
 }
 
 /*
@@ -100,6 +117,12 @@ sosctp_aid_reserve(struct sctp_sonode *ss, sctp_assoc_t id, int incr)
 int
 sosctp_aid_grow(struct sctp_sonode *ss, sctp_assoc_t maxid, int kmflags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (-1);
+
+#else
+        /* Original Program */
 	sctp_assoc_t newcnt, oldcnt;
 	struct sctp_sa_id *newlist, *oldlist;
 
@@ -131,6 +154,7 @@ sosctp_aid_grow(struct sctp_sonode *ss, sctp_assoc_t maxid, int kmflags)
 		kmem_free(oldlist, oldcnt * sizeof (struct sctp_sa_id));
 	}
 	return (0);
+#endif
 }
 
 /*
@@ -140,6 +164,11 @@ sosctp_aid_grow(struct sctp_sonode *ss, sctp_assoc_t maxid, int kmflags)
 int
 sosctp_assoc(struct sctp_sonode *ss, sctp_assoc_t id, struct sctp_soassoc **ssa)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
 	ASSERT(ssa != NULL);
 	ASSERT(MUTEX_HELD(&ss->ss_so.so_lock));
 	if ((uint32_t)id >= ss->ss_maxassoc) {
@@ -161,6 +190,7 @@ sosctp_assoc(struct sctp_sonode *ss, sctp_assoc_t id, struct sctp_soassoc **ssa)
 	SSA_REFHOLD(*ssa)
 
 	return (0);
+#endif
 }
 
 /*
@@ -169,6 +199,12 @@ sosctp_assoc(struct sctp_sonode *ss, sctp_assoc_t id, struct sctp_soassoc **ssa)
 struct sctp_soassoc *
 sosctp_assoc_create(struct sctp_sonode *ss, int kmflag)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (NULL);
+
+#else
+        /* Original Program */
 	struct sctp_soassoc *ssa;
 
 	ssa = kmem_cache_alloc(sosctp_assoccache, kmflag);
@@ -183,11 +219,17 @@ sosctp_assoc_create(struct sctp_sonode *ss, int kmflag)
 	}
 	dprint(2, ("sosctp_assoc_create %p %p\n", ss, ssa));
 	return (ssa);
+#endif
 }
 
 void
 sosctp_assoc_free(struct sctp_sonode *ss, struct sctp_soassoc *ssa)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct sonode *so = &ss->ss_so;
 
 	dprint(2, ("sosctp_assoc_free %p %p (%d)\n", ss, ssa, ssa->ssa_id));
@@ -206,6 +248,7 @@ sosctp_assoc_free(struct sctp_sonode *ss, struct sctp_soassoc *ssa)
 	ss->ss_assocs[ssa->ssa_id].ssi_assoc = NULL;
 	--ss->ss_assoccnt;
 	kmem_cache_free(sosctp_assoccache, ssa);
+#endif
 }
 
 /*
@@ -219,6 +262,11 @@ sosctp_assoc_free(struct sctp_sonode *ss, struct sctp_soassoc *ssa)
 void
 sosctp_pack_cmsg(const uchar_t *opt, struct nmsghdr *msg, int len)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct cmsghdr	*ocmsg;
 	struct cmsghdr	*cmsg;
 	int		optlen = 0;
@@ -271,6 +319,7 @@ sosctp_pack_cmsg(const uchar_t *opt, struct nmsghdr *msg, int len)
 			break;
 		}
 	}
+#endif
 }
 
 /*
@@ -279,6 +328,12 @@ sosctp_pack_cmsg(const uchar_t *opt, struct nmsghdr *msg, int len)
 struct cmsghdr *
 sosctp_find_cmsg(const uchar_t *control, socklen_t clen, int type)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (NULL);
+
+#else
+        /* Original Program */
 	struct cmsghdr *cmsg;
 	char *cend;
 
@@ -301,6 +356,7 @@ sosctp_find_cmsg(const uchar_t *control, socklen_t clen, int type)
 		}
 	}
 	return (NULL);
+#endif
 }
 
 /*
@@ -310,6 +366,12 @@ sosctp_find_cmsg(const uchar_t *control, socklen_t clen, int type)
 int
 sosctp_waitconnected(struct sonode *so, int fmode)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EOPNOTSUPP);
+
+#else
+        /* Original Program */
 	int error = 0;
 
 	ASSERT(MUTEX_HELD(&so->so_lock));
@@ -350,6 +412,7 @@ sosctp_waitconnected(struct sonode *so, int fmode)
 		return (error);
 	}
 	return (0);
+#endif
 }
 
 /*
@@ -359,6 +422,12 @@ sosctp_waitconnected(struct sonode *so, int fmode)
 static int
 sosctp_assoc_waitconnected(struct sctp_soassoc *ssa, int fmode)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EOPNOTSUPP);
+
+#else
+        /* Original Program */
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
 	int error = 0;
 
@@ -399,6 +468,7 @@ sosctp_assoc_waitconnected(struct sctp_soassoc *ssa, int fmode)
 		return (error);
 	}
 	return (0);
+#endif
 }
 
 /*
@@ -409,6 +479,12 @@ sosctp_assoc_createconn(struct sctp_sonode *ss, const struct sockaddr *name,
     socklen_t namelen, const uchar_t *control, socklen_t controllen, int fflag,
     struct sctp_soassoc **ssap)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EOPNOTSUPP);
+
+#else
+        /* Original Program */
 	struct sonode *so = &ss->ss_so;
 	struct sctp_soassoc *ssa;
 	struct sockaddr_storage laddr;
@@ -530,6 +606,7 @@ ret_err:
 		sosctp_assoc_free(ss, ssa);
 	*ssap = NULL;
 	return (error);
+#endif
 }
 
 /*
@@ -538,6 +615,11 @@ ret_err:
 void
 sosctp_so_inherit(struct sctp_sonode *lss, struct sctp_sonode *nss)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct sonode *nso = &nss->ss_so;
 	struct sonode *lso = &lss->ss_so;
 
@@ -550,6 +632,7 @@ sosctp_so_inherit(struct sctp_sonode *lss, struct sctp_sonode *nss)
 
 	nso->so_rcvlowat = lso->so_rcvlowat;
 	nso->so_sndlowat = lso->so_sndlowat;
+#endif
 }
 
 /*
@@ -560,6 +643,11 @@ void
 sosctp_assoc_move(struct sctp_sonode *ss, struct sctp_sonode *nss,
     struct sctp_soassoc *ssa)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	mblk_t *mp, **nmp;
 	struct sctp_soassoc *tmp;
 
@@ -591,11 +679,17 @@ sosctp_assoc_move(struct sctp_sonode *ss, struct sctp_sonode *nss,
 		ss->ss_rxtail = nmp;
 		*nss->ss_rxtail = NULL;
 	}
+#endif
 }
 
 void
 sosctp_assoc_isconnecting(struct sctp_soassoc *ssa)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
 
 	ASSERT(MUTEX_HELD(&so->so_lock));
@@ -603,11 +697,17 @@ sosctp_assoc_isconnecting(struct sctp_soassoc *ssa)
 	ssa->ssa_state &= ~(SS_ISCONNECTED|SS_ISDISCONNECTING);
 	ssa->ssa_state |= SS_ISCONNECTING;
 	cv_broadcast(&so->so_state_cv);
+#endif
 }
 
 void
 sosctp_assoc_isconnected(struct sctp_soassoc *ssa)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
 
 	ASSERT(MUTEX_HELD(&so->so_lock));
@@ -615,11 +715,17 @@ sosctp_assoc_isconnected(struct sctp_soassoc *ssa)
 	ssa->ssa_state &= ~(SS_ISCONNECTING|SS_ISDISCONNECTING);
 	ssa->ssa_state |= SS_ISCONNECTED;
 	cv_broadcast(&so->so_state_cv);
+#endif
 }
 
 void
 sosctp_assoc_isdisconnecting(struct sctp_soassoc *ssa)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
 
 	ASSERT(MUTEX_HELD(&so->so_lock));
@@ -627,11 +733,17 @@ sosctp_assoc_isdisconnecting(struct sctp_soassoc *ssa)
 	ssa->ssa_state &= ~SS_ISCONNECTING;
 	ssa->ssa_state |= SS_CANTSENDMORE;
 	cv_broadcast(&so->so_state_cv);
+#endif
 }
 
 void
 sosctp_assoc_isdisconnected(struct sctp_soassoc *ssa, int error)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
 
 	ASSERT(MUTEX_HELD(&so->so_lock));
@@ -641,6 +753,7 @@ sosctp_assoc_isdisconnected(struct sctp_soassoc *ssa, int error)
 	if (error != 0)
 		ssa->ssa_error = (ushort_t)error;
 	cv_broadcast(&so->so_state_cv);
+#endif
 }
 
 /*
@@ -649,6 +762,12 @@ sosctp_assoc_isdisconnected(struct sctp_soassoc *ssa, int error)
 int
 sosctp_chgpgrp(struct sctp_sonode *ss, pid_t pid)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
+        /* Original Program */
 	int error;
 
 	ASSERT(MUTEX_HELD(&ss->ss_so.so_lock));
@@ -665,6 +784,7 @@ sosctp_chgpgrp(struct sctp_sonode *ss, pid_t pid)
 	}
 	ss->ss_so.so_pgrp = pid;
 	return (0);
+#endif
 }
 
 /*
@@ -674,6 +794,11 @@ sosctp_chgpgrp(struct sctp_sonode *ss, pid_t pid)
 static void
 sosctp_sigproc(proc_t *proc, int event)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	k_siginfo_t info;
 
 	if (event & SCTPSIG_WRITE) {
@@ -687,11 +812,17 @@ sosctp_sigproc(proc_t *proc, int event)
 	if (event & SCTPSIG_READ) {
 		sigtoproc(proc, NULL, SIGPOLL);
 	}
+#endif
 }
 
 void
 sosctp_sendsig(struct sctp_sonode *ss, int event)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Original Program */
 	proc_t *proc;
 	struct sonode *so = &ss->ss_so;
 
@@ -735,4 +866,5 @@ sosctp_sendsig(struct sctp_sonode *ss, int event)
 		}
 		mutex_exit(&pidlock);
 	}
+#endif
 }

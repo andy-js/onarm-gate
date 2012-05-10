@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <assert.h>
@@ -711,6 +715,9 @@ find_dead_elems(const void *key, void **value, void *cl)
 int
 pool_knl_update(pool_conf_t *conf, int *changed)
 {
+#if defined(__COMPACTION)
+	return (PO_FAIL);
+#else
 	pool_knl_connection_t *prov = (pool_knl_connection_t *)conf->pc_prov;
 	pool_query_t query = {0};
 	ea_object_t *ep;
@@ -789,6 +796,7 @@ pool_knl_update(pool_conf_t *conf, int *changed)
 	dict_free(&dead_map);
 
 	return (PO_SUCCESS);
+#endif /* __COMPACTION */
 }
 
 /*
@@ -920,6 +928,9 @@ int
 pool_knl_export(const pool_conf_t *conf, const char *location,
     pool_export_format_t fmt)
 {
+#if defined(__COMPACTION)
+	return (PO_FAIL);
+#else
 	xmlNodePtr node_comment;
 	xmlNodePtr system;
 	int ret;
@@ -1192,6 +1203,7 @@ pool_knl_export(const pool_conf_t *conf, const char *location,
 		pool_seterror(POE_BADPARAM);
 		return (PO_FAIL);
 	}
+#endif /* __COMPACTION */
 }
 
 /*

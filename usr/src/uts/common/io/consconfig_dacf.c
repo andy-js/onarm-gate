@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -145,21 +149,27 @@ extern int		space_store(char *key, uintptr_t ptr);
 /*
  * Tasks
  */
+#ifndef NO_KBD_MS
 static int	kb_config(dacf_infohdl_t, dacf_arghdl_t, int);
 static int	kb_unconfig(dacf_infohdl_t, dacf_arghdl_t, int);
 static int	ms_config(dacf_infohdl_t, dacf_arghdl_t, int);
 static int	ms_unconfig(dacf_infohdl_t, dacf_arghdl_t, int);
+#endif /* NO_KBD_MS */
 
 /*
  * Internal functions
  */
+#ifndef NO_KBD_MS
 static int	consconfig_setmodes(dev_t dev, struct termios *termiosp);
 static void	consconfig_check_phys_kbd(cons_state_t *);
 static void	consconfig_rem_dev(cons_state_t *, dev_t);
 static void	consconfig_add_dev(cons_state_t *, cons_prop_t *);
 static cons_prop_t *consconfig_find_dev(cons_state_t *, dev_t);
 static void	consconfig_free_prop(cons_prop_t *prop);
+#endif /* NO_KBD_MS */
+#ifndef NO_TEM_FRAMEWORK
 static void	flush_usb_serial_buf(void);
+#endif /* NO_TEM_FRAMEWORK */
 
 
 /*
@@ -235,6 +245,7 @@ static struct speed {
 	{"307200", B307200},	{"460800", B460800},	{"", 0}
 };
 
+#ifndef NO_KBD_MS
 static dacf_op_t kbconfig_op[] = {
 	{ DACF_OPID_POSTATTACH,	kb_config },
 	{ DACF_OPID_PREDETACH,	kb_unconfig },
@@ -246,6 +257,19 @@ static dacf_op_t msconfig_op[] = {
 	{ DACF_OPID_PREDETACH,	ms_unconfig },
 	{ DACF_OPID_END,	NULL },
 };
+#else /* NO_KBD_MS */
+static dacf_op_t kbconfig_op[] = {
+	{ DACF_OPID_POSTATTACH,	NULL },
+	{ DACF_OPID_PREDETACH,	NULL },
+	{ DACF_OPID_END,	NULL },
+};
+
+static dacf_op_t msconfig_op[] = {
+	{ DACF_OPID_POSTATTACH,	NULL },
+	{ DACF_OPID_PREDETACH,	NULL },
+	{ DACF_OPID_END,	NULL },
+};
+#endif /* NO_KBD_MS */
 
 static dacf_opset_t opsets[] = {
 	{ "kb_config",	kbconfig_op },
@@ -264,17 +288,18 @@ struct modldacf modldacf = {
 	&dacfsw
 };
 
-struct modlinkage modlinkage = {
+static struct modlinkage modlinkage = {
 	MODREV_1, (void *)&modldacf, NULL
 };
 
 int
-_init(void) {
+MODDRV_ENTRY_INIT(void) {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	/*
 	 * This modules state is held in the kernel by space.c
@@ -282,9 +307,10 @@ _fini(void)
 	 */
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -814,6 +840,7 @@ cons_build_upper_layer(cons_state_t *sp)
 	 */
 
 	/* open the console keyboard device.  will never be closed */
+#ifndef NO_KBD_MS
 	if (ldi_open_by_name(CONSKBD_PATH, FREAD|FWRITE|FNOCTTY,
 	    kcred, &sp->conskbd_lh, sp->cons_li) != 0) {
 		panic("consconfig: unable to open conskbd device");
@@ -830,6 +857,7 @@ cons_build_upper_layer(cons_state_t *sp)
 	}
 
 	DPRINTF(DPRINT_L0, "consms_lh = %p\n", sp->consms_lh);
+#endif /* NO_KBD_MS */
 
 	/*
 	 * Get a vnode for the wc device and then grab a hold on the
@@ -860,7 +888,9 @@ cons_build_upper_layer(cons_state_t *sp)
 	 * Since conskbd and wc are pseudo drivers, errors are
 	 * generally ignored when linking and unlinking them.
 	 */
+#ifndef NO_KBD_MS
 	(void) consconfig_relink_wc(sp, sp->conskbd_lh, &sp->conskbd_muxid);
+#endif /* NO_KBD_MS */
 
 	/*
 	 * Get a vnode for the redirection device.  (It has the
@@ -877,6 +907,7 @@ cons_build_upper_layer(cons_state_t *sp)
 		/*NOTREACHED*/
 	}
 
+#ifndef NO_TEM_FRAMEWORK
 	if (cons_tem_disable)
 		return;
 
@@ -929,6 +960,7 @@ cons_build_upper_layer(cons_state_t *sp)
 		cmn_err(CE_WARN,
 		    "consconfig: terminal emulator failed to initialize");
 	(void) ldi_close(wc_lh, FREAD|FWRITE, kcred);
+#endif /* NO_TEM_FRAMEWORK */
 }
 
 static void
@@ -956,6 +988,7 @@ consconfig_load_drivers(cons_state_t *sp)
 	}
 	if (sp->cons_stdout_path != NULL)
 		stdoutdev = ddi_pathname_to_dev_t(sp->cons_stdout_path);
+#ifndef NO_KBD_MS
 	if (sp->cons_keyboard_path != NULL)
 		kbddev = ddi_pathname_to_dev_t(sp->cons_keyboard_path);
 	if (sp->cons_mouse_path != NULL)
@@ -973,8 +1006,10 @@ consconfig_load_drivers(cons_state_t *sp)
 
 	DPRINTF(DPRINT_L0, "stdindev %lx, stdoutdev %lx, kbddev %lx, "
 	    "mousedev %lx\n", stdindev, stdoutdev, kbddev, mousedev);
+#endif /* NO_KBD_MS */
 }
 
+#ifndef NO_TEM_FRAMEWORK
 static void
 consconfig_init_framebuffer(cons_state_t *sp)
 {
@@ -1008,6 +1043,7 @@ consconfig_init_framebuffer(cons_state_t *sp)
 	}
 	pm_cfb_setup(sp->cons_stdout_path);
 }
+#endif /* NO_TEM_FRAMEWORK */
 
 /*
  * consconfig_prepare_dev:
@@ -1015,6 +1051,7 @@ consconfig_init_framebuffer(cons_state_t *sp)
  * 	for keyboard, issue the KIOCTRANSABLE ioctl, and
  *	possible enable abort.
  */
+#ifndef NO_KBD_MS
 static void
 consconfig_prepare_dev(
     ldi_handle_t	new_lh,
@@ -1061,6 +1098,7 @@ consconfig_prepare_dev(
 	if (input_type == CONSOLE_LOCAL)
 		(void) consconfig_kbd_abort_enable(new_lh);
 }
+#endif /* NO_KBD_MS */
 
 /*
  * consconfig_relink_conskbd:
@@ -1073,6 +1111,7 @@ consconfig_prepare_dev(
  * 	that attempts to unlink the stream specified by *muxid.
  *	the resulting stream will be wc->conskbd.
  */
+#ifndef NO_KBD_MS
 static int
 consconfig_relink_conskbd(cons_state_t *sp, ldi_handle_t new_lh, int *muxid)
 {
@@ -1162,6 +1201,7 @@ relink_failed:
 	(void) consconfig_relink_wc(sp, sp->conskbd_lh, &sp->conskbd_muxid);
 	return (err);
 }
+#endif /* NO_KBD_MS */
 
 /*
  * consconfig_relink_consms:
@@ -1173,6 +1213,7 @@ relink_failed:
  * 	If new_lh is NULL, then an unlink operation is done on consms
  * 	that attempts to unlink the stream specified by *muxid.
  */
+#ifndef NO_KBD_MS
 static int
 consconfig_relink_consms(cons_state_t *sp, ldi_handle_t new_lh, int *muxid)
 {
@@ -1207,6 +1248,7 @@ consconfig_relink_consms(cons_state_t *sp, ldi_handle_t new_lh, int *muxid)
 	}
 	return (err);
 }
+#endif /* NO_KBD_MS */
 
 static int
 cons_get_input_type(cons_state_t *sp)
@@ -1244,6 +1286,7 @@ consconfig_init_input(cons_state_t *sp)
 	cons_final_dev = NODEV;
 
 	switch (sp->cons_input_type) {
+#ifndef NO_KBD_MS
 	case CONSOLE_LOCAL:
 		DPRINTF(DPRINT_L0, "stdin is keyboard\n");
 
@@ -1286,6 +1329,7 @@ consconfig_init_input(cons_state_t *sp)
 		stdindev = kbddev;
 		cons_final_dev = sp->cons_wc_vp->v_rdev;
 		break;
+#endif /* NO_KBD_MS */
 
 	case CONSOLE_TIP:
 		DPRINTF(DPRINT_L0, "console input is tty (%s)\n",
@@ -1309,6 +1353,7 @@ consconfig_init_input(cons_state_t *sp)
 		cons_final_dev = rconsdev;
 		break;
 
+#ifndef NO_KBD_MS
 	case CONSOLE_SERIAL_KEYBOARD:
 		DPRINTF(DPRINT_L0, "stdin is serial keyboard\n");
 
@@ -1369,6 +1414,7 @@ consconfig_init_input(cons_state_t *sp)
 
 		cons_final_dev = sp->cons_wc_vp->v_rdev;
 		break;
+#endif /* NO_KBD_MS */
 
 	default:
 		panic("consconfig_init_input: "
@@ -1399,12 +1445,15 @@ consconfig_init_input(cons_state_t *sp)
 	}
 
 	/* Enable abort on the console */
+#ifndef NO_KBD_MS
 	(void) consconfig_kbd_abort_enable(new_lh);
+#endif /* NO_KBD_MS */
 
 	/* Now we must close it to make console logins happy */
 	(void) ldi_close(new_lh, FREAD|FWRITE, kcred);
 
 	/* Set up polled input if it is supported by the console device */
+#ifndef NO_KBD_MS
 	if (plat_use_polled_debug()) {
 		/*
 		 * In the debug case, register the keyboard polled entry
@@ -1417,6 +1466,7 @@ consconfig_init_input(cons_state_t *sp)
 	}
 
 	kadb_uses_kernel();
+#endif /* NO_KBD_MS */
 }
 
 /*
@@ -1485,14 +1535,18 @@ dynamic_console_config(void)
 
 
 	/* initialize framebuffer, console input, and redirection device  */
+#ifndef NO_TEM_FRAMEWORK
 	consconfig_init_framebuffer(consconfig_sp);
+#endif /* NO_TEM_FRAMEWORK */
 	consconfig_init_input(consconfig_sp);
 
 	DPRINTF(DPRINT_L0,
 	    "mousedev %lx, kbddev %lx, fbdev %lx, rconsdev %lx\n",
 	    mousedev,  kbddev, fbdev, rconsdev);
 
+#ifndef NO_TEM_FRAMEWORK
 	flush_usb_serial_buf();
+#endif /* NO_TEM_FRAMEWORK */
 }
 
 
@@ -1503,6 +1557,7 @@ dynamic_console_config(void)
 /*
  * Do the real job for keyboard/mouse auto-configuration.
  */
+#ifndef NO_KBD_MS
 static int
 do_config(cons_state_t *sp, cons_prop_t *prop)
 {
@@ -1558,7 +1613,9 @@ do_config(cons_state_t *sp, cons_prop_t *prop)
 
 	return (DACF_SUCCESS);
 }
+#endif /* NO_KBD_MS */
 
+#ifndef NO_KBD_MS
 static int
 do_unconfig(cons_state_t *sp, cons_prop_t *prop)
 {
@@ -1569,7 +1626,9 @@ do_unconfig(cons_state_t *sp, cons_prop_t *prop)
 	else
 		return (consconfig_relink_consms(sp, NULL, &prop->cp_muxid));
 }
+#endif /* NO_KBD_MS */
 
+#ifndef NO_KBD_MS
 static int
 kb_ms_config(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int type)
 {
@@ -1653,7 +1712,9 @@ kb_ms_config(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int type)
 
 	return (DACF_SUCCESS);
 }
+#endif /* NO_KBD_MS */
 
+#ifndef NO_KBD_MS
 static int
 kb_ms_unconfig(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl)
 {
@@ -1703,11 +1764,13 @@ kb_ms_unconfig(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl)
 
 	return (DACF_SUCCESS);
 }
+#endif /* NO_KBD_MS */
 
 /*
  * This is the post-attach / pre-detach action function for the keyboard
  * and mouse. This function is associated with a node type in /etc/dacf.conf.
  */
+#ifndef NO_KBD_MS
 static int
 kb_config(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 {
@@ -1715,7 +1778,9 @@ kb_config(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 
 	return (kb_ms_config(minor_hdl, arg_hdl, CONS_KBD));
 }
+#endif /* NO_KBD_MS */
 
+#ifndef NO_KBD_MS
 static int
 ms_config(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 {
@@ -1723,7 +1788,9 @@ ms_config(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 
 	return (kb_ms_config(minor_hdl, arg_hdl, CONS_MS));
 }
+#endif /* NO_KBD_MS */
 
+#ifndef NO_KBD_MS
 static int
 kb_unconfig(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 {
@@ -1731,7 +1798,9 @@ kb_unconfig(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 
 	return (kb_ms_unconfig(minor_hdl, arg_hdl));
 }
+#endif /* NO_KBD_MS */
 
+#ifndef NO_KBD_MS
 static int
 ms_unconfig(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 {
@@ -1739,6 +1808,7 @@ ms_unconfig(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
 
 	return (kb_ms_unconfig(minor_hdl, arg_hdl));
 }
+#endif /* NO_KBD_MS */
 
 /*
  * consconfig_link and consconfig_unlink are provided to support
@@ -1749,6 +1819,7 @@ ms_unconfig(dacf_infohdl_t minor_hdl, dacf_arghdl_t arg_hdl, int flags)
  * is closed physically, it will be linked back under the virtual
  * one.
  */
+#ifndef NO_KBD_MS
 void
 consconfig_link(major_t major, minor_t minor)
 {
@@ -1782,8 +1853,9 @@ consconfig_link(major_t major, minor_t minor)
 
 	mutex_exit(&sp->cons_lock);
 }
+#endif /* NO_KBD_MS */
 
-
+#ifndef NO_KBD_MS
 int
 consconfig_unlink(major_t major, minor_t minor)
 {
@@ -1813,11 +1885,13 @@ consconfig_unlink(major_t major, minor_t minor)
 
 	return (error);
 }
+#endif /* NO_KBD_MS */
 
 /*
  * Routine to set baud rate, bits-per-char, parity and stop bits
  * on the console line when necessary.
  */
+#ifndef NO_KBD_MS
 static int
 consconfig_setmodes(dev_t dev, struct termios *termiosp)
 {
@@ -1950,11 +2024,13 @@ consconfig_setmodes(dev_t dev, struct termios *termiosp)
 
 	return (0);
 }
+#endif /* NO_KBD_MS */
 
 /*
  * Check to see if underlying keyboard devices are still online,
  * if any one is offline now, unlink it.
  */
+#ifndef NO_KBD_MS
 static void
 consconfig_check_phys_kbd(cons_state_t *sp)
 {
@@ -1985,10 +2061,12 @@ consconfig_check_phys_kbd(cons_state_t *sp)
 	 */
 	consconfig_rem_dev(sp, NODEV);
 }
+#endif /* NO_KBD_MS */
 
 /*
  * Remove devices according to dev, which may be NODEV
  */
+#ifndef NO_KBD_MS
 static void
 consconfig_rem_dev(cons_state_t *sp, dev_t dev)
 {
@@ -2015,20 +2093,24 @@ consconfig_rem_dev(cons_state_t *sp, dev_t dev)
 	}
 	sp->cons_km_prop = head_prop;
 }
+#endif /* NO_KBD_MS */
 
 /*
  * Add a dev according to prop
  */
+#ifndef NO_KBD_MS
 static void
 consconfig_add_dev(cons_state_t *sp, cons_prop_t *prop)
 {
 	prop->cp_next = sp->cons_km_prop;
 	sp->cons_km_prop = prop;
 }
+#endif /* NO_KBD_MS */
 
 /*
  * Find a device from our list according to dev
  */
+#ifndef NO_KBD_MS
 static cons_prop_t *
 consconfig_find_dev(cons_state_t *sp, dev_t dev)
 {
@@ -2041,10 +2123,12 @@ consconfig_find_dev(cons_state_t *sp, dev_t dev)
 
 	return (prop);
 }
+#endif /* NO_KBD_MS */
 
 /*
  * Free a cons prop associated with a keyboard or mouse
  */
+#ifndef NO_KBD_MS
 static void
 consconfig_free_prop(cons_prop_t *prop)
 {
@@ -2052,12 +2136,14 @@ consconfig_free_prop(cons_prop_t *prop)
 		kmem_free(prop->cp_pushmod, strlen(prop->cp_pushmod) + 1);
 	kmem_free(prop, sizeof (cons_prop_t));
 }
+#endif /* NO_KBD_MS */
 
 /*
  * Boot code can't print to usb serial device. The early boot message
  * is saved in a buffer at address indicated by "usb-serial-buf".
  * This function flushes the message to the USB serial line
  */
+#ifndef NO_TEM_FRAMEWORK
 static void
 flush_usb_serial_buf(void)
 {
@@ -2110,3 +2196,4 @@ flush_usb_serial_buf(void)
 
 	kmem_free(usbser_kern_buf, MMU_PAGESIZE);
 }
+#endif /* NO_TEM_FRAMEWORK */

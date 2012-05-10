@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "synonyms.h"
@@ -383,6 +387,95 @@ __aconvert(double arg, int ndigits, int *exp, int *sign, char *buf)
 		a.i[1] |= 0x80000; /* make nan quiet */
 	ldarg = a.d;
 	__qaconvert(&ldarg, ndigits, exp, sign, buf);
+}
+
+#elif defined(__arm)
+
+void
+__aconvert(double arg, int ndigits, int *exp, int *sign, char *buf)
+{
+	union {
+		unsigned int	i[2];
+		long long	l;
+		double		d;
+	} a, c;
+	int		ha, i, s;
+	unsigned int	d;
+
+	a.d = arg;
+	*sign = s = a.i[HIWORD] >> 31;
+	ha = a.i[HIWORD] & ~0x80000000;
+
+	/* check for infinity or nan */
+	if (ha >= 0x7ff00000) {
+		*exp = 0;
+		__infnanstring((ha == 0x7ff00000 && a.i[LOWORD] == 0)?
+		    fp_infinity : fp_quiet, ndigits, buf);
+		return;
+	}
+
+	/* check for subnormal or zero */
+	if (ha < 0x00100000) {
+		if ((ha | a.i[LOWORD]) == 0) {
+			*exp = 0;
+			for (i = 0; i < ndigits; i++)
+				buf[i] = '0';
+			buf[ndigits] = '\0';
+			return;
+		}
+
+		/*
+		 * Normalize.  It would be much simpler if we could just
+		 * multiply by a power of two here, but some SPARC imple-
+		 * mentations would flush the subnormal operand to zero
+		 * when nonstandard mode is enabled.
+		 */
+		a.i[HIWORD] = ha;
+		a.d = (double)a.l;
+		if (s)
+			a.d = -a.d;
+		ha = a.i[HIWORD] & ~0x80000000;
+		*exp = (ha >> 20) - 0x3ff - 1074;
+	} else {
+		*exp = (ha >> 20) - 0x3ff;
+	}
+
+	if (ndigits < 14) {
+		/*
+		 * Round the significand at the appropriate bit by adding
+		 * and subtracting a power of two.  This will also raise
+		 * the inexact exception if anything is rounded off.
+		 */
+		c.i[HIWORD] = (0x43700000 | (s << 31)) - (ndigits << 22);
+		c.i[LOWORD] = 0;
+		a.i[HIWORD] = (a.i[HIWORD] & 0x800fffff) | 0x3ff00000;
+		a.d = (a.d + c.d) - c.d;
+		ha = a.i[HIWORD] & ~0x80000000;
+		if (ha >= 0x40000000)
+			(*exp)++;
+	}
+
+	/* convert to hex digits */
+	buf[0] = '1';
+	d = ha << 12;
+	for (i = 1; i < ndigits && i < 6; i++) {
+		buf[i] = hexchar[d >> 28];
+		d <<= 4;
+	}
+	d = a.i[LOWORD];
+	for (; i < ndigits && i < 14; i++) {
+		buf[i] = hexchar[d >> 28];
+		d <<= 4;
+	}
+	for (; i < ndigits; i++)
+		buf[i] = '0';
+	buf[ndigits] = '\0';
+}
+
+void
+__qaconvert(long double *arg, int ndigits, int *exp, int *sign, char *buf)
+{
+	__aconvert((double)*arg, ndigits, exp, sign, buf);
 }
 
 #else

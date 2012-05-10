@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -1324,6 +1328,15 @@ compute_cluster_size(bpb_t *wbpb)
 #define	FAT32_MAX_CLUSTERS	0x0FFFFFF0
 #define	FAT32_SUGGESTED_NCLUST	0x400000
 
+/*
+ * FAT32_ROOTDIR_AND_FAT_SIZE is the manifest constant to produce
+ * datasector size from volume size.0x04B0 is the value that primarily
+ * added FAT size and root directory size in case of 64K cluster which
+ * causes the problem when the volume size is small and subsequently
+ * some margins.
+ */
+#define	FAT32_ROOTDIR_AND_FAT_SIZE	0x04B0
+
 	/* compute volume size in sectors. */
 	volsize = wbpb->bpb.sectors_in_volume ? wbpb->bpb.sectors_in_volume :
 	    wbpb->bpb.sectors_in_logical_volume;
@@ -1355,19 +1368,25 @@ compute_cluster_size(bpb_t *wbpb)
 				exit(4);
 			}
 		} else { /* FAT32 */
+			/* DataSec = volsize - FAT32_ROOTDIR_AND_FAT_SIZE */
+			ulong_t vol32 = volsize - FAT32_ROOTDIR_AND_FAT_SIZE;
+
 			/* volsize is in sectors */
-			if (volsize < FAT16_MAX_CLUSTERS) {
+			if (vol32 <= FAT16_MAX_CLUSTERS) {
 				(void) fprintf(stderr,
 				    gettext("Requested size is too "
 				    "small for FAT32.\n"));
 				exit(4);
 			}
 			/* SPC must be a power of 2 */
-			for (spc = 1; spc <= 64; spc = spc * 2) {
-				if (volsize < (spc * FAT32_SUGGESTED_NCLUST))
+			for (spc = 8; spc <= 64; spc = spc * 2) {
+				if (vol32 < (spc * FAT32_SUGGESTED_NCLUST))
 					break;
 			}
-			if (volsize > (spc * FAT32_MAX_CLUSTERS)) {
+			while ((vol32 /spc) <= FAT16_MAX_CLUSTERS) {
+				spc >>= 1;
+			}
+			if (vol32 > (spc * FAT32_MAX_CLUSTERS)) {
 				(void) fprintf(stderr,
 				    gettext("Requested size is too "
 				    "large for FAT32.\n"));
@@ -1383,7 +1402,7 @@ compute_cluster_size(bpb_t *wbpb)
 		int nclust;
 
 		spc = SecPerClust;
-		nclust = volsize / spc;
+		nclust = (volsize - FAT32_ROOTDIR_AND_FAT_SIZE) / spc;
 
 		if (nclust <= FAT16_MAX_CLUSTERS && MakeFAT32) {
 			(void) fprintf(stderr, gettext("Requested size is too "

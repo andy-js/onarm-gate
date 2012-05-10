@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -470,7 +474,7 @@ static int port_copy_event32(port_event32_t *, port_kevent_t *, list_t *);
 #endif
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	static const fs_operation_def_t port_vfsops_template[] = {
 		NULL, NULL
@@ -514,7 +518,7 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

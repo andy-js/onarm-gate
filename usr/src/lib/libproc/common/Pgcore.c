@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -1044,6 +1047,9 @@ Pfgcore(struct ps_prochandle *P, int fd, core_content_t content)
 		ehdr.e_ident[EI_DATA] = ELFDATA2MSB;
 #elif defined(__i386) || defined(__amd64)
 		ehdr.e_machine = EM_386;
+		ehdr.e_ident[EI_DATA] = ELFDATA2LSB;
+#elif defined(__arm)
+		ehdr.e_machine = EM_ARM;
 		ehdr.e_ident[EI_DATA] = ELFDATA2LSB;
 #else
 #error "unknown machine type"

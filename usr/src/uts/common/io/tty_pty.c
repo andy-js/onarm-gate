@@ -10,6 +10,10 @@
  */
 
 /*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
+/*
  * PTY - Stream "pseudo-tty" device.  For each "controller" side
  * it connects to a "slave" side.
  */
@@ -126,7 +130,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int rc;
 
@@ -136,8 +140,9 @@ _init()
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int rc;
 
@@ -145,9 +150,10 @@ _fini()
 		ptc_uninit();
 	return (rc);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

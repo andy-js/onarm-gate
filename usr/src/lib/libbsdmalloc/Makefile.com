@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -36,7 +41,7 @@ include ../../Makefile.lib
 
 SRCDIR =	../common
 
-LIBS =          $(DYNLIB) $(LINTLIB)
+LIBS =          $(ARLIB) $(DYNLIB) $(LINTLIB)
 
 # definitions for lint
 
@@ -75,7 +80,7 @@ $(MSGDOMAIN):
 # include library targets
 include ../../Makefile.targ
 
-pics/%.o: ../common/%.c
+objs/%.o pics/%.o: ../common/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 

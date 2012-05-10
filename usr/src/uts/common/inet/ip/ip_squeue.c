@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -478,7 +482,7 @@ ip_squeue_extend(void *arg)
 	 * exists.
 	 */
 	if (!CPU_ISON(intr_cpu))
-		intr_cpu = CPU;
+		intr_cpu = CPU_GLOBAL;
 
 	sqs = intr_cpu->cpu_squeue_set;
 
@@ -565,7 +569,7 @@ ip_squeue_soft_ring_affinity(void *arg)
 	 * exists.
 	 */
 	if (!CPU_ISON(intr_cpu)) {
-		intr_cpu = CPU;
+		intr_cpu = CPU_GLOBAL;
 		cpu_id = intr_cpu->cpu_id;
 	}
 
@@ -728,7 +732,7 @@ ip_soft_ring_assignment(ill_t *ill, ill_rx_ring_t *ip_ring,
 
 		taskq_arg->ip_taskq_ill = ill;
 		taskq_arg->ip_taskq_ill_rx_ring = NULL;
-		taskq_arg->ip_taskq_cpu = CPU;
+		taskq_arg->ip_taskq_cpu = CPU_GLOBAL;
 
 		/*
 		 * Set ILL_SOFT_RING_ASSIGN flag. We don't want
@@ -958,7 +962,7 @@ ip_squeue_get(ill_rx_ring_t *ill_rx_ring)
 	 */
 	taskq_arg->ip_taskq_ill = ill;
 	taskq_arg->ip_taskq_ill_rx_ring = ill_rx_ring;
-	taskq_arg->ip_taskq_cpu = CPU;
+	taskq_arg->ip_taskq_cpu = CPU_GLOBAL;
 	ill_rx_ring->rr_ring_state = ILL_RING_INPROC;
 	mutex_exit(&ill->ill_lock);
 	refheld = ill_waiter_inc(ill);

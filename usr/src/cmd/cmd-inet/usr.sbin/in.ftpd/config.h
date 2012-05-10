@@ -33,6 +33,10 @@
  
 ****************************************************************************/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #define SOLARIS_2
 #define SVR4
 #define HAVE_STATVFS

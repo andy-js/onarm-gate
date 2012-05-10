@@ -26,9 +26,11 @@
  *
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
-char _depends_on[] = "misc/kgssapi crypto/md5";
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 #include <sys/modctl.h>
@@ -39,6 +41,8 @@ char _depends_on[] = "misc/kgssapi crypto/md5";
 #include <gssapi/kgssapi_defs.h>
 #include <sys/debug.h>
 #include <k5-int.h>
+
+MODDRV_DEPENDS_ON("misc/kgssapi crypto/md5");
 
 /* mechglue wrappers */
 
@@ -145,7 +149,7 @@ static struct modlinkage modlinkage = {
 static int krb5_fini_code = EBUSY;
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int retval;
 	gss_mechanism mech, tmp;
@@ -180,8 +184,9 @@ _init()
 	return (0);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int ret = krb5_fini_code;
 
@@ -190,9 +195,10 @@ _fini()
 	}
 	return (ret);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

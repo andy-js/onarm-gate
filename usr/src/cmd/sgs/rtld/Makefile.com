@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2009 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -96,10 +101,13 @@ LDLIBS +=	$(CONVLIBDIR) $(CONV_LIB) \
 		$(CPICLIB) $(CLIB) \
 		$(LDDBGLIBDIR) $(LDDBG_LIB) \
 		$(RTLDLIB) -lrtld \
-		$(LDLIB) $(LD_LIB) 
+		$(LDLIB) $(LD_LIB)
 
-DYNFLAGS +=	-i -e _rt_boot $(VERSREF) $(ZLAZYLOAD) $(ZNODLOPEN) \
-		$(ZINTERPOSE) -zdtrace=dtrace_data '-R$$ORIGIN'
+DYNFLAGS_I		= -i
+$(__GNULD)DYNFLAGS_I	=
+ZDTRACE_DATA		= -zdtrace=dtrace_data
+DYNFLAGS +=	$(DYNFLAGS_I) -e _rt_boot $(VERSREF) $(ZLAZYLOAD) $(ZNODLOPEN) \
+		$(ZINTERPOSE) $(ZDTRACE_DATA) '-R$$ORIGIN'
 
 BUILD.s=	$(AS) $(ASFLAGS) $< -o $@
 
@@ -118,11 +126,13 @@ SGSMSGSPARC64=	../common/rtld.sparc64.msg
 SGSMSGINTEL=	../common/rtld.intel.msg
 SGSMSGINTEL32=	../common/rtld.intel32.msg
 SGSMSGINTEL64=	../common/rtld.intel64.msg
+SGSMSGARM=	../common/rtld.arm.msg
 SGSMSGCHK=	../common/rtld.chk.msg
 SGSMSGTARG=	$(SGSMSGCOM)
 SGSMSGALL=	$(SGSMSGCOM) $(SGSMSG32) $(SGSMSG64) \
 		$(SGSMSGSPARC) $(SGSMSGSPARC32) $(SGSMSGSPARC64) \
-		$(SGSMSGINTEL) $(SGSMSGINTEL32) $(SGSMSGINTEL64)
+		$(SGSMSGINTEL) $(SGSMSGINTEL32) $(SGSMSGINTEL64) \
+		$(SGSMSGARM)
 
 SGSMSGFLAGS1=	$(SGSMSGFLAGS) -m $(BLTMESG)
 SGSMSGFLAGS2=	$(SGSMSGFLAGS) -h $(BLTDEFS) -d $(BLTDATA) -n rtld_msg

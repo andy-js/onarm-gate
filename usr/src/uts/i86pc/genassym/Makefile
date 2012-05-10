@@ -22,6 +22,12 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 #	This makefile drives the production of assym.h through
@@ -61,6 +67,8 @@ DSF_DIR		= .
 CLEANFILES	= $(GENASSYM) Nothing_to_remove
 CLOBBERFILES	= $(ASSYM_H) $(KDI_ASSYM.H) $(CLEANFILES) Nothing_to_remove
 
+USE_MODTUNE	= $(POUND_SIGN)
+
 #
 #	Default build targets.
 #
@@ -83,11 +91,14 @@ CPPFLAGS += -I../../i86pc/io/ppm
 #
 # Create assym.h
 #
+ASSYM_H_DEPS	= $(ARCH_MODTUNE_H) $(MACH_MODTUNE_H) \
+		  $(OFFSETS_SRC) $(PLATFORM_OFFSETS_SRC) $(GENASSYM)
+
 $(GENASSYM): $(GENASSYM_SRC)
 	$(NATIVECC) $(ALWAYS_DEFS) $(GENASSYM_DEFS) $(NATIVE_INC_PATH) \
 	   -o $@ $(GENASSYM_SRC)
 
-$(ASSYM_H): $(OFFSETS_SRC) $(PLATFORM_OFFSETS_SRC) $(GENASSYM)
+$(ASSYM_H):	$(ASSYM_H_DEPS)
 	$(OFFSETS_CREATE) <$(OFFSETS_SRC) >$@
 	$(OFFSETS_CREATE) <$(PLATFORM_OFFSETS_SRC) >>$@
 	$(GENASSYM) >>$@

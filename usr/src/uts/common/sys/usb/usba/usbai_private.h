@@ -23,6 +23,9 @@
  * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_SYS_USB_USBA_USBAI_PRIVATE_H
 #define	_SYS_USB_USBA_USBAI_PRIVATE_H
@@ -229,6 +232,11 @@ void usb_dprintf3(
 #define	USB_DPRINTF_L2	usb_dprintf2
 #define	USB_DPRINTF_L1	usb_dprintf1
 #define	USB_DPRINTF_L0	usb_dprintf0
+
+#if defined(USB_SHRINK) && !defined(DEBUG)
+#undef	USB_DPRINTF_L2
+#define	USB_DPRINTF_L2  0 &&
+#endif
 
 /*PRINTFLIKE3*/
 void usb_dprintf2(

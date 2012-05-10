@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -495,6 +499,12 @@ pkcs11_slot_mapping(uentrylist_t *pplist, CK_VOID_PTR pInitArgs)
 		 * of a path - but that wouldn't work in the kernel case.
 		 */
 		while ((kcfdfd = open(_PATH_KCFD_DOOR, O_RDONLY)) == -1) {
+#ifdef	__arm
+			if (errno == ENOENT) {
+				estatus = ELFSIGN_SUCCESS;
+				goto verifycleanup;
+			}
+#endif	/* __arm */
 			if (!(errno == EINTR || errno == EAGAIN))
 				break;
 		}

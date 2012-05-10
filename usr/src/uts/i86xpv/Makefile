@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 #	This makefile drives the production of all implementation architecture
@@ -151,7 +156,10 @@ lint:	lintlib .WAIT modlintlib .WAIT $(INTEL_LINTS) $(LINT_DEPS)
 $(INTEL_LINTS):	FRC
 	@cd $(UTSBASE)/intel/$@; pwd; $(MAKE) modlintlib
 
-FRC:
+#
+# Special rules to support tunable parameters.
+#
+$(USE_UTSTUNE)include	Makefile.tune
 
 include ../Makefile.targ
 

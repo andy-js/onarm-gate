@@ -25,6 +25,10 @@
 #
 # cmd/geniconvtbl/Makefile.com
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 $(NOT_NATIVE)NATIVE_BUILD = $(POUND_SIGN)
 
 ITM	= geniconvtbl.so
@@ -100,6 +104,8 @@ LDLIBS += -lgen
 MY_NATIVE_CPPFLAGS = -D_FILE_OFFSET_BITS=64 -I. -I..
 MY_NATIVE_LDFLAGS = $(MAPFILE.NES:%=-M%) $(MAPFILE.PGA:%=-M%) $(MAPFILE.NED:%=-M%)
 MY_NATIVE_LDLIBS = -lgen
+
+$(__GNUC)MY_NATIVE_CPPFLAGS	+= $(NATIVE_CPPFLAGS)
 
 #
 # Message catalog

@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -114,6 +118,7 @@
 #include <sys/condvar_impl.h>
 #include <sys/mutex_impl.h>
 #include <sys/rctl.h>
+#include <sys/lpg_config.h>
 
 #include <vm/as.h>
 #include <vm/hat.h>
@@ -993,6 +998,8 @@ anon_decref(struct anon *ap)
 }
 
 
+#ifndef	LPG_DISABLE
+
 /*
  * check an_refcnt of the root anon slot (anon_index argument is aligned at
  * seg->s_szc level) to determine whether COW processing is required.
@@ -1224,6 +1231,9 @@ anon_decref_pages(
 	}
 }
 
+#endif	/* !LPG_DISABLE */
+
+
 /*
  * Duplicate references to size bytes worth of anon pages.
  * Used when duplicating a segment that contains private anon pages.
@@ -1266,6 +1276,8 @@ anon_dup(struct anon_hdr *old, ulong_t old_idx, struct anon_hdr *new,
 		npages--;
 	}
 }
+
+#ifndef	LPG_DISABLE
 
 /*
  * Just like anon_dup but also guarantees there are no holes (unallocated anon
@@ -1479,6 +1491,8 @@ anon_fill_cow_holes(
 	return (err);
 }
 
+#endif	/* !LPG_DISABLE */
+
 /*
  * Free a group of "size" anon pages, size in bytes,
  * and clear out the pointers to the anon entries.
@@ -1511,6 +1525,8 @@ anon_free(struct anon_hdr *ahp, ulong_t index, size_t size)
 		npages--;
 	}
 }
+
+#ifndef	LPG_DISABLE
 
 void
 anon_free_pages(
@@ -1561,6 +1577,8 @@ anon_free_pages(
 		npages -= pgcnt;
 	}
 }
+
+#endif	/* !LPG_DISABLE */
 
 /*
  * Make anonymous pages discardable
@@ -1615,7 +1633,8 @@ anon_disclaim(struct anon_map *amp, ulong_t index, size_t size)
 			anon_array_exit(&cookie);
 			continue;
 		}
-		pgcnt = page_get_pagecnt(pp->p_szc);
+		SZC_ASSERT(pp->p_szc);
+		pgcnt = page_get_pagecnt(SZC_EVAL(pp->p_szc));
 
 		/*
 		 * we cannot free a page which is permanently locked.
@@ -1643,7 +1662,7 @@ anon_disclaim(struct anon_map *amp, ulong_t index, size_t size)
 			continue;
 		}
 
-		if (pp->p_szc == 0) {
+		if (SZC_EVAL(pp->p_szc) == 0) {
 			pgcnt = 1;
 
 			/*
@@ -1812,6 +1831,7 @@ anon_getpage(
 	return (err);
 }
 
+#ifndef	LPG_DISABLE
 /*
  * Creates or returns kept pages to the segment driver.  returns -1 if a large
  * page cannot be allocated. returns -2 if some other process has allocated a
@@ -2234,6 +2254,7 @@ io_err:
 	VM_STAT_ADD(anonvmstats.getpages[29]);
 	goto docow;
 }
+#endif	/* !LPG_DISABLE */
 
 
 /*
@@ -2391,6 +2412,8 @@ out:
 	page_unlock(opp);
 	return ((page_t *)NULL);
 }
+
+#ifndef	LPG_DISABLE
 
 int
 anon_map_privatepages(
@@ -2643,6 +2666,8 @@ anon_map_privatepages(
 	return (0);
 }
 
+#endif	/* !LPG_DISABLE */
+
 /*
  * Allocate a private zero-filled anon page.
  */
@@ -2686,6 +2711,7 @@ anon_zero(struct seg *seg, caddr_t addr, struct anon **app, struct cred *cred)
 	return (pp);
 }
 
+#ifndef	LPG_DISABLE
 
 /*
  * Allocate array of private zero-filled anon pages for empty slots
@@ -3202,6 +3228,8 @@ anon_shmap_free_pages(struct anon_map *amp, ulong_t sidx, size_t len)
 	}
 }
 
+#endif	/* !LPG_DISABLE */
+
 /*
  * Allocate and initialize an anon_map structure for seg
  * associating the given swap reservation with the new anon_map.
@@ -3415,7 +3443,8 @@ anon_array_enter(struct anon_map *amp, ulong_t an_idx, anon_sync_obj_t *sobj)
 	 */
 
 	ASSERT(RW_READ_HELD(&amp->a_rwlock));
-	an_idx = P2ALIGN(an_idx, page_get_pagecnt(amp->a_szc));
+	SZC_ASSERT(amp->a_szc);
+	an_idx = P2ALIGN(an_idx, page_get_pagecnt(SZC_EVAL(amp->a_szc)));
 	hash = ANON_ARRAY_HASH(amp, an_idx);
 	sobj->sync_mutex = mtx = &anon_array_lock[hash].pad_mutex;
 	sobj->sync_cv = cv = &anon_array_cv[hash];
@@ -3447,7 +3476,8 @@ anon_array_try_enter(struct anon_map *amp, ulong_t an_idx,
 	 */
 
 	ASSERT(RW_READ_HELD(&amp->a_rwlock));
-	an_idx = P2ALIGN(an_idx, page_get_pagecnt(amp->a_szc));
+	SZC_ASSERT(amp->a_szc);
+	an_idx = P2ALIGN(an_idx, page_get_pagecnt(SZC_EVAL(amp->a_szc)));
 	hash = ANON_ARRAY_HASH(amp, an_idx);
 	sobj->sync_mutex = mtx = &anon_array_lock[hash].pad_mutex;
 	sobj->sync_cv = &anon_array_cv[hash];

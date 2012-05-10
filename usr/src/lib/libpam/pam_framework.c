@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <syslog.h>
@@ -398,7 +402,7 @@ int
 pam_set_item(pam_handle_t *pamh, int item_type, const void *item)
 {
 	struct pam_item *pip;
-	int	size;
+	int	size = 0;
 	char	iname_buf[PAM_MAX_MSG_SIZE];
 
 	if (((pam_debug & PAM_DEBUG_ITEM) == 0) || (pamh == NULL)) {
@@ -576,6 +580,8 @@ pam_get_item(const pam_handle_t *pamh, int item_type, void **item)
 	struct pam_item *pip;
 	char	iname_buf[PAM_MAX_MSG_SIZE];
 
+	if (item != NULL)
+		*item = NULL;
 	if (((pam_debug & PAM_DEBUG_ITEM) == 0) || (pamh == NULL)) {
 		pam_trace(PAM_DEBUG_ITEM, "pam_get_item(%p:%s)",
 		    (void *)pamh, pam_trace_iname(item_type, iname_buf));
@@ -841,8 +847,8 @@ pam_set_data(pam_handle_t *pamh, const char *module_data_name, void *data,
 
 	pam_trace(PAM_DEBUG_DATA,
 	    "pam_set_data(%p:%s:%d)=%p", (void *)pamh,
-	    module_data_name ? module_data_name : "NULL", pamh->pam_inmodule,
-	    data);
+	    module_data_name ? module_data_name : "NULL",
+	    pamh ? pamh->pam_inmodule : RW_NG, data);
 	if (pamh == NULL || (pamh->pam_inmodule != WO_OK) ||
 	    module_data_name == NULL) {
 		return (PAM_SYSTEM_ERR);
@@ -894,7 +900,7 @@ pam_get_data(const pam_handle_t *pamh, const char *module_data_name,
 		pam_trace(PAM_DEBUG_DATA,
 		    "pam_get_data(%p:%s:%d)=%p", (void *)pamh,
 		    module_data_name ? module_data_name : "NULL",
-		    pamh->pam_inmodule, *data);
+		    pamh ? pamh->pam_inmodule : RW_NG, *data);
 		return (PAM_SYSTEM_ERR);
 	}
 
@@ -1094,6 +1100,7 @@ include:
 				    [PAM_MAX_INCLUDE] == NULL ? "NULL" :
 				    pamh->pam_conf_name[PAM_MAX_INCLUDE],
 				    PAM_MAX_INCLUDE);
+				err = PAM_SYSTEM_ERR;
 				goto exit_return;
 			}
 			if ((err = read_pam_conf(pamh,
@@ -1111,6 +1118,7 @@ include:
 				    "run_stack[%d:%s]: no include module "
 				    "present %s", pamh->include_depth,
 				    pam_trace_cname(pamh), function_name);
+				err = PAM_IGNORE;
 				goto exit_return;
 			}
 			if (modulep->pam_flag & PAM_INCLUDE) {
@@ -1135,6 +1143,7 @@ include:
 				__pam_log(LOG_AUTH | LOG_ERR,
 				    "%s no initial module present",
 				    pam_trace_cname(pamh));
+				err = PAM_IGNORE;
 				goto exit_return;
 			}
 		} else if ((err = load_modules(pamh, type, sm_name(ind),
@@ -1404,7 +1413,7 @@ pam_putenv(pam_handle_t *pamh, const char *name_value)
 	int		error = PAM_SYSTEM_ERR;
 	char		*equal_sign = 0;
 	char		*name = NULL, *value = NULL, *tmp_value = NULL;
-	env_list	*traverse, *trail;
+	env_list	*traverse = NULL, *trail;
 
 	pam_trace(PAM_DEBUG_DEFAULT,
 	    "pam_putenv(%p, %s)", (void *)pamh,
@@ -2803,9 +2812,12 @@ __pam_display_msg(pam_handle_t *pamh, int msg_style, int num_msg,
     char messages[PAM_MAX_NUM_MSG][PAM_MAX_MSG_SIZE], void *conv_apdp)
 {
 	struct pam_response	*ret_respp = NULL;
+	int status;
 
-	return (do_conv(pamh, msg_style, num_msg, messages,
-	    conv_apdp, &ret_respp));
+	status = do_conv(pamh, msg_style, num_msg, messages,
+	    conv_apdp, &ret_respp);
+	free_resp(1, ret_respp);
+	return (status);
 }
 
 /*
@@ -2891,6 +2903,7 @@ __pam_get_authtok(pam_handle_t *pamh, int source, int type, char *prompt,
 
 		if (ret_resp->resp == NULL) {
 			/* getpass didn't return anything */
+			free_resp(1, ret_resp);
 			error = PAM_SYSTEM_ERR;
 			goto err_ret;
 		}

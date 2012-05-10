@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2009 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -41,10 +46,10 @@ ROOTFS_LIB64=	$(ROOTFS_LIB)/$(MACH64)
 
 ROOTVARIANTDIR=	$(ROOTLIB)/libc
 
-ROOTFS_LINTDIR=		$(ROOTFS_LIB)
-ROOTFS_LINTDIR64=	$(ROOTFS_LIB64)
-ROOTFS_LINTLIB=		$(ROOTFS_LINTDIR)/$(LINTLIB)
-ROOTFS_LINTLIB64=	$(ROOTFS_LINTDIR64)/$(LINTLIB)
+$(__LINT)ROOTFS_LINTDIR=		$(ROOTFS_LIB)
+$(__LINT)ROOTFS_LINTDIR64=	$(ROOTFS_LIB64)
+$(__LINT)ROOTFS_LINTLIB=		$(ROOTFS_LINTDIR)/$(LINTLIB)
+$(__LINT)ROOTFS_LINTLIB64=	$(ROOTFS_LINTDIR64)/$(LINTLIB)
 
 # include common library definitions
 include ../Makefile.lib
@@ -72,7 +77,11 @@ sparc_ETC=
 VARIANTS=	$($(MACH)_VARIANTS)
 VARIANT_SUBDIRS	= $(VARIANTS:%=$(MACH)_%)
 
-SUBDIRS=	$(MACH) $(MACH_ETC) $(VARIANT_SUBDIRS)
+UNICODEDIR =
+$(ARM_BLD)USE_UNICODE	=
+$(ARM_BLD)$(__GNULD)USE_UNICODE = $(POUND_SIGN)
+$(ARM_BLD)$(USE_UNICODE)UNICODEDIR = $(MACH)/unicode
+SUBDIRS=	$(MACH) $(UNICODEDIR) $(MACH_ETC) $(VARIANT_SUBDIRS)
 $(BUILD64)SUBDIRS += $(MACH64)
 
 LIBS =		$(DYNLIB) $(LINTLIB)
@@ -101,13 +110,18 @@ $(ROOTVARIANTDIR)/$(VAR1_DYNLIB)	:= FILEMODE= 755
 $(ROOTVARIANTDIR)/$(VAR2_DYNLIB)	:= FILEMODE= 755
 $(ROOTVARIANTDIR)/$(VAR3_DYNLIB)	:= FILEMODE= 755
 
+$(ARM_BLD)SETUP_I18N	= setup_i18n
+
 .KEEP_STATE:
 
-all:	check_i18n .WAIT lib32 $(BUILD64) .WAIT lib64 .WAIT etc
+all:	check_i18n .WAIT lib32 $(UNICODEDIR) $(BUILD64) .WAIT lib64 .WAIT etc
+
+# check_i18n:	$(SETUP_I18N)
 
 check_i18n:
 	@if [ ! -f $(ROOTFS_LIBDIR)/libc_i18n.a -o \
-	    ! -f $(ROOTFS_LIBDIR64)/libc_i18n.a ]; then \
+	      \( -z "$(BUILD64)" -a \
+		! -f $(ROOTFS_LIBDIR64)/libc_i18n.a \) ]; then \
 		if [ "$$CLOSED_IS_PRESENT" = no ]; then \
 			$(ECHO) "Warning: closed binaries not" \
 			    "properly unpacked." >&2;\
@@ -120,11 +134,15 @@ check_i18n:
 		fi \
 	fi
 
+$(ARM_BLD)setup_i18n:	FRC
+$(ARM_BLD)	@cd $(MACH); pwd; VERSION='$(VERSION)' $(MAKE) $@
+
 etc:	$($(MACH)_ETC)
 
 lib32:	$(MACHLIBS) $(MACH)/$(LIB_PIC) $(VARIANTLIBS)
 	mkdir -p $(MACH)/i18n_pics
 	cd $(MACH)/i18n_pics ; $(AR) -x $(ROOTFS_LIBDIR)/libc_i18n.a
+	$(CHECK_FNAMES) -s $(C_SYNONYMS_H) -l $(MACH)/$(DYNLIB) $(MACH)/pics/*.o $(MACH)/i18n_pics/*.o
 	$(CHECK_FNAMES) -s $(C_SYNONYMS_H) -l $(MACH)/$(DYNLIB) \
 		$(MACH)/pics/*.o $(MACH)/i18n_pics/*.o
 
@@ -143,6 +161,7 @@ $($(MACH)_ETC): FRC
 
 install:	all			\
 		etc			\
+		$(UNICODEDIR)		\
 		inslib32		\
 		$(BUILD64) inslib64
 

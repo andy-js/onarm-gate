@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _BSM_AUDIT_KERNEL_H
 #define	_BSM_AUDIT_KERNEL_H
 
@@ -338,6 +342,8 @@ extern zone_key_t au_zone_key;
  * Kernel auditing external variables
  */
 extern int audit_policy;
+#undef	_C2_AUDIT_STUB
+#undef	audit_active
 extern int audit_active;
 extern int audit_load;
 extern int au_auditstate;

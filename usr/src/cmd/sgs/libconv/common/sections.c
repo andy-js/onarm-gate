@@ -23,6 +23,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -32,6 +37,7 @@
 #include	<sys/param.h>
 #include	<sys/elf_SPARC.h>
 #include	<sys/elf_amd64.h>
+#include	<sys/elf_ARM.h>
 #include	<_conv.h>
 #include	<sections_msg.h>
 
@@ -93,6 +99,8 @@ const char *
 conv_sec_type(Half mach, Word sec, Conv_fmt_flags_t fmt_flags,
     Conv_inv_buf_t *inv_buf)
 {
+	int	alt;
+
 	if (sec < SHT_NUM) {
 		switch (CONV_TYPE_FMT_ALT(fmt_flags)) {
 		case CONV_FMT_ALT_DUMP:
@@ -133,6 +141,33 @@ conv_sec_type(Half mach, Word sec, Conv_fmt_flags_t fmt_flags,
 				return (MSG_ORIG(MSG_SHT_AMD64_UNWIND_ALT));
 			}
 			return (MSG_ORIG(MSG_SHT_AMD64_UNWIND));
+
+		case EM_ARM:
+			switch (CONV_TYPE_FMT_ALT(fmt_flags)) {
+			case CONV_FMT_ALT_DUMP:
+			case CONV_FMT_ALT_FILE:
+				alt = 1;
+				break;
+			default:
+				alt = 0;
+				break;
+			}
+
+			if (sec == SHT_ARM_EXIDX) {
+				return (alt)
+					? MSG_ORIG(MSG_SHT_ARM_EXIDX_ALT)
+					: MSG_ORIG(MSG_SHT_ARM_EXIDX);
+			}
+			if (sec == SHT_ARM_PREEMPTMAP) {
+				return (alt)
+					? MSG_ORIG(MSG_SHT_ARM_PREEMPTMAP_ALT)
+					: MSG_ORIG(MSG_SHT_ARM_PREEMPTMAP);
+			}
+			if (sec == SHT_ARM_ATTRIBUTES) {
+				return (alt)
+					? MSG_ORIG(MSG_SHT_ARM_ATTRIBUTES_ALT)
+					: MSG_ORIG(MSG_SHT_ARM_ATTRIBUTES);
+			}
 		}
 	}
 

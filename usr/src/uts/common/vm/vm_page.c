@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -81,6 +85,7 @@
 #include <fs/fs_subr.h>
 #include <sys/ddi.h>
 #include <sys/modctl.h>
+#include <sys/lpg_config.h>
 
 static int nopageage = 0;
 
@@ -348,10 +353,37 @@ enum lpap lpg_alloc_prefer = LPAP_DEFAULT;
 static void page_init_mem_config(void);
 static int page_do_hashin(page_t *, vnode_t *, u_offset_t);
 static void page_do_hashout(page_t *);
+#ifdef	PAGE_RETIRE_DISABLE
+#define	page_capture_init()
+#else	/* !PAGE_RETIRE_DISABLE */
 static void page_capture_init();
+#endif	/* PAGE_RETIRE_DISABLE */
 int page_capture_take_action(page_t *, uint_t, void *);
 
+#ifdef	LPG_DISABLE
+
+/*
+ * Define wrapper functions and macros here to eliminate unused code.
+ */
+static inline int
+__page_try_demote_pages(page_t *pp)
+{
+	ASSERT(PAGE_EXCL(pp));
+	SZC_ASSERT(pp->p_szc);
+	VM_STAT_ADD(pagecnt.pc_try_demote_pages[0]);
+	VM_STAT_ADD(pagecnt.pc_try_demote_pages[1]);
+	return (1);
+}
+
+#define	page_try_demote_pages(pp)	__page_try_demote_pages(pp)
+#define	page_list_add_pages(pp, flags)	((void)0)
+#define	page_demote_vp_pages(pp)	((void)0)
+
+#else	/* !LPG_DISABLE */
+
 static void page_demote_vp_pages(page_t *);
+
+#endif	/* LPG_DISABLE */
 
 /*
  * vm subsystem related initialization
@@ -541,7 +573,7 @@ add_physmem(
 	pfn_t	pnum)
 {
 	page_t	*root = NULL;
-	uint_t	szc = page_num_pagesizes() - 1;
+	uint_t	szc = SZC_EVAL(page_num_pagesizes() - 1);
 	pgcnt_t	large = page_get_pagecnt(szc);
 	pgcnt_t	cnt = 0;
 
@@ -825,7 +857,9 @@ top:
 			mutex_exit(phm);
 		}
 
-		if (newpp != NULL && pp->p_szc < newpp->p_szc &&
+		SZC_ASSERT(pp->p_szc);
+		if (newpp != NULL &&
+		    SZC_EVAL(pp->p_szc) < SZC_EVAL(newpp->p_szc) &&
 		    PAGE_EXCL(pp) && nrelocp != NULL) {
 			ASSERT(nrelocp != NULL);
 			(void) page_relocate(&pp, &newpp, 1, 1, nrelocp,
@@ -1021,6 +1055,8 @@ page_exists(vnode_t *vp, u_offset_t off)
 
 	return (pp);
 }
+
+#ifndef	LPG_DISABLE
 
 /*
  * Determine if physically contiguous pages exist for [vp, off] - [vp, off +
@@ -1292,6 +1328,8 @@ page_exists_forreal(vnode_t *vp, u_offset_t off, uint_t *szc)
 	mutex_exit(phm);
 	return (rc);
 }
+
+#endif	/* !LPG_DISABLE */
 
 /* wakeup threads waiting for pages in page_create_get_something() */
 void
@@ -1975,6 +2013,8 @@ page_create(vnode_t *vp, u_offset_t off, size_t bytes, uint_t flags)
 	return (page_create_va(vp, off, bytes, flags, &kseg, random_vaddr));
 }
 
+#ifndef	LPG_DISABLE
+
 #ifdef DEBUG
 uint32_t pg_alloc_pgs_mtbf = 0;
 #endif
@@ -2275,8 +2315,8 @@ page_create_va_large(vnode_t *vp, u_offset_t off, size_t bytes, uint_t flags,
 	 * hardware pagesize chunk.  If we can't, we fail.
 	 */
 	if (lgrpid != NULL && *lgrpid >= 0 && *lgrpid <= lgrp_alloc_max &&
-	    LGRP_EXISTS(lgrp_table[*lgrpid]))
-		lgrp = lgrp_table[*lgrpid];
+	    LGRP_EXISTS(LGRP_ID_TO_LGRP(*lgrpid)))
+		lgrp = LGRP_ID_TO_LGRP(*lgrpid);
 	else
 		lgrp = lgrp_mem_choose(seg, vaddr, bytes);
 
@@ -2330,6 +2370,8 @@ page_create_va_large(vnode_t *vp, u_offset_t off, size_t bytes, uint_t flags,
 	VM_STAT_ADD(page_create_large_cnt[0]);
 	return (rootpp);
 }
+
+#endif	/* !LPG_DISABLE */
 
 page_t *
 page_create_va(vnode_t *vp, u_offset_t off, size_t bytes, uint_t flags,
@@ -2747,7 +2789,8 @@ page_free(page_t *pp, int dontneed)
 		panic("page_free: page %p is free", (void *)pp);
 	}
 
-	if (pp->p_szc != 0) {
+	SZC_ASSERT(pp->p_szc);
+	if (SZC_EVAL(pp->p_szc) != 0) {
 		if (pp->p_vnode == NULL || IS_SWAPFSVP(pp->p_vnode) ||
 		    PP_ISKAS(pp)) {
 			panic("page_free: anon or kernel "
@@ -2879,6 +2922,8 @@ page_free_at_startup(page_t *pp)
 	freemem += 1;
 }
 
+#ifndef	LPG_DISABLE
+
 void
 page_free_pages(page_t *pp)
 {
@@ -2927,6 +2972,8 @@ page_free_pages(page_t *pp)
 	page_list_add_pages(rootpp, 0);
 	page_create_putback(pgcnt);
 }
+
+#endif	/* !LPG_DISABLE */
 
 int free_pages = 1;
 
@@ -3183,7 +3230,8 @@ page_destroy(page_t *pp, int dontfree)
 	    !page_iolock_assert(pp)) || panicstr);
 	ASSERT(pp->p_slckcnt == 0 || panicstr);
 
-	if (pp->p_szc != 0) {
+	SZC_ASSERT(pp->p_szc);
+	if (SZC_EVAL(pp->p_szc) != 0) {
 		if (pp->p_vnode == NULL || IS_SWAPFSVP(pp->p_vnode) ||
 		    PP_ISKAS(pp)) {
 			panic("page_destroy: anon or kernel or no vnode "
@@ -3226,6 +3274,8 @@ page_destroy(page_t *pp, int dontfree)
 		page_free(pp, 0);
 	}
 }
+
+#ifndef	LPG_DISABLE
 
 void
 page_destroy_pages(page_t *pp)
@@ -3283,6 +3333,8 @@ page_destroy_pages(page_t *pp)
 	page_list_add_pages(rootpp, 0);
 	page_create_putback(pgcnt);
 }
+
+#endif	/* !LPG_DISABLE */
 
 /*
  * Similar to page_destroy(), but destroys pages which are
@@ -3360,7 +3412,8 @@ page_rename(page_t *opp, vnode_t *vp, u_offset_t off)
 	 * renaming it, to ensure that there are no "partial"
 	 * large pages left lying around.
 	 */
-	if (opp->p_szc != 0) {
+	SZC_ASSERT(opp->p_szc);
+	if (SZC_EVAL(opp->p_szc) != 0) {
 		vnode_t *ovp = opp->p_vnode;
 		ASSERT(ovp != NULL);
 		ASSERT(!IS_SWAPFSVP(ovp));
@@ -3391,6 +3444,7 @@ top:
 	 */
 	PAGE_HASH_SEARCH(index, pp, vp, off);
 	if (pp != NULL) {
+		SZC_ASSERT(pp->p_szc);
 		VM_STAT_ADD(page_rename_exists);
 
 		/*
@@ -3429,14 +3483,14 @@ top:
 			 */
 			mutex_exit(phm);
 			(void) hat_pageunload(pp, HAT_FORCE_PGUNLOAD);
-			if (pp->p_szc != 0) {
+			if (SZC_EVAL(pp->p_szc) != 0) {
 				ASSERT(!IS_SWAPFSVP(vp));
 				ASSERT(!VN_ISKAS(vp));
 				page_demote_vp_pages(pp);
 				ASSERT(pp->p_szc == 0);
 			}
 			mutex_enter(phm);
-		} else if (pp->p_szc != 0) {
+		} else if (SZC_EVAL(pp->p_szc) != 0) {
 			ASSERT(!IS_SWAPFSVP(vp));
 			ASSERT(!VN_ISKAS(vp));
 			mutex_exit(phm);
@@ -4577,6 +4631,8 @@ top:
 	}
 }
 
+#ifndef	PGRELOC_DISABLE
+
 /*
  * Replace the page "old" with the page "new" on the page hash and vnode lists
  *
@@ -4671,6 +4727,7 @@ page_do_relocate_hash(page_t *new, page_t *old)
 	mutex_exit(sep);
 }
 
+
 /*
  * This function moves the identity of page "pp_old" to page "pp_new".
  * Both pages must be locked on entry.  "pp_new" is free, has no identity,
@@ -4748,8 +4805,9 @@ group_page_trylock(page_t *pp, se_t se)
 {
 	page_t  *tpp;
 	pgcnt_t	npgs, i, j;
-	uint_t pszc = pp->p_szc;
+	uint_t pszc = SZC_EVAL(pp->p_szc);
 
+	SZC_ASSERT(pp->p_szc);
 #ifdef DEBUG
 	if (gpg_trylock_mtbf && !(gethrtime() % gpg_trylock_mtbf)) {
 		return (0);
@@ -4800,7 +4858,8 @@ group_page_unlock(page_t *pp)
 	ASSERT(PAGE_LOCKED(pp));
 	ASSERT(!PP_ISFREE(pp));
 	ASSERT(pp == PP_PAGEROOT(pp));
-	npgs = page_get_pagecnt(pp->p_szc);
+	SZC_ASSERT(pp->p_szc);
+	npgs = page_get_pagecnt(SZC_EVAL(pp->p_szc));
 	for (i = 1, tpp = pp + 1; i < npgs; i++, tpp++) {
 		page_unlock(tpp);
 	}
@@ -4859,7 +4918,8 @@ do_page_relocate(
 	targ = *target;
 	ASSERT(PAGE_EXCL(targ));
 	ASSERT(!PP_ISFREE(targ));
-	szc = targ->p_szc;
+	SZC_ASSERT(targ->p_szc);
+	szc = SZC_EVAL(targ->p_szc);
 	ASSERT(szc < mmu_page_sizes);
 	VM_STAT_ADD(vmm_vmstats.ppr_reloc[szc]);
 	pfn = targ->p_pagenum;
@@ -4868,7 +4928,7 @@ do_page_relocate(
 		return (ERANGE);
 	}
 
-	if ((repl = *replacement) != NULL && repl->p_szc >= szc) {
+	if ((repl = *replacement) != NULL && SZC_EVAL(repl->p_szc) >= szc) {
 		repl_pfn = repl->p_pagenum;
 		if (repl_pfn != PFN_BASE(repl_pfn, szc)) {
 			VM_STAT_ADD(vmm_vmstats.ppr_reloc_replnoroot[szc]);
@@ -4890,7 +4950,8 @@ do_page_relocate(
 	 * reread szc it could have been decreased before
 	 * group_page_trylock() was done.
 	 */
-	szc = targ->p_szc;
+	SZC_ASSERT(targ->p_szc);
+	szc = SZC_EVAL(targ->p_szc);
 	ASSERT(szc < mmu_page_sizes);
 	VM_STAT_ADD(vmm_vmstats.ppr_reloc[szc]);
 	ASSERT(pfn == PFN_BASE(pfn, szc));
@@ -5095,7 +5156,8 @@ page_free_replacement_page(page_t *pplist)
 		 * pp_targ is a linked list.
 		 */
 		pp = pplist;
-		if (pp->p_szc == 0) {
+		SZC_ASSERT(pp->p_szc);
+		if (SZC_EVAL(pp->p_szc) == 0) {
 			page_sub(&pplist, pp);
 			page_clr_all_props(pp);
 			PP_SETFREE(pp);
@@ -5136,7 +5198,7 @@ page_relocate_cage(page_t **target, page_t **replacement)
 	ASSERT(PAGE_EXCL(tpp));
 	ASSERT(tpp->p_szc == 0);
 
-	pgcnt = btop(page_get_pagesize(tpp->p_szc));
+	pgcnt = btop(page_get_pagesize(SZC_EVAL(tpp->p_szc)));
 
 	do {
 		(void) page_create_wait(pgcnt, PG_WAIT | PG_NORELOC);
@@ -5159,6 +5221,8 @@ page_relocate_cage(page_t **target, page_t **replacement)
 
 	return (result);
 }
+
+#endif	/* !PGRELOC_DISABLE */
 
 /*
  * Release the page lock on a page, place on cachelist
@@ -5200,6 +5264,8 @@ page_release(page_t *pp, int checkmod)
 	}
 	return (status);
 }
+
+#ifndef	LPG_DISABLE
 
 /*
  * Given a constituent page, try to demote the large page on the freelist.
@@ -5271,7 +5337,8 @@ page_try_demote_pages(page_t *pp)
 
 	VM_STAT_ADD(pagecnt.pc_try_demote_pages[0]);
 
-	if (pp->p_szc == 0) {
+	SZC_ASSERT(pp->p_szc);
+	if (SZC_EVAL(pp->p_szc) == 0) {
 		VM_STAT_ADD(pagecnt.pc_try_demote_pages[1]);
 		return (1);
 	}
@@ -5437,6 +5504,10 @@ page_demote_vp_pages(page_t *pp)
 	ASSERT(pp->p_szc == 0);
 }
 
+#endif	/* !LPG_DISABLE */
+
+#ifndef	PGRELOC_DISABLE
+
 /*
  * Mark any existing pages for migration in the given range
  */
@@ -5475,7 +5546,8 @@ page_mark_migrate(struct seg *seg, caddr_t addr, size_t len,
 	/*
 	 * Align address and length to (potentially large) page boundary
 	 */
-	segpgsz = page_get_pagesize(seg->s_szc);
+	SZC_ASSERT(seg->s_szc);
+	segpgsz = page_get_pagesize(SZC_EVAL(seg->s_szc));
 	addr = (caddr_t)P2ALIGN((uintptr_t)addr, segpgsz);
 	if (rflag)
 		len = P2ROUNDUP(len, segpgsz);
@@ -5535,7 +5607,8 @@ page_mark_migrate(struct seg *seg, caddr_t addr, size_t len,
 		 * Get page size, and round up and skip to next page boundary
 		 * if unaligned address
 		 */
-		pszc = pp->p_szc;
+		SZC_ASSERT(pp->p_szc);
+		pszc = SZC_EVAL(pp->p_szc);
 		pgsz = page_get_pagesize(pszc);
 		pages = btop(pgsz);
 		if (!IS_P2ALIGNED(va, pgsz) ||
@@ -5580,8 +5653,9 @@ page_mark_migrate(struct seg *seg, caddr_t addr, size_t len,
 				if (!page_trylock(pp, SE_EXCL)) {
 					break;
 				}
+				SZC_ASSERT(pp->p_szc);
 				if (PP_ISFREE(pp) ||
-				    pp->p_szc != pszc) {
+				    SZC_EVAL(pp->p_szc) != pszc) {
 					/*
 					 * hat_page_demote() raced in with us.
 					 */
@@ -5658,7 +5732,8 @@ page_migrate(
 
 	while (npages > 0) {
 		pp = *ppa;
-		pszc = pp->p_szc;
+		SZC_ASSERT(pp->p_szc);
+		pszc = SZC_EVAL(pp->p_szc);
 		pgsz = page_get_pagesize(pszc);
 		page_cnt = btop(pgsz);
 
@@ -5698,8 +5773,9 @@ page_migrate(
 		 */
 		for (i = 0; i < page_cnt; i++) {
 			ASSERT(PAGE_LOCKED(ppa[i]));
+			SZC_ASSERT(ppa[i]->p_szc);
 			if (page_pptonum(ppa[i]) != pfn + i ||
-			    ppa[i]->p_szc != pszc) {
+			    SZC_EVAL(ppa[i]->p_szc) != pszc) {
 				break;
 			}
 			if (!page_tryupgrade(ppa[i])) {
@@ -5779,6 +5855,8 @@ next:
 		npages -= page_cnt;
 	}
 }
+
+#endif	/* !PGRELOC_DISABLE */
 
 ulong_t mem_waiters 	= 0;
 ulong_t	max_count 	= 20;
@@ -6056,7 +6134,8 @@ page_next_scan_large(
 	 * get the count of page_t's to skip based on the page size
 	 */
 	ASSERT(pp != NULL);
-	if (pp->p_szc == 0) {
+	SZC_ASSERT(pp->p_szc);
+	if (SZC_EVAL(pp->p_szc) == 0) {
 		cnt = 1;
 	} else {
 		pfn = page_pptonum(pp);
@@ -6249,6 +6328,8 @@ page_ismod(page_t *pp)
 	return (hat_page_getattr(pp, P_MOD));
 }
 
+#ifdef	PAGE_RETIRE_DISABLE
+#else	/* !PAGE_RETIRE_DISABLE */
 /*
  * The following code all currently relates to the page capture logic:
  *
@@ -6473,11 +6554,12 @@ page_capture_add_hash(page_t *pp, uint_t szc, uint_t flags, void *datap)
 #endif
 
 	ASSERT(!(flags & CAPTURE_ASYNC));
+	SZC_ASSERT(szc);
 
 	bp1 = kmem_alloc(sizeof (struct page_capture_hash_bucket), KM_SLEEP);
 
 	bp1->pp = pp;
-	bp1->szc = szc;
+	bp1->szc = SZC_EVAL(szc);
 	bp1->flags = flags;
 	bp1->datap = datap;
 
@@ -6655,7 +6737,8 @@ page_capture_clean_page(page_t *pp)
 	 * Unfortunately this is the best we can do right now.
 	 */
 	newpp = NULL;
-	if ((pp->p_szc > 0) && (pp != PP_PAGEROOT(pp))) {
+	SZC_ASSERT(pp->p_szc);
+	if ((SZC_EVAL(pp->p_szc) > 0) && (pp != PP_PAGEROOT(pp))) {
 		if (page_try_demote_pages(pp) == 0) {
 			ret = EAGAIN;
 			goto cleanup;
@@ -6676,7 +6759,8 @@ page_capture_clean_page(page_t *pp)
 		 * Check to see if the page we have is too large.
 		 * If so, demote it freeing up the extra pages.
 		 */
-		if (pp->p_szc > 0) {
+		SZC_ASSERT(pp->p_szc);
+		if (SZC_EVAL(pp->p_szc) > 0) {
 			/* For now demote extra pages to szc == 0 */
 			extra = page_get_pagecnt(pp->p_szc) - 1;
 			while (extra > 0) {
@@ -6705,7 +6789,8 @@ page_capture_clean_page(page_t *pp)
 
 skip_relocate:
 
-	if (pp->p_szc > 0) {
+	SZC_ASSERT(pp->p_szc);
+	if (SZC_EVAL(pp->p_szc) > 0) {
 		if (page_try_demote_pages(pp) == 0) {
 			ret = EAGAIN;
 			goto cleanup;
@@ -7444,3 +7529,4 @@ page_capture_thread(void)
 	}
 	/*NOTREACHED*/
 }
+#endif	/* PAGE_RETIRE_DISABLE */

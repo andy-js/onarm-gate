@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
@@ -36,6 +40,7 @@
 #include <sys/zio_checksum.h> /* for the default checksum value */
 #include <sys/zap.h>
 #include <sys/fs/zfs.h>
+#include <zfs_types.h>
 
 #include "zfs_prop.h"
 
@@ -161,6 +166,10 @@ dsl_prop_get_ds(dsl_dir_t *dd, const char *propname,
 {
 	int err;
 
+	if (spa_state(dd->dd_pool->dp_spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(dd->dd_pool->dp_spa) == ZIO_FAILURE_MODE_ABORT)
+		return (EIO);
+
 	rw_enter(&dd->dd_pool->dp_config_rwlock, RW_READER);
 	err = dsl_prop_get_impl(dd, propname, intsz, numints, buf, setpoint);
 	rw_exit(&dd->dd_pool->dp_config_rwlock);
@@ -273,7 +282,7 @@ dsl_prop_numcb(dsl_dataset_t *ds)
 }
 
 static void
-dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
+dsl_prop_changed_notify(dsl_pool_t *dp, objid_t ddobj,
     const char *propname, uint64_t value, int first)
 {
 	dsl_dir_t *dd;
@@ -338,7 +347,7 @@ dsl_prop_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	dsl_dir_t *dd = arg1;
 	struct prop_set_arg *psa = arg2;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	uint64_t zapobj = dd->dd_phys->dd_props_zapobj;
+	objid_t zapobj = dd->dd_phys->dd_props_zapobj;
 	uint64_t intval;
 	int isint;
 	char valbuf[32];
@@ -373,7 +382,7 @@ dsl_prop_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	}
 	spa_history_internal_log((psa->numints == 0) ? LOG_DS_INHERIT :
 	    LOG_DS_PROPSET, dd->dd_pool->dp_spa, tx, cr,
-	    "%s=%s dataset = %llu", psa->name, valstr,
+	    "%s=%s dataset = %" PRIuOBJID, psa->name, valstr,
 	    dd->dd_phys->dd_head_dataset_obj);
 }
 
@@ -382,7 +391,7 @@ dsl_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
     cred_t *cr, dmu_tx_t *tx)
 {
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	uint64_t zapobj = dd->dd_phys->dd_props_zapobj;
+	objid_t zapobj = dd->dd_phys->dd_props_zapobj;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
@@ -391,7 +400,7 @@ dsl_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
 	dsl_prop_changed_notify(dd->dd_pool, dd->dd_object, name, val, TRUE);
 
 	spa_history_internal_log(LOG_DS_PROPSET, dd->dd_pool->dp_spa, tx, cr,
-	    "%s=%llu dataset = %llu", name, (u_longlong_t)val,
+	    "%s=%llu dataset = %" PRIuOBJID, name, (u_longlong_t)val,
 	    dd->dd_phys->dd_head_dataset_obj);
 }
 
@@ -453,6 +462,10 @@ dsl_prop_get_all(objset_t *os, nvlist_t **nvp)
 
 	dp = dd->dd_pool;
 	mos = dp->dp_meta_objset;
+
+	if (spa_state(dp->dp_spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(dp->dp_spa) == ZIO_FAILURE_MODE_ABORT)
+		return (EIO);
 
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
 	for (; dd != NULL; dd = dd->dd_parent) {

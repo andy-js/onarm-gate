@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_VDEV_IMPL_H
 #define	_SYS_VDEV_IMPL_H
 
@@ -36,10 +40,26 @@
 #include <sys/vdev.h>
 #include <sys/dkio.h>
 #include <sys/uberblock_impl.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#ifndef ZFS_NO_MIRROR
+#define	VDEV_MIRROR_OPS_ADDR		NULL
+#else
+#define	VDEV_MIRROR_OPS_ADDR		(&vdev_mirror_ops)
+#define	vdev_mirror_open		NULL
+#define	vdev_mirror_close		NULL
+#define	vdev_mirror_state_change	NULL
+#endif	/* ZFS_NO_MIRROR */
+
+#ifndef ZFS_NO_RAIDZ
+#define	VDEV_RAIDZ_OPS_ADDR		(&vdev_raidz_ops)
+#else
+#define	VDEV_RAIDZ_OPS_ADDR		NULL
+#endif	/* ZFS_NO_RAIDZ */
 
 /*
  * Virtual device descriptors.
@@ -134,7 +154,7 @@ struct vdev {
 	/*
 	 * Top-level vdev state.
 	 */
-	uint64_t	vdev_ms_array;	/* metaslab array object	*/
+	objid_t		vdev_ms_array;	/* metaslab array object	*/
 	uint64_t	vdev_ms_shift;	/* metaslab size shift		*/
 	uint64_t	vdev_ms_count;	/* number of metaslabs		*/
 	metaslab_group_t *vdev_mg;	/* metaslab group		*/
@@ -170,7 +190,9 @@ struct vdev {
 	uint64_t	vdev_isspare;	/* was a hot spare		*/
 	uint64_t	vdev_isl2cache;	/* was a l2cache device		*/
 	vdev_queue_t	vdev_queue;	/* I/O deadline schedule queue	*/
+#ifndef ZFS_NO_VDEVCACHE
 	vdev_cache_t	vdev_cache;	/* physical block cache		*/
+#endif	/* ZFS_NO_VDEVCACHE */
 	uint64_t	vdev_not_present; /* not present during import	*/
 	hrtime_t	vdev_last_try;	/* last reopen time		*/
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
@@ -192,8 +214,10 @@ struct vdev {
 
 #define	VDEV_SKIP_SIZE		(8 << 10)
 #define	VDEV_BOOT_HEADER_SIZE	(8 << 10)
+#ifndef ZFS_COMPACT
 #define	VDEV_PHYS_SIZE		(112 << 10)
 #define	VDEV_UBERBLOCK_RING	(128 << 10)
+#endif	/* ZFS_COMPACT */
 
 #define	VDEV_UBERBLOCK_SHIFT(vd)	\
 	MAX((vd)->vdev_top->vdev_ashift, UBERBLOCK_SHIFT)
@@ -272,9 +296,9 @@ extern void vdev_remove_parent(vdev_t *cvd);
  * vdev sync load and sync
  */
 extern void vdev_load(vdev_t *vd);
-extern void vdev_sync(vdev_t *vd, uint64_t txg);
-extern void vdev_sync_done(vdev_t *vd, uint64_t txg);
-extern void vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg);
+extern void vdev_sync(vdev_t *vd, txg_t txg);
+extern void vdev_sync_done(vdev_t *vd, txg_t txg);
+extern void vdev_dirty(vdev_t *vd, int flags, void *arg, txg_t txg);
 
 /*
  * Available vdev types.

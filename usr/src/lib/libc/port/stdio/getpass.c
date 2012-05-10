@@ -14,13 +14,17 @@
  * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
  * If applicable, add the following below this CDDL HEADER, with the
  * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
+2 * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
  */
 /*
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
  */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
@@ -66,6 +70,8 @@ getpassphrase(const char *prompt)
 	return ((char *)__getpass(prompt, MAXPASSWD));
 }
 
+static void catch(int);
+
 static char *
 __getpass(const char *prompt, int size)
 {
@@ -76,7 +82,6 @@ __getpass(const char *prompt, int size)
 	FILE	*fi;
 	char *pbuf = tsdalloc(_T_GETPASS, MAXPASSWD + 1, NULL);
 	struct sigaction act, osigint, osigtstp;
-	static void catch(int);
 
 	if (pbuf == NULL ||
 	    (fi = fopen("/dev/tty", "r+F")) == NULL)

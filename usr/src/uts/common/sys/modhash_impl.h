@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_MODHASH_IMPL_H
 #define	_SYS_MODHASH_IMPL_H
 
@@ -36,7 +40,7 @@
 extern "C" {
 #endif
 
-#ifdef _KERNEL
+#if	defined(_KERNEL) || defined(_KMEMUSER)
 
 #include <sys/ksynch.h>
 #include <sys/modhash.h>
@@ -87,6 +91,8 @@ struct mod_hash {
 #define	MH_SIZE(n) \
 	(sizeof (mod_hash_t) + ((n) - 1) * (sizeof (struct mod_hash_entry *)))
 
+#ifdef	_KERNEL
+
 /*
  * Module initialization; called once.
  */
@@ -104,7 +110,9 @@ void i_mod_hash_walk_nosync(mod_hash_t *, uint_t (*)(mod_hash_key_t,
     mod_hash_val_t *, void *), void *);
 void i_mod_hash_clear_nosync(mod_hash_t *hash);
 
-#endif /* _KERNEL */
+#endif	/* _KERNEL */
+
+#endif	/* defined(_KERNEL) || defined(_KMEMUSER) */
 
 #ifdef __cplusplus
 }

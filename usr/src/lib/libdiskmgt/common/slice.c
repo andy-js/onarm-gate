@@ -22,6 +22,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -55,6 +58,17 @@
 
 typedef int (*detectorp)(char *, nvlist_t *, int *);
 
+#if defined(__arm)
+static detectorp detectors[] = {
+	inuse_mnt,
+	inuse_active_zpool,
+	inuse_dump,
+	inuse_vxvm,
+	inuse_exported_zpool,
+	inuse_fs,  /* fs should always be last */
+	NULL
+};
+#else	/* !__arm */
 static detectorp detectors[] = {
 	inuse_mnt,
 	inuse_svm,
@@ -66,6 +80,7 @@ static detectorp detectors[] = {
 	inuse_fs,  /* fs should always be last */
 	NULL
 };
+#endif	/* __arm */
 
 static int	add_inuse(char *name, nvlist_t *attrs);
 static int	desc_ok(descriptor_t *dp);
@@ -421,12 +436,14 @@ get_attrs(descriptor_t *dp, int fd,  nvlist_t *attrs)
 
 	if ((status = read_vtoc(fd, &vtoc)) >= 0) {
 	    data_format = FMT_VTOC;
+#ifndef NO_SUPPORT_EFI
 	} else if (status == VT_ENOTSUP && efi_alloc_and_read(fd, &efip) >= 0) {
 	    data_format = FMT_EFI;
 	    if (nvlist_add_boolean(attrs, DM_EFI) != 0) {
 		efi_free(efip);
 		return (ENOMEM);
 	    }
+#endif
 	}
 
 	if (data_format == FMT_UNKNOWN) {
@@ -443,20 +460,24 @@ get_attrs(descriptor_t *dp, int fd,  nvlist_t *attrs)
 		vtoc.v_part[snum].p_size == 0) {
 		return (ENODEV);
 	    }
+#ifndef NO_SUPPORT_EFI
 	} else { /* data_format == FMT_EFI */
 	    if (snum < 0 || snum >= efip->efi_nparts ||
 		efip->efi_parts[snum].p_size == 0) {
 		efi_free(efip);
 		return (ENODEV);
 	    }
+#endif
 	}
 
 	/* the slice exists */
 
 	if (nvlist_add_uint32(attrs, DM_INDEX, snum) != 0) {
+#ifndef NO_SUPPORT_EFI
 	    if (data_format == FMT_EFI) {
 		efi_free(efip);
 	    }
+#endif
 	    return (ENOMEM);
 	}
 
@@ -481,6 +502,7 @@ get_attrs(descriptor_t *dp, int fd,  nvlist_t *attrs)
 		return (ENOMEM);
 	    }
 
+#ifndef NO_SUPPORT_EFI
 	} else { /* data_format == FMT_EFI */
 	    if (nvlist_add_uint64(attrs, DM_START,
 		efip->efi_parts[snum].p_start) != 0) {
@@ -504,11 +526,14 @@ get_attrs(descriptor_t *dp, int fd,  nvlist_t *attrs)
 		    return (ENOMEM);
 		}
 	    }
+#endif
 	}
 
+#ifndef NO_SUPPORT_EFI
 	if (data_format == FMT_EFI) {
 	    efi_free(efip);
 	}
+#endif
 
 	if (inuse_mnt(dp->name, attrs, &error)) {
 	    if (error != 0) {
@@ -632,6 +657,15 @@ get_fixed_assocs(descriptor_t *desc, int *errp)
 	    return (NULL);
 	}
 
+#ifdef NO_SUPPORT_EFI
+	if ((status = read_vtoc(fd, &vtoc)) >= 0) {
+	    data_format = FMT_VTOC;
+	} else {
+	    (void) close(fd);
+	    *errp = 0;
+	    return (libdiskmgt_empty_desc_array(errp));
+	}
+#else
 	if ((status = read_vtoc(fd, &vtoc)) >= 0) {
 	    data_format = FMT_VTOC;
 	} else if (status == VT_ENOTSUP && efi_alloc_and_read(fd, &efip) >= 0) {
@@ -641,6 +675,7 @@ get_fixed_assocs(descriptor_t *desc, int *errp)
 	    *errp = 0;
 	    return (libdiskmgt_empty_desc_array(errp));
 	}
+#endif
 	(void) close(fd);
 
 	/* count the number of slices */
@@ -650,9 +685,11 @@ get_fixed_assocs(descriptor_t *desc, int *errp)
 	/* allocate the array for the descriptors */
 	slices = (descriptor_t **)calloc(cnt + 1, sizeof (descriptor_t *));
 	if (slices == NULL) {
+#ifndef NO_SUPPORT_EFI
 	    if (data_format == FMT_EFI) {
 		efi_free(efip);
 	    }
+#endif
 	    *errp = ENOMEM;
 	    return (NULL);
 	}
@@ -695,18 +732,22 @@ get_fixed_assocs(descriptor_t *desc, int *errp)
 		media_name, errp);
 	    if (*errp != 0) {
 		cache_free_descriptors(slices);
+#ifndef NO_SUPPORT_EFI
 		if (data_format == FMT_EFI) {
 		    efi_free(efip);
 		}
+#endif
 		return (NULL);
 	    }
 	    pos++;
 	}
 	slices[pos] = NULL;
 
+#ifndef NO_SUPPORT_EFI
 	if (data_format == FMT_EFI) {
 	    efi_free(efip);
 	}
+#endif
 
 	*errp = 0;
 	return (slices);
@@ -765,12 +806,18 @@ make_fixed_descriptors(disk_t *dp)
 		int	status;
 
 		if ((fd = drive_open_disk(dp, NULL, 0)) >= 0) {
+#ifdef NO_SUPPORT_EFI
+		    if ((status = read_vtoc(fd, &vtoc)) >= 0) {
+			data_format = FMT_VTOC;
+		    }
+#else
 		    if ((status = read_vtoc(fd, &vtoc)) >= 0) {
 			data_format = FMT_VTOC;
 		    } else if (status == VT_ENOTSUP &&
 			efi_alloc_and_read(fd, &efip) >= 0) {
 			data_format = FMT_EFI;
 		    }
+#endif
 		    (void) close(fd);
 		}
 	    }
@@ -799,9 +846,11 @@ make_fixed_descriptors(disk_t *dp)
 	    }
 	}
 
+#ifndef NO_SUPPORT_EFI
 	if (data_format == FMT_EFI) {
 	    efi_free(efip);
 	}
+#endif
 
 	return (error);
 }
@@ -869,6 +918,15 @@ match_fixed_name(disk_t *diskp, char *name, int *errp)
 	    return (1);
 	}
 
+#ifdef NO_SUPPORT_EFI
+	if ((status = read_vtoc(fd, &vtoc)) >= 0) {
+	    data_format = FMT_VTOC;
+	} else {
+	    (void) close(fd);
+	    *errp = ENODEV;
+	    return (1);
+	}
+#else
 	if ((status = read_vtoc(fd, &vtoc)) >= 0) {
 	    data_format = FMT_VTOC;
 	} else if (status == VT_ENOTSUP && efi_alloc_and_read(fd, &efip) >= 0) {
@@ -878,6 +936,7 @@ match_fixed_name(disk_t *diskp, char *name, int *errp)
 	    *errp = ENODEV;
 	    return (1);
 	}
+#endif
 	(void) close(fd);
 
 	if (data_format == FMT_VTOC) {
@@ -886,6 +945,7 @@ match_fixed_name(disk_t *diskp, char *name, int *errp)
 		*errp = 0;
 		return (1);
 	    }
+#ifndef NO_SUPPORT_EFI
 	} else { /* data_format == FMT_EFI */
 	    if (slice_num < efip->efi_nparts &&
 		efip->efi_parts[slice_num].p_size > 0) {
@@ -894,6 +954,7 @@ match_fixed_name(disk_t *diskp, char *name, int *errp)
 		return (1);
 	    }
 	    efi_free(efip);
+#endif
 	}
 
 	*errp = ENODEV;

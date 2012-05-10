@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 include ../Makefile.lib
 
 SUBDIRS=	$(MACH)
@@ -69,6 +73,9 @@ include		$(SRC)/Makefile.msg.targ
 
 $(SUBDIRS):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)
+
+$(ARM_BLD)$(ROOTETC)/%:	$(MACH)/%
+$(ARM_BLD)	$(INS.file)
 
 $(ROOTETC)/%:	%
 	$(INS.file)

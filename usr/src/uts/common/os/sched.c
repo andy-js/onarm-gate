@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -185,9 +188,10 @@ loop:
 	 *	    than minfree and desfree respectively.
 	 *	3.  Pagein + pageout rate is excessive.
 	 */
-	if (avenrun[0] >= 2 * FSCALE &&
-	    (MAX(avefree, avefree30) < desfree) &&
-	    (pginrate + pgoutrate > maxpgio || avefree < minfree)) {
+	if (DESPERATE_FREEMEM() ||
+	    (avenrun[0] >= 2 * FSCALE &&
+	     (MAX(avefree, avefree30) < desfree) &&
+	     (pginrate + pgoutrate > maxpgio || avefree < minfree))) {
 		TRACE_4(TR_FAC_SCHED, TR_DESPERATE,
 		    "desp:avefree: %d, avefree30: %d, freemem: %d"
 		    " pginrate: %d\n", avefree, avefree30, freemem, pginrate);
@@ -400,8 +404,9 @@ unload:
 		if (not_swappable(prp))
 			continue;
 
-		if (avefree > minfree ||
-		    avefree < minfree && freemem > desfree) {
+		if (!DESPERATE_FREEMEM() &&
+		    (avefree > minfree ||
+		     avefree < minfree && freemem > desfree)) {
 			swapout_prp = NULL;
 			break;
 		}
@@ -782,7 +787,8 @@ swapout_lwp(klwp_t *lwp)
 	 * Don't insert the thread onto the swap queue if
 	 * sufficient memory is available.
 	 */
-	if (avefree > desfree || avefree < desfree && freemem > desfree) {
+	if (!DESPERATE_FREEMEM() ||
+	    (avefree > desfree || avefree < desfree && freemem > desfree)) {
 		thread_lock(tp);
 		tp->t_schedflag &= ~TS_SWAPENQ;
 		thread_unlock(tp);

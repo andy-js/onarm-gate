@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -42,6 +46,7 @@
 #include <fs/fs_subr.h>
 #include <sys/cmn_err.h>
 #include <sys/mem_config.h>
+#include <sys/mem_cage.h>
 #include <sys/atomic.h>
 
 extern const fs_operation_def_t swap_vnodeops_template[];
@@ -73,7 +78,11 @@ static struct async_reqs *sw_ar, *sw_pendlist, *sw_freelist;
 
 static struct vnode **swap_vnodes;	/* ptr's to swap vnodes */
 
+#ifdef	KCAGE_DISABLE
+#define	swap_init_mem_config()	((void)0)
+#else	/* !KCAGE_DISABLE */
 static void swap_init_mem_config(void);
+#endif	/* KCAGE_DISABLE */
 
 static pgcnt_t initial_swapfs_desfree;
 static pgcnt_t initial_swapfs_minfree;
@@ -348,6 +357,8 @@ sw_putfree(struct async_reqs *arg)
 	mutex_exit(&swapfs_lock);
 }
 
+#ifndef	KCAGE_DISABLE
+
 static pgcnt_t swapfs_pending_delete;
 
 /*ARGSUSED*/
@@ -406,3 +417,5 @@ swap_init_mem_config(void)
 	ret = kphysm_setup_func_register(&swap_mem_config_vec, (void *)NULL);
 	ASSERT(ret == 0);
 }
+
+#endif	/* !KCAGE_DISABLE */

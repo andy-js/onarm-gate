@@ -25,6 +25,10 @@
  */
 
 /*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
+/*
  * An application should not include this header directly.  Instead it
  * should be included only through the inclusion of other Sun headers.
  *
@@ -40,6 +44,10 @@
 #define	_ISO_WCHAR_ISO_H
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
+
+#if defined(_AEABI_PORTABILITY_LEVEL)
+#error "not supported AEABI."
+#endif
 
 #include <sys/feature_tests.h>
 #include <stdio_tag.h>

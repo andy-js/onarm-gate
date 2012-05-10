@@ -27,6 +27,10 @@
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #include <sys/types.h>
 #include <sys/inttypes.h>
 #include <sys/systm.h>
@@ -389,6 +393,7 @@ done:
 	return (sum);
 }
 
+#ifndef SCTP_SHRINK
 uint32_t
 sctp_cksum(mblk_t *mp, int offset)
 {
@@ -401,12 +406,12 @@ sctp_cksum(mblk_t *mp, int offset)
 	for (mp = mp->b_cont; mp != NULL; mp = mp->b_cont) {
 		crc32 = sctp_crc32(crc32, mp->b_rptr, MBLKL(mp));
 	}
-
 	/* Complement the result */
 	crc32 = ~crc32;
 
 	return (crc32);
 }
+#endif
 
 /*
  * Routine to compute Internet checksum (16-bit 1's complement) of a given

@@ -24,11 +24,18 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "quadint.h"
 
 #pragma weak __floatdisf = ___floatdisf
+#if defined(__ARM_EABI__)
+#pragma weak __aeabi_l2f = ___floatdisf
+#endif
 
 /*
  * Convert a longlong_t to a single-precision floating point value.

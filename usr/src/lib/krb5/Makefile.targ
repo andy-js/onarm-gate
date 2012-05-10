@@ -2,6 +2,11 @@
 # Copyright 2003 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 #
 #
@@ -12,15 +17,15 @@
 
 include $(SRC)/lib/Makefile.targ
 
-pics/%.o: ../%.c
+objs/%.o pics/%.o: ../%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/%.o: $(KADM5DIR)/%.c
+objs/%.o pics/%.o: $(KADM5DIR)/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/$(COMMONOBJS): $(COMMONSRCS)
+objs/($(COMMONOBJS)) pics/$(COMMONOBJS): $(COMMONSRCS)
 	$(COMPILE.c) -o $@ $(COMMONSRCS)
 
 _msg: $(MSGDOMAIN) .WAIT $(POFILE)

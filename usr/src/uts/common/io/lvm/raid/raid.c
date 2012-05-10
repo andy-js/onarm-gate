@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -76,7 +80,7 @@
 
 md_ops_t		raid_md_ops;
 #ifndef lint
-char			_depends_on[] = "drv/md";
+MODDRV_DEPENDS_ON("drv/md");
 md_ops_t		*md_interface_ops = &raid_md_ops;
 #endif	/* lint */
 

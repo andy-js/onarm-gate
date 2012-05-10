@@ -24,6 +24,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/modctl.h>
@@ -179,7 +184,7 @@ static const char *fail_msg = "%stransport failed: reason '%s': %s";
 /*
  * autoconfiguration routines.
  */
-char _depends_on[] = "misc/scsi";
+MODDRV_DEPENDS_ON("misc/scsi");
 
 static struct modldrv modldrv = {
 	&mod_driverops, "SCSI Enclosure Services %I%", &ses_dev_ops
@@ -191,7 +196,7 @@ static struct modlinkage modlinkage = {
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int status;
 	status = ddi_soft_state_init(&estate, sizeof (ses_softc_t), 0);
@@ -203,8 +208,9 @@ _init(void)
 	return (status);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int status;
 	if ((status = mod_remove(&modlinkage)) != 0) {
@@ -213,9 +219,10 @@ _fini(void)
 	ddi_soft_state_fini(&estate);
 	return (status);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

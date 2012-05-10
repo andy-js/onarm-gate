@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved	*/
 
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -70,6 +74,9 @@ static void lwp_change_pri(kthread_t *t, pri_t pri, pri_t *t_prip);
 static void lwp_mutex_cleanup(lwpchan_entry_t *ent, uint16_t lockflg);
 
 extern int lwp_cond_signal(lwp_cond_t *cv);
+
+/* Internal prototypes */
+static int iswanted();
 
 /*
  * Maximum number of user prio inheritance locks that can be held by a thread.
@@ -1147,7 +1154,6 @@ lwp_mutex_timedlock(lwp_mutex_t *lp, timespec_t *tsp)
 	volatile uint8_t type = 0;
 	lwpchan_t lwpchan;
 	sleepq_head_t *sqh;
-	static int iswanted();
 	uint16_t flag;
 	int imm_timeout = 0;
 

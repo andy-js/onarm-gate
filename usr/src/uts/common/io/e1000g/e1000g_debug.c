@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -146,13 +150,13 @@ e1000g_log(void *instance, int level, char *fmt, ...)
 	va_end(ap);
 
 	if ((e1000g_log_mode & E1000G_LOG_ALL) == E1000G_LOG_ALL)
-		cmn_err(level, "%s: %s", name, buf);
+		cmn_err(level, "%s: %s\n", name, buf);
 	else if (e1000g_log_mode & E1000G_LOG_DISPLAY)
-		cmn_err(level, "^%s: %s", name, buf);
+		cmn_err(level, "^%s: %s\n", name, buf);
 	else if (e1000g_log_mode & E1000G_LOG_PRINT)
-		cmn_err(level, "!%s: %s", name, buf);
+		cmn_err(level, "!%s: %s\n", name, buf);
 	else /* if they are not set properly then do both */
-		cmn_err(level, "%s: %s", name, buf);
+		cmn_err(level, "%s: %s\n", name, buf);
 }
 
 

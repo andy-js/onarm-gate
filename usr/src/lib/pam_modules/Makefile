@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 # lib/pam_modules/Makefile
@@ -48,6 +53,15 @@ SUBDIRS = \
 	smb		\
 	smbfs		\
 	tsol_acct	\
+	unix_auth	\
+	unix_account	\
+	unix_cred	\
+	unix_session
+$(ARM_BLD)SUBDIRS = \
+	authtok_get	\
+	authtok_check	\
+	authtok_store	\
+	passwd_auth	\
 	unix_auth	\
 	unix_account	\
 	unix_cred	\

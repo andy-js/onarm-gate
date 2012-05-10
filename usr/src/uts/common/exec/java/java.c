@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -59,6 +63,8 @@
 char *jexec = "/usr/java/jre/lib/sparc/jexec";
 #elif defined(__i386) || defined(__i386_COMPAT)
 char *jexec = "/usr/java/jre/lib/i386/jexec";
+#elif defined(__arm)
+char *jexec = "/usr/java/jre/lib/arm/jexec";
 #else
 #error "Unknown ISA"
 #endif
@@ -186,19 +192,21 @@ static struct modlinkage jmodlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&jmodlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&jmodlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&jmodlinkage, modinfop));
 }

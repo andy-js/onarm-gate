@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -48,11 +52,16 @@ static int tdirrename(struct tmpnode *, struct tmpnode *, struct tmpnode *,
 static void tdirfixdotdot(struct tmpnode *, struct tmpnode *, struct tmpnode *);
 static int tdirmaketnode(struct tmpnode *, struct tmount *, struct vattr *,
 	enum de_op, struct tmpnode **, struct cred *);
-static int tdiraddentry(struct tmpnode *, struct tmpnode *, char *,
-	enum de_op, struct tmpnode *);
+static int tdiraddentry(struct tmount *, struct tmpnode *, struct tmpnode *,
+	char *, enum de_op, struct tmpnode *);
+static void tdirdecinum(struct tmount *);
 
 
+#ifdef	TMPFS_T_HASH_SIZE
+#define	T_HASH_SIZE	TMPFS_T_HASH_SIZE
+#else
 #define	T_HASH_SIZE	8192		/* must be power of 2 */
+#endif	/* TMPFS_T_HASH_SIZE */
 #define	T_MUTEX_SIZE	64
 
 static struct tdirent	*t_hashtable[T_HASH_SIZE];
@@ -263,6 +272,25 @@ tdirenter(
 		panic("tdirenter: NULL name");
 
 	/*
+	 * If this is a rename of a directory and the parent is
+	 * different (".." must be changed), then the source
+	 * directory must not be in the directory hierarchy
+	 * above the target, as this would orphan everything
+	 * below the source directory.
+	 */
+	if (op == DE_RENAME) {
+		if (tp == dir) {
+			return (EINVAL);
+		}
+		if (tp->tn_type == VDIR) {
+			if ((fromparent != dir) &&
+			    (error = tdircheckpath(tp, dir, cred))) {
+				return (error);
+			}
+		}
+	}
+
+	/*
 	 * For link and rename lock the source entry and check the link count
 	 * to see if it has been removed while it was unlocked.
 	 */
@@ -271,10 +299,18 @@ tdirenter(
 			rw_enter(&tp->tn_rwlock, RW_WRITER);
 		mutex_enter(&tp->tn_tlock);
 		if (tp->tn_nlink == 0) {
+		/*
+		 * For DE_LINK.
+		 */
+			if (tp->tn_status & TMPSTALE) {
+				error = ESTALE;
+			} else {
+				error = ENOENT;
+			}
 			mutex_exit(&tp->tn_tlock);
 			if (tp != dir)
 				rw_exit(&tp->tn_rwlock);
-			return (ENOENT);
+			return (error);
 		}
 
 		if (tp->tn_nlink == MAXLINK) {
@@ -284,7 +320,6 @@ tdirenter(
 			return (EMLINK);
 		}
 		tp->tn_nlink++;
-		gethrestime(&tp->tn_ctime);
 		mutex_exit(&tp->tn_tlock);
 		if (tp != dir)
 			rw_exit(&tp->tn_rwlock);
@@ -301,26 +336,6 @@ tdirenter(
 	if (dir->tn_nlink == 0) {
 		error = ENOENT;
 		goto out;
-	}
-
-	/*
-	 * If this is a rename of a directory and the parent is
-	 * different (".." must be changed), then the source
-	 * directory must not be in the directory hierarchy
-	 * above the target, as this would orphan everything
-	 * below the source directory.
-	 */
-	if (op == DE_RENAME) {
-		if (tp == dir) {
-			error = EINVAL;
-			goto out;
-		}
-		if (tp->tn_type == VDIR) {
-			if ((fromparent != dir) &&
-			    (error = tdircheckpath(tp, dir, cred))) {
-				goto out;
-			}
-		}
 	}
 
 	/*
@@ -363,6 +378,12 @@ tdirenter(
 			break;
 		}
 	} else {
+		if (dir->tn_nlink == MAXLINK && (op == DE_MKDIR || 
+		    (op == DE_RENAME && tp->tn_type == VDIR && 
+		    fromparent != dir))) { 
+			error = EMLINK; 
+			goto out; 
+		} 
 
 		/*
 		 * The entry does not exist. Check write permission in
@@ -378,7 +399,7 @@ tdirenter(
 			if (error)
 				goto out;
 		}
-		if (error = tdiraddentry(dir, tp, name, op, fromparent)) {
+		if (error = tdiraddentry(tm, dir, tp, name, op, fromparent)) {
 			if (op == DE_CREATE || op == DE_MKDIR) {
 				/*
 				 * Unmake the inode we just made.
@@ -393,8 +414,8 @@ tdirenter(
 				}
 				mutex_enter(&tp->tn_tlock);
 				tp->tn_nlink = 0;
-				mutex_exit(&tp->tn_tlock);
 				gethrestime(&tp->tn_ctime);
+				mutex_exit(&tp->tn_tlock);
 				rw_exit(&tp->tn_rwlock);
 				tmpnode_rele(tp);
 				tp = NULL;
@@ -407,12 +428,17 @@ tdirenter(
 	}
 
 out:
-	if (error && (op == DE_LINK || op == DE_RENAME)) {
-		/*
-		 * Undo bumped link count.
-		 */
-		DECR_COUNT(&tp->tn_nlink, &tp->tn_tlock);
-		gethrestime(&tp->tn_ctime);
+	if (op == DE_LINK || op == DE_RENAME) {
+		if (error == 0) {
+			mutex_enter(&tp->tn_tlock);
+			gethrestime(&tp->tn_ctime);
+			mutex_exit(&tp->tn_tlock);
+		} else {
+			/*
+			 * Undo bumped link count.
+			 */
+			DECR_COUNT(&tp->tn_nlink, &tp->tn_tlock);
+                }
 	}
 	return (error);
 }
@@ -436,6 +462,7 @@ tdirdelete(
 	size_t namelen;
 	struct tmpnode *tnp;
 	timestruc_t now;
+	struct tmount *tm;
 
 	ASSERT(RW_WRITE_HELD(&dir->tn_rwlock));
 	ASSERT(RW_WRITE_HELD(&tp->tn_rwlock));
@@ -484,8 +511,14 @@ tdirdelete(
 	 * the victim of a concurrent rename operation.  The original
 	 * is gone, so return that status (same as UFS).
 	 */
-	if (tp != tnp)
-		return (ENOENT);
+	if (tp != tnp) {
+		if (tp->tn_status & TMPSTALE) {
+			error = ESTALE;
+		} else {
+			error = ENOENT;
+		}
+		return (error);
+	}
 
 	tmpfs_hash_out(tpdp);
 
@@ -520,10 +553,17 @@ tdirdelete(
 	dir->tn_size -= (sizeof (struct tdirent) + namelen);
 	dir->tn_dirents--;
 
+	tm = VTOTM(TNTOV(dir));
+	tdirdecinum(tm);
+
 	gethrestime(&now);
+	mutex_enter(&dir->tn_tlock);
 	dir->tn_mtime = now;
 	dir->tn_ctime = now;
+	mutex_exit(&dir->tn_tlock);
+	mutex_enter(&tp->tn_tlock);
 	tp->tn_ctime = now;
+	mutex_exit(&tp->tn_tlock);
 
 	ASSERT(tp->tn_nlink > 0);
 	DECR_COUNT(&tp->tn_nlink, &tp->tn_tlock);
@@ -579,8 +619,10 @@ tdirinit(
 	dotdot->td_prev = dot;
 
 	gethrestime(&now);
+	mutex_enter(&dir->tn_tlock);
 	dir->tn_mtime = now;
 	dir->tn_ctime = now;
+	mutex_exit(&dir->tn_tlock);
 
 	/*
 	 * Link counts are special for the hidden attribute directory.
@@ -594,7 +636,9 @@ tdirinit(
 	 */
 	if (!(dir->tn_vnode->v_flag & V_XATTRDIR)) {
 		INCR_COUNT(&parent->tn_nlink, &parent->tn_tlock);
+		mutex_enter(&parent->tn_tlock);
 		parent->tn_ctime = now;
+		mutex_exit(&parent->tn_tlock);
 	}
 
 	dir->tn_dir = dot;
@@ -615,10 +659,13 @@ tdirtrunc(struct tmpnode *dir)
 	size_t namelen;
 	timestruc_t now;
 	int isvattrdir, isdotdot, skip_decr;
+	int isdot;
+	struct tmount *tm;
 
 	ASSERT(RW_WRITE_HELD(&dir->tn_rwlock));
 	ASSERT(dir->tn_type == VDIR);
 
+	tm = VTOTM(TNTOV(dir));
 	isvattrdir = (dir->tn_vnode->v_flag & V_XATTRDIR) ? 1 : 0;
 	for (tdp = dir->tn_dir; tdp; tdp = dir->tn_dir) {
 		ASSERT(tdp->td_next != tdp);
@@ -641,6 +688,7 @@ tdirtrunc(struct tmpnode *dir)
 		 * directories.
 		 */
 		tp = tdp->td_tmpnode;
+		isdot = (strcmp(".", tdp->td_name) == 0);
 		isdotdot = (strcmp("..", tdp->td_name) == 0);
 		skip_decr = (isvattrdir && isdotdot);
 		if (!skip_decr) {
@@ -653,11 +701,17 @@ tdirtrunc(struct tmpnode *dir)
 		tmp_memfree(tdp, sizeof (struct tdirent) + namelen);
 		dir->tn_size -= (sizeof (struct tdirent) + namelen);
 		dir->tn_dirents--;
+
+		if (!(isdotdot || (isdot && !isvattrdir))) {
+			tdirdecinum(tm);
+		}
 	}
 
 	gethrestime(&now);
+	mutex_enter(&dir->tn_tlock);
 	dir->tn_mtime = now;
 	dir->tn_ctime = now;
+	mutex_exit(&dir->tn_tlock);
 
 	ASSERT(dir->tn_dir == NULL);
 	ASSERT(dir->tn_size == 0);
@@ -724,6 +778,8 @@ tdircheckpath(
 	return (error);
 }
 
+uint64_t tmp_dirrename_retry_cnt;
+
 static int
 tdirrename(
 	struct tmpnode *fromparent,	/* parent directory of source */
@@ -749,8 +805,25 @@ tdirrename(
 	if (fromtp == to)
 		return (ESAME);		/* special KLUDGE error code */
 
-	rw_enter(&fromtp->tn_rwlock, RW_READER);
-	rw_enter(&to->tn_rwlock, RW_READER);
+retry:
+	rw_enter(&to->tn_rwlock, RW_WRITER);
+	if (!rw_tryenter(&fromtp->tn_rwlock, RW_READER)) {
+		/*
+		 * drop 'fromtp' and wait (sleep) until we stand a chance
+		 * of holding 'to'
+		 */
+		rw_exit(&to->tn_rwlock);
+		rw_enter(&fromtp->tn_rwlock, RW_READER);
+		/*
+		 * Reverse the lock grabs in case we have heavy
+		 * contention on the 2nd lock.
+		 */
+		if (!rw_tryenter(&to->tn_rwlock, RW_WRITER)) {
+			tmp_dirrename_retry_cnt++;
+			rw_exit(&fromtp->tn_rwlock);
+			goto retry;
+		}
+	}
 
 	/*
 	 * Check that everything is on the same filesystem.
@@ -801,11 +874,6 @@ tdirrename(
 			mutex_exit(&to->tn_tlock);
 			vn_vfsunlock(TNTOV(to));
 			error = EEXIST; /* SIGH should be ENOTEMPTY */
-			/*
-			 * Update atime because checking tn_dirents is
-			 * logically equivalent to reading the directory
-			 */
-			gethrestime(&to->tn_atime);
 			goto out;
 		}
 		mutex_exit(&to->tn_tlock);
@@ -816,20 +884,18 @@ tdirrename(
 
 	tmpfs_hash_change(where, fromtp);
 	gethrestime(&now);
+	mutex_enter(&toparent->tn_tlock);
 	toparent->tn_mtime = now;
 	toparent->tn_ctime = now;
-
-	/*
-	 * Upgrade to write lock on "to" (i.e., the target tmpnode).
-	 */
-	rw_exit(&to->tn_rwlock);
-	rw_enter(&to->tn_rwlock, RW_WRITER);
+	mutex_exit(&toparent->tn_tlock);
 
 	/*
 	 * Decrement the link count of the target tmpnode.
 	 */
 	DECR_COUNT(&to->tn_nlink, &to->tn_tlock);
+	mutex_enter(&to->tn_tlock);
 	to->tn_ctime = now;
+	mutex_exit(&to->tn_tlock);
 
 	if (doingdirectory) {
 		/*
@@ -853,6 +919,9 @@ tdirrename(
 		if (fromparent != toparent)
 			tdirfixdotdot(fromtp, fromparent, toparent);
 	}
+	mutex_enter(&to->tn_tlock);
+	to->tn_status |= TMPSTALE;
+	mutex_exit(&to->tn_tlock);
 out:
 	rw_exit(&to->tn_rwlock);
 	rw_exit(&fromtp->tn_rwlock);
@@ -873,7 +942,9 @@ tdirfixdotdot(
 	 * Increment the link count in the new parent tmpnode
 	 */
 	INCR_COUNT(&toparent->tn_nlink, &toparent->tn_tlock);
+	mutex_enter(&toparent->tn_tlock);
 	gethrestime(&toparent->tn_ctime);
+	mutex_exit(&toparent->tn_tlock);
 
 	dotdot = tmpfs_hash_lookup("..", fromtp, 0, NULL);
 
@@ -897,6 +968,7 @@ tdirfixdotdot(
 
 static int
 tdiraddentry(
+	struct tmount	*tm,
 	struct tmpnode	*dir,	/* target directory to make entry in */
 	struct tmpnode	*tp,	/* new tmpnode */
 	char		*name,
@@ -928,6 +1000,14 @@ tdiraddentry(
 	tdp = tmp_memalloc(alloc_size, 0);
 	if (tdp == NULL)
 		return (ENOSPC);
+
+	if (tdirincinum(tm) != 0) {
+		tmp_memfree(tdp, alloc_size);
+#if DEBUG
+		cmn_err(CE_NOTE, "%s: out of inodes", tm->tm_mntpath);
+#endif
+		return (ENOSPC);
+	}
 
 	if ((op == DE_RENAME) && (tp->tn_type == VDIR))
 		tdirfixdotdot(tp, fromtp, dir);
@@ -1001,8 +1081,10 @@ tdiraddentry(
 	ASSERT(tpdp->td_prev != tpdp);
 
 	gethrestime(&now);
+	mutex_enter(&dir->tn_tlock);
 	dir->tn_mtime = now;
 	dir->tn_ctime = now;
+	mutex_exit(&dir->tn_tlock);
 
 	return (0);
 }
@@ -1082,14 +1164,40 @@ tdirmaketnode(
 			tp->tn_mode &= ~VSGID;
 	}
 
-	if (va->va_mask & AT_ATIME)
+	if (va->va_mask & AT_ATIME) {
+		mutex_enter(&tp->tn_tlock);
 		tp->tn_atime = va->va_atime;
-	if (va->va_mask & AT_MTIME)
+		mutex_exit(&tp->tn_tlock);
+	}
+	if (va->va_mask & AT_MTIME) {
+		mutex_enter(&tp->tn_tlock);
 		tp->tn_mtime = va->va_mtime;
+		mutex_exit(&tp->tn_tlock);
+	}
 
 	if (op == DE_MKDIR)
 		tdirinit(dir, tp);
 
 	*newnode = tp;
 	return (0);
+}
+
+int
+tdirincinum(struct tmount *tm)
+{
+	if (tm->tm_inummax != 0) {
+		if (atomic_inc_uint_nv(&tm->tm_inumcur) > tm->tm_inummax) {
+			atomic_dec_uint(&tm->tm_inumcur);
+			return (1);
+		}
+	}
+	return (0);
+}
+
+static void
+tdirdecinum(struct tmount *tm)
+{
+	if (tm->tm_inummax != 0) {
+		atomic_dec_uint(&tm->tm_inumcur);
+	}
 }

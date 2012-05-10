@@ -26,6 +26,10 @@
 #
 
 #
+# Copyright (c) 2008 NEC Corporation
+#
+
+#
 # Temporarily control building AST l10n catalogs until all build
 # machines have been updated.
 #
@@ -61,6 +65,7 @@ i386_ASTMSGCCFLAGS=	-D__i386
 amd64_ASTMSGCCFLAGS=	-D__amd64
 sparc_ASTMSGCCFLAGS=	-D__sparc
 sparcv9_ASTMSGCCFLAGS=	-D__sparcv9
+arm_ASTMSGCCFLAGS=	-D__arm
 ASTMSGCCFLAGS= -D_STDC_C99 -D__STDC__ -D__BUILTIN_VA_ARG_INCR $($(TARGETMACH)_ASTMSGCCFLAGS)
 
 msgs/%.mso: ../common/%.c
@@ -88,6 +93,8 @@ $(DO_BUILD_AST_CATALOGS)_msg: $(ASTMSGCATALOG)
 # package database each time we toggle the switch)
 $(DONT_BUILD_AST_CATALOGS)_msg:
 $(DONT_BUILD_AST_CATALOGS)	$(RM) $(ASTMSGCATALOG) ; \
+	d=`dirname $(ASTMSGCATALOG)` ; \
+	mkdir -p $$d ; \
 	$(TOUCH) $(ASTMSGCATALOG) ; \
 	$(CHMOD) 0644 $(ASTMSGCATALOG)
 

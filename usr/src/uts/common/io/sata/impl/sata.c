@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -50,6 +54,14 @@
 #include <sys/sata/sata_hba.h>
 #include <sys/sata/sata_defs.h>
 #include <sys/sata/sata_cfgadm.h>
+
+#ifdef __arm
+#include "sata_hba_local.h"
+#endif /* __arm */
+
+#ifndef	SATA_BCOPY
+#define SATA_BCOPY(from, to, size)	bcopy(from, to, size)
+#endif	/* !SATA_BCOPY */
 
 /* Debug flags - defined in sata.h */
 int	sata_debug_flags = 0;
@@ -510,7 +522,7 @@ _NOTE(SCHEME_PROTECTS_DATA("No Mutex Needed", sata_atapi_trace_index))
 /* ************** loadable module configuration functions ************** */
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int rval;
 
@@ -530,8 +542,9 @@ _init()
 	return (rval);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int rval;
 
@@ -544,9 +557,10 @@ _fini()
 	mutex_destroy(&sata_mutex);
 	return (rval);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -672,8 +686,7 @@ sata_hba_attach(dev_info_t *dip, sata_hba_tran_t *sata_tran,
 	 * SATA copy of tran_bus_config is provided to create port nodes.
 	 */
 	scsi_tran = scsi_hba_tran_alloc(dip, SCSI_HBA_CANSLEEP);
-	if (scsi_tran == NULL)
-		return (DDI_FAILURE);
+	ASSERT(scsi_tran != NULL); /* this should not fail */
 	/*
 	 * Allocate soft structure for SATA HBA instance.
 	 * There is a separate softstate for each HBA instance.
@@ -1941,8 +1954,6 @@ sata_scsi_init_pkt(struct scsi_address *ap, struct scsi_pkt *pkt,
 	 */
 	if ((rval = sata_dma_buf_setup(spx, flags, callback, arg,
 	    &cur_dma_attr)) != DDI_SUCCESS) {
-		spx->txlt_sata_pkt->satapkt_cmd.satacmd_bp = NULL;
-		sata_pkt_free(spx);
 		/*
 		 * If a DMA allocation request fails with
 		 * DDI_DMA_NOMAPPING, indicate the error by calling
@@ -1950,6 +1961,8 @@ sata_scsi_init_pkt(struct scsi_address *ap, struct scsi_pkt *pkt,
 		 * If a DMA allocation request fails with
 		 * DDI_DMA_TOOBIG, indicate the error by calling
 		 * bioerror(9F) with bp and an error code of EINVAL.
+		 * For DDI_DMA_NORESOURCES, we may have some of them allocated.
+		 * Request may be repeated later - there is no real error.
 		 */
 		switch (rval) {
 		case DDI_DMA_NORESOURCES:
@@ -1964,8 +1977,24 @@ sata_scsi_init_pkt(struct scsi_address *ap, struct scsi_pkt *pkt,
 			bioerror(bp, EINVAL);
 			break;
 		}
-		if (new_pkt == TRUE)
-			scsi_hba_pkt_free(ap, pkt);
+		if (new_pkt == TRUE) {
+			/*
+			 * Since this is a new packet, we can clean-up
+			 * everything
+			 */
+			sata_scsi_destroy_pkt(ap, pkt);
+		} else {
+			/*
+			 * This is a re-used packet. It will be target driver's
+			 * responsibility to eventually destroy it (which
+			 * will free allocated resources).
+			 * Here, we just "complete" the request, leaving
+			 * allocated resources intact, so the request may
+			 * be retried.
+			 */
+			spx->txlt_sata_pkt->satapkt_cmd.satacmd_bp = NULL;
+			sata_pkt_free(spx);
+		}
 		return (NULL);
 	}
 	/* Set number of bytes that are not yet accounted for */
@@ -2704,7 +2733,7 @@ sata_scsi_sync_pkt(struct scsi_address *ap, struct scsi_pkt *pkt)
  * This function should be called with port mutex held.
  */
 static int
-sata_txlt_generic_pkt_info(sata_pkt_txlate_t *spx)
+sata_txlt_generic_pkt_info(sata_pkt_txlate_t *spx, int *reason)
 {
 	sata_drive_info_t *sdinfo;
 	sata_device_t sata_device;
@@ -2716,12 +2745,13 @@ sata_txlt_generic_pkt_info(sata_pkt_txlate_t *spx)
 	 * Pkt_reason has to be set if the pkt_comp callback is invoked,
 	 * and that implies TRAN_ACCEPT return value. Any other returned value
 	 * indicates that the scsi packet was not accepted (the reason will not
-	 * be checked by the scsi traget driver).
+	 * be checked by the scsi target driver).
 	 * To make debugging easier, we set pkt_reason to know value here.
 	 * It may be changed later when different completion reason is
 	 * determined.
 	 */
 	spx->txlt_scsi_pkt->pkt_reason = CMD_TRAN_ERR;
+	*reason = CMD_TRAN_ERR;
 
 	/* Validate address */
 	switch (sata_validate_scsi_address(spx->txlt_sata_hba_inst,
@@ -2733,6 +2763,7 @@ sata_txlt_generic_pkt_info(sata_pkt_txlate_t *spx)
 	case 1:
 		/* valid address but no device - it has disappeared ? */
 		spx->txlt_scsi_pkt->pkt_reason = CMD_DEV_GONE;
+		*reason = CMD_DEV_GONE;
 		/*
 		 * The sd target driver is checking CMD_DEV_GONE pkt_reason
 		 * only in callback function (for normal requests) and
@@ -2753,7 +2784,7 @@ sata_txlt_generic_pkt_info(sata_pkt_txlate_t *spx)
 		}
 		return (TRAN_FATAL_ERROR);
 	default:
-		/* all OK */
+		/* all OK; pkt reason will be overwritten later */
 		break;
 	}
 	sdinfo = sata_get_device_info(spx->txlt_sata_hba_inst,
@@ -2777,6 +2808,7 @@ sata_txlt_generic_pkt_info(sata_pkt_txlate_t *spx)
 		    sata_device.satadev_addr.cport) &
 		    SATA_APCTL_LOCK_PORT_BUSY) == 0)) {
 			spx->txlt_scsi_pkt->pkt_reason = CMD_INCOMPLETE;
+			*reason = CMD_INCOMPLETE;
 			SATADBG1(SATA_DBG_SCSI_IF, spx->txlt_sata_hba_inst,
 			    "sata_scsi_start: rejecting command because "
 			    "of device reset state\n", NULL);
@@ -2806,6 +2838,7 @@ sata_txlt_generic_pkt_info(sata_pkt_txlate_t *spx)
 	 * changed later when a different completion reason is determined.
 	 */
 	spx->txlt_scsi_pkt->pkt_reason = CMD_CMPLT;
+	*reason = CMD_CMPLT;
 
 	if ((spx->txlt_scsi_pkt->pkt_flags & FLAG_NOINTR) != 0) {
 		/* Synchronous execution */
@@ -2961,11 +2994,12 @@ static 	int
 sata_txlt_nodata_cmd_immediate(sata_pkt_txlate_t *spx)
 {
 	int rval;
+	int reason;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -3023,12 +3057,12 @@ sata_txlt_inquiry(sata_pkt_txlate_t *spx)
 	uint8_t *p;
 	int i, j;
 	uint8_t page_buf[0xff]; /* Max length */
-	int rval;
+	int rval, reason;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -3203,12 +3237,12 @@ sata_txlt_request_sense(sata_pkt_txlate_t *spx)
 	struct scsi_pkt *scsipkt = spx->txlt_scsi_pkt;
 	struct scsi_extended_sense sense;
 	struct buf *bp = spx->txlt_sata_pkt->satapkt_cmd.satacmd_bp;
-	int rval;
+	int rval, reason;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -3269,12 +3303,12 @@ sata_txlt_test_unit_ready(sata_pkt_txlate_t *spx)
 	struct scsi_pkt *scsipkt = spx->txlt_scsi_pkt;
 	struct scsi_extended_sense *sense;
 	int power_state;
-	int rval;
+	int rval, reason;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -3338,7 +3372,7 @@ sata_txlt_start_stop_unit(sata_pkt_txlate_t *spx)
 	struct scsi_extended_sense *sense;
 	sata_hba_inst_t *shi = SATA_TXLT_HBA_INST(spx);
 	int cport = SATA_TXLT_CPORT(spx);
-	int rval;
+	int rval, reason;
 	int synch;
 
 	SATADBG1(SATA_DBG_SCSI_IF, spx->txlt_sata_hba_inst,
@@ -3346,8 +3380,8 @@ sata_txlt_start_stop_unit(sata_pkt_txlate_t *spx)
 
 	mutex_enter(&SATA_CPORT_MUTEX(shi, cport));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -3445,15 +3479,15 @@ sata_txlt_read_capacity(sata_pkt_txlate_t *spx)
 	sata_drive_info_t *sdinfo;
 	uint64_t val;
 	uchar_t *rbuf;
-	int rval;
+	int rval, reason;
 
 	SATADBG1(SATA_DBG_SCSI_IF, spx->txlt_sata_hba_inst,
 	    "sata_txlt_read_capacity: ", NULL);
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -3533,7 +3567,7 @@ sata_txlt_mode_sense(sata_pkt_txlate_t *spx)
 	int 		len, bdlen, count, alc_len;
 	int		pc;	/* Page Control code */
 	uint8_t		*buf;	/* mode sense buffer */
-	int		rval;
+	int		rval, reason;
 
 	SATADBG2(SATA_DBG_SCSI_IF, spx->txlt_sata_hba_inst,
 	    "sata_txlt_mode_sense, pc %x page code 0x%02x\n",
@@ -3544,8 +3578,8 @@ sata_txlt_mode_sense(sata_pkt_txlate_t *spx)
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		kmem_free(buf, 1024);
 		return (rval);
@@ -3810,7 +3844,7 @@ sata_txlt_mode_select(sata_pkt_txlate_t *spx)
 	struct scsi_extended_sense *sense;
 	int len, pagelen, count, pllen;
 	uint8_t *buf;	/* mode select buffer */
-	int rval, stat;
+	int rval, stat, reason;
 	uint_t nointr_flag;
 	int dmod = 0;
 
@@ -3821,8 +3855,8 @@ sata_txlt_mode_select(sata_pkt_txlate_t *spx)
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -4088,7 +4122,7 @@ sata_txlt_log_sense(sata_pkt_txlate_t *spx)
 	int		pc;	/* Page Control code */
 	int		page_code;	/* Page code */
 	uint8_t		*buf;	/* log sense buffer */
-	int		rval;
+	int		rval, reason;
 #define	MAX_LOG_SENSE_PAGE_SIZE	512
 
 	SATADBG2(SATA_DBG_SCSI_IF, spx->txlt_sata_hba_inst,
@@ -4100,8 +4134,8 @@ sata_txlt_log_sense(sata_pkt_txlate_t *spx)
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		kmem_free(buf, MAX_LOG_SENSE_PAGE_SIZE);
 		return (rval);
@@ -4347,13 +4381,13 @@ sata_txlt_read(sata_pkt_txlate_t *spx)
 	int cport = SATA_TXLT_CPORT(spx);
 	uint16_t sec_count;
 	uint64_t lba;
-	int rval;
+	int rval, reason;
 	int synch;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -4465,84 +4499,109 @@ sata_txlt_read(sata_pkt_txlate_t *spx)
 	scmd->satacmd_status_reg = 0;
 	scmd->satacmd_error_reg = 0;
 
-	/*
-	 * Check if queueing commands should be used and switch
-	 * to appropriate command if possible
-	 */
-	if (sata_func_enable & SATA_ENABLE_QUEUING) {
-		boolean_t using_queuing;
+#ifdef __arm
+	if ((SATA_FEATURES(spx->txlt_sata_hba_inst) & SATA_CTLF_PIO) != 0) {
+		/* PIO supported by ARM architecture - use PIO READ */
+		if (scmd->satacmd_addr_type == ATA_ADDR_LBA48) {
+			if (sec_count > 1) {
+				scmd->satacmd_cmd_reg = SATAC_RDMULT_EXT;
+			} else {
+				scmd->satacmd_cmd_reg = SATAC_RDSEC_EXT;
+			}
+		} else if (scmd->satacmd_addr_type == ATA_ADDR_LBA28) {
+			if (sec_count > 1) {
+				scmd->satacmd_cmd_reg = SATAC_RDMULT;
+			} else {
+				scmd->satacmd_cmd_reg = SATAC_RDSEC;
+			}
+		} else {
+			scmd->satacmd_cmd_reg = SATAC_RDSEC;
+		}
+	} else
+#endif /* __arm */
+	{
+		/*
+		 * Check if queueing commands should be used and switch
+		 * to appropriate command if possible
+		 */
+		if (sata_func_enable & SATA_ENABLE_QUEUING) {
+			boolean_t using_queuing;
 
-		/* Queuing supported by controller and device? */
-		if ((sata_func_enable & SATA_ENABLE_NCQ) &&
-		    (sdinfo->satadrv_features_support &
-		    SATA_DEV_F_NCQ) &&
-		    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
-		    SATA_CTLF_NCQ)) {
-			using_queuing = B_TRUE;
+			/* Queuing supported by controller and device? */
+			if ((sata_func_enable & SATA_ENABLE_NCQ) &&
+			    (sdinfo->satadrv_features_support &
+			    SATA_DEV_F_NCQ) &&
+			    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
+			    SATA_CTLF_NCQ)) {
+				using_queuing = B_TRUE;
 
-			/* NCQ supported - use FPDMA READ */
-			scmd->satacmd_cmd_reg =
-			    SATAC_READ_FPDMA_QUEUED;
-			scmd->satacmd_features_reg_ext =
-			    scmd->satacmd_sec_count_msb;
-			scmd->satacmd_sec_count_msb = 0;
-		} else if ((sdinfo->satadrv_features_support &
-		    SATA_DEV_F_TCQ) &&
-		    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
-		    SATA_CTLF_QCMD)) {
-			using_queuing = B_TRUE;
-
-			/* Legacy queueing */
-			if (sdinfo->satadrv_features_support &
-			    SATA_DEV_F_LBA48) {
+				/* NCQ supported - use FPDMA READ */
 				scmd->satacmd_cmd_reg =
-				    SATAC_READ_DMA_QUEUED_EXT;
+				    SATAC_READ_FPDMA_QUEUED;
 				scmd->satacmd_features_reg_ext =
 				    scmd->satacmd_sec_count_msb;
 				scmd->satacmd_sec_count_msb = 0;
-			} else {
-				scmd->satacmd_cmd_reg =
-				    SATAC_READ_DMA_QUEUED;
-			}
-		} else	/* NCQ nor legacy queuing not supported */
-			using_queuing = B_FALSE;
+			} else if ((sdinfo->satadrv_features_support &
+			    SATA_DEV_F_TCQ) &&
+			    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
+			    SATA_CTLF_QCMD)) {
+				using_queuing = B_TRUE;
 
-		/*
-		 * If queuing, the sector count goes in the features register
-		 * and the secount count will contain the tag.
-		 */
-		if (using_queuing) {
-			scmd->satacmd_features_reg =
-			    scmd->satacmd_sec_count_lsb;
-			scmd->satacmd_sec_count_lsb = 0;
-			scmd->satacmd_flags.sata_queued = B_TRUE;
+				/* Legacy queueing */
+				if (sdinfo->satadrv_features_support &
+				    SATA_DEV_F_LBA48) {
+					scmd->satacmd_cmd_reg =
+					    SATAC_READ_DMA_QUEUED_EXT;
+					scmd->satacmd_features_reg_ext =
+					    scmd->satacmd_sec_count_msb;
+					scmd->satacmd_sec_count_msb = 0;
+				} else {
+					scmd->satacmd_cmd_reg =
+					    SATAC_READ_DMA_QUEUED;
+				}
+			} else	/* NCQ nor legacy queuing not supported */
+				using_queuing = B_FALSE;
 
-			/* Set-up maximum queue depth */
-			scmd->satacmd_flags.sata_max_queue_depth =
-			    sdinfo->satadrv_max_queue_depth - 1;
-		} else if (sdinfo->satadrv_features_enabled &
-		    SATA_DEV_F_E_UNTAGGED_QING) {
 			/*
-			 * Although NCQ/TCQ is not enabled, untagged queuing
-			 * may be still used.
-			 * Set-up the maximum untagged queue depth.
-			 * Use controller's queue depth from sata_hba_tran.
-			 * SATA HBA drivers may ignore this value and rely on
-			 * the internal limits.For drivers that do not
-			 * ignore untaged queue depth, limit the value to
-			 * SATA_MAX_QUEUE_DEPTH (32), as this is the
-			 * largest value that can be passed via
-			 * satacmd_flags.sata_max_queue_depth.
+			 * If queuing, the sector count goes in the features
+			 * register and the secount count will contain the tag.
 			 */
-			scmd->satacmd_flags.sata_max_queue_depth =
-			    SATA_QDEPTH(shi) <= SATA_MAX_QUEUE_DEPTH ?
-			    SATA_QDEPTH(shi) - 1: SATA_MAX_QUEUE_DEPTH - 1;
+			if (using_queuing) {
+				scmd->satacmd_features_reg =
+				    scmd->satacmd_sec_count_lsb;
+				scmd->satacmd_sec_count_lsb = 0;
+				scmd->satacmd_flags.sata_queued = B_TRUE;
 
-		} else {
+				/* Set-up maximum queue depth */
+				scmd->satacmd_flags.sata_max_queue_depth =
+				    sdinfo->satadrv_max_queue_depth - 1;
+			} else if (sdinfo->satadrv_features_enabled &
+			    SATA_DEV_F_E_UNTAGGED_QING) {
+				/*
+				 * Although NCQ/TCQ is not enabled, untagged
+				 * queuing may be still used.
+				 * Set-up the maximum untagged queue depth.
+				 * Use controller's queue depth from
+				 * sata_hba_tran.
+				 * SATA HBA drivers may ignore this value and
+				 * rely on the internal limits.For drivers
+				 * that do not ignore untaged queue depth,
+				 * limit the value to SATA_MAX_QUEUE_DEPTH (32),
+				 * as this is the largest value that can be
+				 * passed via
+				 * satacmd_flags.sata_max_queue_depth.
+				 */
+				scmd->satacmd_flags.sata_max_queue_depth =
+				    SATA_QDEPTH(shi) <= SATA_MAX_QUEUE_DEPTH
+				    ? SATA_QDEPTH(shi) - 1
+				    : SATA_MAX_QUEUE_DEPTH - 1;
+
+			} else {
+				scmd->satacmd_flags.sata_max_queue_depth = 0;
+			}
+		} else
 			scmd->satacmd_flags.sata_max_queue_depth = 0;
-		}
-	} else
-		scmd->satacmd_flags.sata_max_queue_depth = 0;
+	}
 
 	SATADBG3(SATA_DBG_HBA_IF, spx->txlt_sata_hba_inst,
 	    "sata_txlt_read cmd 0x%2x, lba %llx, sec count %x\n",
@@ -4616,13 +4675,13 @@ sata_txlt_write(sata_pkt_txlate_t *spx)
 	int cport = SATA_TXLT_CPORT(spx);
 	uint16_t sec_count;
 	uint64_t lba;
-	int rval;
+	int rval, reason;
 	int synch;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -4734,79 +4793,104 @@ sata_txlt_write(sata_pkt_txlate_t *spx)
 	scmd->satacmd_status_reg = 0;
 	scmd->satacmd_error_reg = 0;
 
-	/*
-	 * Check if queueing commands should be used and switch
-	 * to appropriate command if possible
-	 */
-	if (sata_func_enable & SATA_ENABLE_QUEUING) {
-		boolean_t using_queuing;
+#ifdef __arm
+	if ((SATA_FEATURES(spx->txlt_sata_hba_inst) & SATA_CTLF_PIO) != 0) {
+		/* PIO supported by ARM architecture - use PIO WRITE */
+		if (scmd->satacmd_addr_type == ATA_ADDR_LBA48) {
+			if (sec_count > 1) {
+				scmd->satacmd_cmd_reg = SATAC_WRMULT_EXT;
+			} else {
+				scmd->satacmd_cmd_reg = SATAC_WRSEC_EXT;
+			}
+		} else if (scmd->satacmd_addr_type == ATA_ADDR_LBA28) {
+			if (sec_count > 1) {
+				scmd->satacmd_cmd_reg = SATAC_WRMULT;
+			} else {
+				scmd->satacmd_cmd_reg = SATAC_WRSEC;
+			}
+		} else {
+			scmd->satacmd_cmd_reg = SATAC_WRSEC;
+		}
+	} else
+#endif /* __arm */
+	{
+		/*
+		 * Check if queueing commands should be used and switch
+		 * to appropriate command if possible
+		 */
+		if (sata_func_enable & SATA_ENABLE_QUEUING) {
+			boolean_t using_queuing;
 
-		/* Queuing supported by controller and device? */
-		if ((sata_func_enable & SATA_ENABLE_NCQ) &&
-		    (sdinfo->satadrv_features_support &
-		    SATA_DEV_F_NCQ) &&
-		    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
-		    SATA_CTLF_NCQ)) {
-			using_queuing = B_TRUE;
+			/* Queuing supported by controller and device? */
+			if ((sata_func_enable & SATA_ENABLE_NCQ) &&
+			    (sdinfo->satadrv_features_support &
+			    SATA_DEV_F_NCQ) &&
+			    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
+			    SATA_CTLF_NCQ)) {
+				using_queuing = B_TRUE;
 
-			/* NCQ supported - use FPDMA WRITE */
-			scmd->satacmd_cmd_reg =
-			    SATAC_WRITE_FPDMA_QUEUED;
-			scmd->satacmd_features_reg_ext =
-			    scmd->satacmd_sec_count_msb;
-			scmd->satacmd_sec_count_msb = 0;
-		} else if ((sdinfo->satadrv_features_support &
-		    SATA_DEV_F_TCQ) &&
-		    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
-		    SATA_CTLF_QCMD)) {
-			using_queuing = B_TRUE;
-
-			/* Legacy queueing */
-			if (sdinfo->satadrv_features_support &
-			    SATA_DEV_F_LBA48) {
+				/* NCQ supported - use FPDMA WRITE */
 				scmd->satacmd_cmd_reg =
-				    SATAC_WRITE_DMA_QUEUED_EXT;
+				    SATAC_WRITE_FPDMA_QUEUED;
 				scmd->satacmd_features_reg_ext =
 				    scmd->satacmd_sec_count_msb;
 				scmd->satacmd_sec_count_msb = 0;
+			} else if ((sdinfo->satadrv_features_support &
+			    SATA_DEV_F_TCQ) &&
+			    (SATA_FEATURES(spx->txlt_sata_hba_inst) &
+			     SATA_CTLF_QCMD)) {
+				using_queuing = B_TRUE;
+
+				/* Legacy queueing */
+				if (sdinfo->satadrv_features_support &
+				    SATA_DEV_F_LBA48) {
+					scmd->satacmd_cmd_reg =
+					    SATAC_WRITE_DMA_QUEUED_EXT;
+					scmd->satacmd_features_reg_ext =
+					    scmd->satacmd_sec_count_msb;
+					scmd->satacmd_sec_count_msb = 0;
+				} else {
+					scmd->satacmd_cmd_reg =
+					    SATAC_WRITE_DMA_QUEUED;
+				}
+			} else	/*  NCQ nor legacy queuing not supported */
+				using_queuing = B_FALSE;
+
+			if (using_queuing) {
+				scmd->satacmd_features_reg =
+				    scmd->satacmd_sec_count_lsb;
+				scmd->satacmd_sec_count_lsb = 0;
+				scmd->satacmd_flags.sata_queued = B_TRUE;
+				/* Set-up maximum queue depth */
+				scmd->satacmd_flags.sata_max_queue_depth =
+				    sdinfo->satadrv_max_queue_depth - 1;
+			} else if (sdinfo->satadrv_features_enabled &
+			    SATA_DEV_F_E_UNTAGGED_QING) {
+				/*
+				 * Although NCQ/TCQ is not enabled, untagged
+				 * queuing may be still used.
+				 * Set-up the maximum untagged queue depth.
+				 * Use controller's queue depth from
+				 * sata_hba_tran.
+				 * SATA HBA drivers may ignore this value and
+				 * rely on the internal limits. For drivers
+				 * that do not ignore untaged queue depth,
+				 * limit the value to SATA_MAX_QUEUE_DEPTH (32),
+				 * as this is the largest value that can be
+				 * passed via
+				 * satacmd_flags.sata_max_queue_depth.
+				 */
+				scmd->satacmd_flags.sata_max_queue_depth =
+				    SATA_QDEPTH(shi) <= SATA_MAX_QUEUE_DEPTH
+				    ? SATA_QDEPTH(shi) - 1
+				    : SATA_MAX_QUEUE_DEPTH - 1;
+
 			} else {
-				scmd->satacmd_cmd_reg =
-				    SATAC_WRITE_DMA_QUEUED;
+				scmd->satacmd_flags.sata_max_queue_depth = 0;
 			}
-		} else	/*  NCQ nor legacy queuing not supported */
-			using_queuing = B_FALSE;
-
-		if (using_queuing) {
-			scmd->satacmd_features_reg =
-			    scmd->satacmd_sec_count_lsb;
-			scmd->satacmd_sec_count_lsb = 0;
-			scmd->satacmd_flags.sata_queued = B_TRUE;
-			/* Set-up maximum queue depth */
-			scmd->satacmd_flags.sata_max_queue_depth =
-			    sdinfo->satadrv_max_queue_depth - 1;
-		} else if (sdinfo->satadrv_features_enabled &
-		    SATA_DEV_F_E_UNTAGGED_QING) {
-			/*
-			 * Although NCQ/TCQ is not enabled, untagged queuing
-			 * may be still used.
-			 * Set-up the maximum untagged queue depth.
-			 * Use controller's queue depth from sata_hba_tran.
-			 * SATA HBA drivers may ignore this value and rely on
-			 * the internal limits. For drivera that do not
-			 * ignore untaged queue depth, limit the value to
-			 * SATA_MAX_QUEUE_DEPTH (32), as this is the
-			 * largest value that can be passed via
-			 * satacmd_flags.sata_max_queue_depth.
-			 */
-			scmd->satacmd_flags.sata_max_queue_depth =
-			    SATA_QDEPTH(shi) <= SATA_MAX_QUEUE_DEPTH ?
-			    SATA_QDEPTH(shi) - 1: SATA_MAX_QUEUE_DEPTH - 1;
-
-		} else {
+		} else
 			scmd->satacmd_flags.sata_max_queue_depth = 0;
-		}
-	} else
-		scmd->satacmd_flags.sata_max_queue_depth = 0;
+	}
 
 	SATADBG3(SATA_DBG_SCSI_IF, spx->txlt_sata_hba_inst,
 	    "sata_txlt_write cmd 0x%2x, lba %llx, sec count %x\n",
@@ -4860,7 +4944,7 @@ sata_txlt_write_buffer(sata_pkt_txlate_t *spx)
 
 	struct buf *bp = spx->txlt_sata_pkt->satapkt_cmd.satacmd_bp;
 	struct scsi_extended_sense *sense;
-	int rval, mode, sector_count;
+	int rval, mode, sector_count, reason;
 	int cport = SATA_TXLT_CPORT(spx);
 
 	mode = scsipkt->pkt_cdbp[1] & 0x1f;
@@ -4870,7 +4954,7 @@ sata_txlt_write_buffer(sata_pkt_txlate_t *spx)
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if ((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) {
+	if ((rval = sata_txlt_generic_pkt_info(spx, &reason)) != TRAN_ACCEPT) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -5100,13 +5184,13 @@ sata_txlt_synchronize_cache(sata_pkt_txlate_t *spx)
 	sata_cmd_t *scmd = &spx->txlt_sata_pkt->satapkt_cmd;
 	sata_hba_inst_t *shi = SATA_TXLT_HBA_INST(spx);
 	int cport = SATA_TXLT_CPORT(spx);
-	int rval;
+	int rval, reason;
 	int synch;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -5218,7 +5302,6 @@ sata_hba_start(sata_pkt_txlate_t *spx, int *rval)
 	    spx->txlt_sata_pkt);
 
 	mutex_enter(&(SATA_CPORT_MUTEX(sata_hba_inst, cport)));
-	sdinfo = sata_get_device_info(sata_hba_inst, sata_device);
 	/*
 	 * If sata pkt was accepted and executed in asynchronous mode, i.e.
 	 * with the sata callback, the sata_pkt could be already destroyed
@@ -5228,8 +5311,7 @@ sata_hba_start(sata_pkt_txlate_t *spx, int *rval)
 	 * should be no references to it. In other cases, sata_pkt still
 	 * exists.
 	 */
-	switch (stat) {
-	case SATA_TRAN_ACCEPTED:
+	if (stat == SATA_TRAN_ACCEPTED) {
 		/*
 		 * pkt accepted for execution.
 		 * If it was executed synchronously, it is already completed
@@ -5237,7 +5319,10 @@ sata_hba_start(sata_pkt_txlate_t *spx, int *rval)
 		 */
 		*rval = TRAN_ACCEPT;
 		return (0);
+	}
 
+	sdinfo = sata_get_device_info(sata_hba_inst, sata_device);
+	switch (stat) {
 	case SATA_TRAN_QUEUE_FULL:
 		/*
 		 * Controller detected queue full condition.
@@ -5291,7 +5376,7 @@ sata_hba_start(sata_pkt_txlate_t *spx, int *rval)
 		if ((sdinfo != NULL) &&
 		    (sdinfo->satadrv_state & SATA_DSTATE_RESET))
 			SATADBG1(SATA_DBG_EVENTS, sata_hba_inst,
-			    "sat_hba_start: cmd 0x%2x rejected "
+			    "sata_hba_start: cmd 0x%2x rejected "
 			    "with SATA_TRAN_CMD_UNSUPPORTED status\n", cmd);
 
 		mutex_exit(&(SATA_CPORT_MUTEX(sata_hba_inst, cport)));
@@ -5557,8 +5642,28 @@ sata_txlt_rw_completion(sata_pkt_t *sata_pkt)
 				    spx->txlt_buf_dma_handle, 0, 0,
 				    DDI_DMA_SYNC_FORCPU);
 				ASSERT(rval == DDI_SUCCESS);
+#ifdef	__arm
+				switch (scmd->satacmd_cmd_reg) {
+				case SATAC_RDSEC:
+				case SATAC_RDSEC_EXT:
+				case SATAC_RDMULT:
+				case SATAC_RDMULT_EXT:
+					/* The data of PIO is not copied. */
+					break;
+				default:
+					/*
+					 * In arm architecture,
+					 * use SATA_BCOPY macro that wraps
+					 * fast_bcopy().
+					 */
+					SATA_BCOPY(spx->txlt_tmp_buf,
+					    bp->b_un.b_addr, bp->b_bcount);
+					break;
+				}
+#else	/* !__arm */
 				bcopy(spx->txlt_tmp_buf, bp->b_un.b_addr,
 				    bp->b_bcount);
+#endif	/* __arm */
 			}
 		}
 	} else {
@@ -5617,6 +5722,10 @@ sata_txlt_rw_completion(sata_pkt_t *sata_pkt)
 				sata_decode_device_error(spx, sense);
 				if (sense->es_key == KEY_MEDIUM_ERROR) {
 					switch (scmd->satacmd_cmd_reg) {
+					case SATAC_RDSEC:
+					case SATAC_RDSEC_EXT:
+					case SATAC_RDMULT:
+					case SATAC_RDMULT_EXT:
 					case SATAC_READ_DMA:
 					case SATAC_READ_DMA_EXT:
 					case SATAC_READ_DMA_QUEUED:
@@ -5626,6 +5735,10 @@ sata_txlt_rw_completion(sata_pkt_t *sata_pkt)
 						sense->es_add_code =
 						    SD_SCSI_ASC_UNREC_READ_ERR;
 						break;
+					case SATAC_WRSEC:
+					case SATAC_WRSEC_EXT:
+					case SATAC_WRMULT:
+					case SATAC_WRMULT_EXT:
 					case SATAC_WRITE_DMA:
 					case SATAC_WRITE_DMA_EXT:
 					case SATAC_WRITE_DMA_QUEUED:
@@ -6890,14 +7003,14 @@ sata_txlt_atapi(sata_pkt_txlate_t *spx)
 	    &spx->txlt_sata_pkt->satapkt_device);
 	int cport = SATA_TXLT_CPORT(spx);
 	int cdblen;
-	int rval;
+	int rval, reason;
 	int synch;
 	union scsi_cdb *cdbp = (union scsi_cdb *)scsipkt->pkt_cdbp;
 
 	mutex_enter(&(SATA_TXLT_CPORT_MUTEX(spx)));
 
-	if (((rval = sata_txlt_generic_pkt_info(spx)) != TRAN_ACCEPT) ||
-	    (spx->txlt_scsi_pkt->pkt_reason == CMD_DEV_GONE)) {
+	if (((rval = sata_txlt_generic_pkt_info(spx, &reason)) !=
+	    TRAN_ACCEPT) || (reason == CMD_DEV_GONE)) {
 		mutex_exit(&(SATA_TXLT_CPORT_MUTEX(spx)));
 		return (rval);
 	}
@@ -7792,11 +7905,15 @@ sata_validate_sata_hba_tran(dev_info_t *dip, sata_hba_tran_t *sata_tran)
 	if (sata_tran->sata_tran_probe_port == NULL ||
 	    sata_tran->sata_tran_start == NULL ||
 	    sata_tran->sata_tran_abort == NULL ||
+#ifdef	__arm
+	    sata_tran->sata_tran_reset_dport == NULL) {
+#else	/* !__arm */
 	    sata_tran->sata_tran_reset_dport == NULL ||
 	    sata_tran->sata_tran_hotplug_ops == NULL ||
 	    sata_tran->sata_tran_hotplug_ops->sata_tran_port_activate == NULL ||
 	    sata_tran->sata_tran_hotplug_ops->sata_tran_port_deactivate ==
 	    NULL) {
+#endif	/* __arm */
 		SATA_LOG_D((NULL, CE_WARN, "sata: sata_hba_tran missing "
 		    "required functions"));
 	}
@@ -9334,7 +9451,7 @@ sata_show_drive_info(sata_hba_inst_t *sata_hba_inst,
 	}
 
 	if (sdinfo->satadrv_type == SATA_DTYPE_ATADISK) {
-#ifdef __i386
+#if	defined(__i386) || defined(__arm)
 		(void) sprintf(msg_buf, "\tcapacity = %llu sectors\n",
 		    sdinfo->satadrv_capacity);
 #else
@@ -9678,6 +9795,7 @@ sata_dma_buf_setup(sata_pkt_txlate_t *spx, int flags,
 		 * is necessary. The dma_attr_minxfer theoretically should
 		 * be considered, but no HBA driver is checking it.
 		 */
+#ifndef __arm
 		if (IS_P2ALIGNED(bp->b_un.b_addr,
 		    cur_dma_attr->dma_attr_align)) {
 			rval = ddi_dma_buf_bind_handle(
@@ -9686,6 +9804,7 @@ sata_dma_buf_setup(sata_pkt_txlate_t *spx, int flags,
 			    &spx->txlt_dma_cookie,
 			    &spx->txlt_curwin_num_dma_cookies);
 		} else { /* Buffer is not aligned */
+#endif /* !__arm */
 
 			int	(*ddicallback)(caddr_t);
 			size_t	bufsz;
@@ -9757,7 +9876,7 @@ sata_dma_buf_setup(sata_pkt_txlate_t *spx, int flags,
 				 * an aligned temporary buffer. Buffer will be
 				 * synced for device by ddi_dma_addr_bind_handle
 				 */
-				bcopy(bp->b_un.b_addr, spx->txlt_tmp_buf,
+				SATA_BCOPY(bp->b_un.b_addr, spx->txlt_tmp_buf,
 				    bp->b_bcount);
 			}
 
@@ -9768,7 +9887,9 @@ sata_dma_buf_setup(sata_pkt_txlate_t *spx, int flags,
 			    bufsz, dma_flags, ddicallback, 0,
 			    &spx->txlt_dma_cookie,
 			    &spx->txlt_curwin_num_dma_cookies);
+#ifndef __arm
 		}
+#endif /* !__arm */
 
 		switch (rval) {
 		case DDI_DMA_PARTIAL_MAP:
@@ -10004,7 +10125,13 @@ sata_dma_buf_setup(sata_pkt_txlate_t *spx, int flags,
 	    spx->txlt_sata_pkt->satapkt_cmd.satacmd_num_dma_cookies;
 
 	ASSERT(cur_txfer_len != 0);
+#ifdef __arm
+	/* PIO supported by ARM architecture */
+	if (((!(SATA_FEATURES(spx->txlt_sata_hba_inst) & SATA_CTLF_PIO)) &&
+		cur_txfer_len <= bp->b_bcount))
+#else /* !__arm */
 	if (cur_txfer_len <= bp->b_bcount)
+#endif /* __arm */
 		spx->txlt_total_residue -= cur_txfer_len;
 	else {
 		/*
@@ -12798,6 +12925,7 @@ sata_fetch_smart_data(
 		ASSERT(rval == DDI_SUCCESS);
 		bcopy(scmd->satacmd_bp->b_un.b_addr, (uint8_t *)smart_data,
 		    sizeof (struct smart_data));
+		rval = 0;
 	}
 
 fail:

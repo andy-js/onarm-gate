@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -71,10 +75,10 @@
  */
 #if (defined(__fibre))
 #define	SD_MODULE_NAME	"SCSI SSA/FCAL Disk Driver %I%"
-char _depends_on[]	= "misc/scsi misc/cmlb drv/fcp";
+MODDRV_DEPENDS_ON("misc/scsi misc/cmlb drv/fcp");
 #else
 #define	SD_MODULE_NAME	"SCSI Disk Driver %I%"
-char _depends_on[]	= "misc/scsi misc/cmlb";
+MODDRV_DEPENDS_ON("misc/scsi misc/cmlb");
 #endif
 
 /*
@@ -348,7 +352,7 @@ _NOTE(MUTEX_PROTECTS_DATA(sd_scsi_probe_cache_mutex,
  * Vendor specific data name property declarations
  */
 
-#if defined(__fibre) || defined(__i386) ||defined(__amd64)
+#if defined(__fibre) || defined(__i386) ||defined(__amd64) || defined(__arm)
 
 static sd_tunables seagate_properties = {
 	SEAGATE_THROTTLE_VALUE,
@@ -438,7 +442,7 @@ static sd_tunables pirus_properties = {
 #endif
 
 #if (defined(__sparc) && !defined(__fibre)) || \
-	(defined(__i386) || defined(__amd64))
+	(defined(__i386) || defined(__amd64) || defined(__arm))
 
 
 static sd_tunables elite_properties = {
@@ -571,7 +575,7 @@ static sd_tunables tst_properties = {
  *	 made with an FC connection. The entries here are a legacy.
  */
 static sd_disk_config_t sd_disk_table[] = {
-#if defined(__fibre) || defined(__i386) || defined(__amd64)
+#if defined(__fibre) || defined(__i386) || defined(__amd64) || defined(__arm)
 	{ "SEAGATE ST34371FC", SD_CONF_BSET_THROTTLE, &seagate_properties },
 	{ "SEAGATE ST19171FC", SD_CONF_BSET_THROTTLE, &seagate_properties },
 	{ "SEAGATE ST39102FC", SD_CONF_BSET_THROTTLE, &seagate_properties },
@@ -699,7 +703,7 @@ static sd_disk_config_t sd_disk_table[] = {
 	{ "SYMBIOS", SD_CONF_BSET_NRR_COUNT, &symbios_properties },
 #endif /* fibre or NON-sparc platforms */
 #if ((defined(__sparc) && !defined(__fibre)) ||\
-	(defined(__i386) || defined(__amd64)))
+	(defined(__i386) || defined(__amd64) || defined(__arm)))
 	{ "SEAGATE ST42400N", SD_CONF_BSET_THROTTLE, &elite_properties },
 	{ "SEAGATE ST31200N", SD_CONF_BSET_THROTTLE, &st31200n_properties },
 	{ "SEAGATE ST41600N", SD_CONF_BSET_TUR_CHECK, NULL },
@@ -716,7 +720,7 @@ static sd_disk_config_t sd_disk_table[] = {
 	    &symbios_properties },
 	{ "LSI", SD_CONF_BSET_THROTTLE | SD_CONF_BSET_NRR_COUNT,
 	    &lsi_properties_scsi },
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	{ " NEC CD-ROM DRIVE:260 ", (SD_CONF_BSET_PLAYMSF_BCD
 				    | SD_CONF_BSET_READSUB_BCD
 				    | SD_CONF_BSET_READ_TOC_ADDR_BCD
@@ -728,7 +732,7 @@ static sd_disk_config_t sd_disk_table[] = {
 				    | SD_CONF_BSET_READ_TOC_ADDR_BCD
 				    | SD_CONF_BSET_NO_READ_HEADER
 				    | SD_CONF_BSET_READ_CD_XD4), NULL },
-#endif /* __i386 || __amd64 */
+#endif /* __i386 || __amd64 || __arm */
 #endif /* sparc NON-fibre or NON-sparc platforms */
 
 #if (defined(SD_PROP_TST))
@@ -1074,9 +1078,11 @@ static int sd_pm_idletime = 1;
 #endif	/* #if (defined(__fibre)) */
 
 
-int _init(void);
-int _fini(void);
-int _info(struct modinfo *modinfop);
+int MODDRV_ENTRY_INIT(void);
+#ifndef	STATIC_DRIVER
+int MODDRV_ENTRY_FINI(void);
+#endif	/* !STATIC_DRIVER */
+int MODDRV_ENTRY_INFO(struct modinfo *modinfop);
 
 /*PRINTFLIKE3*/
 static void sd_log_trace(uint_t comp, struct sd_lun *un, const char *fmt, ...);
@@ -2133,7 +2139,7 @@ static struct sd_chain_index	sd_chain_index_map[] = {
  */
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	err;
 
@@ -2194,6 +2200,7 @@ _init(void)
 }
 
 
+#ifndef	STATIC_DRIVER
 /*
  *    Function: _fini
  *
@@ -2205,7 +2212,7 @@ _init(void)
  */
 
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int err;
 
@@ -2231,6 +2238,7 @@ _fini(void)
 
 	return (err);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 /*
@@ -2246,7 +2254,7 @@ _fini(void)
  */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -5467,6 +5475,16 @@ sd_ddi_suspend(dev_info_t *devi)
 		mutex_exit(SD_MUTEX(un));
 		(void) untimeout(temp_id);
 		mutex_enter(SD_MUTEX(un));
+
+		if (un->un_retry_bp != NULL) {
+			un->un_retry_bp->av_forw = un->un_waitq_headp;
+			un->un_waitq_headp = un->un_retry_bp;
+			if (un->un_waitq_tailp == NULL) {
+				un->un_waitq_tailp = un->un_retry_bp;
+			}
+			un->un_retry_bp = NULL;
+			un->un_retry_statp = NULL;
+		}
 	} else {
 		mutex_exit(&un->un_pm_mutex);
 	}
@@ -6634,7 +6652,7 @@ sd_unit_attach(dev_info_t *devi)
 	 * The value used is base on interconnect type.
 	 * fibre = 3, parallel = 5
 	 */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	un->un_retry_count = un->un_f_is_fibre ? 3 : 5;
 #else
 	un->un_retry_count = SD_RETRY_COUNT;
@@ -6681,7 +6699,7 @@ sd_unit_attach(dev_info_t *devi)
 	 * get updated later in the attach, when setting up default wide
 	 * operations for disks.
 	 */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	un->un_max_xfer_size = (uint_t)SD_DEFAULT_MAX_XFER_SIZE;
 	un->un_partial_dma_supported = 1;
 #else
@@ -6882,9 +6900,6 @@ sd_unit_attach(dev_info_t *devi)
 	    "sd_unit_attach: un:0x%p un_stats created\n", un);
 
 	sd_create_errstats(un, instance);
-	if (un->un_errstats == NULL) {
-		goto create_errstats_failed;
-	}
 	SD_TRACE(SD_LOG_ATTACH_DETACH, un,
 	    "sd_unit_attach: un:0x%p errstats created\n", un);
 
@@ -7096,7 +7111,7 @@ sd_unit_attach(dev_info_t *devi)
 					    "is too large for a 32-bit "
 					    "kernel", capacity);
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 					/*
 					 * 1TB disk was treated as (1T - 512)B
 					 * in the past, so that it might have
@@ -7279,7 +7294,7 @@ sd_unit_attach(dev_info_t *devi)
 
 	cmlb_alloc_handle(&un->un_cmlbhandle);
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	/*
 	 * On x86, compensate for off-by-1 legacy error
 	 */
@@ -7526,8 +7541,6 @@ spinup_failed:
 		kstat_delete(un->un_errstats);
 		un->un_errstats = NULL;
 	}
-
-create_errstats_failed:
 
 	if (un->un_stats != NULL) {
 		kstat_delete(un->un_stats);
@@ -8136,7 +8149,9 @@ sd_set_errstats(struct sd_lun *un)
 	struct	sd_errstats	*stp;
 
 	ASSERT(un != NULL);
-	ASSERT(un->un_errstats != NULL);
+	if (un->un_errstats == NULL) {
+		return;
+	}
 	stp = (struct sd_errstats *)un->un_errstats->ks_data;
 	ASSERT(stp != NULL);
 	(void) strncpy(stp->sd_vid.value.c, un->un_sd->sd_inq->inq_vid, 8);
@@ -8231,11 +8246,22 @@ sd_set_pstats(struct sd_lun *un)
 
 		if ((un->un_pstats[i] == NULL) &&
 		    (nblks != 0)) {
-
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 			(void) snprintf(kstatname, sizeof (kstatname),
 			    "%s%d,%s", sd_label, instance,
 			    partname);
 
+#else
+			if (i < (NDKMAP + FD_NUMPART + 1)) {
+				(void) snprintf(kstatname, sizeof (kstatname),
+				    "%s%d,%s", sd_label, instance,
+				    partname);
+			} else {
+				(void) snprintf(kstatname, sizeof (kstatname),
+				    "%s%d,l%d", sd_label, instance,
+				    (i - (NDKMAP + FD_NUMPART + 1)));
+			}
+#endif
 			un->un_pstats[i] = kstat_create(sd_label,
 			    instance, kstatname, "partition", KSTAT_TYPE_IO,
 			    1, KSTAT_FLAG_PERSISTENT);
@@ -9038,6 +9064,14 @@ sdopen(dev_t *dev_p, int flag, int otyp, cred_t *cred_p)
 
 	dev = *dev_p;
 	instance = SDUNIT(dev);
+#ifdef DISK_ACCESS_CTRL
+	part= SDPART(dev);
+	if ((cmlb_acc_ctrl_instance == instance) && (part == P0_RAW_DISK)) {
+		if ((flag & FWRITE)) {
+			return (EROFS);
+		}
+	}
+#endif
 	mutex_enter(&sd_detach_mutex);
 
 	/*
@@ -9205,7 +9239,7 @@ sdopen(dev_t *dev_p, int flag, int otyp, cred_t *cred_p)
 			    "device not ready or invalid disk block value\n");
 			goto open_fail;
 		}
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	} else {
 		uchar_t *cp;
 		/*
@@ -9394,7 +9428,7 @@ sdclose(dev_t dev, int flag, int otyp, cred_t *cred_p)
 			 * only issues a Sync Cache to DVD-RAM, a newly
 			 * supported device.
 			 */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 			if (un->un_f_sync_cache_supported ||
 			    un->un_f_dvdram_writable_device == TRUE) {
 #else
@@ -11036,7 +11070,7 @@ sd_mapblocksize_iostart(int index, struct sd_lun *un, struct buf *bp)
 		goto done;
 	}
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	/* We do not support non-block-aligned transfers for ROD devices */
 	ASSERT(!ISROD(un));
 #endif
@@ -11796,7 +11830,10 @@ sd_initpkt_for_buf(struct buf *bp, struct scsi_pkt **pktpp)
 	SD_TRACE(SD_LOG_IO_CORE, un,
 	    "sd_initpkt_for_buf: entry: buf:0x%p\n", bp);
 
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+	mutex_exit(SD_MUTEX(un));
+
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+	/* DMAFREE for x86 and arm */
 	if (xp->xb_pkt_flags & SD_XB_DMA_FREED) {
 		/*
 		 * Already have a scsi_pkt -- just need DMA resources.
@@ -11812,12 +11849,13 @@ sd_initpkt_for_buf(struct buf *bp, struct scsi_pkt **pktpp)
 	} else {
 		pktp = NULL;
 	}
-#endif /* __i386 || __amd64 */
+#endif /* __i386 || __amd64 || __arm */
 
 	startblock = xp->xb_blkno;	/* Absolute block num. */
 	blockcount = SD_BYTES2TGTBLOCKS(un, bp->b_bcount);
 
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+	/* DMAFREE for x86 and arm */
 
 	cmd_flags = un->un_pkt_flags | (xp->xb_pkt_flags & SD_XB_INITPKT_MASK);
 
@@ -11868,10 +11906,12 @@ sd_initpkt_for_buf(struct buf *bp, struct scsi_pkt **pktpp)
 		SD_TRACE(SD_LOG_IO_CORE, un,
 		    "sd_initpkt_for_buf: exit: buf:0x%p\n", bp);
 
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+	/* DMAFREE for x86 and arm */
 		xp->xb_pkt_flags &= ~SD_XB_DMA_FREED;
 #endif
 
+		mutex_enter(SD_MUTEX(un));
 		return (SD_PKT_ALLOC_SUCCESS);
 
 	}
@@ -11889,6 +11929,7 @@ sd_initpkt_for_buf(struct buf *bp, struct scsi_pkt **pktpp)
 		 * is waiting on resource allocations. The driver will not
 		 * suspend, pm_suspend, or detatch while the state is RWAIT.
 		 */
+		mutex_enter(SD_MUTEX(un));
 		New_state(un, SD_STATE_RWAIT);
 
 		SD_ERROR(SD_LOG_IO_CORE, un,
@@ -11910,6 +11951,7 @@ sd_initpkt_for_buf(struct buf *bp, struct scsi_pkt **pktpp)
 		    "lba:0x%08lx  len:0x%08lx\n", startblock, blockcount);
 		SD_ERROR(SD_LOG_IO_CORE, un,
 		    "sd_initpkt_for_buf: No cp. exit bp:0x%p\n", bp);
+		mutex_enter(SD_MUTEX(un));
 		return (SD_PKT_ALLOC_FAILURE_CDB_TOO_SMALL);
 
 	}
@@ -12515,7 +12557,7 @@ sd_shadow_buf_alloc(struct buf *bp, size_t datalen, uint_t bflags,
 	}
 
 	bflags &= (B_READ | B_WRITE);
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	new_bp = getrbuf(KM_SLEEP);
 	new_bp->b_un.b_addr = kmem_zalloc(datalen, KM_SLEEP);
 	new_bp->b_bcount = datalen;
@@ -12629,7 +12671,7 @@ sd_shadow_buf_free(struct buf *bp)
 	 */
 	bp->b_iodone = NULL;
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	kmem_free(bp->b_un.b_addr, bp->b_bcount);
 	freerbuf(bp);
 #else
@@ -12859,7 +12901,8 @@ sd_start_cmds(struct sd_lun *un, struct buf *immed_bp)
 	struct	sd_xbuf	*xp;
 	struct	buf	*bp;
 	void	(*statp)(kstat_io_t *);
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+	/* DMAFREE for x86 and arm */
 	void	(*saved_statp)(kstat_io_t *);
 #endif
 	int	rval;
@@ -12872,7 +12915,8 @@ sd_start_cmds(struct sd_lun *un, struct buf *immed_bp)
 	SD_TRACE(SD_LOG_IO_CORE | SD_LOG_ERROR, un, "sd_start_cmds: entry\n");
 
 	do {
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+		/* DMAFREE for x86 and arm */
 		saved_statp = NULL;
 #endif
 
@@ -12931,7 +12975,8 @@ sd_start_cmds(struct sd_lun *un, struct buf *immed_bp)
 				    kstat_runq_back_to_waitq)) {
 					statp = kstat_waitq_to_runq;
 				}
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+				/* DMAFREE for x86 and arm */
 				saved_statp = un->un_retry_statp;
 #endif
 				un->un_retry_statp = NULL;
@@ -13019,7 +13064,8 @@ sd_start_cmds(struct sd_lun *un, struct buf *immed_bp)
 		xp = SD_GET_XBUF(bp);
 		ASSERT(xp != NULL);
 
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+		/* DMAFREE for x86 and arm */
 		/*
 		 * Allocate the scsi_pkt if we need one, or attach DMA
 		 * resources if we have a scsi_pkt that needs them. The
@@ -13098,8 +13144,8 @@ sd_start_cmds(struct sd_lun *un, struct buf *immed_bp)
 				SD_TRACE(SD_LOG_IO_CORE | SD_LOG_ERROR, un,
 				    "sd_start_cmds: SD_PKT_ALLOC_FAILURE\n");
 
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
-
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+				/* DMAFREE for x86 and arm */
 				if (bp == immed_bp) {
 					/*
 					 * If SD_XB_DMA_FREED is clear, then
@@ -13293,7 +13339,8 @@ got_pkt:
 				goto exit;
 			}
 
-#if defined(__i386) || defined(__amd64)	/* DMAFREE for x86 only */
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+			/* DMAFREE for x86 and arm */
 			/*
 			 * Free the DMA resources for the  scsi_pkt. This will
 			 * allow mpxio to select another path the next time
@@ -14482,7 +14529,7 @@ sd_alloc_rqs(struct scsi_device *devp, struct sd_lun *un)
 	if (un->un_f_is_fibre == TRUE) {
 		un->un_f_arq_enabled = TRUE;
 	} else {
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		/*
 		 * Circumvent the Adaptec bug, remove this code when
 		 * the bug is fixed
@@ -14914,7 +14961,8 @@ sdintr(struct scsi_pkt *pktp)
 			goto exit;
 		}
 
-#if (defined(__i386) || defined(__amd64))	/* DMAFREE for x86 only */
+#if (defined(__i386) || defined(__amd64) || defined(__arm))
+		/* DMAFREE for x86 and arm */
 		/*
 		 * We want to either retry or fail this command, so free
 		 * the DMA resources here.  If we retry the command then
@@ -15007,7 +15055,8 @@ sdintr(struct scsi_pkt *pktp)
 
 not_successful:
 
-#if (defined(__i386) || defined(__amd64))	/* DMAFREE for x86 only */
+#if (defined(__i386) || defined(__amd64) || defined(__arm))
+	/* DMAFREE for x86 and arm */
 	/*
 	 * The following is based upon knowledge of the underlying transport
 	 * and its use of DMA resources.  This code should be removed when
@@ -15646,7 +15695,7 @@ sense_failed:
 	 * If the request sense failed (for whatever reason), attempt
 	 * to retry the original command.
 	 */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	/*
 	 * SD_RETRY_DELAY is conditionally compile (#if fibre) in
 	 * sddef.h for Sparc platform, and x86 uses 1 binary
@@ -17185,7 +17234,7 @@ sd_pkt_status_check_condition(struct sd_lun *un, struct buf *bp,
 	} else {
 		SD_INFO(SD_LOG_IO_CORE, un, "sd_pkt_status_check_condition: "
 		    "ARQ,retrying request sense command\n");
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		/*
 		 * The SD_RETRY_DELAY value need to be adjusted here
 		 * when SD_RETRY_DELAY change in sddef.h
@@ -19689,6 +19738,10 @@ sdioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cred_p, int *rval_p)
 		case DKIOCSMBOOT:
 		case DKIOCG_PHYGEOM:
 		case DKIOCG_VIRTGEOM:
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+		case DKIOCGEBR:
+		case DKIOCSEBR:
+#endif
 			/* let cmlb handle it */
 			goto skip_ready_valid;
 
@@ -19824,6 +19877,10 @@ skip_ready_valid:
 	case DKIOCSMBOOT:
 	case DKIOCG_PHYGEOM:
 	case DKIOCG_VIRTGEOM:
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	case DKIOCGEBR:
+	case DKIOCSEBR:
+#endif
 		SD_TRACE(SD_LOG_IOCTL, un, "DKIOC %d\n", cmd);
 
 		/* TUR should spin up */
@@ -20138,7 +20195,7 @@ skip_ready_valid:
 
 	case CDROMPLAYTRKIND:
 		SD_TRACE(SD_LOG_IOCTL, un, "CDROMPLAYTRKIND\n");
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		/*
 		 * not supported on ATAPI CD drives, use CDROMPLAYMSF instead
 		 */
@@ -23555,7 +23612,7 @@ sd_persistent_reservation_in_read_keys(struct sd_lun *un,
 	sd_prin_readkeys_t	*in;
 	mhioc_inkeys_t		*ptr;
 	mhioc_key_list_t	li;
-	uchar_t			*data_bufp;
+	uchar_t			*data_bufp = NULL;
 	int 			data_len;
 	int			rval;
 	size_t			copysz;
@@ -23668,7 +23725,9 @@ sd_persistent_reservation_in_read_keys(struct sd_lun *un,
 		rval = EFAULT;
 	}
 done:
-	kmem_free(data_bufp, data_len);
+	if (data_bufp != NULL) {
+		kmem_free(data_bufp, data_len);
+	}
 	return (rval);
 }
 
@@ -23709,7 +23768,7 @@ sd_persistent_reservation_in_read_resv(struct sd_lun *un,
 	sd_readresv_desc_t	*readresv_ptr;
 	mhioc_resv_desc_list_t	resvlist;
 	mhioc_resv_desc_t 	resvdesc;
-	uchar_t			*data_bufp;
+	uchar_t			*data_bufp = NULL;
 	int 			data_len;
 	int			rval;
 	int			i;
@@ -23834,7 +23893,9 @@ sd_persistent_reservation_in_read_resv(struct sd_lun *un,
 		}
 	}
 done:
-	kmem_free(data_bufp, data_len);
+	if (data_bufp != NULL) {
+		kmem_free(data_bufp, data_len);
+	}
 	return (rval);
 }
 

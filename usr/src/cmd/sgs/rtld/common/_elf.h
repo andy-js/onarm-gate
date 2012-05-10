@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	__ELF_DOT_H
 #define	__ELF_DOT_H
 
@@ -38,6 +42,12 @@
 
 #ifdef	__cplusplus
 extern "C" {
+#endif
+
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+#define LIBLD		(1)
+#define LIBLDDBG	(2)
+#define LIBRTLD		(3)
 #endif
 
 /*
@@ -68,6 +78,13 @@ extern	void	elf_plt2_init(uint_t *, Rt_map *);
 extern	ulong_t	elf_reloc_relacount(ulong_t, ulong_t, ulong_t, ulong_t);
 extern	int	elf_copy_gen(Rt_map *);
 #endif
+
+#if	defined(__arm)
+extern	ulong_t	elf_reloc_relacount(ulong_t, ulong_t, ulong_t, ulong_t);
+#if	defined(RTLD_USE_GNULD)
+extern	int	elf_arm_rtld_load(ulong_t LazyDepId);
+#endif	/* RTLD_USE_GNULD */
+#endif	/* __arm */
 
 /*
  * Padinfo

@@ -34,6 +34,10 @@
  * and appreciated.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -115,7 +119,22 @@ extern __inline__ uint32_t bswap(uint32_t value)
 	__asm__("bswap %0" : "+r" (value));
 	return (value);
 }
+#elif	defined(__GNUC__) && defined(__arm)
 
+#define	HAVE_BSWAP
+
+/*
+ * arm optimization:
+ *	REV instruction (ARM v6 or later)
+ */
+static __inline__ uint32_t bswap(uint32_t value)
+{
+	uint32_t	ret;
+
+	__asm__ __volatile__
+		("rev	%0, %1" : "=r" (ret) : "r" (value));
+	return ret;
+}
 #endif
 
 /*

@@ -175,14 +175,14 @@ extern cpc_set_t *__cpc_eventtoset(cpc_t *cpc, cpc_event_t *event, int flags);
 
 #endif /* __sparc || __i386 */
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 /*
  * This is common between i386 and amd64, because amd64 implements %tick.
  * Currently only used by the cpc tools to print the label atop the CPU ticks
  * column on amd64.
  */
 #define	CPC_TICKREG_NAME	"tsc"
-#endif /* __i386 || __amd64 */
+#endif /* __i386 || __amd64 || __arm */
 
 #if defined(__sparc)
 

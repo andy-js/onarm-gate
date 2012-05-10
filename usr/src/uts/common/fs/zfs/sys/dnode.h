@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DNODE_H
 #define	_SYS_DNODE_H
 
@@ -35,10 +39,13 @@
 #include <sys/zio.h>
 #include <sys/refcount.h>
 #include <sys/dmu_zfetch.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	KMEM_DNODE_T		"dnode_t"
 
 /*
  * Flags.
@@ -49,12 +56,14 @@ extern "C" {
 /*
  * Fixed constants.
  */
+#ifndef ZFS_COMPACT
 #define	DNODE_SHIFT		9	/* 512 bytes */
 #define	DN_MIN_INDBLKSHIFT	10	/* 1k */
 #define	DN_MAX_INDBLKSHIFT	14	/* 16k */
-#define	DNODE_BLOCK_SHIFT	14	/* 16k */
 #define	DNODE_CORE_SIZE		64	/* 64 bytes for dnode sans blkptrs */
 #define	DN_MAX_OBJECT_SHIFT	48	/* 256 trillion (zfs_fid_t limit) */
+#endif	/* ZFS_COMPACT */
+#define	DNODE_BLOCK_SHIFT	14	/* 16k */
 #define	DN_MAX_OFFSET_SHIFT	64	/* 2^64 bytes in a dnode */
 
 /*
@@ -112,7 +121,9 @@ typedef struct dnode_phys {
 	uint64_t dn_maxblkid;		/* largest allocated block ID */
 	uint64_t dn_used;		/* bytes (or sectors) of disk space */
 
+#ifndef ZFS_COMPACT
 	uint64_t dn_pad3[4];
+#endif	/* ZFS_COMPACT */
 
 	blkptr_t dn_blkptr[1];
 	uint8_t dn_bonus[DN_MAX_BONUSLEN];
@@ -134,7 +145,7 @@ typedef struct dnode {
 
 	/* immutable: */
 	struct objset_impl *dn_objset;
-	uint64_t dn_object;
+	objid_t dn_object;
 	struct dmu_buf_impl *dn_dbuf;
 	dnode_phys_t *dn_phys; /* pointer into dn->dn_dbuf->db.db_data */
 
@@ -167,9 +178,9 @@ typedef struct dnode {
 	kmutex_t dn_mtx;
 	list_t dn_dirty_records[TXG_SIZE];
 	avl_tree_t dn_ranges[TXG_SIZE];
-	uint64_t dn_allocated_txg;
-	uint64_t dn_free_txg;
-	uint64_t dn_assigned_txg;
+	txg_t dn_allocated_txg;
+	txg_t dn_free_txg;
+	txg_t dn_assigned_txg;
 	kcondvar_t dn_notxholds;
 	enum dnode_dirtycontext dn_dirtyctx;
 	uint8_t *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
@@ -185,8 +196,10 @@ typedef struct dnode {
 	/* parent IO for current sync write */
 	zio_t *dn_zio;
 
+#ifndef ZFS_NO_PREFETCH
 	/* holds prefetch structure */
 	struct zfetch	dn_zfetch;
+#endif	/* ZFS_NO_PREFETCH */
 } dnode_t;
 
 typedef struct free_range {
@@ -196,13 +209,13 @@ typedef struct free_range {
 } free_range_t;
 
 dnode_t *dnode_special_open(struct objset_impl *dd, dnode_phys_t *dnp,
-    uint64_t object);
+    objid_t object);
 void dnode_special_close(dnode_t *dn);
 
 void dnode_setbonuslen(dnode_t *dn, int newsize, dmu_tx_t *tx);
-int dnode_hold(struct objset_impl *dd, uint64_t object,
+int dnode_hold(struct objset_impl *dd, objid_t object,
     void *ref, dnode_t **dnp);
-int dnode_hold_impl(struct objset_impl *dd, uint64_t object, int flag,
+int dnode_hold_impl(struct objset_impl *dd, objid_t object, int flag,
     void *ref, dnode_t **dnp);
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
@@ -228,7 +241,7 @@ uint64_t dnode_block_freed(dnode_t *dn, uint64_t blkid);
 void dnode_init(void);
 void dnode_fini(void);
 int dnode_next_offset(dnode_t *dn, boolean_t hole, uint64_t *off, int minlvl,
-    uint64_t blkfill, uint64_t txg);
+    objid_t blkfill, txg_t txg);
 void dnode_evict_dbufs(dnode_t *dn);
 
 #ifdef ZFS_DEBUG
@@ -241,7 +254,7 @@ void dnode_evict_dbufs(dnode_t *dn);
 #define	dprintf_dnode(dn, fmt, ...) do { \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) { \
 	char __db_buf[32]; \
-	uint64_t __db_obj = (dn)->dn_object; \
+	objid_t __db_obj = (dn)->dn_object; \
 	if (__db_obj == DMU_META_DNODE_OBJECT) \
 		(void) strcpy(__db_buf, "mdn"); \
 	else \

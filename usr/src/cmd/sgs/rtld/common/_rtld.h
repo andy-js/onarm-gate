@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	__RTLD_H
 #define	__RTLD_H
 
@@ -149,7 +153,11 @@ typedef enum {
 /*
  * Size of buffer for building error messages.
  */
+#ifdef	RTLD_REDUCE_DATA
+#define	ERRSIZE		512
+#else
 #define	ERRSIZE		2048		/* MAXPATHLEN * 2 */
+#endif
 
 
 /*

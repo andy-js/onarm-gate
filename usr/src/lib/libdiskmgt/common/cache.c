@@ -23,6 +23,9 @@
  * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -653,6 +656,7 @@ initialize()
 
 	cache_loaded = 1;
 
+#ifndef __arm
 	/*
 	 * Only start the event thread if we are not doing an install
 	 */
@@ -667,6 +671,7 @@ initialize()
 			    "events failed to start\n"));
 		}
 	}
+#endif	/* !__arm */
 	return (0);
 }
 

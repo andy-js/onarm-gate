@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <assert.h>
@@ -1643,6 +1647,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		    (scn = elf_getscn(elf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
+			(void) elf_end(elf);
 			return;
 		}
 
@@ -1658,6 +1663,7 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		dprintf("failed to process ELF file %s: %s\n",
 		    objectfile, (err == 0) ? "<null>" : elf_errmsg(err));
 
+		(void) elf_end(elf);
 		if ((elf = fake_elf(P, fptr)) == NULL ||
 		    elf_kind(elf) != ELF_K_ELF ||
 		    gelf_getehdr(elf, &ehdr) == NULL ||
@@ -1691,6 +1697,8 @@ Pbuild_file_symtab(struct ps_prochandle *P, file_info_t *fptr)
 		    (scn = elf_getscn(newelf, shstrndx)) == NULL ||
 		    (shdata = elf_getdata(scn, NULL)) == NULL) {
 			dprintf("failed to fake up ELF file\n");
+			(void) elf_end(newelf);
+			goto bad;
 		} else {
 			(void) elf_end(elf);
 			elf = newelf;

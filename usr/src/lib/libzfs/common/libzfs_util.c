@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -48,6 +52,7 @@
 #include "libzfs_impl.h"
 #include "zfs_prop.h"
 
+#ifndef ZFS_CMD_MINIMUMSET
 int
 libzfs_errno(libzfs_handle_t *hdl)
 {
@@ -59,6 +64,7 @@ libzfs_error_action(libzfs_handle_t *hdl)
 {
 	return (hdl->libzfs_action);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 const char *
 libzfs_error_description(libzfs_handle_t *hdl)
@@ -588,11 +594,13 @@ libzfs_fini(libzfs_handle_t *hdl)
 	free(hdl);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 libzfs_handle_t *
 zpool_get_handle(zpool_handle_t *zhp)
 {
 	return (zhp->zpool_hdl);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 libzfs_handle_t *
 zfs_get_handle(zfs_handle_t *zhp)
@@ -690,6 +698,7 @@ zcmd_free_nvlists(zfs_cmd_t *zc)
 	free((void *)(uintptr_t)zc->zc_nvlist_dst);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 static int
 zcmd_write_nvlist_com(libzfs_handle_t *hdl, uint64_t *outnv, uint64_t *outlen,
     nvlist_t *nvl)
@@ -723,6 +732,7 @@ zcmd_write_src_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, nvlist_t *nvl)
 	return (zcmd_write_nvlist_com(hdl, &zc->zc_nvlist_src,
 	    &zc->zc_nvlist_src_size, nvl));
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Unpacks an nvlist from the ZFS ioctl command structure.
@@ -940,6 +950,7 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 	(void) printf("\n");
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Given a numeric suffix, convert the value into a number of bits that the
  * resulting value must be shifted.
@@ -1291,6 +1302,7 @@ zprop_free_list(zprop_list_t *pl)
 		pl = next;
 	}
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 typedef struct expand_data {
 	zprop_list_t	**last;
@@ -1358,9 +1370,11 @@ zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp, zfs_type_t type)
 	return (0);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 int
 zprop_iter(zprop_func func, void *cb, boolean_t show_all, boolean_t ordered,
     zfs_type_t type)
 {
 	return (zprop_iter_common(func, cb, show_all, ordered, type));
 }
+#endif	/* ZFS_CMD_MINIMUMSET */

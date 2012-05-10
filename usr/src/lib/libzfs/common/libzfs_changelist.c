@@ -26,6 +26,10 @@
  * Portions Copyright 2007 Ramprakash Jelari
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <libintl.h>
@@ -314,6 +318,7 @@ isa_child_of(const char *dataset, const char *parent)
 
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * If we rename a filesystem, child filesystem handles are no longer valid
  * since we identify each dataset by its name in the ZFS namespace.  As a
@@ -347,6 +352,7 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 		    sizeof (cn->cn_handle->zfs_name));
 	}
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Given a gathered changelist for the 'sharenfs' or 'sharesmb' property,
@@ -371,6 +377,7 @@ changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
 	return (ret);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Check if there is any child exported to a local zone in a given changelist.
  * This information has already been recorded while gathering the changelist
@@ -401,6 +408,7 @@ changelist_remove(prop_changelist_t *clp, const char *name)
 		}
 	}
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Release any memory associated with a changelist.

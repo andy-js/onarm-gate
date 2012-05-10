@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -82,7 +86,7 @@ struct modlmisc modlmisc	= {
 	"USBA: USB Architecture 2.0 1.66"
 };
 
-struct modlinkage modlinkage = {
+static struct modlinkage modlinkage = {
 	MODREV_1, (void	*)&modlmisc, NULL
 };
 
@@ -94,7 +98,7 @@ uint_t		usba_errmask = (uint_t)-1;
 extern usb_log_handle_t	hubdi_log_handle;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int rval;
 
@@ -121,8 +125,9 @@ _init(void)
 	return (rval);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int rval;
 
@@ -137,9 +142,10 @@ _fini()
 
 	return (rval);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -467,7 +473,10 @@ usba_set_usb_address(usba_device_t *usba_device)
 		}
 		usb_address_in_use[address/s] |= (1 << (address % s));
 		hcdi->hcdi_device_count++;
-		HCDI_HOTPLUG_STATS_DATA(hcdi)->hcdi_device_count.value.ui64++;
+		if (HCDI_HOTPLUG_STATS(hcdi)) {
+			HCDI_HOTPLUG_STATS_DATA(hcdi)->
+			    hcdi_device_count.value.ui64++;
+		}
 		mutex_exit(&hcdi->hcdi_mutex);
 
 		USB_DPRINTF_L3(DPRINT_MASK_USBA, usba_log_handle,
@@ -520,7 +529,10 @@ usba_unset_usb_address(usba_device_t *usba_device)
 		usb_address_in_use[address/s] &= ~(1 << (address % s));
 
 		hcdi->hcdi_device_count--;
-		HCDI_HOTPLUG_STATS_DATA(hcdi)->hcdi_device_count.value.ui64--;
+		if (HCDI_HOTPLUG_STATS(hcdi)) {
+			HCDI_HOTPLUG_STATS_DATA(hcdi)->
+			    hcdi_device_count.value.ui64--;
+		}
 
 		mutex_exit(&hcdi->hcdi_mutex);
 
@@ -1391,7 +1403,7 @@ usba_set_usba_device(dev_info_t *dip, usba_device_t *usba_device)
  * usba_set_node_name() according to class, subclass, and protocol
  * following the 1275 USB binding tables.
  */
-
+#ifndef USB_SHRINK
 /* device node table, refer to section 3.2.2.1 of 1275 binding */
 static node_name_entry_t device_node_name_table[] = {
 { USB_CLASS_COMM,	DONTCARE,	DONTCARE,	"communications" },
@@ -1509,6 +1521,75 @@ static node_name_entry_t combined_node_name_table[] = {
 { USB_CLASS_MISC,	DONTCARE,	DONTCARE,	"miscellaneous" },
 { DONTCARE,		DONTCARE,	DONTCARE,	"device" }
 };
+#else /* USB_SHRINK */
+
+/* device node table, refer to section 3.2.2.1 of 1275 binding */
+static node_name_entry_t device_node_name_table[] = {
+{ USB_CLASS_HUB,	DONTCARE,	DONTCARE,	"hub" },
+{ USB_CLASS_MISC,	DONTCARE,	DONTCARE,	"miscellaneous" },
+{ DONTCARE,		DONTCARE,	DONTCARE,	"device" }
+};
+
+/* interface-association node table */
+static node_name_entry_t ia_node_name_table[] = {
+{ USB_CLASS_AUDIO,	DONTCARE,	DONTCARE, "audio" },
+{ DONTCARE,		DONTCARE,	DONTCARE, "interface-association" }
+};
+
+/* interface node table, refer to section 3.3.2.1 */
+static node_name_entry_t if_node_name_table[] = {
+{ USB_CLASS_AUDIO, USB_SUBCLS_AUD_CONTROL, DONTCARE,	"sound-control" },
+{ USB_CLASS_AUDIO, USB_SUBCLS_AUD_STREAMING, DONTCARE, "sound" },
+{ USB_CLASS_AUDIO, DONTCARE,		DONTCARE,	"sound" },
+
+{ USB_CLASS_HID, USB_SUBCLS_HID_1, USB_PROTO_HID_KEYBOARD,	"keyboard" },
+{ USB_CLASS_HID, USB_SUBCLS_HID_1, USB_PROTO_HID_MOUSE,	"mouse" },
+{ USB_CLASS_HID,	DONTCARE,	DONTCARE,	"input" },
+
+{ USB_CLASS_HUB,	DONTCARE,	DONTCARE,	"hub" },
+
+{ USB_CLASS_PHYSICAL,	DONTCARE,	DONTCARE,	"physical" },
+
+{ USB_CLASS_IMAGE,	DONTCARE,	DONTCARE,	"image" },
+
+{ USB_CLASS_MASS_STORAGE, DONTCARE,	DONTCARE,	"storage" },
+
+{ USB_CLASS_CDC_DATA,	DONTCARE,	DONTCARE,	"data" },
+
+{ USB_CLASS_SECURITY,	DONTCARE,	DONTCARE,	"security" },
+
+{ DONTCARE,		DONTCARE,	DONTCARE,	"interface" },
+
+};
+
+/* combined node table, refer to section 3.4.2.1 */
+static node_name_entry_t combined_node_name_table[] = {
+{ USB_CLASS_AUDIO, USB_SUBCLS_AUD_CONTROL, DONTCARE,	"sound-control" },
+{ USB_CLASS_AUDIO, USB_SUBCLS_AUD_STREAMING, DONTCARE, "sound" },
+{ USB_CLASS_AUDIO, DONTCARE,		DONTCARE,	"sound" },
+
+{ USB_CLASS_HID, USB_SUBCLS_HID_1, USB_PROTO_HID_KEYBOARD, "keyboard" },
+{ USB_CLASS_HID, USB_SUBCLS_HID_1, USB_PROTO_HID_MOUSE,	"mouse" },
+{ USB_CLASS_HID,	DONTCARE,	DONTCARE,	"input" },
+
+{ USB_CLASS_PHYSICAL,	DONTCARE,	DONTCARE,	"physical" },
+
+{ USB_CLASS_IMAGE,	DONTCARE,	DONTCARE,	"image" },
+
+{ USB_CLASS_MASS_STORAGE, USB_SUBCLS_MS_RBC_T10,	DONTCARE, "storage" },
+{ USB_CLASS_MASS_STORAGE, USB_SUBCLS_MS_SFF8020I,	DONTCARE, "cdrom" },
+{ USB_CLASS_MASS_STORAGE, USB_SUBCLS_MS_SFF8070I,	DONTCARE, "storage" },
+{ USB_CLASS_MASS_STORAGE, USB_SUBCLS_MS_SCSI,		DONTCARE, "storage" },
+{ USB_CLASS_MASS_STORAGE, DONTCARE,	DONTCARE,	"storage" },
+
+{ USB_CLASS_CDC_DATA,	DONTCARE,	DONTCARE,	"data" },
+
+{ USB_CLASS_HUB,	DONTCARE,	DONTCARE,	"hub" },
+{ USB_CLASS_DIAG,	DONTCARE,	DONTCARE,	"diagnostics" },
+{ USB_CLASS_MISC,	DONTCARE,	DONTCARE,	"miscellaneous" },
+{ DONTCARE,		DONTCARE,	DONTCARE,	"device" }
+};
+#endif /* USB_SHRINK */
 
 static size_t device_node_name_table_size =
 	sizeof (device_node_name_table)/sizeof (struct node_name_entry);
@@ -2836,23 +2917,31 @@ usba_update_hotplug_stats(dev_info_t *dip, usb_flags_t flags)
 	mutex_enter(&hcdi->hcdi_mutex);
 	if (flags & USBA_TOTAL_HOTPLUG_SUCCESS) {
 		hcdi->hcdi_total_hotplug_success++;
-		HCDI_HOTPLUG_STATS_DATA(hcdi)->
-		    hcdi_hotplug_total_success.value.ui64++;
+		if (HCDI_HOTPLUG_STATS(hcdi)) {
+			HCDI_HOTPLUG_STATS_DATA(hcdi)->
+			    hcdi_hotplug_total_success.value.ui64++;
+		}
 	}
 	if (flags & USBA_HOTPLUG_SUCCESS) {
 		hcdi->hcdi_hotplug_success++;
-		HCDI_HOTPLUG_STATS_DATA(hcdi)->
-		    hcdi_hotplug_success.value.ui64++;
+		if (HCDI_HOTPLUG_STATS(hcdi)) {
+			HCDI_HOTPLUG_STATS_DATA(hcdi)->
+			    hcdi_hotplug_success.value.ui64++;
+		}
 	}
 	if (flags & USBA_TOTAL_HOTPLUG_FAILURE) {
 		hcdi->hcdi_total_hotplug_failure++;
-		HCDI_HOTPLUG_STATS_DATA(hcdi)->
-		    hcdi_hotplug_total_failure.value.ui64++;
+		if (HCDI_HOTPLUG_STATS(hcdi)) {
+			HCDI_HOTPLUG_STATS_DATA(hcdi)->
+			    hcdi_hotplug_total_failure.value.ui64++;
+		}
 	}
 	if (flags & USBA_HOTPLUG_FAILURE) {
 		hcdi->hcdi_hotplug_failure++;
-		HCDI_HOTPLUG_STATS_DATA(hcdi)->
-		    hcdi_hotplug_failure.value.ui64++;
+		if (HCDI_HOTPLUG_STATS(hcdi)) {
+			HCDI_HOTPLUG_STATS_DATA(hcdi)->
+			    hcdi_hotplug_failure.value.ui64++;
+		}
 	}
 	mutex_exit(&hcdi->hcdi_mutex);
 }
@@ -2895,9 +2984,11 @@ usba_reset_hotplug_stats(dev_info_t *dip)
 	hcdi->hcdi_hotplug_success = 0;
 	hcdi->hcdi_hotplug_failure = 0;
 
-	hsp = HCDI_HOTPLUG_STATS_DATA(hcdi);
-	hsp->hcdi_hotplug_success.value.ui64 = 0;
-	hsp->hcdi_hotplug_failure.value.ui64 = 0;
+	if (HCDI_HOTPLUG_STATS(hcdi)) {
+		hsp = HCDI_HOTPLUG_STATS_DATA(hcdi);
+		hsp->hcdi_hotplug_success.value.ui64 = 0;
+		hsp->hcdi_hotplug_failure.value.ui64 = 0;
+	}
 	mutex_exit(&hcdi->hcdi_mutex);
 }
 

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -61,6 +65,7 @@
 #include <sys/sunddi.h>
 #include <sys/dnlc.h>
 #include <sys/dmu_objset.h>
+#include <zfs_types.h>
 
 int zfsfstype;
 vfsops_t *zfs_vfsops = NULL;
@@ -125,6 +130,7 @@ static mntopts_t zfs_mntopts = {
 int
 zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 {
+	int err;
 	/*
 	 * Data integrity is job one.  We don't want a compromised kernel
 	 * writing to the storage pool, so we never sync during panic.
@@ -149,9 +155,9 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 
 		ZFS_ENTER(zfsvfs);
 		if (zfsvfs->z_log != NULL)
-			zil_commit(zfsvfs->z_log, UINT64_MAX, 0);
+			err = zil_commit(zfsvfs->z_log, UINT64_MAX, 0);
 		else
-			txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+			err = txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 		ZFS_EXIT(zfsvfs);
 	} else {
 		/*
@@ -159,10 +165,10 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 		 * run sync(1M).  Unlike other filesystems, ZFS honors the
 		 * request by waiting for all pools to commit all dirty data.
 		 */
-		spa_sync_allpools();
+		err = spa_sync_allpools();
 	}
 
-	return (0);
+	return (err);
 }
 
 static int
@@ -351,6 +357,7 @@ nbmand_changed_cb(void *arg, uint64_t newval)
 	}
 }
 
+#ifndef ZFS_COMPACT
 static void
 snapdir_changed_cb(void *arg, uint64_t newval)
 {
@@ -382,6 +389,7 @@ acl_inherit_changed_cb(void *arg, uint64_t newval)
 
 	zfsvfs->z_acl_inherit = newval;
 }
+#endif	/* ZFS_COMPACT */
 
 static int
 zfs_register_callbacks(vfs_t *vfsp)
@@ -501,6 +509,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 	    "setuid", setuid_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    "exec", exec_changed_cb, zfsvfs);
+#ifndef ZFS_COMPACT
 	error = error ? error : dsl_prop_register(ds,
 	    "snapdir", snapdir_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
@@ -509,6 +518,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 	    "aclinherit", acl_inherit_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    "vscan", vscan_changed_cb, zfsvfs);
+#endif	/* ZFS_COMPACT */
 	if (error)
 		goto unregister;
 
@@ -545,11 +555,13 @@ unregister:
 	(void) dsl_prop_unregister(ds, "devices", devices_changed_cb, zfsvfs);
 	(void) dsl_prop_unregister(ds, "setuid", setuid_changed_cb, zfsvfs);
 	(void) dsl_prop_unregister(ds, "exec", exec_changed_cb, zfsvfs);
+#ifndef ZFS_COMPACT
 	(void) dsl_prop_unregister(ds, "snapdir", snapdir_changed_cb, zfsvfs);
 	(void) dsl_prop_unregister(ds, "aclmode", acl_mode_changed_cb, zfsvfs);
 	(void) dsl_prop_unregister(ds, "aclinherit", acl_inherit_changed_cb,
 	    zfsvfs);
 	(void) dsl_prop_unregister(ds, "vscan", vscan_changed_cb, zfsvfs);
+#endif	/* ZFS_COMPACT */
 	return (error);
 
 }
@@ -791,6 +803,7 @@ zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 		VERIFY(dsl_prop_unregister(ds, "exec", exec_changed_cb,
 		    zfsvfs) == 0);
 
+#ifndef ZFS_COMPACT
 		VERIFY(dsl_prop_unregister(ds, "snapdir", snapdir_changed_cb,
 		    zfsvfs) == 0);
 
@@ -802,16 +815,18 @@ zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 
 		VERIFY(dsl_prop_unregister(ds, "vscan",
 		    vscan_changed_cb, zfsvfs) == 0);
+#endif	/* ZFS_COMPACT */
 	}
 }
 
+#ifndef ZFS_COMPACT
 /*
- * Convert a decimal digit string to a uint64_t integer.
+ * Convert a decimal digit string to a objid_t(uint64_t or uint32_t) integer.
  */
 static int
-str_to_uint64(char *str, uint64_t *objnum)
+str_to_objid(char *str, objid_t *objnum)
 {
-	uint64_t num = 0;
+	objid_t num = 0;
 
 	while (*str) {
 		if (*str < '0' || *str > '9')
@@ -826,14 +841,14 @@ str_to_uint64(char *str, uint64_t *objnum)
 
 /*
  * The boot path passed from the boot loader is in the form of
- * "rootpool-name/root-filesystem-object-number'. Convert this
+ * "rootpool-name/root-filesystem-name'. Convert this
  * string to a dataset name: "rootpool-name/root-filesystem-name".
  */
-static int
+int
 parse_bootpath(char *bpath, char *outpath)
 {
 	char *slashp;
-	uint64_t objnum;
+	objid_t objnum;
 	int error;
 
 	if (*bpath == 0 || *bpath == '/')
@@ -847,7 +862,7 @@ parse_bootpath(char *bpath, char *outpath)
 		return (0);
 	}
 
-	if (error = str_to_uint64(slashp+1, &objnum))
+	if (error = str_to_objid(slashp+1, &objnum))
 		return (error);
 
 	*slashp = '\0';
@@ -856,6 +871,15 @@ parse_bootpath(char *bpath, char *outpath)
 
 	return (error);
 }
+#else
+extern int	parse_bootpath(char *, char *);
+#endif	/* ZFS_COMPACT */
+
+#ifdef ZFS_ROOTFS_RW
+#define	RO_FLAG		B_FALSE
+#else
+#define	RO_FLAG		B_TRUE
+#endif	/* ZFS_ROOTFS_RW */
 
 static int
 zfs_mountroot(vfs_t *vfsp, enum whymountroot why)
@@ -882,11 +906,12 @@ zfs_mountroot(vfs_t *vfsp, enum whymountroot why)
 			return (EBUSY);
 
 #if defined(_OBP)
-		proplen = BOP_GETPROPLEN(bootops, "zfs-bootfs");
+		proplen = BOP_GETPROPLEN(bootops, ZFS_BOOTFS);
 		if (proplen == 0)
 			return (EIO);
 		zfs_bootpath = kmem_zalloc(proplen, KM_SLEEP);
-		if (BOP_GETPROP(bootops, "zfs-bootfs", zfs_bootpath) == -1) {
+		if (BOP_GETPROP(bootops, ZFS_BOOTFS, zfs_bootpath)
+		    == -1) {
 			kmem_free(zfs_bootpath, proplen);
 			return (EIO);
 		}
@@ -894,7 +919,7 @@ zfs_mountroot(vfs_t *vfsp, enum whymountroot why)
 		kmem_free(zfs_bootpath, proplen);
 #else
 		if (ddi_prop_lookup_string(DDI_DEV_T_ANY, ddi_root_node(),
-		    DDI_PROP_DONTPASS, "zfs-bootfs", &zfs_bootpath) !=
+		    DDI_PROP_DONTPASS, ZFS_BOOTFS, &zfs_bootpath) !=
 		    DDI_SUCCESS)
 			return (EIO);
 
@@ -932,7 +957,7 @@ zfs_mountroot(vfs_t *vfsp, enum whymountroot why)
 		 * Mount root as readonly initially, it will be remouted
 		 * read/write by /lib/svc/method/fs-usr.
 		 */
-		readonly_changed_cb(vfsp->vfs_data, B_TRUE);
+		readonly_changed_cb(vfsp->vfs_data, RO_FLAG);
 		vfs_add((struct vnode *)0, vfsp,
 		    (vfsp->vfs_flag & VFS_RDONLY) ? MS_RDONLY : 0);
 out:
@@ -1068,7 +1093,8 @@ zfs_statvfs(vfs_t *vfsp, struct statvfs64 *statp)
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 	dev32_t d32;
-	uint64_t refdbytes, availbytes, usedobjs, availobjs;
+	uint64_t refdbytes, availbytes;
+	objid_t usedobjs, availobjs;
 
 	ZFS_ENTER(zfsvfs);
 
@@ -1331,7 +1357,7 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 {
 	zfsvfs_t	*zfsvfs = vfsp->vfs_data;
 	znode_t		*zp;
-	uint64_t	object = 0;
+	objid_t		object = 0;
 	uint64_t	fid_gen = 0;
 	uint64_t	gen_mask;
 	uint64_t	zp_gen;
@@ -1343,11 +1369,11 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 
 	if (fidp->fid_len == LONG_FID_LEN) {
 		zfid_long_t	*zlfid = (zfid_long_t *)fidp;
-		uint64_t	objsetid = 0;
+		objid_t		objsetid = 0;
 		uint64_t	setgen = 0;
 
 		for (i = 0; i < sizeof (zlfid->zf_setid); i++)
-			objsetid |= ((uint64_t)zlfid->zf_setid[i]) << (8 * i);
+			objsetid |= ((objid_t)zlfid->zf_setid[i]) << (8 * i);
 
 		for (i = 0; i < sizeof (zlfid->zf_setgen); i++)
 			setgen |= ((uint64_t)zlfid->zf_setgen[i]) << (8 * i);
@@ -1364,7 +1390,7 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 		zfid_short_t	*zfid = (zfid_short_t *)fidp;
 
 		for (i = 0; i < sizeof (zfid->zf_object); i++)
-			object |= ((uint64_t)zfid->zf_object[i]) << (8 * i);
+			object |= ((objid_t)zfid->zf_object[i]) << (8 * i);
 
 		for (i = 0; i < sizeof (zfid->zf_gen); i++)
 			fid_gen |= ((uint64_t)zfid->zf_gen[i]) << (8 * i);
@@ -1390,7 +1416,8 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 
 	gen_mask = -1ULL >> (64 - 8 * i);
 
-	dprintf("getting %llu [%u mask %llx]\n", object, fid_gen, gen_mask);
+	dprintf("getting %" PRIuOBJID " [%u mask %llx]\n",
+	    object, fid_gen, gen_mask);
 	if (err = zfs_zget(zfsvfs, object, &zp)) {
 		ZFS_EXIT(zfsvfs);
 		return (err);
@@ -1399,7 +1426,7 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 	if (zp_gen == 0)
 		zp_gen = 1;
 	if (zp->z_unlinked || zp_gen != fid_gen) {
-		dprintf("znode gen (%u) != fid gen (%u)\n", zp_gen, fid_gen);
+		dprintf("znode gen (%llu) != fid gen (%llu)\n", zp_gen, fid_gen);
 		VN_RELE(ZTOV(zp));
 		ZFS_EXIT(zfsvfs);
 		return (EINVAL);
@@ -1606,7 +1633,7 @@ zfs_set_version(const char *name, uint64_t newvers)
 
 	spa_history_internal_log(LOG_DS_UPGRADE,
 	    dmu_objset_spa(os), tx, CRED(),
-	    "oldver=%llu newver=%llu dataset = %llu", curvers, newvers,
+	    "oldver=%llu newver=%llu dataset = %" PRIuOBJID, curvers, newvers,
 	    dmu_objset_id(os));
 	dmu_tx_commit(tx);
 
@@ -1630,10 +1657,19 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	 * Also, there is no default VERSION value, so if we don't
 	 * find it, return the error.
 	 */
-	if (prop == ZFS_PROP_VERSION)
+	if (prop == ZFS_PROP_VERSION) {
 		pname = ZPL_VERSION_STR;
-	else
+#ifdef ZFS_COMPACT
+	} else if (prop == ZFS_PROP_NORMALIZE || prop == ZFS_PROP_UTF8ONLY) {
+		*value = 0;
+		return (0);
+	} else if (prop == ZFS_PROP_CASE) {
+		*value = ZFS_CASE_SENSITIVE;
+		return (0);
+#endif	/* ZFS_COMPACT */
+	} else {
 		pname = zfs_prop_to_name(prop);
+	}
 
 	error = zap_lookup(os, MASTER_NODE_OBJ, pname, 8, 1, value);
 
@@ -1668,5 +1704,5 @@ static vfsdef_t vfw = {
 };
 
 struct modlfs zfs_modlfs = {
-	&mod_fsops, "ZFS filesystem version " SPA_VERSION_STRING, &vfw
+	&mod_fsops, ZFS_MODNAME " filesystem version " SPA_VERSION_STRING, &vfw
 };

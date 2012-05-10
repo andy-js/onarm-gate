@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -30,6 +34,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 #include <sys/fs/zfs.h>
+#include <zfs_types.h>
 
 /*
  * Virtual device vector for mirroring.
@@ -122,6 +127,7 @@ vdev_mirror_map_free(zio_t *zio)
 	zio->io_vsd = NULL;
 }
 
+#ifndef ZFS_NO_MIRROR
 static int
 vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 {
@@ -164,6 +170,7 @@ vdev_mirror_close(vdev_t *vd)
 	for (c = 0; c < vd->vdev_children; c++)
 		vdev_close(vd->vdev_child[c]);
 }
+#endif	/* ZFS_NO_MIRROR */
 
 static void
 vdev_mirror_child_done(zio_t *zio)
@@ -211,7 +218,7 @@ vdev_mirror_child_select(zio_t *zio)
 {
 	mirror_map_t *mm = zio->io_vsd;
 	mirror_child_t *mc;
-	uint64_t txg = zio->io_txg;
+	txg_t txg = zio->io_txg;
 	int i, c;
 
 	ASSERT(zio->io_bp == NULL || zio->io_bp->blk_birth == txg);
@@ -447,6 +454,7 @@ vdev_mirror_io_done(zio_t *zio)
 	return (ZIO_PIPELINE_CONTINUE);
 }
 
+#ifndef ZFS_NO_MIRROR
 static void
 vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 {
@@ -458,6 +466,7 @@ vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 	else
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_HEALTHY, VDEV_AUX_NONE);
 }
+#endif	/* ZFS_NO_MIRROR */
 
 vdev_ops_t vdev_mirror_ops = {
 	vdev_mirror_open,

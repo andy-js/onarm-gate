@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -319,7 +323,7 @@ int rib_debug = 0;
 
 static int ats_running = 0;
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int		error;
 
@@ -335,8 +339,9 @@ _init(void)
 	return (0);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int status;
 
@@ -356,9 +361,10 @@ _fini()
 	mutex_destroy(&plugin_state_lock);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&rib_modlinkage, modinfop));
 }

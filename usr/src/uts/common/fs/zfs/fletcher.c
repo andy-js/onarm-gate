@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -47,6 +51,7 @@ fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
 }
 
+#ifndef ZFS_COMPACT
 void
 fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
@@ -63,6 +68,7 @@ fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
 }
+#endif	/* ZFS_COMPACT */
 
 void
 fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
@@ -81,6 +87,7 @@ fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
 }
 
+#ifndef ZFS_COMPACT
 void
 fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
@@ -97,6 +104,7 @@ fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
 }
+#endif	/* ZFS_COMPACT */
 
 void
 fletcher_4_incremental_native(const void *buf, uint64_t size,
@@ -121,6 +129,7 @@ fletcher_4_incremental_native(const void *buf, uint64_t size,
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
 }
 
+#ifndef ZFS_COMPACT
 void
 fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
     zio_cksum_t *zcp)
@@ -143,3 +152,4 @@ fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
 
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
 }
+#endif	/* ZFS_COMPACT */

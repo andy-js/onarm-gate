@@ -26,7 +26,13 @@
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 # lib/libdiskmgt/i386/Makefile
+#
+#
+# Copyright (c) 2007 NEC Corporation
+#
 
 include ../Makefile.com
+
+LDLIBS += -lefi
 
 install: all $(ROOTLIBS) $(ROOTLINKS) $(ROOTLINT)

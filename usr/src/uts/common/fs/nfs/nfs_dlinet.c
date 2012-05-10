@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -168,19 +172,21 @@ static struct modlinkage modlinkage = {
 static int	dldebug;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -277,6 +283,7 @@ static struct knetconfig dl_tcp_netconf = {
 
 /* parameters from DHCP or bootparamd */
 static PKT_LIST	*pl = NULL;
+#pragma align	4(server_ip)
 static uchar_t server_ip[4];
 static uchar_t dhcp_server_ip[4];
 static char *server_name_c, *server_path_c;
@@ -2187,6 +2194,18 @@ bp_netconfig(void)
 			printf("server ip is %s\n",
 			    inet_ntoa(*(struct in_addr *)server_ip));
 	}
+
+#ifdef	__arm
+	if (my_netmask.s_addr == 0) {
+		/* Use class-C netmask. */
+		my_netmask.s_addr = htonl(IN_CLASSC_NET);
+	}
+	if (server_name_c == NULL && *(uint_t *)server_ip != 0) {
+		char	*svip = inet_ntoa(*(struct in_addr *)server_ip);
+
+		server_name_c = i_ddi_strdup(svip, KM_SLEEP);
+	}
+#endif	/* __arm */
 
 	/*
 	 * We need all of these to configure based on properties.

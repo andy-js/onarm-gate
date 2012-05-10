@@ -26,10 +26,15 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 include		$(SRC)/Makefile.master
 
 SUBDIRS=	gen common $(MACH)
 $(BUILD64)SUBDIRS += $(MACH64)
+$(ARM_BLD)SUBDIRS= common $(MACH)
 
 all:=		TARGET= all
 install:=	TARGET= install

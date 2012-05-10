@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_SYS_REFCOUNT_H
 #define	_SYS_REFCOUNT_H
@@ -35,6 +38,9 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	KMEM_REFERENCE_CACHE		"reference_cache"
+#define	KMEM_REFERENCE_HISTORY_CACHE	"reference_history_cache"
 
 /*
  * If the reference is held only by the calling function and not any

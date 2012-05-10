@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_ISA_DEFS_H
 #define	_SYS_ISA_DEFS_H
 
@@ -209,6 +213,9 @@
  *
  * _OBP
  *	This indicates the firmware interface is OBP.
+ *
+ * _NETWORK_EXTENSION
+ *	This indicates that the implementation uses some network extensions.
  */
 
 #ifdef	__cplusplus
@@ -463,6 +470,68 @@ extern "C" {
 #else
 #error	"unknown SPARC version"
 #endif
+
+/*
+ * The following macros define ARM characteristics.
+ */
+#elif	defined(__arm__) || defined(__arm)
+#ifndef	__arm
+#define	__arm
+#endif	/* !__arm */
+
+#if	!defined(_I32LPx) && defined(_KERNEL)
+#define	_I32LPx
+#endif	/* !defined(_I32LPx) && defined(_KERNEL) */
+
+#define	_LITTLE_ENDIAN
+#ifdef	_BIG_ENDIAN
+#error	"Endianness mismatch."
+#endif	/* _BIG_ENDIAN */
+
+#define	_STACK_GROWS_DOWNWARD
+#define	_LONG_LONG_LTOH
+#define	_BIT_FIELDS_LTOH
+#define	_IEEE_754
+#define	_CHAR_IS_SIGNED
+#define	_BOOL_ALIGNMENT			1
+#define	_CHAR_ALIGNMENT			1
+#define	_SHORT_ALIGNMENT		2
+#define	_INT_ALIGNMENT			4
+#define	_FLOAT_ALIGNMENT		4
+#define	_FLOAT_COMPLEX_ALIGNMENT	4
+#define	_LONG_ALIGNMENT			4
+
+#ifdef	__ARM_EABI__
+#define	_LONG_LONG_ALIGNMENT		8
+#define	_DOUBLE_ALIGNMENT		8
+#define	_DOUBLE_COMPLEX_ALIGNMENT	8
+#define	_LONG_DOUBLE_ALIGNMENT		8
+#define	_LONG_DOUBLE_COMPLEX_ALIGNMENT	8
+#define	_MAX_ALIGNMENT			8
+#else	/* !__ARM_EABI__ */
+#define	_LONG_LONG_ALIGNMENT		4
+#define	_DOUBLE_ALIGNMENT		4
+#define	_DOUBLE_COMPLEX_ALIGNMENT	4
+#define	_LONG_DOUBLE_ALIGNMENT		4
+#define	_LONG_DOUBLE_COMPLEX_ALIGNMENT	4
+#define	_MAX_ALIGNMENT			4
+#endif	/* __ARM_EABI__ */
+
+#define	_POINTER_ALIGNMENT		4
+#define	_ALIGNMENT_REQUIRED		1
+
+#define	_LONG_LONG_ALIGNMENT_32		_LONG_LONG_ALIGNMENT
+
+/*
+ * Define the appropriate "implementation choices".
+ */
+#undef	_LP64
+#define	_ILP32
+#define	_SUNOS_VTOC_16
+#define	_FIRMWARE_NEEDS_FDISK
+#define	_DMA_USES_VIRTADDR
+#define	_DONT_USE_1275_GENERIC_NAMES
+#define	_NETWORK_EXTENSION
 
 /*
  * #error is strictly ansi-C, but works as well as anything for K&R systems.

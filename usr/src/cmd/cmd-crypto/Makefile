@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 include ../Makefile.cmd
 
 SUBDIRS1 = \
@@ -34,6 +38,9 @@ SUBDIRS1 = \
 	elfsign \
 	pktool \
 	kmfcfg
+
+$(ARM_BLD)SUBDIRS1 =	\
+	cryptoadm
 
 $(CLOSED_BUILD)SUBDIRS1 += \
 	$(CLOSED)/cmd/cmd-crypto/kcfd

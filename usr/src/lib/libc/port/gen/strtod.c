@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	Copyright (c) 1988 AT&T	*/
@@ -59,7 +63,7 @@ strtod(const char *cp, char **ptr)
 		return (0.0);	/* Shameful kluge for SVID's sake. */
 #if defined(__sparc)
 	mr.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	mr.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -90,7 +94,7 @@ strtof(const char *cp, char **ptr)
 		return (0.0f);
 #if defined(__sparc)
 	mr.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	mr.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -125,7 +129,7 @@ strtold(const char *cp, char **ptr)
 		__hex_to_quadruple(&dr, mr.rd, &x, &fs);
 	else
 		decimal_to_quadruple(&x, &mr, &dr, &fs);
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	mr.rd = __xgetRD();
 	if ((int)form < 0)
 		__hex_to_extended(&dr, mr.rd, (extended *)&x, &fs);

@@ -22,6 +22,8 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+# Copyright (c) 2008 NEC Corporation
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -33,12 +35,14 @@ include ../../../uts/common/Makefile.files
 KERNEL_OBJS = kernel.o taskq.o util.o
 LIST_OBJS = list.o
 
-OBJECTS=$(ZFS_COMMON_OBJS) $(ZFS_SHARED_OBJS) $(KERNEL_OBJS) $(LIST_OBJS)
+_ZFS_COMMON_OBJS = $(ZFS_COMMON_OBJS) $(ZFS_COMMON_SELECT_OBJS)
+
+OBJECTS=$(_ZFS_COMMON_OBJS) $(ZFS_SHARED_OBJS) $(KERNEL_OBJS) $(LIST_OBJS)
 
 # include library definitions
 include ../../Makefile.lib
 
-ZFS_COMMON_SRCS=	$(ZFS_COMMON_OBJS:%.o=../../../uts/common/fs/zfs/%.c)
+ZFS_COMMON_SRCS=	$(_ZFS_COMMON_OBJS:%.o=../../../uts/common/fs/zfs/%.c)
 ZFS_SHARED_SRCS=	$(ZFS_SHARED_OBJS:%.o=../../../common/zfs/%.c)
 KERNEL_SRCS=		$(KERNEL_OBJS:%.o=../common/%.c)
 LIST_SRCS=		$(LIST_OBJS:%.o=../../../uts/common/os/%.c)

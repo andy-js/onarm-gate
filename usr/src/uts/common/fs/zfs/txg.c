@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -30,6 +34,7 @@
 #include <sys/dmu_impl.h>
 #include <sys/dsl_pool.h>
 #include <sys/callb.h>
+#include <zfs_types.h>
 
 /*
  * Pool-wide transaction groups.
@@ -45,7 +50,7 @@ int txg_time = 5;	/* max 5 seconds worth of delta per txg */
  * Prepare the txg subsystem.
  */
 void
-txg_init(dsl_pool_t *dp, uint64_t txg)
+txg_init(dsl_pool_t *dp, txg_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	int c;
@@ -158,17 +163,19 @@ txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, int secmax)
 /*
  * Stop syncing transaction groups.
  */
-void
+int
 txg_sync_stop(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
+	int error;
 
 	dprintf("pool %p\n", dp);
 	/*
 	 * Finish off any work in progress.
 	 */
 	ASSERT(tx->tx_threads == 3);
-	txg_wait_synced(dp, 0);
+	if ((error = txg_wait_synced(dp, 0)) != 0)
+		return (error);
 
 	/*
 	 * Wake all 3 sync threads (one per state) and wait for them to die.
@@ -190,14 +197,15 @@ txg_sync_stop(dsl_pool_t *dp)
 	tx->tx_exiting = 0;
 
 	mutex_exit(&tx->tx_sync_lock);
+	return (error);
 }
 
-uint64_t
+txg_t
 txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	tx_cpu_t *tc = &tx->tx_cpu[CPU_SEQID];
-	uint64_t txg;
+	txg_t txg;
 
 	mutex_enter(&tc->tc_lock);
 
@@ -234,7 +242,7 @@ txg_rele_to_sync(txg_handle_t *th)
 }
 
 static void
-txg_quiesce(dsl_pool_t *dp, uint64_t txg)
+txg_quiesce(dsl_pool_t *dp, txg_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	int g = txg & TXG_MASK;
@@ -277,7 +285,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	txg_thread_enter(tx, &cpr);
 
 	for (;;) {
-		uint64_t txg;
+		txg_t txg;
 
 		/*
 		 * We sync when there's someone waiting on us, or the
@@ -286,7 +294,8 @@ txg_sync_thread(dsl_pool_t *dp)
 		while (!tx->tx_exiting &&
 		    tx->tx_synced_txg >= tx->tx_sync_txg_waiting &&
 		    tx->tx_quiesced_txg == 0) {
-			dprintf("waiting; tx_synced=%llu waiting=%llu dp=%p\n",
+			dprintf("waiting; tx_synced=%" PRIuTXG
+			    " waiting=%" PRIuTXG " dp=%p\n",
 			    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
 			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, 0);
 		}
@@ -318,7 +327,8 @@ txg_sync_thread(dsl_pool_t *dp)
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 		rw_exit(&tx->tx_suspend);
 
-		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
+		dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG
+		    " sync_txg=%" PRIuTXG "\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 		spa_sync(dp->dp_spa, txg);
@@ -340,7 +350,7 @@ txg_quiesce_thread(dsl_pool_t *dp)
 	txg_thread_enter(tx, &cpr);
 
 	for (;;) {
-		uint64_t txg;
+		txg_t txg;
 
 		/*
 		 * We quiesce when there's someone waiting on us.
@@ -358,8 +368,8 @@ txg_quiesce_thread(dsl_pool_t *dp)
 			txg_thread_exit(tx, &cpr, &tx->tx_quiesce_thread);
 
 		txg = tx->tx_open_txg;
-		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-		    txg, tx->tx_quiesce_txg_waiting,
+		dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG
+		    " sync_txg=%" PRIuTXG "\n", txg, tx->tx_quiesce_txg_waiting,
 		    tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 		txg_quiesce(dp, txg);
@@ -368,7 +378,7 @@ txg_quiesce_thread(dsl_pool_t *dp)
 		/*
 		 * Hand this txg off to the sync thread.
 		 */
-		dprintf("quiesce done, handing off txg %llu\n", txg);
+		dprintf("quiesce done, handing off txg %" PRIuTXG "\n", txg);
 		tx->tx_quiesced_txg = txg;
 		cv_broadcast(&tx->tx_sync_more_cv);
 		cv_broadcast(&tx->tx_quiesce_done_cv);
@@ -376,9 +386,26 @@ txg_quiesce_thread(dsl_pool_t *dp)
 }
 
 void
-txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
+txg_wait_abort(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
+
+	mutex_enter(&tx->tx_sync_lock);
+
+	dprintf("quiesced_txg %" PRIuTXG "synced_txg %" PRIuTXG "\n",
+	    tx->tx_quiesced_txg, tx->tx_synced_txg);
+
+	cv_broadcast(&tx->tx_quiesce_done_cv);
+	cv_broadcast(&tx->tx_sync_done_cv);
+
+	mutex_exit(&tx->tx_sync_lock);
+}
+
+int
+txg_wait_synced(dsl_pool_t *dp, txg_t txg)
+{
+	tx_state_t *tx = &dp->dp_tx;
+	int error = 0;
 
 	mutex_enter(&tx->tx_sync_lock);
 	ASSERT(tx->tx_threads == 3);
@@ -386,22 +413,31 @@ txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
 		txg = tx->tx_open_txg;
 	if (tx->tx_sync_txg_waiting < txg)
 		tx->tx_sync_txg_waiting = txg;
-	dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-	    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+	dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG " sync_txg=%" PRIuTXG
+	    "\n", txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 	while (tx->tx_synced_txg < txg) {
+		if (spa_state(dp->dp_spa) == POOL_STATE_IO_FAILURE &&
+		    spa_get_failmode(dp->dp_spa) == ZIO_FAILURE_MODE_ABORT){
+			error = EIO;
+			dprintf("abort wait txg=%" PRIuTXG " synced_txg="
+			    "%" PRIuTXG "\n", txg, tx->tx_synced_txg);
+			break;
+		}
 		dprintf("broadcasting sync more "
-		    "tx_synced=%llu waiting=%llu dp=%p\n",
+		    "tx_synced=%" PRIuTXG " waiting=%" PRIuTXG " dp=%p\n",
 		    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
 		cv_broadcast(&tx->tx_sync_more_cv);
 		cv_wait(&tx->tx_sync_done_cv, &tx->tx_sync_lock);
 	}
 	mutex_exit(&tx->tx_sync_lock);
+	return (error);
 }
 
-void
-txg_wait_open(dsl_pool_t *dp, uint64_t txg)
+int
+txg_wait_open(dsl_pool_t *dp, txg_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
+	int error = 0;
 
 	mutex_enter(&tx->tx_sync_lock);
 	ASSERT(tx->tx_threads == 3);
@@ -409,13 +445,21 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg)
 		txg = tx->tx_open_txg + 1;
 	if (tx->tx_quiesce_txg_waiting < txg)
 		tx->tx_quiesce_txg_waiting = txg;
-	dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-	    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+	dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG " sync_txg=%" PRIuTXG
+	    "\n", txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 	while (tx->tx_open_txg < txg) {
+		if (spa_state(dp->dp_spa) == POOL_STATE_IO_FAILURE &&
+		    spa_get_failmode(dp->dp_spa) == ZIO_FAILURE_MODE_ABORT) {
+			error = EIO;
+			dprintf("abort wait txg=%" PRIuTXG
+			    "open_txg=%" PRIuTXG "\n", txg, tx->tx_open_txg);
+			break;
+		}
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 		cv_wait(&tx->tx_quiesce_done_cv, &tx->tx_sync_lock);
 	}
 	mutex_exit(&tx->tx_sync_lock);
+	return (error);
 }
 
 static void
@@ -427,7 +471,7 @@ txg_timelimit_thread(dsl_pool_t *dp)
 	txg_thread_enter(tx, &cpr);
 
 	while (!tx->tx_exiting) {
-		uint64_t txg = tx->tx_open_txg + 1;
+		txg_t txg = tx->tx_open_txg + 1;
 
 		txg_thread_wait(tx, &cpr, &tx->tx_timeout_exit_cv, txg_time);
 
@@ -435,7 +479,7 @@ txg_timelimit_thread(dsl_pool_t *dp)
 			tx->tx_quiesce_txg_waiting = txg;
 
 		while (!tx->tx_exiting && tx->tx_open_txg < txg) {
-			dprintf("pushing out %llu\n", txg);
+			dprintf("pushing out %" PRIuTXG "\n", txg);
 			cv_broadcast(&tx->tx_quiesce_more_cv);
 			txg_thread_wait(tx, &cpr, &tx->tx_quiesce_done_cv, 0);
 		}
@@ -493,7 +537,7 @@ txg_list_destroy(txg_list_t *tl)
 }
 
 int
-txg_list_empty(txg_list_t *tl, uint64_t txg)
+txg_list_empty(txg_list_t *tl, txg_t txg)
 {
 	return (tl->tl_head[txg & TXG_MASK] == NULL);
 }
@@ -503,7 +547,7 @@ txg_list_empty(txg_list_t *tl, uint64_t txg)
  * Returns 0 if it's a new entry, 1 if it's already there.
  */
 int
-txg_list_add(txg_list_t *tl, void *p, uint64_t txg)
+txg_list_add(txg_list_t *tl, void *p, txg_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = (txg_node_t *)((char *)p + tl->tl_offset);
@@ -525,7 +569,7 @@ txg_list_add(txg_list_t *tl, void *p, uint64_t txg)
  * Remove the head of the list and return it.
  */
 void *
-txg_list_remove(txg_list_t *tl, uint64_t txg)
+txg_list_remove(txg_list_t *tl, txg_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn;
@@ -547,7 +591,7 @@ txg_list_remove(txg_list_t *tl, uint64_t txg)
  * Remove a specific item from the list and return it.
  */
 void *
-txg_list_remove_this(txg_list_t *tl, void *p, uint64_t txg)
+txg_list_remove_this(txg_list_t *tl, void *p, txg_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn, **tp;
@@ -570,7 +614,7 @@ txg_list_remove_this(txg_list_t *tl, void *p, uint64_t txg)
 }
 
 int
-txg_list_member(txg_list_t *tl, void *p, uint64_t txg)
+txg_list_member(txg_list_t *tl, void *p, txg_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = (txg_node_t *)((char *)p + tl->tl_offset);
@@ -582,7 +626,7 @@ txg_list_member(txg_list_t *tl, void *p, uint64_t txg)
  * Walk a txg list -- only safe if you know it's not changing.
  */
 void *
-txg_list_head(txg_list_t *tl, uint64_t txg)
+txg_list_head(txg_list_t *tl, txg_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = tl->tl_head[t];
@@ -591,7 +635,7 @@ txg_list_head(txg_list_t *tl, uint64_t txg)
 }
 
 void *
-txg_list_next(txg_list_t *tl, void *p, uint64_t txg)
+txg_list_next(txg_list_t *tl, void *p, txg_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = (txg_node_t *)((char *)p + tl->tl_offset);

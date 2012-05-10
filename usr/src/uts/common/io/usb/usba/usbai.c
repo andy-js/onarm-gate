@@ -21,6 +21,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -452,6 +455,7 @@ usba_vlog(usb_log_handle_t handle, uint_t level, uint_t mask,
 }
 
 
+#if !defined(USB_SHRINK) || defined(DEBUG)
 void
 usb_dprintf4(uint_t mask, usb_log_handle_t handle, char *fmt, ...)
 {
@@ -483,6 +487,7 @@ usb_dprintf2(uint_t mask, usb_log_handle_t handle, char *fmt, ...)
 	(void) usba_vlog(handle, USB_LOG_L2, mask, fmt, ap);
 	va_end(ap);
 }
+#endif /* !defined(USB_SHRINK) || defined(DEBUG) */
 
 
 void

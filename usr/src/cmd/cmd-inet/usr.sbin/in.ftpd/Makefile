@@ -4,6 +4,9 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2007 NEC Corporation
+#
 
 PROG=		in.ftpd ftpcount ftpshut ftprestart privatepw
 SCRIPTS=	ftpaddhost ftpconfig
@@ -45,9 +48,11 @@ POFILES=	$(SCRIPTS:%=%.po)
 # -Ddn_skipname=__dn_skipname -DSOLARIS_NO_AUDIT_FTPD_LOGOUT
 CLOBBERFILES +=	ckconfig ftpwho $(SCRIPTS)
 CPPFLAGS +=	-DBSD_COMP -D_FILE_OFFSET_BITS=64 -DINET6 -DSOLARIS_BSM_AUDIT \
-		-DSOLARIS_ETC_FTPUSERS -DSENDFILE -DCLOSEFROM -DUSE_GSS \
-		-DSOLARIS_GSS_USEROK -DSOLARIS_PRIVS
-LDLIBS +=	-lsocket -lnsl -lpam -lbsm -lsendfile -lgss
+		-DSOLARIS_ETC_FTPUSERS -DSENDFILE -DCLOSEFROM \
+		-DSOLARIS_GSS_USEROK -DSOLARIS_PRIVS \
+		-DDAEMON
+LDLIBS +=	-lpam -lbsm -lsocket -lnsl -lsendfile
+$(__ARLIB)$(ARM_BLD)LDLIBS +=	-ltsol -lsecdb -lnsl -lmd -lcmd
 YFLAGS +=	-d
 
 in.ftpd :=	LDFLAGS += $(MAPFILE.NGB:%=-M%)
@@ -68,7 +73,8 @@ in.ftpd:	$(FTPD_OBJS) $(MAPFILE.NGB)
 		$(POST_PROCESS)
 
 ftpcount:	$(FTPCOUNT_OBJS)
-		$(LINK.c) $(FTPCOUNT_OBJS) -o $@ -lsocket -lnsl
+#		$(LINK.c) $(FTPCOUNT_OBJS) -o $@ -lsocket -lnsl
+		$(LINK.c) $(FTPCOUNT_OBJS) -o $@ $(LDLIBS)
 		$(POST_PROCESS)
 
 ftpwho:		ftpcount
@@ -76,19 +82,23 @@ ftpwho:		ftpcount
 		$(LN) ftpcount $@
 
 ftpshut:	$(FTPSHUT_OBJS)
-		$(LINK.c) $(FTPSHUT_OBJS) -o $@ -lsocket -lnsl
+#		$(LINK.c) $(FTPSHUT_OBJS) -o $@ -lsocket -lnsl
+		$(LINK.c) $(FTPSHUT_OBJS) -o $@ $(LDLIBS)
 		$(POST_PROCESS)
 
 ftprestart:	$(FTPREST_OBJS)
-		$(LINK.c) $(FTPREST_OBJS) -o $@ -lsocket -lnsl
+#		$(LINK.c) $(FTPREST_OBJS) -o $@ -lsocket -lnsl
+		$(LINK.c) $(FTPREST_OBJS) -o $@ $(LDLIBS)
 		$(POST_PROCESS)
 
 ckconfig:	$(CKCONFIG_OBJS)
-		$(LINK.c) $(CKCONFIG_OBJS) -o $@ -lsocket -lnsl
+#		$(LINK.c) $(CKCONFIG_OBJS) -o $@ -lsocket -lnsl
+		$(LINK.c) $(CKCONFIG_OBJS) -o $@ $(LDLIBS)
 		$(POST_PROCESS)
 
 privatepw:	$(PRIVATE_OBJS)
-		$(LINK.c) $(PRIVATE_OBJS) -o $@
+#		$(LINK.c) $(PRIVATE_OBJS) -o $@
+		$(LINK.c) $(PRIVATE_OBJS) -o $@ $(LDLIBS)
 		$(POST_PROCESS)
 
 # This causes y.tab.c to be renamed to ftpcmd.c, needed by tcov.

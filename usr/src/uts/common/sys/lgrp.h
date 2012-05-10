@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_LGRP_H
 #define	_LGRP_H
 
@@ -490,6 +494,18 @@ typedef struct lgrp_config_mem_rename {
 #define	LGRP_CPUS_IN_PART(lgrpid, cpupart) \
 	(cpupart->cp_lgrploads[lgrpid].lpl_ncpu > 0)
 
+/*
+ * Allocate lpl_t for the default cpupart
+ */
+#define	LGRP_DEFAULT_LGRPLOADS_ALLOC(n)				\
+{								\
+	cp_default.cp_nlgrploads = (n);				\
+	cp_default.cp_lgrploads = kmem_zalloc(sizeof(lpl_t) *	\
+		cp_default.cp_nlgrploads, KM_SLEEP);		\
+}
+
+#define	LGRP_ID_TO_LGRP(lgrpid)		(lgrp_table[lgrpid])
+
 extern int	lgrp_alloc_max;
 extern lgrp_t	*lgrp_table[NLGRPS_MAX];	/* indexed by lgrp_id */
 extern int		nlgrps;		/* number of lgroups in machine */
@@ -605,6 +621,10 @@ extern uint32_t		lgrp_loadavg_tolerance;
 extern uint32_t		lgrp_loadavg_max_effect;
 extern uint32_t		lgrp_load_thresh;
 extern lgrp_mem_policy_t lgrp_mem_policy_root;
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <sys/lgrp_impl.h>
+#endif	/* defined(_KERNEL_BUILD_TREE) */
 
 #endif	/* _KERNEL && _KMEMUSER */
 

@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -160,6 +165,7 @@ ld_place_section(Ofl_desc * ofl, Is_desc * isp, int ident, Word link)
 	Shdr *		shdr = isp->is_shdr;
 	Xword		shflagmask, shflags = shdr->sh_flags;
 	Ifl_desc *	ifl = isp->is_file;
+	uintptr_t	ret;
 
 	/*
 	 * Define any sections that must be thought of as referenced.  These
@@ -176,6 +182,10 @@ ld_place_section(Ofl_desc * ofl, Is_desc * isp, int ident, Word link)
 		MSG_SCN_EHFRAME,	/* MSG_ORIG(MSG_SCN_EHFRAME) */
 		MSG_SCN_EHFRAME_HDR,	/* MSG_ORIG(MSG_SCN_EHFRAME_HDR) */
 		MSG_SCN_JCR,		/* MSG_ORIG(MSG_SCN_JCR) */
+#ifdef	__arm
+		MSG_SCN_INIT_ARRAY,	/* MSG_ORIG(MSG_SCN_INIT_ARRAY) */
+		MSG_SCN_FINI_ARRAY,	/* MSG_ORIG(MSG_SCN_FINI_ARRAY) */
+#endif	/* __arm */
 		0
 	};
 
@@ -312,6 +322,10 @@ ld_place_section(Ofl_desc * ofl, Is_desc * isp, int ident, Word link)
 			isp->is_name = name;
 		}
 		isp->is_txtndx = enp->ec_ndx;
+	}
+
+	if ((ret = ld_mach_rename_section(ofl, isp)) != 1) {
+		return ((Os_desc *)ret);
 	}
 
 	/*

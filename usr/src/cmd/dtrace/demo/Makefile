@@ -23,6 +23,10 @@
 # Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+#
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 include ../../Makefile.cmd
@@ -112,7 +116,7 @@ DFILES = \
 DEMOFILES = \
 	$(DFILES) \
 	index.html \
-	sunlogo.gif
+#	sunlogo.gif
 
 MKDEMO	= mkdemo
 CLEANFILES += $(DFILES) $(MKDEMO)

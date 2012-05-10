@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DMU_TRAVERSE_H
 #define	_SYS_DMU_TRAVERSE_H
 
@@ -34,6 +38,7 @@
 #include <sys/dmu.h>
 #include <sys/dnode.h>
 #include <sys/arc.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -59,8 +64,8 @@ extern "C" {
 #define	ZB_DEPTH	3
 
 typedef struct zseg {
-	uint64_t	seg_mintxg;
-	uint64_t	seg_maxtxg;
+	txg_t		seg_mintxg;
+	txg_t		seg_maxtxg;
 	zbookmark_t	seg_start;
 	zbookmark_t	seg_end;
 	list_node_t	seg_node;
@@ -98,7 +103,7 @@ struct traverse_handle {
 	zbookmark_t	th_lastcb;
 };
 
-int traverse_dsl_dataset(struct dsl_dataset *ds, uint64_t txg_start,
+int traverse_dsl_dataset(struct dsl_dataset *ds, txg_t txg_start,
     int advance, blkptr_cb_t func, void *arg);
 
 traverse_handle_t *traverse_init(spa_t *spa, blkptr_cb_t *func, void *arg,
@@ -106,10 +111,10 @@ traverse_handle_t *traverse_init(spa_t *spa, blkptr_cb_t *func, void *arg,
 void traverse_fini(traverse_handle_t *th);
 
 void traverse_add_dnode(traverse_handle_t *th,
-    uint64_t mintxg, uint64_t maxtxg, uint64_t objset, uint64_t object);
+    txg_t mintxg, txg_t maxtxg, objid_t objset, objid_t object);
 void traverse_add_objset(traverse_handle_t *th,
-    uint64_t mintxg, uint64_t maxtxg, uint64_t objset);
-void traverse_add_pool(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg);
+    txg_t mintxg, txg_t maxtxg, objid_t objset);
+void traverse_add_pool(traverse_handle_t *th, txg_t mintxg, txg_t maxtxg);
 
 int traverse_more(traverse_handle_t *th);
 

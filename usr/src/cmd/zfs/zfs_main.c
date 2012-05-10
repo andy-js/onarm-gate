@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <assert.h>
@@ -52,7 +56,7 @@
 #include <libuutil.h>
 
 #include "zfs_iter.h"
-#include "zfs_util.h"
+#include <zfs_util.h>
 
 libzfs_handle_t *g_zfs;
 
@@ -80,6 +84,7 @@ static int zfs_do_promote(int argc, char **argv);
 static int zfs_do_allow(int argc, char **argv);
 static int zfs_do_unallow(int argc, char **argv);
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -118,11 +123,14 @@ typedef enum {
 	HELP_ALLOW,
 	HELP_UNALLOW
 } zfs_help_t;
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 typedef struct zfs_command {
 	const char	*name;
 	int		(*func)(int argc, char **argv);
+#ifndef ZFS_CMD_MINIMUMSET
 	zfs_help_t	usage;
+#endif	/* ZFS_CMD_MINIMUMSET */
 } zfs_command_t;
 
 /*
@@ -134,6 +142,7 @@ typedef struct zfs_command {
  * message.  An empty command (one with a NULL name) indicates an empty line in
  * the generic usage message.
  */
+#ifndef ZFS_CMD_MINIMUMSET
 static zfs_command_t command_table[] = {
 	{ "create",	zfs_do_create,		HELP_CREATE		},
 	{ "destroy",	zfs_do_destroy,		HELP_DESTROY		},
@@ -159,15 +168,24 @@ static zfs_command_t command_table[] = {
 	{ "send",	zfs_do_send,		HELP_SEND		},
 	{ "receive",	zfs_do_receive,		HELP_RECEIVE		},
 	{ NULL },
+#ifndef ZFS_COMPACT
 	{ "allow",	zfs_do_allow,		HELP_ALLOW		},
 	{ NULL },
 	{ "unallow",	zfs_do_unallow,		HELP_UNALLOW		},
+#endif	/* ZFS_COMPACT */
 };
+#else
+static zfs_command_t command_table[] = {
+	{ "mount",      zfs_do_mount            },
+	{ "unmount",    zfs_do_unmount          },
+};
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
 
 zfs_command_t *current_command;
 
+#ifndef ZFS_CMD_MINIMUMSET
 static const char *
 get_usage(zfs_help_t idx)
 {
@@ -231,6 +249,7 @@ get_usage(zfs_help_t idx)
 	case HELP_UNSHARE:
 		return (gettext("\tunshare [-f] "
 		    "<-a | filesystem|mountpoint>\n"));
+#ifndef ZFS_COMPACT
 	case HELP_ALLOW:
 		return (gettext("\tallow [-ldug] "
 		    "<\"everyone\"|user|group>[,...] <perm|@setname>[,...]\n"
@@ -250,11 +269,13 @@ get_usage(zfs_help_t idx)
 		    "<filesystem|volume>\n"
 		    "\tunallow [-r] -s @setname [<perm|@setname>[,...]] "
 		    "<filesystem|volume>\n"));
+#endif	/* ZFS_COMPACT */
 	}
 
 	abort();
 	/* NOTREACHED */
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Utility function to guarantee malloc() success.
@@ -272,6 +293,7 @@ safe_malloc(size_t size)
 	return (data);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Callback routine that will print out information for each of
  * the properties.
@@ -302,6 +324,7 @@ usage_prop_cb(int prop, void *cb)
 
 	return (ZPROP_CONT);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Display usage message.  If we're inside a command, display only the usage for
@@ -311,6 +334,7 @@ usage_prop_cb(int prop, void *cb)
 static void
 usage(boolean_t requested)
 {
+#ifndef ZFS_CMD_MINIMUMSET
 	int i;
 	boolean_t show_properties = B_FALSE;
 	boolean_t show_permissions = B_FALSE;
@@ -318,7 +342,8 @@ usage(boolean_t requested)
 
 	if (current_command == NULL) {
 
-		(void) fprintf(fp, gettext("usage: zfs command args ...\n"));
+		(void) fprintf(fp, gettext("usage: " ZFS_MODULE " command "
+		    "args ...\n"));
 		(void) fprintf(fp,
 		    gettext("where 'command' is one of the following:\n\n"));
 
@@ -366,11 +391,13 @@ usage(boolean_t requested)
 		(void) fprintf(fp, gettext("\n\nUser-defined properties can "
 		    "be specified by using a name containing a colon (:).\n"));
 
+#ifndef ZFS_COMPACT
 	} else if (show_permissions) {
 		(void) fprintf(fp,
 		    gettext("\nThe following permissions are supported:\n"));
 
 		zfs_deleg_permissions();
+#endif	/* ZFS_COMPACT */
 	} else {
 		/*
 		 * TRANSLATION NOTE:
@@ -379,11 +406,14 @@ usage(boolean_t requested)
 		 */
 
 		(void) fprintf(fp,
-		    gettext("\nFor the property list, run: zfs set|get\n"));
+		    gettext("\nFor the property list, run: " ZFS_MODULE
+			" set|get\n"));
 
+#ifndef ZFS_COMPACT
 		(void) fprintf(fp,
-		    gettext("\nFor the delegated permission list, run:"
-		    " zfs allow|unallow\n"));
+		    gettext("\nFor the delegated permission list, run: "
+		    ZFS_MODULE " allow|unallow\n"));
+#endif	/* ZFS_COMPACT */
 	}
 
 	/*
@@ -393,10 +423,12 @@ usage(boolean_t requested)
 		(void) printf("dumping core by request\n");
 		abort();
 	}
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 	exit(requested ? 0 : 2);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * zfs clone [-p] <snap> <fs | vol>
  *
@@ -943,11 +975,12 @@ zfs_do_destroy(int argc, char **argv)
 		(void) fprintf(stderr, gettext("cannot destroy '%s': "
 		    "operation does not apply to pools\n"),
 		    zfs_get_name(zhp));
-		(void) fprintf(stderr, gettext("use 'zfs destroy -r "
+		(void) fprintf(stderr, gettext("use '" ZFS_MODULE " destroy -r "
 		    "%s' to destroy all datasets in the pool\n"),
 		    zfs_get_name(zhp));
-		(void) fprintf(stderr, gettext("use 'zpool destroy %s' "
-		    "to destroy the pool itself\n"), zfs_get_name(zhp));
+		(void) fprintf(stderr, gettext("use '" ZPOOL_CMD_NAME
+		    " destroy %s' to destroy the pool itself\n"),
+		    zfs_get_name(zhp));
 		zfs_close(zhp);
 		return (1);
 	}
@@ -1319,8 +1352,9 @@ zfs_do_inherit(int argc, char **argv)
 			    prop == ZFS_PROP_RESERVATION ||
 			    prop == ZFS_PROP_REFQUOTA ||
 			    prop == ZFS_PROP_REFRESERVATION)
-				(void) fprintf(stderr, gettext("use 'zfs set "
-				    "%s=none' to clear\n"), propname);
+				(void) fprintf(stderr, gettext("use '"
+				    ZFS_MODULE " set %s=none' to clear\n"),
+				    propname);
 			return (1);
 		}
 	} else if (!zfs_prop_user(propname)) {
@@ -1375,8 +1409,8 @@ upgrade_list_callback(zfs_handle_t *zhp, void *data)
 		} else {
 			str = gettext("The following filesystems are "
 			    "out of date, and can be upgraded.  After being\n"
-			    "upgraded, these filesystems (and any 'zfs send' "
-			    "streams generated from\n"
+			    "upgraded, these filesystems (and any '"
+			    ZFS_MODULE " send' streams generated from\n"
 			    "subsequent snapshots) will no longer be "
 			    "accessible by older software versions.\n\n");
 		}
@@ -1509,10 +1543,11 @@ zfs_do_upgrade(int argc, char **argv)
 		(void) printf(gettext("VER  DESCRIPTION\n"));
 		(void) printf("---  -----------------------------------------"
 		    "---------------\n");
-		(void) printf(gettext(" 1   Initial ZFS filesystem version\n"));
+		(void) printf(gettext(" 1   Initial " ZFS_MODNAME " filesystem "
+		    "version\n"));
 		(void) printf(gettext(" 2   Enhanced directory entries\n"));
 		(void) printf(gettext(" 3   Case insensitive and File system "
-		    "unique identifer (FUID)\n"));
+		    "unique identifier (FUID)\n"));
 		(void) printf(gettext("\nFor more information on a particular "
 		    "version, including supported releases, see:\n\n"));
 		(void) printf("http://www.opensolaris.org/os/community/zfs/"
@@ -1538,7 +1573,7 @@ zfs_do_upgrade(int argc, char **argv)
 		/* List old-version filesytems */
 		boolean_t found;
 		(void) printf(gettext("This system is currently running "
-		    "ZFS filesystem version %llu.\n\n"), ZPL_VERSION);
+		    ZFS_MODNAME " filesystem version %llu.\n\n"), ZPL_VERSION);
 
 		ret = zfs_for_each(0, NULL, B_TRUE, ZFS_TYPE_FILESYSTEM,
 		    NULL, NULL, upgrade_list_callback, &cb, B_TRUE);
@@ -2423,6 +2458,7 @@ zfs_do_receive(int argc, char **argv)
 	return (err != 0);
 }
 
+#ifndef ZFS_COMPACT
 typedef struct allow_cb {
 	int  a_permcnt;
 	size_t a_treeoffset;
@@ -2801,6 +2837,8 @@ zfs_do_unallow(int argc, char **argv)
 
 	return (error);
 }
+#endif	/* ZFS_COMPACT */
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 typedef struct get_all_cbdata {
 	zfs_handle_t	**cb_handles;
@@ -2950,6 +2988,9 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 	uint64_t zoned, canmount;
 	zfs_type_t type = zfs_get_type(zhp);
 	boolean_t shared_nfs, shared_smb;
+#ifdef MNTFS_DISABLE
+	struct stat64 msb;
+#endif	/* MNTFS_DISABLE */
 
 	assert(type & (ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME));
 
@@ -3108,6 +3149,7 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			else
 				mnt.mnt_mntopts = (char *)options;
 
+#ifndef MNTFS_DISABLE
 			if (!hasmntopt(&mnt, MNTOPT_REMOUNT) &&
 			    zfs_is_mounted(zhp, NULL)) {
 				if (!explicit)
@@ -3119,6 +3161,31 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 				return (1);
 			}
 
+#else
+			/*
+			 * Enable this function even if mntfs isn't mounted.
+			 * Confirm the filesystem type to judge whether mntfs
+			 * is mounted or not.
+			 */
+			if (stat64(MNTTAB, &msb) != 0) {
+				(void) fprintf(stderr,
+				    gettext("cannot stat /etc/mnttab\n"));
+				return (1);
+			}
+			if (strcmp(msb.st_fstype, "mntfs") == 0) {
+				if (!hasmntopt(&mnt, MNTOPT_REMOUNT) &&
+				    zfs_is_mounted(zhp, NULL)) {
+					if (!explicit)
+						return (0);
+
+					(void) fprintf(stderr,
+					    gettext("cannot mount '%s': "
+					    "filesystem already mounted\n"),
+					    zfs_get_name(zhp));
+					return (1);
+				}
+			}
+#endif	/* MNTFS_DISABLE */
 			if (zfs_mount(zhp, options, flags) != 0)
 				return (1);
 			break;
@@ -3179,7 +3246,7 @@ report_mount_progress(int current, int total)
 
 	/* display header if we're here for the first time */
 	if (current == 1) {
-		(void) printf(gettext("Mounting ZFS filesystems: "));
+		(void) printf(gettext("Mounting " ZFS_MODNAME "filesystems: "));
 		len = 0;
 	} else if (current != total && last_progress_time + MOUNT_TIME >= now) {
 		/* too soon to report again */
@@ -3355,6 +3422,7 @@ zfs_do_mount(int argc, char **argv)
 	return (share_mount(OP_MOUNT, argc, argv));
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * zfs share -a [nfs | iscsi | smb]
  * zfs share filesystem
@@ -3366,6 +3434,7 @@ zfs_do_share(int argc, char **argv)
 {
 	return (share_mount(OP_SHARE, argc, argv));
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 typedef struct unshare_unmount_node {
 	zfs_handle_t	*un_zhp;
@@ -3398,6 +3467,9 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	const char *cmdname = (op == OP_SHARE) ? "unshare" : "unmount";
 	char nfs_mnt_prop[ZFS_MAXPROPLEN];
 	char smbshare_prop[ZFS_MAXPROPLEN];
+#ifdef MNTFS_DISABLE
+	struct mnttab   gmtab;
+#endif	/* MNTFS_DISABLE */
 
 	/*
 	 * Search for the path in /etc/mnttab.  Rather than looking for the
@@ -3415,7 +3487,25 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	 * Search for the given (major,minor) pair in the mount table.
 	 */
 	rewind(mnttab_file);
+#ifndef MNTFS_DISABLE
 	while ((ret = getextmntent(mnttab_file, &entry, 0)) == 0) {
+#else
+	while ((ret = getmntent(mnttab_file, &gmtab)) == 0) {
+		struct stat64 msb;
+
+		if (stat64(gmtab.mnt_mountp, &msb) != 0) {
+			(void) fprintf(stderr, gettext("cannot %s '%s': %s\n"),
+			    cmdname, gmtab.mnt_mountp, strerror(errno));
+			return (1);
+		}
+		entry.mnt_special = gmtab.mnt_special;
+		entry.mnt_mountp = gmtab.mnt_mountp;
+		entry.mnt_fstype = gmtab.mnt_fstype;
+		entry.mnt_mntopts = gmtab.mnt_mntopts;
+		entry.mnt_time = gmtab.mnt_time;
+		entry.mnt_major = (uint_t) major(msb.st_dev);
+		entry.mnt_minor = (uint_t) minor(msb.st_dev);
+#endif	/* MNTFS_DISABLE */
 		if (entry.mnt_major == major(statbuf.st_dev) &&
 		    entry.mnt_minor == minor(statbuf.st_dev))
 			break;
@@ -3435,8 +3525,8 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	}
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
-		(void) fprintf(stderr, gettext("cannot %s '%s': not a ZFS "
-		    "filesystem\n"), cmdname, path);
+		(void) fprintf(stderr, gettext("cannot %s '%s': not a "
+		    ZFS_MODNAME " filesystem\n"), cmdname, path);
 		return (1);
 	}
 
@@ -3817,6 +3907,7 @@ zfs_do_unmount(int argc, char **argv)
 	return (unshare_unmount(OP_MOUNT, argc, argv));
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * zfs unshare -a
  * zfs unshare filesystem
@@ -3828,6 +3919,7 @@ zfs_do_unshare(int argc, char **argv)
 {
 	return (unshare_unmount(OP_SHARE, argc, argv));
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Called when invoked as /etc/fs/zfs/mount.  Do the mount if the mountpoint is
@@ -3864,8 +3956,10 @@ manual_mount(int argc, char **argv)
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
+#ifndef ZFS_CMD_MINIMUMSET
 			(void) fprintf(stderr, gettext("usage: mount [-o opts] "
 			    "<path>\n"));
+#endif	/* ZFS_CMD_MINIMUMSET */
 			return (2);
 		}
 	}
@@ -3883,7 +3977,9 @@ manual_mount(int argc, char **argv)
 			    gettext("missing mountpoint argument\n"));
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
+#ifndef ZFS_CMD_MINIMUMSET
 		(void) fprintf(stderr, "usage: mount <dataset> <mountpoint>\n");
+#endif	/* ZFS_CMD_MINIMUMSET */
 		return (2);
 	}
 
@@ -3908,11 +4004,12 @@ manual_mount(int argc, char **argv)
 		}
 	} else {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted using 'mount -F zfs'\n"), dataset);
-		(void) fprintf(stderr, gettext("Use 'zfs set mountpoint=%s' "
-		    "instead.\n"), path);
-		(void) fprintf(stderr, gettext("If you must use 'mount -F zfs' "
-		    "or /etc/vfstab, use 'zfs set mountpoint=legacy'.\n"));
+		    "mounted using 'mount -F " ZFS_MODULE "'\n"), dataset);
+		(void) fprintf(stderr, gettext("Use '" ZFS_MODULE " set "
+		    "mountpoint=%s' instead.\n"), path);
+		(void) fprintf(stderr, gettext("If you must use 'mount -F "
+		    ZFS_MODULE "' or /etc/vfstab, use '" ZFS_MODULE " set "
+		    "mountpoint=legacy'.\n"));
 		(void) fprintf(stderr, gettext("See zfs(1M) for more "
 		    "information.\n"));
 		ret = 1;
@@ -3941,8 +4038,10 @@ manual_unmount(int argc, char **argv)
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
+#ifndef ZFS_CMD_MINIMUMSET
 			(void) fprintf(stderr, gettext("usage: unmount [-f] "
 			    "<path>\n"));
+#endif	/* ZFS_CMD_MINIMUMSET */
 			return (2);
 		}
 	}
@@ -3957,13 +4056,16 @@ manual_unmount(int argc, char **argv)
 			    "argument\n"));
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
+#ifndef ZFS_CMD_MINIMUMSET
 		(void) fprintf(stderr, gettext("usage: unmount [-f] <path>\n"));
+#endif	/* ZFS_CMD_MINIMUMSET */
 		return (2);
 	}
 
 	return (unshare_unmount_path(OP_MOUNT, argv[0], flags, B_TRUE));
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 static int
 volcheck(zpool_handle_t *zhp, void *data)
 {
@@ -3984,6 +4086,7 @@ do_volcheck(boolean_t isinit)
 {
 	return (zpool_iter(g_zfs, volcheck, &isinit) ? 1 : 0);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 static int
 find_command_idx(char *command, int *idx)
@@ -4021,8 +4124,10 @@ main(int argc, char **argv)
 		return (1);
 	}
 
-	zpool_set_history_str("zfs", argc, argv, history_str);
+#ifndef ZFS_CMD_MINIMUMSET
+	zpool_set_history_str(ZFS_MODULE, argc, argv, history_str);
 	verify(zpool_stage_history(g_zfs, history_str) == 0);
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
@@ -4058,6 +4163,7 @@ main(int argc, char **argv)
 		if (strcmp(cmdname, "umount") == 0)
 			cmdname = "unmount";
 
+#ifndef ZFS_CMD_MINIMUMSET
 		/*
 		 * The 'recv' command is an alias for 'receive'
 		 */
@@ -4078,6 +4184,7 @@ main(int argc, char **argv)
 			return (do_volcheck(B_TRUE));
 		else if (strcmp(cmdname, "volfini") == 0)
 			return (do_volcheck(B_FALSE));
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 		/*
 		 * Run the appropriate command.
@@ -4100,6 +4207,7 @@ main(int argc, char **argv)
 
 	libzfs_fini(g_zfs);
 
+#ifndef ZFS_CMD_MINIMUMSET
 	/*
 	 * The 'ZFS_ABORT' environment variable causes us to dump core on exit
 	 * for the purposes of running ::findleaks.
@@ -4108,6 +4216,7 @@ main(int argc, char **argv)
 		(void) printf("dumping core by request\n");
 		abort();
 	}
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 	return (ret);
 }

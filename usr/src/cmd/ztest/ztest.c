@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -106,6 +110,8 @@
 #include <math.h>
 #include <sys/fs/zfs.h>
 
+#include "zfs_types.h"
+
 static char cmdname[] = "ztest";
 static char *zopt_pool = cmdname;
 
@@ -128,10 +134,10 @@ static int zopt_maxfaults;
 static uint16_t zopt_write_fail_shift = 5;
 
 typedef struct ztest_block_tag {
-	uint64_t	bt_objset;
-	uint64_t	bt_object;
+	objid_t		bt_objset;
+	objid_t		bt_object;
 	uint64_t	bt_offset;
-	uint64_t	bt_txg;
+	txg_t		bt_txg;
 	uint64_t	bt_thread;
 	uint64_t	bt_seq;
 } ztest_block_tag_t;
@@ -707,7 +713,7 @@ ztest_random_compress(void)
 
 typedef struct ztest_replay {
 	objset_t	*zr_os;
-	uint64_t	zr_assign;
+	txg_t		zr_assign;
 } ztest_replay_t;
 
 static int
@@ -853,7 +859,7 @@ ztest_vdev_add_remove(ztest_args_t *za)
 
 	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 
 	ztest_shared->zs_vdev_primaries =
 	    spa->spa_root_vdev->vdev_children * leaves;
@@ -929,7 +935,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 
 	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 
 	/*
 	 * Decide whether to do an attach or a replace.
@@ -1076,7 +1082,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 	/*
 	 * Pick a random leaf vdev.
 	 */
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 	vdev = ztest_random(spa->spa_root_vdev->vdev_children * leaves);
 	spa_config_exit(spa, FTAG);
 
@@ -1462,7 +1468,7 @@ ztest_traverse(ztest_args_t *za)
 		th = za->za_th = traverse_init(spa, ztest_blk_cb, za, advance,
 		    ZIO_FLAG_CANFAIL);
 
-		traverse_add_pool(th, 0, -1ULL);
+		traverse_add_pool(th, 0, (txg_t)-1);
 	}
 
 	advance = th->th_advance;
@@ -1712,13 +1718,13 @@ ztest_dmu_object_alloc_free(ztest_args_t *za)
  */
 typedef struct bufwad {
 	uint64_t	bw_index;
-	uint64_t	bw_txg;
+	txg_t		bw_txg;
 	uint64_t	bw_data;
 } bufwad_t;
 
 typedef struct dmu_read_write_dir {
-	uint64_t	dd_packobj;
-	uint64_t	dd_bigobj;
+	objid_t		dd_packobj;
+	objid_t		dd_bigobj;
 	uint64_t	dd_chunk;
 } dmu_read_write_dir_t;
 
@@ -1729,7 +1735,8 @@ ztest_dmu_read_write(ztest_args_t *za)
 	dmu_read_write_dir_t dd;
 	dmu_tx_t *tx;
 	int i, freeit, error;
-	uint64_t n, s, txg;
+	uint64_t n, s;
+	txg_t txg;
 	bufwad_t *packbuf, *bigbuf, *pack, *bigH, *bigT;
 	uint64_t packoff, packsize, bigoff, bigsize;
 	uint64_t regions = 997;
@@ -1874,8 +1881,8 @@ ztest_dmu_read_write(ztest_args_t *za)
 		ASSERT((uintptr_t)bigT - (uintptr_t)bigbuf < bigsize);
 
 		if (pack->bw_txg > txg)
-			fatal(0, "future leak: got %llx, open txg is %llx",
-			    pack->bw_txg, txg);
+			fatal(0, "future leak: got %" PRIuTXG
+			    ", open txg is %" PRIuTXG, pack->bw_txg, txg);
 
 		if (pack->bw_data != 0 && pack->bw_index != n + i)
 			fatal(0, "wrong index: got %llx, wanted %llx+%llx",
@@ -1991,7 +1998,8 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	int b, error;
 	int bs = ZTEST_DIROBJ_BLOCKSIZE;
 	int do_free = 0;
-	uint64_t off, txg_how;
+	uint64_t off;
+	txg_t txg_how;
 	mutex_t *lp;
 	char osname[MAXNAMELEN];
 	char iobuf[SPA_MAXBLOCKSIZE];
@@ -2187,8 +2195,8 @@ void
 ztest_zap(ztest_args_t *za)
 {
 	objset_t *os = za->za_os;
-	uint64_t object;
-	uint64_t txg, last_txg;
+	objid_t object;
+	txg_t txg, last_txg;
 	uint64_t value[ZTEST_ZAP_MAX_INTS];
 	uint64_t zl_ints, zl_intsize, prop;
 	int i, ints;
@@ -2204,7 +2212,7 @@ ztest_zap(ztest_args_t *za)
 	 * Create a new object if necessary, and record it in the directory.
 	 */
 	VERIFY(0 == dmu_read(os, ZTEST_DIROBJ, za->za_diroff,
-	    sizeof (uint64_t), &object));
+	    sizeof (objid_t), &object));
 
 	if (object == 0) {
 		tx = dmu_tx_create(os);
@@ -2387,7 +2395,8 @@ void
 ztest_zap_parallel(ztest_args_t *za)
 {
 	objset_t *os = za->za_os;
-	uint64_t txg, object, count, wsize, wc, zl_wsize, zl_wc;
+	uint64_t object, count, wsize, wc, zl_wsize, zl_wc;
+	txg_t txg;
 	dmu_tx_t *tx;
 	int i, namelen, error;
 	char name[20], string_value[20];
@@ -2590,7 +2599,7 @@ ztest_fault_inject(ztest_args_t *za)
 	/*
 	 * Pick a random top-level vdev.
 	 */
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 	top = ztest_random(spa->spa_root_vdev->vdev_children);
 	spa_config_exit(spa, FTAG);
 
@@ -2612,7 +2621,7 @@ ztest_fault_inject(ztest_args_t *za)
 
 	dprintf("damaging %s and %s\n", path0, pathrand);
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 
 	/*
 	 * If we can tolerate two or more faults, make vd0 fail randomly.
@@ -2815,7 +2824,7 @@ ztest_replace_one_disk(spa_t *spa, uint64_t vdev)
 	VERIFY(nvlist_add_nvlist_array(root, ZPOOL_CONFIG_CHILDREN,
 	    &file, 1) == 0);
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 	if ((vd = vdev_lookup_by_path(spa->spa_root_vdev, dev_name)) == NULL)
 		guid = 0;
 	else

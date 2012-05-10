@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -38,11 +41,11 @@
 #include <strings.h>
 #include <errno.h>
 
-#include "extern.h"
 #include "misc.h"
 #include "msgs.h"
 #include <sac.h>
 #include "structs.h"
+#include "extern.h"
 
 static	FILE	*Lfp;	/* log file */
 #ifdef DEBUG

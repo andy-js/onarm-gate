@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -54,8 +58,23 @@
 #include <sys/usb/hcd/ehci/ehci_util.h>
 #include <sys/usb/hcd/ehci/ehci_isoch.h>
 
+#ifdef __arm
+
+#include <sys/usb/hcd/ehci/ehci_impl.h>
+#define EHCI_REGISTER_DEVHALT()		EHCI_REGISTER_DEVHALT_IMPL()
+#define EHCI_UNREGISTER_DEVHALT()	EHCI_UNREGISTER_DEVHALT_IMPL()
+
+#else /* __arm */
+
+#define EHCI_REGISTER_DEVHALT()
+#define EHCI_UNREGISTER_DEVHALT()
+
+#endif /* __arm */
+
 /* Pointer to the state structure */
 void *ehci_statep;
+
+int ehci_max_instance = 0;
 
 /* Number of instances */
 #define	EHCI_INSTS	1
@@ -145,7 +164,7 @@ static struct modlinkage modlinkage = {
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int error;
 
@@ -165,14 +184,15 @@ _init(void)
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int error;
 
@@ -184,6 +204,7 @@ _fini(void)
 
 	return (error);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 /*
@@ -301,6 +322,9 @@ ehci_attach(dev_info_t		*dip,
 		return (DDI_FAILURE);
 	}
 
+	/* Register devhalt function. */
+	EHCI_REGISTER_DEVHALT();
+
 	/*
 	 * At this point, the hardware will be okay.
 	 * Initialize the usba_hcdi structure
@@ -373,6 +397,9 @@ ehci_attach(dev_info_t		*dip,
 	USB_DPRINTF_L4(PRINT_MASK_ATTA, ehcip->ehci_log_hdl,
 	    "ehci_attach: dip = 0x%p done", (void *)dip);
 
+	if(instance > ehci_max_instance)
+		ehci_max_instance = instance;
+
 	return (DDI_SUCCESS);
 }
 
@@ -390,6 +417,7 @@ int
 ehci_detach(dev_info_t		*dip,
 	ddi_detach_cmd_t	cmd)
 {
+	int		ret;
 	ehci_state_t		*ehcip = ehci_obtain_state(dip);
 
 	USB_DPRINTF_L4(PRINT_MASK_ATTA, ehcip->ehci_log_hdl, "ehci_detach:");
@@ -397,7 +425,12 @@ ehci_detach(dev_info_t		*dip,
 	switch (cmd) {
 	case DDI_DETACH:
 
-		return (ehci_cleanup(ehcip));
+		ret = ehci_cleanup(ehcip);
+		if(ret == DDI_SUCCESS){
+			/* unregister devhalt function */
+			EHCI_UNREGISTER_DEVHALT();
+		}
+		return (ret);
 	case DDI_SUSPEND:
 
 		return (ehci_cpr_suspend(ehcip));

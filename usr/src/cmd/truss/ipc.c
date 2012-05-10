@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -408,6 +411,12 @@ checkproc(private_t *pri)
 #elif defined(__i386)
 		(void) Lgetareg(Lwp, R_PC, &pc);
 		(void) Lputareg(Lwp, EAX, (prgreg_t)what);
+#elif defined(__arm)
+		(void) Lgetareg(Lwp, R_PC, &pc);
+		(void) Lputareg(Lwp, REG_R12, (prgreg_t)what);
+		for (i = 0; i < 4; i++) {
+			(void) Lputareg(Lwp, R_R0+i, pri->sys_args[i]);
+		}
 #else
 #error "unrecognized architecture"
 #endif

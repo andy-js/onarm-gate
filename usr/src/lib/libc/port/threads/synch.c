@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #define	atomic_cas_64	_atomic_cas_64
@@ -2402,21 +2406,21 @@ lmutex_unlock(mutex_t *mp)
  * deferred while locks acquired by these functions are held.
  */
 void
-sig_mutex_lock(mutex_t *mp)
+__libc_sig_mutex_lock(mutex_t *mp)
 {
 	sigoff(curthread);
 	(void) _private_mutex_lock(mp);
 }
 
 void
-sig_mutex_unlock(mutex_t *mp)
+__libc_sig_mutex_unlock(mutex_t *mp)
 {
 	(void) _private_mutex_unlock(mp);
 	sigon(curthread);
 }
 
 int
-sig_mutex_trylock(mutex_t *mp)
+__libc_sig_mutex_trylock(mutex_t *mp)
 {
 	int error;
 
@@ -2438,9 +2442,9 @@ sig_cond_wait(cond_t *cv, mutex_t *mp)
 	_private_testcancel();
 	error = __cond_wait(cv, mp);
 	if (error == EINTR && curthread->ul_cursig) {
-		sig_mutex_unlock(mp);
+		__libc_sig_mutex_unlock(mp);
 		/* take the deferred signal here */
-		sig_mutex_lock(mp);
+		__libc_sig_mutex_lock(mp);
 	}
 	_private_testcancel();
 	return (error);
@@ -2458,9 +2462,9 @@ sig_cond_reltimedwait(cond_t *cv, mutex_t *mp, const timespec_t *ts)
 	_private_testcancel();
 	error = __cond_reltimedwait(cv, mp, ts);
 	if (error == EINTR && curthread->ul_cursig) {
-		sig_mutex_unlock(mp);
+		__libc_sig_mutex_unlock(mp);
 		/* take the deferred signal here */
-		sig_mutex_lock(mp);
+		__libc_sig_mutex_lock(mp);
 	}
 	_private_testcancel();
 	return (error);

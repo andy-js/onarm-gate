@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -407,7 +411,7 @@ lx_brandsys(int cmd, int64_t *rval, uintptr_t arg1, uintptr_t arg2,
 		ASSERT(p->p_zone->zone_brand == &lx_brand);
 		return (exec_common(
 		    (char *)arg1, (const char **)arg2, (const char **)arg3,
-		    EBA_BRAND));
+		    EBA_BRAND, NULL));
 	}
 
 	/* For all other operations this must be a branded process. */
@@ -490,7 +494,7 @@ lx_brandsys(int cmd, int64_t *rval, uintptr_t arg1, uintptr_t arg2,
 	case B_EXEC_NATIVE:
 		error = exec_common(
 		    (char *)arg1, (const char **)arg2, (const char **)arg3,
-		    EBA_NATIVE);
+		    EBA_NATIVE, NULL);
 		if (error) {
 			(void) set_errno(error);
 			return (*rval = -1);
@@ -871,7 +875,7 @@ lx_elfexec(struct vnode *vp, struct execa *uap, struct uarg *args,
 }
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int err = 0;
 
@@ -899,13 +903,14 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int err;
 	int futex_done = 0;
@@ -940,3 +945,4 @@ done:
 
 	return (err);
 }
+#endif	/* !STATIC_DRIVER */

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -49,7 +53,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#ifndef STATIC_LINK
 #include <dlfcn.h>
+#endif
 #include <gssapi/gssapi.h>
 #include "nis_local.h"
 
@@ -305,6 +311,11 @@ OM_uint32 (*g_release_oid)();
 static int
 gss_OID_load()
 {
+#ifdef STATIC_LINK
+
+	return (0);
+
+#else /* STATIC_LINK */
 	void *dh;
 	gss_OID *OIDptr;
 	int stat = 0;
@@ -367,6 +378,7 @@ Done:
 		GSS_EXPORT_NAME = 0;
 
 	return (stat);
+#endif /* STATIC_LINK */
 }
 
 

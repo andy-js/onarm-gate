@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <auth_attr.h>
@@ -619,6 +623,7 @@ _newdac(char *file, uid_t owner, gid_t group, o_mode_t mode)
 	if (err)
 		return (err);
 
+#ifndef	__ALLOCATE_NO_ACL
 	if (strncmp(file, "/dev/", strlen("/dev/")) != 0) {
 		/*
 		 * This could be a SunRay device that is in /tmp.
@@ -630,6 +635,12 @@ _newdac(char *file, uid_t owner, gid_t group, o_mode_t mode)
 	} else {
 		err = acl_strip(file, owner, group, (mode_t)mode);
 	}
+#else	/* !__ALLOCATE_NO_ACL */
+	if (chmod(file, mode) == -1) {
+		dperror("newdac: unable to chmod");
+		err = SETACLERR;
+	}
+#endif	/* __ALLOCATE_NO_ACL */
 
 	if (err != 0) {
 		dperror("newdac: unable to setacl");

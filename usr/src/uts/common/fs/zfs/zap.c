@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -49,6 +53,7 @@
 #include <sys/refcount.h>
 #include <sys/zap_impl.h>
 #include <sys/zap_leaf.h>
+#include <zfs_types.h>
 
 int fzap_default_block_shift = 14; /* 16k blocksize */
 
@@ -56,6 +61,7 @@ static void zap_leaf_pageout(dmu_buf_t *db, void *vl);
 static uint64_t zap_allocate_blocks(zap_t *zap, int nblocks);
 
 
+#ifndef ZFS_COMPACT
 void
 fzap_byteswap(void *vbuf, size_t size)
 {
@@ -70,6 +76,7 @@ fzap_byteswap(void *vbuf, size_t size)
 		byteswap_uint64_array(vbuf, size);
 	}
 }
+#endif	/* ZFS_COMPACT */
 
 void
 fzap_upgrade(zap_t *zap, dmu_tx_t *tx)
@@ -294,7 +301,9 @@ zap_table_load(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t *valp)
 
 		err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
 		    (tbl->zt_nextblk + blk) << bs, FTAG, &db);
-		dmu_buf_rele(db, FTAG);
+		if (err == 0) {
+			dmu_buf_rele(db, FTAG);
+		}
 	}
 	return (err);
 }
@@ -600,7 +609,7 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx, zap_leaf_t **lp)
 	    old_prefix_len == zap->zap_f.zap_phys->zap_ptrtbl.zt_shift) {
 		/* We failed to upgrade, or need to grow the pointer table */
 		objset_t *os = zap->zap_objset;
-		uint64_t object = zap->zap_object;
+		objid_t object = zap->zap_object;
 
 		zap_put_leaf(l);
 		zap_unlockdir(zap);
@@ -686,7 +695,7 @@ zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 		 */
 		if (zap_tryupgradedir(zap, tx) == 0) {
 			objset_t *os = zap->zap_objset;
-			uint64_t zapobj = zap->zap_object;
+			objid_t zapobj = zap->zap_object;
 
 			zap_unlockdir(zap);
 			err = zap_lockdir(os, zapobj, tx,
@@ -904,7 +913,7 @@ fzap_remove(zap_name_t *zn, dmu_tx_t *tx)
 }
 
 int
-zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
+zap_value_search(objset_t *os, objid_t zapobj, uint64_t value, uint64_t mask,
     char *name)
 {
 	zap_cursor_t zc;

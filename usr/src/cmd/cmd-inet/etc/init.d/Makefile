@@ -26,10 +26,14 @@
 #
 # cmd/cmd-inet/etc/init.d/Makefile
 
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 PROG4=	ncalogd
 PROG5=	ncakmod
 PPPD=	pppd
-PROG=	$(PROG4) $(PROG5) $(PPPD)
+SPROG=	$(PROG4) $(PROG5) $(PPPD)
 
 include ../../../Makefile.cmd
 
@@ -46,13 +50,17 @@ FILEMODE= 0744
 OWNER= root
 GROUP= sys
 
-ETCINITPROG=	$(PROG:%=$(INITD)/%)
+LN_PROG	= ln_PROG
+
+$(ARM_BLD)include	Makefile.arm
+
+ETCINITPROG=	$(SPROG:%=$(INITD)/%)
 
 .KEEP_STATE:
 
-all: $(PROG)
+all: $(SPROG)
 
-install: all $(DIRS) $(ETCINITPROG) $(ETCDFLTPROG) ln_PROG
+install: all $(DIRS) $(ETCINITPROG) $(ETCDFLTPROG) $(LN_PROG)
 
 $(INITD)/% : % $(INITD)
 	$(INS.file)
@@ -80,6 +88,7 @@ clean:
 
 lint:
 
+$(ARM_BLD)include	Makefile.targ.arm
 include ../../../Makefile.targ
 
 .PARALLEL:

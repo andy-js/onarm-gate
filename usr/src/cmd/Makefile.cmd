@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2009 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # Definitions common to command source.
@@ -132,7 +137,17 @@ ROOTSFWMAN7=	$(ROOT)/usr/sfw/share/man/man7
 # End /usr/sfw freeware rules
 #
 
+# Processing CTF only for ARM & gcc
+$(ARM_BLD)$(__GNULD)POST_PROCESS = :
+$(ARM_BLD)$(__GNULD)POST_PROCESS_O = :
+$(ARM_BLD)$(__GNULD)POST_PROCESS_SO = :
+$(ARM_BLD)$(__GNULD)PROCESS_COMMENT = :
+
 ISAEXEC=	$(ROOT)/usr/lib/isaexec
+
+# Use 'isaexec' command if ARM_BLD is POUND_SIGN.
+$(ARM_BLD)USE_ISAEXEC=	$(POUND_SIGN)
+
 PLATEXEC=	$(ROOT)/usr/lib/platexec
 
 LDLIBS =	$(LDLIBS.cmd)
@@ -140,6 +155,9 @@ LDLIBS =	$(LDLIBS.cmd)
 LDFLAGS.cmd = \
 	$(BDIRECT) $(ENVLDFLAGS1) $(ENVLDFLAGS2) $(ENVLDFLAGS3) \
 	$(MAPFILE.NES:%=-M%) $(MAPFILE.PGA:%=-M%) $(MAPFILE.NED:%=-M%)
+
+# Eliminate .SUNW_ldynsym on ARM build to reduce file size as possible.
+$(ARM_BLD)LDFLAGS.cmd	+= $(ZNOLDYNSYM)
 
 LDFLAGS =	$(LDFLAGS.cmd)
 
@@ -327,8 +345,17 @@ $(ROOTUSRSBIN32)/%: %
 $(ROOTUSRSBIN64)/%: %
 	$(INS.file)
 
+USE_MACH_ROOTETC	=
+$(DONT_USE_MACH_ROOTETC)USE_MACH_ROOTETC	= $(POUND_SIGN)
+
+$(USE_MACH_ROOTETC)$(ROOTETC)/%:	$(MACH)/%
+$(USE_MACH_ROOTETC)	$(INS.file)
+
 $(ROOTETC)/%: %
 	$(INS.file)
+
+$(ARM_BLD)$(ROOTETCDEFAULT)/%:	%_$(MACH).dfl
+$(ARM_BLD)	$(INS.rename)
 
 $(ROOTETCDEFAULT)/%:	%.dfl
 	$(INS.rename)

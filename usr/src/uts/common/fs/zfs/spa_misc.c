@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -45,6 +49,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/fs/zfs.h>
 #include <sys/metaslab_impl.h>
+#include <zfs_types.h>
 #include "zfs_prop.h"
 
 /*
@@ -171,8 +176,11 @@ int spa_max_replication_override = SPA_DVAS_PER_BP;
 
 static kmutex_t spa_spare_lock;
 static avl_tree_t spa_spare_avl;
+#ifndef ZFS_NO_L2ARC
 static kmutex_t spa_l2cache_lock;
 static avl_tree_t spa_l2cache_avl;
+#endif	/* ZFS_NO_L2ARC */
+static avl_tree_t spa_errorlist_avl;
 
 kmem_cache_t *spa_buffer_pool;
 int spa_mode;
@@ -216,8 +224,8 @@ spa_config_lock_destroy(spa_config_lock_t *scl)
 	refcount_destroy(&scl->scl_count);
 }
 
-void
-spa_config_enter(spa_t *spa, krw_t rw, void *tag)
+int
+spa_config_enter(spa_t *spa, krw_t rw, void *tag, int spa_how)
 {
 	spa_config_lock_t *scl = &spa->spa_config_lock;
 
@@ -228,14 +236,22 @@ spa_config_enter(spa_t *spa, krw_t rw, void *tag)
 			cv_wait(&scl->scl_cv, &scl->scl_lock);
 	} else {
 		while (!refcount_is_zero(&scl->scl_count) &&
-		    scl->scl_writer != curthread)
+		    scl->scl_writer != curthread) {
+			if (spa_state(spa) == POOL_STATE_IO_FAILURE &&
+			    spa_get_failmode(spa) == ZIO_FAILURE_MODE_ABORT &&
+			    spa_how == SPA_NOWAIT){
+				mutex_exit(&scl->scl_lock);
+				return (EIO);
+			}
 			cv_wait(&scl->scl_cv, &scl->scl_lock);
+		}
 		scl->scl_writer = curthread;
 	}
 
 	(void) refcount_add(&scl->scl_count, tag);
 
 	mutex_exit(&scl->scl_lock);
+	return (0);
 }
 
 void
@@ -265,6 +281,16 @@ spa_config_held(spa_t *spa, krw_t rw)
 		return (!refcount_is_zero(&scl->scl_count));
 	else
 		return (scl->scl_writer == curthread);
+}
+
+void
+spa_config_abort(spa_t *spa)
+{
+	spa_config_lock_t *scl = &spa->spa_config_lock;
+
+	mutex_enter(&scl->scl_lock);
+	cv_broadcast(&scl->scl_cv);
+	mutex_exit(&scl->scl_lock);
 }
 
 /*
@@ -338,8 +364,8 @@ spa_add(const char *name, const char *altroot)
 
 	spa->spa_name = spa_strdup(name);
 	spa->spa_state = POOL_STATE_UNINITIALIZED;
-	spa->spa_freeze_txg = UINT64_MAX;
-	spa->spa_final_txg = UINT64_MAX;
+	spa->spa_freeze_txg = TXG_MAX;
+	spa->spa_final_txg = TXG_MAX;
 
 	refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(&spa->spa_config_lock);
@@ -368,6 +394,14 @@ void
 spa_remove(spa_t *spa)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	if (spa->spa_state != POOL_STATE_UNINITIALIZED &&
+	    spa->spa_failmode == ZIO_FAILURE_MODE_ABORT) {
+		avl_remove(&spa_namespace_avl, spa);
+		cv_broadcast(&spa_namespace_cv);
+		avl_add(&spa_errorlist_avl, spa);
+		return;
+	}
+
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 	ASSERT(spa->spa_scrub_thread == NULL);
 
@@ -426,6 +460,22 @@ spa_next(spa_t *prev)
 		return (AVL_NEXT(&spa_namespace_avl, prev));
 	else
 		return (avl_first(&spa_namespace_avl));
+}
+
+void
+spa_errorlist_remove(spa_t *spa)
+{
+	avl_remove(&spa_errorlist_avl, spa);
+}
+
+spa_t *
+spa_errorlist_next(spa_t *prev)
+{
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	if (prev)
+		return (AVL_NEXT(&spa_errorlist_avl, prev));
+	else
+		return (avl_first(&spa_errorlist_avl));
 }
 
 /*
@@ -651,6 +701,7 @@ spa_spare_activate(vdev_t *vd)
  * for these devices the aux reference count is currently unused beyond 1.
  */
 
+#ifndef ZFS_NO_L2ARC
 static int
 spa_l2cache_compare(const void *a, const void *b)
 {
@@ -703,6 +754,7 @@ spa_l2cache_space_update(vdev_t *vd, int64_t space, int64_t alloc)
 {
 	vdev_space_update(vd, space, alloc, B_FALSE);
 }
+#endif	/* ZFS_NO_L2ARC */
 
 /*
  * ==========================================================================
@@ -715,7 +767,7 @@ spa_l2cache_space_update(vdev_t *vd, int64_t space, int64_t alloc)
  * Grabs the global spa_namespace_lock plus the spa config lock for writing.
  * It returns the next transaction group for the spa_t.
  */
-uint64_t
+txg_t
 spa_vdev_enter(spa_t *spa)
 {
 	mutex_enter(&spa_namespace_lock);
@@ -727,7 +779,11 @@ spa_vdev_enter(spa_t *spa)
 	 */
 	spa_scrub_suspend(spa);
 
-	spa_config_enter(spa, RW_WRITER, spa);
+	if ((spa_config_enter(spa, RW_WRITER, spa, SPA_NOWAIT)) == EIO) {
+		spa_scrub_resume(spa);
+		mutex_exit(&spa_namespace_lock);
+		return (TXG_INVAL);
+	}
 
 	return (spa_last_synced_txg(spa) + 1);
 }
@@ -739,7 +795,7 @@ spa_vdev_enter(spa_t *spa)
  * information.
  */
 int
-spa_vdev_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error)
+spa_vdev_exit(spa_t *spa, vdev_t *vd, txg_t txg, int error)
 {
 	int config_changed = B_FALSE;
 
@@ -770,8 +826,12 @@ spa_vdev_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error)
 	 * that there won't be more than one config change per txg.
 	 * This allows us to use the txg as the generation number.
 	 */
-	if (error == 0)
-		txg_wait_synced(spa->spa_dsl_pool, txg);
+	if (error == 0) {
+		if ((error = txg_wait_synced(spa->spa_dsl_pool, txg)) != 0) {
+			mutex_exit(&spa_namespace_lock);
+			return (error);
+		}
+	}
 
 	if (vd != NULL) {
 		ASSERT(!vd->vdev_detached || vd->vdev_dtl.smo_object == 0);
@@ -816,7 +876,11 @@ spa_rename(const char *name, const char *newname)
 		return (err);
 	}
 
-	spa_config_enter(spa, RW_WRITER, FTAG);
+	if ((err = spa_config_enter(spa, RW_WRITER, FTAG, SPA_NOWAIT)) != 0 ) {
+		spa_close(spa, FTAG);
+		mutex_exit(&spa_namespace_lock);
+		return (err);
+	}
 
 	avl_remove(&spa_namespace_avl, spa);
 	spa_strfree(spa->spa_name);
@@ -832,7 +896,11 @@ spa_rename(const char *name, const char *newname)
 
 	spa_config_exit(spa, FTAG);
 
-	txg_wait_synced(spa->spa_dsl_pool, 0);
+	if ((err = txg_wait_synced(spa->spa_dsl_pool, 0)) != 0) {
+		spa_close(spa, FTAG);
+		mutex_exit(&spa_namespace_lock);
+		return (err);
+	}
 
 	/*
 	 * Sync the updated config cache.
@@ -966,16 +1034,16 @@ sprintf_blkptr(char *buf, int len, const blkptr_t *bp)
 void
 spa_freeze(spa_t *spa)
 {
-	uint64_t freeze_txg = 0;
+	txg_t freeze_txg = 0;
 
-	spa_config_enter(spa, RW_WRITER, FTAG);
-	if (spa->spa_freeze_txg == UINT64_MAX) {
+	(void) spa_config_enter(spa, RW_WRITER, FTAG, SPA_WAIT);
+	if (spa->spa_freeze_txg == TXG_MAX) {
 		freeze_txg = spa_last_synced_txg(spa) + TXG_SIZE;
 		spa->spa_freeze_txg = freeze_txg;
 	}
 	spa_config_exit(spa, FTAG);
 	if (freeze_txg != 0)
-		txg_wait_synced(spa_get_dsl(spa), freeze_txg);
+		(void) txg_wait_synced(spa_get_dsl(spa), freeze_txg);
 }
 
 void
@@ -1067,13 +1135,13 @@ spa_guid(spa_t *spa)
 		return (spa->spa_load_guid);
 }
 
-uint64_t
+txg_t
 spa_last_synced_txg(spa_t *spa)
 {
 	return (spa->spa_ubsync.ub_txg);
 }
 
-uint64_t
+txg_t
 spa_first_txg(spa_t *spa)
 {
 	return (spa->spa_first_txg);
@@ -1085,7 +1153,7 @@ spa_state(spa_t *spa)
 	return (spa->spa_state);
 }
 
-uint64_t
+txg_t
 spa_freeze_txg(spa_t *spa)
 {
 	return (spa->spa_freeze_txg);
@@ -1171,7 +1239,7 @@ bp_get_dasize(spa_t *spa, const blkptr_t *bp)
 	if (!spa->spa_deflate)
 		return (BP_GET_ASIZE(bp));
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 	for (i = 0; i < SPA_DVAS_PER_BP; i++) {
 		vdev_t *vd =
 		    vdev_lookup_top(spa, DVA_GET_VDEV(&bp->blk_dva[i]));
@@ -1204,9 +1272,37 @@ spa_name_compare(const void *a1, const void *a2)
 	return (0);
 }
 
+static int
+spa_errorlist_compare(const void *a1, const void *a2)
+{
+	if (a1 < a2)
+		return (-1);
+	if (a1 > a2)
+		return (1);
+	return (0);
+}
+
 int
 spa_busy(void)
 {
+	spa_t *spa = NULL;
+	int errcnt = 0;
+
+	mutex_enter(&spa_namespace_lock);
+	while ((spa = spa_next(spa)) != NULL) {
+		if (spa->spa_state == POOL_STATE_IO_FAILURE &&
+		    spa->spa_failmode == ZIO_FAILURE_MODE_ABORT)
+			errcnt++;
+	}
+	spa = NULL;
+	while ((spa = spa_errorlist_next(spa)) != NULL) {
+		errcnt++;
+	}
+	mutex_exit(&spa_namespace_lock);
+
+	if (errcnt)
+		return (errcnt);
+
 	return (spa_active_count);
 }
 
@@ -1215,7 +1311,6 @@ spa_init(int mode)
 {
 	mutex_init(&spa_namespace_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa_spare_lock, NULL, MUTEX_DEFAULT, NULL);
-	mutex_init(&spa_l2cache_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&spa_namespace_cv, NULL, CV_DEFAULT, NULL);
 
 	avl_create(&spa_namespace_avl, spa_name_compare, sizeof (spa_t),
@@ -1224,8 +1319,15 @@ spa_init(int mode)
 	avl_create(&spa_spare_avl, spa_spare_compare, sizeof (spa_aux_t),
 	    offsetof(spa_aux_t, aux_avl));
 
+#ifndef ZFS_NO_L2ARC
+	mutex_init(&spa_l2cache_lock, NULL, MUTEX_DEFAULT, NULL);
+
 	avl_create(&spa_l2cache_avl, spa_l2cache_compare, sizeof (spa_aux_t),
 	    offsetof(spa_aux_t, aux_avl));
+#endif	/* ZFS_NO_L2ARC */
+
+	avl_create(&spa_errorlist_avl, spa_errorlist_compare, sizeof (spa_t),
+	    offsetof(spa_t, spa_err_avl));
 
 	spa_mode = mode;
 
@@ -1240,10 +1342,12 @@ spa_init(int mode)
 	spa_config_load();
 }
 
-void
+int
 spa_fini(void)
 {
-	spa_evict_all();
+	int err;
+	if ((err = spa_evict_all()) != 0)
+		return (err);
 
 	vdev_cache_stat_fini();
 	zil_fini();
@@ -1254,12 +1358,18 @@ spa_fini(void)
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);
-	avl_destroy(&spa_l2cache_avl);
+	avl_destroy(&spa_errorlist_avl);
 
 	cv_destroy(&spa_namespace_cv);
 	mutex_destroy(&spa_namespace_lock);
 	mutex_destroy(&spa_spare_lock);
+
+#ifndef ZFS_NO_L2ARC
+	avl_destroy(&spa_l2cache_avl);
 	mutex_destroy(&spa_l2cache_lock);
+#endif	/* ZFS_NO_L2ARC */
+
+	return (0);
 }
 
 /*

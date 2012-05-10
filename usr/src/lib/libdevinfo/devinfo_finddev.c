@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -75,10 +79,12 @@ device_exists(const char *devname)
 	int	rv;
 	struct stat st;
 
+#ifndef __arm
 	if (GLOBAL_DEV_PATH(devname)) {
 		rv = modctl(MODDEVEXISTS, devname, strlen(devname));
 		return ((rv == 0) ? 1 : 0);
 	}
+#endif
 	if (stat(devname, &st) == 0)
 		return (1);
 	return (0);
@@ -163,6 +169,89 @@ restart:
 	return (0);
 }
 
+#ifdef __arm
+/*
+ * On ARM, dev(7FS) not supported. Replace modctl(MODDEVREADDIR) with stub.
+ */
+#define	DI_MODCTL	_finddev_modctl
+
+static int
+_finddev_modctl(int cmd, const char *path, int path_len, char *list,
+    int64_t *list_len)
+{
+	DIR		*dp;
+	struct dirent	*dir;
+	char		*p, *paths;
+	int64_t		lens;
+	int		n, err, remains;
+
+	if (cmd != MODDEVREADDIR) {
+		errno = EINVAL;
+		return(-1);
+	}
+
+	if((dp = opendir(path)) == NULL) {
+		return(-1);
+	}
+
+	lens = 0;
+	while ((dir = readdir(dp)) != NULL) {
+		if (strcmp(dir->d_name, ".") == 0 ||
+		    strcmp(dir->d_name, "..") == 0) {
+			continue;
+		}
+		lens += strlen(dir->d_name) + 1;
+	}
+	lens++;
+
+	if (list) {
+		if (lens < *list_len) {
+			closedir(dp);
+			errno = EAGAIN;
+			return -1;
+		}
+
+		paths = calloc(lens, sizeof(char));
+		if (paths == NULL) {
+			err = errno;
+			closedir(dp);
+			errno = err;
+			return(-1);
+		}
+
+		rewinddir(dp);
+
+		remains = lens;
+		p = paths;
+		while ((dir = readdir(dp)) != NULL) {
+			if (strcmp(dir->d_name, ".") == 0 ||
+			    strcmp(dir->d_name, "..") == 0) {
+				continue;
+			}
+
+			n = strlen(dir->d_name) + 1;
+			remains -= n;
+			if (remains < 0) {
+				free(paths);
+				closedir(dp);
+				errno = EAGAIN;
+				return(-1);
+			}
+			snprintf(p , n, "%s\0", dir->d_name);
+			p += n;
+		}
+		memcpy(list, paths, lens);
+		free(paths);
+	}
+
+	*list_len = lens;
+	closedir(dp);
+	return(0);
+}
+#else
+#define	DI_MODCTL	modctl
+#endif
+
 /*
  * Use of the dev filesystem's private readdir does not trigger
  * the implicit device reconfiguration.
@@ -194,7 +283,7 @@ finddev_readdir_devfs(const char *path, finddevhdl_t *handlep)
 	handle->curpath = 0;
 	handle->paths = NULL;
 
-	rv = modctl(MODDEVREADDIR, path, strlen(path), NULL, &bufsiz);
+	rv = DI_MODCTL(MODDEVREADDIR, path, strlen(path), NULL, &bufsiz);
 	if (rv != 0) {
 		free(handle);
 		return (rv);
@@ -207,7 +296,7 @@ finddev_readdir_devfs(const char *path, finddevhdl_t *handlep)
 			return (ENOMEM);
 		}
 
-		rv = modctl(MODDEVREADDIR, path, strlen(path),
+		rv = DI_MODCTL(MODDEVREADDIR, path, strlen(path),
 		    pathlist, &bufsiz);
 		if (rv == 0) {
 			for (n = 0, p = pathlist;

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -162,20 +166,21 @@ static struct modlinkage modlinkage = {
 	MODREV_1, (void *)&modlfs, NULL
 };
 
-char _depends_on[] = "fs/specfs";
+MODDRV_DEPENDS_ON("fs/specfs");
 
 extern void hsched_init_caches(void);
 extern void hsched_fini_caches(void);
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -198,9 +203,10 @@ _fini(void)
 	hsched_fini_caches();
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

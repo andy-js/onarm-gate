@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -39,7 +43,7 @@
 
 #include "ncaconf.h"
 
-char			_depends_on[] = "fs/sockfs drv/ip";
+MODDRV_DEPENDS_ON("fs/sockfs drv/ip");
 
 extern caddr_t	nca_g_nd;	/* Head of 'named dispatch' variable list */
 
@@ -155,19 +159,21 @@ struct streamtab ncainfo = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

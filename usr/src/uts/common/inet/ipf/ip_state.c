@@ -7,6 +7,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #if defined(KERNEL) || defined(_KERNEL)
@@ -371,16 +375,46 @@ static int fr_state_remove(data, ifs)
 caddr_t data;
 ipf_stack_t *ifs;
 {
+#if defined(_NETWORK_EXTENSION)
+	ipstate_t *sp, *stp;
+#else
 	ipstate_t *sp, st;
+#endif /* _NETWORK_EXTENSION */
 	int error;
 
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(stp, ipstate_t *);
+	if(!stp)
+		return ENOMEM;
+	sp = stp;
+	error = fr_inobj(data, stp, IPFOBJ_IPSTATE);
+	if (error) {
+		KFREE(stp);
+		return EFAULT;
+	}
+#else
 	sp = &st;
 	error = fr_inobj(data, &st, IPFOBJ_IPSTATE);
 	if (error)
 		return EFAULT;
+#endif /* _NETWORK_EXTENSION */
 
 	WRITE_ENTER(&ifs->ifs_ipf_state);
 	for (sp = ifs->ifs_ips_list; sp; sp = sp->is_next)
+#if defined(_NETWORK_EXTENSION)
+		if ((sp->is_p == stp->is_p) && (sp->is_v == stp->is_v) &&
+		    !bcmp((caddr_t)&sp->is_src, (caddr_t)&stp->is_src,
+			  sizeof(stp->is_src)) &&
+		    !bcmp((caddr_t)&sp->is_dst, (caddr_t)&stp->is_src,
+			  sizeof(stp->is_dst)) &&
+		    !bcmp((caddr_t)&sp->is_ps, (caddr_t)&stp->is_ps,
+			  sizeof(stp->is_ps))) {
+			fr_delstate(sp, ISL_REMOVE, ifs);
+			RWLOCK_EXIT(&ifs->ifs_ipf_state);
+			KFREE(stp);
+			return 0;
+		}
+#else
 		if ((sp->is_p == st.is_p) && (sp->is_v == st.is_v) &&
 		    !bcmp((caddr_t)&sp->is_src, (caddr_t)&st.is_src,
 			  sizeof(st.is_src)) &&
@@ -392,7 +426,11 @@ ipf_stack_t *ifs;
 			RWLOCK_EXIT(&ifs->ifs_ipf_state);
 			return 0;
 		}
+#endif /* _NETWORK_EXTENSION */
 	RWLOCK_EXIT(&ifs->ifs_ipf_state);
+#if defined(_NETWORK_EXTENSION)
+	KFREE(stp);
+#endif /* _NETWORK_EXTENSION */
 	return ESRCH;
 }
 
@@ -574,20 +612,48 @@ caddr_t data;
 ipf_stack_t *ifs;
 {
 	ipstate_t *is, *isn;
+#if defined(_NETWORK_EXTENSION)
+	ipstate_save_t *ipsp;
+#else
 	ipstate_save_t ips;
+#endif /* _NETWORK_EXTENSION */
 	int error;
 
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(ipsp, ipstate_save_t *);
+	if(!ipsp)
+		return ENOMEM;
+	error = fr_inobj(data, ipsp, IPFOBJ_STATESAVE);
+	if (error) {
+		KFREE(ipsp);
+		return EFAULT;
+	}
+#else
 	error = fr_inobj(data, &ips, IPFOBJ_STATESAVE);
 	if (error)
 		return EFAULT;
+#endif /* _NETWORK_EXTENSION */
 
+#if defined(_NETWORK_EXTENSION)
+	isn = ipsp->ips_next;
+#else
 	isn = ips.ips_next;
+#endif /* _NETWORK_EXTENSION */
 	if (isn == NULL) {
 		isn = ifs->ifs_ips_list;
 		if (isn == NULL) {
+#if defined(_NETWORK_EXTENSION)
+			if (ipsp->ips_next == NULL) {
+				KFREE(ipsp);
+				return ENOENT;
+			}
+			KFREE(ipsp);
+			return 0;
+#else
 			if (ips.ips_next == NULL)
 				return ENOENT;
 			return 0;
+#endif /* _NETWORK_EXTENSION */
 		}
 	} else {
 		/*
@@ -601,6 +667,19 @@ ipf_stack_t *ifs;
 		if (!is)
 			return ESRCH;
 	}
+#if defined(_NETWORK_EXTENSION)
+	ipsp->ips_next = isn->is_next;
+	bcopy((char *)isn, (char *)&ipsp->ips_is, sizeof(ipsp->ips_is));
+	ipsp->ips_rule = isn->is_rule;
+	if (isn->is_rule != NULL)
+		bcopy((char *)isn->is_rule, (char *)&ipsp->ips_fr,
+		      sizeof(ipsp->ips_fr));
+	error = fr_outobj(data, ipsp, IPFOBJ_STATESAVE);
+	KFREE(ipsp);
+	if (error)
+		return EFAULT;
+	return 0;
+#else
 	ips.ips_next = isn->is_next;
 	bcopy((char *)isn, (char *)&ips.ips_is, sizeof(ips.ips_is));
 	ips.ips_rule = isn->is_rule;
@@ -611,6 +690,7 @@ ipf_stack_t *ifs;
 	if (error)
 		return EFAULT;
 	return 0;
+#endif /* _NETWORK_EXTENSION */
 }
 
 
@@ -629,20 +709,46 @@ caddr_t data;
 ipf_stack_t *ifs;
 {
 	ipstate_t *is, *isn;
+#if defined(_NETWORK_EXTENSION)
+	ipstate_save_t *ipsp;
+#else
 	ipstate_save_t ips;
+#endif /* _NETWORK_EXTENSION */
 	int error, i;
 	frentry_t *fr;
 	char *name;
 
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(ipsp, ipstate_save_t *);
+	if(!ipsp)
+		return ENOMEM;
+	error = fr_inobj(data, ipsp, IPFOBJ_STATESAVE);
+	if (error) {
+		KFREE(ipsp);
+		return EFAULT;
+	}
+#else
 	error = fr_inobj(data, &ips, IPFOBJ_STATESAVE);
 	if (error)
 		return EFAULT;
+#endif /* _NETWORK_EXTENSION */
 
 	KMALLOC(isn, ipstate_t *);
 	if (isn == NULL)
+#if defined(_NETWORK_EXTENSION)
+	{
+		KFREE(ipsp);
 		return ENOMEM;
+	}
+#else
+		return ENOMEM;
+#endif /* _NETWORK_EXTENSION */
 
+#if defined(_NETWORK_EXTENSION)
+	bcopy((char *)&ipsp->ips_is, (char *)isn, sizeof(*isn));
+#else
 	bcopy((char *)&ips.ips_is, (char *)isn, sizeof(*isn));
+#endif /* _NETWORK_EXTENSION */
 	bzero((char *)isn, offsetof(struct ipstate, is_pkts));
 	isn->is_sti.tqe_pnext = NULL;
 	isn->is_sti.tqe_next = NULL;
@@ -653,13 +759,20 @@ ipf_stack_t *ifs;
 	isn->is_ifp[2] = NULL;
 	isn->is_ifp[3] = NULL;
 	isn->is_sync = NULL;
+#if defined(_NETWORK_EXTENSION)
+	fr = ipsp->ips_rule;
+#else
 	fr = ips.ips_rule;
+#endif /* _NETWORK_EXTENSION */
 
 	if (fr == NULL) {
 		READ_ENTER(&ifs->ifs_ipf_state);
 		fr_stinsert(isn, 0, ifs);
 		MUTEX_EXIT(&isn->is_lock);
 		RWLOCK_EXIT(&ifs->ifs_ipf_state);
+#if defined(_NETWORK_EXTENSION)
+		KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 		return 0;
 	}
 
@@ -667,11 +780,22 @@ ipf_stack_t *ifs;
 		KMALLOC(fr, frentry_t *);
 		if (fr == NULL) {
 			KFREE(isn);
+#if defined(_NETWORK_EXTENSION)
+			KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 			return ENOMEM;
 		}
+#if defined(_NETWORK_EXTENSION)
+		bcopy((char *)&ipsp->ips_fr, (char *)fr, sizeof(*fr));
+#else
 		bcopy((char *)&ips.ips_fr, (char *)fr, sizeof(*fr));
+#endif /* _NETWORK_EXTENSION */
 		isn->is_rule = fr;
+#if defined(_NETWORK_EXTENSION)
+		ipsp->ips_is.is_rule = fr;
+#else
 		ips.ips_is.is_rule = fr;
+#endif /* _NETWORK_EXTENSION */
 		MUTEX_NUKE(&fr->fr_lock);
 		MUTEX_INIT(&fr->fr_lock, "state filter rule lock");
 
@@ -697,11 +821,18 @@ ipf_stack_t *ifs;
 		 * send a copy back to userland of what we ended up
 		 * to allow for verification.
 		 */
+#if defined(_NETWORK_EXTENSION)
+		error = fr_outobj(data, ipsp, IPFOBJ_STATESAVE);
+#else
 		error = fr_outobj(data, &ips, IPFOBJ_STATESAVE);
+#endif /* _NETWORK_EXTENSION */
 		if (error) {
 			KFREE(isn);
 			MUTEX_DESTROY(&fr->fr_lock);
 			KFREE(fr);
+#if defined(_NETWORK_EXTENSION)
+			KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 			return EFAULT;
 		}
 		READ_ENTER(&ifs->ifs_ipf_state);
@@ -723,10 +854,15 @@ ipf_stack_t *ifs;
 			isn = NULL;
 		}
 		RWLOCK_EXIT(&ifs->ifs_ipf_state);
-
+#if defined(_NETWORK_EXTENSION)
+		KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 		return (isn == NULL) ? ESRCH : 0;
 	}
 
+#if defined(_NETWORK_EXTENSION)
+	KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 	return 0;
 }
 
@@ -829,7 +965,11 @@ fr_info_t *fin;
 ipstate_t **stsave;
 u_int flags;
 {
+#if defined(_NETWORK_EXTENSION)
+	ipstate_t *is, *ipsp;
+#else
 	ipstate_t *is, ips;
+#endif /* _NETWORK_EXTENSION */
 	struct icmp *ic;
 	u_int pass, hv;
 	frentry_t *fr;
@@ -876,7 +1016,14 @@ u_int flags;
 	ic = NULL;
 	tcp = NULL;
 	out = fin->fin_out;
-	is = &ips;
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(ipsp, ipstate_t *);
+	if(!ipsp)
+		return NULL;
+        is = ipsp;
+#else
+        is = &ips;
+#endif /* _NETWORK_EXTENSION */
 	bzero((char *)is, sizeof(*is));
 	is->is_die = 1 + ifs->ifs_fr_ticks;
 
@@ -937,6 +1084,9 @@ u_int flags;
 			is->is_icmp.ici_type = ic->icmp_type;
 			break;
 		default :
+#if defined(_NETWORK_EXTENSION)
+			KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 			return NULL;
 		}
 		ATOMIC_INCL(ifs->ifs_ips_stats.iss_icmp);
@@ -955,6 +1105,9 @@ u_int flags;
 			hv += (is->is_icmp.ici_id = ic->icmp_id);
 			break;
 		default :
+#if defined(_NETWORK_EXTENSION)
+			KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 			return NULL;
 		}
 		ATOMIC_INCL(ifs->ifs_ips_stats.iss_icmp);
@@ -1066,24 +1219,45 @@ u_int flags;
 	for (is = ifs->ifs_ips_table[is->is_hv % ifs->ifs_fr_statesize];
 	     is != NULL;
 	     is = is->is_hnext) {
+#if defined(_NETWORK_EXTENSION)
+		if (bcmp(&ipsp->is_src, &is->is_src,
+#else
 		if (bcmp(&ips.is_src, &is->is_src,
+#endif /* _NETWORK_EXTENSION */
 			 offsetof(struct ipstate, is_ps) -
 			 offsetof(struct ipstate, is_src)) == 0)
 			break;
 	}
 	if (is != NULL)
+#if defined(_NETWORK_EXTENSION)
+	{	
+		KFREE(ipsp);
 		return NULL;
+	}
+#else
+		return NULL;
+#endif /* _NETWORK_EXTENSION */
 
 	if (ifs->ifs_ips_stats.iss_bucketlen[hv] >= ifs->ifs_fr_state_maxbucket) {
 		ATOMIC_INCL(ifs->ifs_ips_stats.iss_bucketfull);
+#if defined(_NETWORK_EXTENSION)
+		KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 		return NULL;
 	}
 	KMALLOC(is, ipstate_t *);
 	if (is == NULL) {
 		ATOMIC_INCL(ifs->ifs_ips_stats.iss_nomem);
+#if defined(_NETWORK_EXTENSION)
+		KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 		return NULL;
 	}
+#if defined(_NETWORK_EXTENSION)
+	bcopy((char *)ipsp, (char *)is, sizeof(*is));
+#else
 	bcopy((char *)&ips, (char *)is, sizeof(*is));
+#endif /* _NETWORK_EXTENSION */
 	/*
 	 * Do not do the modulous here, it is done in fr_stinsert().
 	 */
@@ -1215,6 +1389,9 @@ u_int flags;
 	if (fin->fin_flx & FI_FRAG)
 		(void) fr_newfrag(fin, pass ^ FR_KEEPSTATE);
 
+#if defined(_NETWORK_EXTENSION)
+	KFREE(ipsp);
+#endif /* _NETWORK_EXTENSION */
 	return is;
 }
 

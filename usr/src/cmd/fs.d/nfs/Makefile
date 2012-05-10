@@ -24,6 +24,12 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
+#
 # cmd/fs.d/nfs/Makefile
 #
 #  cmd/fs.d/nfs is the directory of all nfs specific commands
@@ -40,6 +46,12 @@ SUBDIR2=	clear_locks umount showmount \
 
 SUBDIR3=	etc svc
 SUBDIRS=	$(SUBDIR1) $(SUBDIR2) $(SUBDIR3)
+SUBDIRS_ALL=	$(SUBDIR1) $(SUBDIR2) $(SUBDIR3)
+
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(SUBDIR1) $(SUBDIR2) $(SUBDIR3)
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
 
 # for messaging catalog files
 #
@@ -68,7 +80,7 @@ catalog: $(SUBDIR2) $(CLOSED_SUBDIR2)
 	$(RM) $(POFILE)
 	cat $(POFILES) > $(POFILE)
 
-$(SUBDIRS): FRC
+$(SUBDIRS_ALL): FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)
 
 FRC:

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/systm.h>
@@ -48,6 +52,7 @@
 #include <sys/param.h>
 #include <sys/kstat.h>
 #include <sys/cmn_err.h>
+#include <sys/fs/ufs_fs.h>
 
 extern	kmutex_t	ufs_scan_lock;
 
@@ -504,6 +509,7 @@ lufs_free(struct ufsvfs *ufsvfsp)
 	long		nfno;
 	inode_t		*ip = NULL;
 	char		clean;
+	int32_t		save_blkno;
 
 	/*
 	 * Nothing to free
@@ -524,7 +530,16 @@ lufs_free(struct ufsvfs *ufsvfsp)
 	fs->fs_clean = FSACTIVE;
 	fs->fs_logbno = INT32_C(0);
 	ufs_sbwrite(ufsvfsp);
+
+	/*
+	 * Log address elimination of the second super block.
+	 */
+	save_blkno = ufsvfsp->vfs_bufp->b_blkno;
+	ufsvfsp->vfs_bufp->b_blkno = ALTSBLOCK;
+	ufs_sbwrite(ufsvfsp);
+	ufsvfsp->vfs_bufp->b_blkno = save_blkno;
 	mutex_exit(&ufsvfsp->vfs_lock);
+
 	ufsvfsp->vfs_ulockfs.ul_sbowner = (kthread_id_t)-1;
 	if (ufsvfsp->vfs_bufp->b_flags & B_ERROR) {
 		error = EIO;
@@ -606,6 +621,7 @@ lufs_alloc(struct ufsvfs *ufsvfsp, struct fiolog *flp, cred_t *cr)
 	struct inode	*ip = NULL;
 	size_t		nb = flp->nbytes_actual;
 	size_t		tb = 0;
+	int32_t		save_blkno;
 
 	/*
 	 * Mark the file system as FSACTIVE
@@ -740,6 +756,14 @@ lufs_alloc(struct ufsvfs *ufsvfsp, struct fiolog *flp, cred_t *cr)
 	mutex_enter(&ufsvfsp->vfs_lock);
 	fs->fs_logbno = (uint32_t)logbno;
 	ufs_sbwrite(ufsvfsp);
+
+	/*
+	 * Writing of the log information to the second super block.
+	 */
+	save_blkno = ufsvfsp->vfs_bufp->b_blkno;
+	ufsvfsp->vfs_bufp->b_blkno = ALTSBLOCK;
+	ufs_sbwrite(ufsvfsp);
+	ufsvfsp->vfs_bufp->b_blkno = save_blkno;
 	mutex_exit(&ufsvfsp->vfs_lock);
 	ufsvfsp->vfs_ulockfs.ul_sbowner = (kthread_id_t)-1;
 
@@ -920,6 +944,7 @@ lufs_enable(struct vnode *vp, struct fiolog *flp, cred_t *cr)
 	struct ulockfs	*ulp;
 	vfs_t		*vfsp = ufsvfsp->vfs_vfs;
 	uint64_t	tmp_nbytes_actual;
+	int32_t		save_blkno;
 
 	/*
 	 * Check if logging is already enabled
@@ -1103,6 +1128,14 @@ recheck:
 	fs->fs_clean = FSLOG;
 	fs->fs_rolled = FS_NEED_ROLL; /* Mark the fs as unrolled */
 	UFS_BWRITE2(NULL, ufsvfsp->vfs_bufp);
+
+	/*
+	 * Writing of the log information to the second super block.
+	 */
+	save_blkno = ufsvfsp->vfs_bufp->b_blkno;
+	ufsvfsp->vfs_bufp->b_blkno = ALTSBLOCK;
+	UFS_BWRITE2(NULL, ufsvfsp->vfs_bufp);
+	ufsvfsp->vfs_bufp->b_blkno = save_blkno;
 	mutex_exit(&ufsvfsp->vfs_lock);
 
 	return (0);

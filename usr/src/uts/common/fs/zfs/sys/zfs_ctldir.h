@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_ZFS_CTLDIR_H
 #define	_ZFS_CTLDIR_H
 
@@ -32,6 +36,7 @@
 #include <sys/vnode.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -60,9 +65,9 @@ int zfsctl_root_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, pathname_t *pnp,
     int flags, vnode_t *rdir, cred_t *cr, caller_context_t *ct,
     int *direntflags, pathname_t *realpnp);
 
-int zfsctl_make_fid(zfsvfs_t *zfsvfsp, uint64_t object, uint32_t gen,
+int zfsctl_make_fid(zfsvfs_t *zfsvfsp, objid_t object, uint32_t gen,
     fid_t *fidp);
-int zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp);
+int zfsctl_lookup_objset(vfs_t *vfsp, objid_t objsetid, zfsvfs_t **zfsvfsp);
 
 #define	ZFSCTL_INO_ROOT		0x1
 #define	ZFSCTL_INO_SNAPDIR	0x2

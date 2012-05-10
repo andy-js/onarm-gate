@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	"_synonyms.h"
@@ -2378,6 +2383,7 @@ load_one(Lm_list *lml, Aliste lmco, Pnode *pnp, Rt_map *clmp, int mode,
 	for (tpnp = pnp; tpnp && tpnp->p_name; tpnp = tpnp->p_next) {
 		Rt_map	*tlmp;
 
+#if	!defined(__arm)
 		/*
 		 * A Hardware capabilities requirement can itself expand into
 		 * a number of candidates.
@@ -2388,7 +2394,9 @@ load_one(Lm_list *lml, Aliste lmco, Pnode *pnp, Rt_map *clmp, int mode,
 				remove_rej(&rej);
 				return (tlmp);
 			}
-		} else {
+		} else
+#endif
+		{
 			if ((tlmp = load_path(lml, lmco, &tpnp->p_name, clmp,
 			    mode, flags, hdl, 0, &rej)) != 0) {
 				remove_rej(&rej);

@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * This file contains the declarations of the various data structures
  * used by the auditing module(s).
  */
@@ -511,6 +515,57 @@ int	audit(caddr_t, int);
 int	_audit(caddr_t, int);
 int	auditsys(struct auditcalls *, union rval *); /* fake stub */
 int	_auditsys(struct auditcalls *, union rval *); /* real deal */
+
+#ifdef	_C2_AUDIT_STUB
+
+int	file_is_public(struct vattr *);
+void	audit_attributes(struct vnode *);
+int	audit_async_start(label_t *, int, int);
+void	audit_async_finish(caddr_t *, int, int);
+void	audit_async_discard_backend(void *);
+void	audit_async_done(caddr_t *, int);
+void	audit_async_drop(caddr_t *, int);
+
+/* Define audit stubs. */
+#define	audit_cryptoadm(cmd, nm, mnm, mcnt, di, rv, error)
+#define	audit_init()
+#define	audit_newproc(p)
+#define	audit_pfree(p)
+#define	audit_thread_create(t)
+#define	audit_thread_free(t)
+#define	audit_savepath(pnp, vp, flag, cr)	(0)
+#define	audit_addcomponent(pnp)
+#define	audit_anchorpath(pnp, flag)
+#define	audit_symlink(pnp, sympath)
+#define	audit_symlink_create(dvp, sname, target, error)
+#define	audit_falloc(fp)
+#define	audit_unfalloc(fp)
+#define	audit_exit(code, what)
+#define	audit_core_start(sig)
+#define	audit_core_finish(code)
+#define	audit_stropen(vp, devp, flag, crp)
+#define	audit_strclose(vp, flag, crp)
+#define	audit_strioctl(vp, cmd, arg, flag, copyflag, crp, rvalp)
+#define	audit_strgetmsg(vp, mctl, mdata, prt, flag, fmode)
+#define	audit_strputmsg(vp, mctl, mdata, pri, flag, fmode)
+#define	audit_closef(fp)
+#define	audit_getf(fd)		(0)
+#define	audit_setf(fp, fd)
+#define	audit_copen(fd, fp, vp)
+#define	audit_reboot(void)
+#define	audit_vncreate_start()
+#define	audit_setfsat_path(argnum)
+#define	audit_vncreate_finish(vp, error)
+#define	audit_exec(arg, env, argc, envc)
+#define	audit_enterprom(flag)
+#define	audit_exitprom(flag)
+#define	audit_chdirec(vp, vpp)
+#define	audit_sock(type, q, mp, from)
+#define	audit_free(void)
+#define	audit_start(type, scid, error, lwp)	(0)
+#define	audit_finish(type, scid, error, rval)
+
+#else	/* !_C2_AUDIT_STUB */
 void	audit_cryptoadm(int, char *, crypto_mech_name_t *,
 	    uint_t, uint_t, uint32_t, int);
 void	audit_init(void);
@@ -559,6 +614,7 @@ void	audit_async_finish(caddr_t *, int, int);
 void	audit_async_discard_backend(void *);
 void	audit_async_done(caddr_t *, int);
 void	audit_async_drop(caddr_t *, int);
+#endif	/* _C2_AUDIT_STUB */
 
 #ifndef AUK_CONTEXT_T
 #define	AUK_CONTEXT_T
@@ -568,6 +624,25 @@ typedef struct au_kcontext au_kcontext_t;
 int	audit_success(au_kcontext_t *, struct t_audit_data *, int, cred_t *);
 int	auditme(au_kcontext_t *, struct t_audit_data *, au_state_t);
 void	audit_fixpath(struct audit_path *, int);
+
+#ifdef	_C2_AUDIT_STUB
+
+/* Define audit stubs. */
+#define	audit_ipc(type, t, vp)
+#define	audit_ipcget(type, vp)
+#define	audit_lookupname()
+#define	audit_pathcomp(pnp, cvp, cr)		(0)
+#define	audit_fdsend(fd, fp, error)
+#define	audit_fdrecv(fd, fp)
+#define	audit_c2_revoke(uap, rvp)		(0)
+#define	audit_priv(priv, set, flag)
+#define	audit_setppriv(op, set, newpriv, ocr)
+#define	audit_devpolicy(nitems, items)
+#define	audit_update_context(p, ncr)
+#define	audit_kssl(cmd, params, error)
+#define	audit_pf_policy(cmd, crp, ns, tun, active, error, pid)
+
+#else	/* !_C2_AUDIT_STUB */
 void	audit_ipc(int, int, void *);
 void	audit_ipcget(int, void *);
 void	audit_lookupname();
@@ -582,6 +657,8 @@ void	audit_update_context(proc_t *, cred_t *);
 void	audit_kssl(int, void *, int);
 void	audit_pf_policy(int, cred_t *, netstack_t *, char *, boolean_t, int,
     pid_t);
+#endif	/* _C2_AUDIT_STUB */
+
 void	audit_sec_attributes(caddr_t *, struct vnode *);
 
 #endif

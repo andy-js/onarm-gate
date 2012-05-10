@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG =		ld
 
 include 	$(SRC)/cmd/Makefile.cmd
@@ -54,6 +58,9 @@ native :=	LDFLAGS = -R$(SGSPROTO) $(ZNOVERSION)
 native :=	LDLIBS = -L$(SGSPROTO) $(LD_LIB) -lelf $(CONVLIBDIR) \
 		    $(CONV_LIB) $(VAR_LD_NATIVE_LLDLIBS)
 
+cross	:=	LDFLAGS = -R'$$ORIGIN/../lib' $(ZNOVERSION)
+cross	:=	LDLIBS = -L$(CROSSLIB) $(LD_LIB) -lelf $(CONV_LIB)
+
 BLTDEFS=	msg.h
 BLTDATA=	msg.c
 BLTMESG=	$(SGSMSGDIR)/ld
@@ -61,9 +68,12 @@ BLTMESG=	$(SGSMSGDIR)/ld
 BLTFILES=	$(BLTDEFS) $(BLTDATA) $(BLTMESG)
 
 SGSMSGCOM=	../common/ld.msg
+SGSMSGCROSS=	../common/ld.cross.msg
 SGSMSGTARG=	$(SGSMSGCOM)
 SGSMSGALL=	$(SGSMSGCOM)
 SGSMSGFLAGS +=	-h $(BLTDEFS) -d $(BLTDATA) -m $(BLTMESG) -n ld_msg
+
+cross	:=	SGSMSGALL += $(SGSMSGCROSS)
 
 SRCS=		$(MACHOBJS:%.o=%.c)  $(COMOBJS:%.o=../common/%.c)  $(BLTDATA)
 LINTSRCS=	$(SRCS) ../common/lintsup.c

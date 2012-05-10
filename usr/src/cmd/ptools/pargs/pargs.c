@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -700,6 +703,9 @@ at_hwcap(long val, char *instr, size_t n, char *str)
 #elif defined(__i386) || defined(__amd64)
 	(void) elfcap_hw1_to_str(ELFCAP_STYLE_UC, val, str, n,
 	    ELFCAP_FMT_PIPSPACE, EM_386);
+#elif defined(__arm)
+	(void) elfcap_hw1_to_str(ELFCAP_STYLE_UC, val, str, n,
+	    ELFCAP_FMT_PIPSPACE, EM_ARM);
 #else
 #error	"port me"
 #endif

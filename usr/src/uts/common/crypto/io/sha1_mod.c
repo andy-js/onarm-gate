@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/modctl.h>
@@ -228,7 +232,7 @@ static crypto_provider_info_t sha1_prov_info = {
 static crypto_kcf_provider_handle_t sha1_prov_handle = NULL;
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int ret;
 
@@ -249,7 +253,7 @@ _init()
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

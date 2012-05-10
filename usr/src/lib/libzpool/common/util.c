@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <assert.h>
@@ -34,6 +38,7 @@
 #include <sys/spa.h>
 #include <sys/fs/zfs.h>
 #include <sys/refcount.h>
+#include <zfs_types.h>
 
 /*
  * Routines needed by more than one client of libzpool.
@@ -138,8 +143,8 @@ show_pool_stats(spa_t *spa)
 	nvlist_t *config, *nvroot;
 	char *name;
 
-	spa_config_enter(spa, RW_READER, FTAG);
-	config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
+	config = spa_config_generate(spa, NULL, (txg_t)-1, B_TRUE);
 	spa_config_exit(spa, FTAG);
 
 	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,

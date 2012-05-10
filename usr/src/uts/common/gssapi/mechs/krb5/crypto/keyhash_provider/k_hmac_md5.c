@@ -3,6 +3,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -82,6 +86,8 @@ k5_hmac_md5_hash (krb5_context context,
 
   ks.contents = (void *) ds.data;
   ks.length = key->length;
+  md5tmp.data = (void *)outbuf;
+  md5tmp.length = sizeof(outbuf);
 #ifdef _KERNEL
   if (key->kef_key.ck_data == NULL) {
 	ret = init_key_kef(krb5_enctypes_list[i].kef_cipher_mt,
@@ -116,9 +122,6 @@ k5_hmac_md5_hash (krb5_context context,
   hash_input[0].length = 4;
   hash_input[1].data = input->data;
   hash_input[1].length = input->length;
-
-  md5tmp.data = (void *)outbuf;
-  md5tmp.length = sizeof(outbuf);
 
   /* Use generic hash function that calls to kEF */
   if (k5_ef_hash(context, 2, hash_input, &md5tmp)) {

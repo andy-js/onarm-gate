@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef _SIGJMP_STRUCT_H
 #define	_SIGJMP_STRUCT_H
 
@@ -73,7 +77,27 @@ typedef struct {
 #define	JB_SAVEMASK	0x1
 #define	JB_FRAMEPTR	0x2
 
-#endif	/* __sparc */
+#elif defined(__arm)
+
+typedef struct {
+	int		sjs_flags;	/* JBUF[ 0]	*/
+	greg_t		sjs_sp;		/* JBUF[ 1]	*/
+	greg_t		sjs_pc;		/* JBUF[ 2]	*/
+	greg_t		sjs_fp;		/* JBUF[ 3]	*/
+	greg_t		sjs_lr;		/* JBUF[ 4]	*/
+	ucontext_t	*sjs_uclink;
+	ulong_t		sjs_pad[_JBLEN - 6];
+	sigset_t	sjs_sigmask;
+#if defined(_LP64)
+	ulong_t		sjs_pad1[2];
+#endif
+	stack_t		sjs_stack;
+} sigjmp_struct_t;
+
+#define	JB_SAVEMASK	0x1
+#define	JB_FRAMEPTR	0x2
+
+#endif	/* __arm */
 
 #ifdef	__cplusplus
 }

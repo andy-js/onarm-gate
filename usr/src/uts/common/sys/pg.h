@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_PG_H
 #define	_PG_H
@@ -139,6 +142,7 @@ pg_cid_t	pg_class_register(char *, struct pg_ops *, pg_relation_t);
  * PG CPU reconfiguration hooks
  */
 void		pg_cpu0_init(void);
+void		pg_cpu0_reinit(void);
 void		pg_cpu_init(cpu_t *);
 void		pg_cpu_fini(cpu_t *);
 void		pg_cpu_active(cpu_t *);
@@ -163,6 +167,14 @@ void		pg_cpu_delete(pg_t *, cpu_t *);
 pg_t		*pg_cpu_find_pg(cpu_t *, group_t *);
 cpu_t		*pg_cpu_next(pg_cpu_itr_t *);
 
+/* PG cpupart bitset utility routines. */
+#define	PG_PART_BITSET_INIT(b)		bitset_init(b)
+#define	PG_PART_BITSET_FINI(b)		bitset_fini(b)
+#define	PG_PART_BITSET_IS_NULL(b)	bitset_is_null(b)
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <sys/pg_impl.h>
+#endif	/* defined(_KERNEL_BUILD_TREE) */
 
 #endif	/* !_KERNEL && !_KMEMUSER */
 

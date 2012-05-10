@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 COMOBJS64 =	rd_elf64.o
 PLTOBJS =	plt32_resolution.o plt64_resolution.o
 PLTSRCS =	../i386/plt32_resolution.c plt64_resolution.c
@@ -42,8 +46,7 @@ CONVLIBDIR =	$(CONVLIBDIR64)
 
 all:		$(DYNLIB) $(LINTLIB)
 
-install:	all $(ROOTFS_DYNLIB64) $(ROOTFS_LINKS64) \
-		$(ROOTFS_LIBDIR64)/$(LINTLIB)
+install:	all $(ROOTFS_DYNLIB64) $(ROOTFS_LINKS64) $(LINTLIB64_TARGET)
 
 pics/plt32_resolution.o: ../i386/plt32_resolution.c
 		$(COMPILE.c) -D_ELF32 $(PICFLAGS) -o $@ \

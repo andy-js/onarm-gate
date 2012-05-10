@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -86,7 +89,7 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 
 #if defined(_SUNOS_VTOC_16)
 
-#if defined(i386) || defined(__amd64)
+#if defined(i386) || defined(__amd64) || defined(__arm)
 	{	V_BOOT,		V_UNMNT	},		/* i - 8 */
 	{	V_ALTSCTR,	0	},		/* j - 9 */
 

@@ -39,6 +39,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -73,7 +77,7 @@ salloc(unsigned size)
 	int index;
 
 	s = size;
-#if defined(u3b) || defined(sparc)
+#if defined(u3b) || defined(sparc) || defined(__arm)
 	s += 3;		/* needs alignment on quad boundary */
 	s &= ~03;
 #elif defined(i386)
@@ -128,7 +132,7 @@ srealloc(void *optr, unsigned size)
 		register struct strings *sp = lastsp;
 
 		s = size;
-#if defined(u3b) || defined(sparc)
+#if defined(u3b) || defined(sparc) || defined(__arm)
 		s += 3;		/* needs alignment on quad boundary */
 		s &= ~03;
 #elif defined(i386)

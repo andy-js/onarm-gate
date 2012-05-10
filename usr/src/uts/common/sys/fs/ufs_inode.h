@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_UFS_INODE_H
 #define	_SYS_FS_UFS_INODE_H
 
@@ -51,6 +55,7 @@
 #include <sys/cred.h>
 #include <sys/time.h>
 #include <sys/types32.h>
+#include <sys/vfs_opreg.h>
 #include <sys/fs/ufs_fs.h>
 #include <sys/fs/ufs_lockfs.h>
 #include <sys/fs/ufs_trans.h>
@@ -365,6 +370,7 @@ struct dinode {
 #define	ISEQ		0x8000		/* deferred i_seq increase */
 #define	IJUNKIQ		0x10000		/* on junk idle queue */
 #define	IQUIET		0x20000		/* No file system full messages */
+#define	IRENAME		0x100000	/* target inode was renamed */
 
 /* cflags */
 #define	IXATTR		0x0001		/* extended attribute */
@@ -792,6 +798,8 @@ typedef struct ufsvfs {
 	 * Additional information about vfs_delete above
 	 */
 	struct ufs_delq_info vfs_delete_info; /* what's on the delete queue */
+
+	kmutex_t	vfs_renamelock;	/* rename lock for this mount */
 } ufsvfs_t;
 
 #define	vfs_fs	vfs_bufp->b_un.b_fs

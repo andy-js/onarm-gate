@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -70,10 +74,10 @@ major_t mm_major;
 static void impl_create_root_class(void);
 static void create_devinfo_tree(void);
 
-#if defined(__x86)
+#if	defined(__x86) || (defined(__arm) && defined(USE_SWAPGENERIC))
 char *bootpath_prop = NULL;
 char *fstype_prop = NULL;
-#endif
+#endif	/* __x86 || (__arm && USE_SWAPGENERIC) */
 
 /*
  * Setup the DDI but don't necessarily init the DDI.  This will happen
@@ -178,7 +182,7 @@ impl_create_root_class(void)
 	 */
 	(void) BOP_GETPROP(bootops, "impl-arch-name", platform);
 
-#if defined(__x86)
+#if	defined(__x86) || (defined(__arm) && defined(USE_SWAPGENERIC))
 	/*
 	 * Retrieve and honor the bootpath and optional fstype properties
 	 */
@@ -195,7 +199,7 @@ impl_create_root_class(void)
 		(void) BOP_GETPROP(bootops, "fstype", fstype_prop);
 		setbootfstype(fstype_prop);
 	}
-#endif
+#endif	/* __x86 || (__arm && USE_SWAPGENERIC) */
 }
 
 /*

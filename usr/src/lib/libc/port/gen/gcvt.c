@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	Copyright (c) 1988 AT&T	*/
@@ -35,6 +39,11 @@
  */
 
 #pragma weak gcvt = _gcvt
+
+#ifdef	__arm
+#pragma	weak qgcvt = _gcvt
+#pragma	weak _qgcvt = _gcvt
+#endif	/* __arm */
 
 #include "synonyms.h"
 #include <floatingpoint.h>

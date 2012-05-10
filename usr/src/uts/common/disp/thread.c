@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -93,8 +97,12 @@ int	thread_reapcnt = 0;		/* number of threads on deathrow */
 int	lwp_reapcnt = 0;		/* number of lwps on deathrow */
 int	reaplimit = 16;			/* delay reaping until reaplimit */
 
+#if defined(__arm)
+kmutex_t		thread_free_lock;	/* protects clock from reaper */
+#else
 thread_free_lock_t	*thread_free_lock;
 					/* protects tick thread from reaper */
+#endif
 
 extern int nthread;
 
@@ -158,12 +166,16 @@ thread_init(void)
 	kmutex_t *lp;
 
 	mutex_init(&reaplock, NULL, MUTEX_SPIN, (void *)ipltospl(DISP_LEVEL));
+#if defined(__arm)
+	mutex_init(&thread_free_lock, NULL, MUTEX_DEFAULT, NULL);
+#else
 	thread_free_lock =
 	    kmem_alloc(sizeof (thread_free_lock_t) * THREAD_FREE_NUM, KM_SLEEP);
 	for (i = 0; i < THREAD_FREE_NUM; i++) {
 		lp = &thread_free_lock[i].tf_lock;
 		mutex_init(lp, NULL, MUTEX_DEFAULT, NULL);
 	}
+#endif
 
 #if defined(__i386) || defined(__amd64)
 	thread_cache = kmem_cache_create("thread_cache", sizeof (kthread_t),
@@ -173,6 +185,20 @@ thread_init(void)
 	 * "struct _klwp" includes a "struct pcb", which includes a
 	 * "struct fpu", which needs to be 16-byte aligned on amd64
 	 * (and even on i386 for fxsave/fxrstor).
+	 */
+	lwp_cache = kmem_cache_create("lwp_cache", sizeof (klwp_t),
+	    16, NULL, NULL, NULL, NULL, NULL, 0);
+#elif defined(__arm)
+	/*
+	 * Allocate thread structures from static_arena.
+	 * XXX - However I don't know why this is required...
+	 */
+	thread_cache = kmem_cache_create("thread_cache", sizeof (kthread_t),
+	    PTR24_ALIGN, NULL, NULL, NULL, NULL, static_arena, 0);
+
+	/*
+	 * "struct _klwp" includes a "struct pcb", which includes a
+	 * "struct fpu", which needs to be 16-byte aligned on arm.
 	 */
 	lwp_cache = kmem_cache_create("lwp_cache", sizeof (klwp_t),
 	    16, NULL, NULL, NULL, NULL, NULL, 0);
@@ -210,7 +236,9 @@ thread_init(void)
 	zone_init();
 	project_init();
 	brand_init();
+#ifndef	KICONV_LOADABLE
 	kiconv_init();
+#endif	/* !KICONV_LOADABLE */
 	task_init();
 	tcache_init();
 	pool_init();
@@ -266,7 +294,7 @@ thread_init(void)
 	tp->t_preempt = 1;
 	tp->t_disp_queue = cpu->cpu_disp;
 	ASSERT(tp->t_disp_queue != NULL);
-	tp->t_bound_cpu = cpu;
+	tp->t_bound_cpu = CPU_SELF(cpu);
 	tp->t_affinitycnt = 1;
 
 	/*
@@ -497,7 +525,7 @@ thread_create(
 	 * is ready to run.
 	 */
 	if (CPU->cpu_part == &cp_default)
-		t->t_cpu = CPU;
+		t->t_cpu = CPU_GLOBAL;
 	else
 		t->t_cpu = disp_lowpri_cpu(cp_default.cp_cpulist, t->t_lpl,
 		    t->t_pri, NULL);
@@ -677,7 +705,11 @@ thread_free_prevent(kthread_t *t)
 {
 	kmutex_t *lp;
 
+#if defined(__arm)
+	lp = &thread_free_lock;
+#else
 	lp = &thread_free_lock[THREAD_FREE_HASH(t)].tf_lock;
+#endif
 	mutex_enter(lp);
 }
 
@@ -686,7 +718,11 @@ thread_free_allow(kthread_t *t)
 {
 	kmutex_t *lp;
 
+#if defined(__arm)
+	lp = &thread_free_lock;
+#else
 	lp = &thread_free_lock[THREAD_FREE_HASH(t)].tf_lock;
+#endif
 	mutex_exit(lp);
 }
 
@@ -695,7 +731,11 @@ thread_free_barrier(kthread_t *t)
 {
 	kmutex_t *lp;
 
+#if defined(__arm)
+	lp = &thread_free_lock;
+#else
 	lp = &thread_free_lock[THREAD_FREE_HASH(t)].tf_lock;
+#endif
 	mutex_enter(lp);
 	mutex_exit(lp);
 }

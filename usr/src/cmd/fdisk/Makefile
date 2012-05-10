@@ -23,6 +23,9 @@
 # Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -31,15 +34,29 @@
 PROG= fdisk
 ROOTFS_PROG= $(PROG)
 
+$(ARM_BLD)MBOOT= arm/mboot
+$(ARM_BLD)MBOOTDIR = $(ROOTLIB)/fs/ufs
+$(ARM_BLD)MBOOTMODE = 0444
+
 ROOTSBINLINK=	$(ROOTUSRSBIN)/$(PROG)
 
 include ../Makefile.cmd
 
-LDLIBS += -ladm -lefi
+LIBEFI =	-lefi
+$(ARM_BLD)LIBEFI =
+LDLIBS +=	-ladm $(LIBEFI)
+$(ARM_BLD)CFLAGS +=	-DNO_SUPPORT_EFI
 
 all:	$(ROOTFS_PROG)
 
-install: all $(ROOTSBINPROG) $(ROOTSBINLINK)
+install: all $(ROOTSBINPROG) $(ROOTSBINLINK) $(ARM_BLD)installmboot
+
+$(ARM_BLD)installmboot: $(MBOOTDIR) $(MBOOT)
+	$(ARM_BLD) -$(RM) $(MBOOTDIR)/mboot
+	$(ARM_BLD) $(INS) -s -m $(MBOOTMODE) -f $(MBOOTDIR) $(MBOOT)
+
+$(ARM_BLD)$(MBOOTDIR):
+	$(ARM_BLD)$(INS.dir)
 
 $(ROOTSBINLINK):	FRC
 	-$(RM) $@; $(SYMLINK) ../../sbin/$(PROG) $@

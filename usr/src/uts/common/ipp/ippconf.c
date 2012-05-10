@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -1660,34 +1664,35 @@ ipp_stat_create(
 
 	DBG2(DBG_STATS, "creating stat set '%s' for action '%s'\n",
 	    name, class);
-	if ((ksp = kstat_create(modname, instance, name, class,
-	    KSTAT_TYPE_NAMED, nstat, KSTAT_FLAG_WRITABLE)) == NULL) {
-		kmem_free(sip, sizeof (ipp_stat_impl_t));
-		UNLOCK_ACTION(ap);
-		UNLOCK_MOD(imp);
-		return (EINVAL);	/* Assume EINVAL was the cause */
-	}
+
+	ksp = kstat_create(modname, instance, name, class,
+			   KSTAT_TYPE_NAMED, nstat, KSTAT_FLAG_WRITABLE);
 
 	UNLOCK_ACTION(ap);
 	UNLOCK_MOD(imp);
 
-	DBG1(DBG_STATS, "ks_data = %p\n", ksp->ks_data);
+	if (ksp != NULL) {
+		DBG1(DBG_STATS, "ks_data = %p\n", ksp->ks_data);
 
-	/*
-	 * Set up the kstats structure with a private data pointer and an
-	 * 'update' function.
-	 */
+		/*
+		 * Set up the kstats structure with a private data pointer
+		 * and an 'update' function.
+		 */
 
-	ksp->ks_update = update_stats;
-	ksp->ks_private = (void *)sip;
+		ksp->ks_update = update_stats;
+		ksp->ks_private = (void *)sip;
 
-	/*
-	 * Keep a reference to the kstats structure in our own stats info
-	 * structure.
-	 */
+		/*
+		 * Keep a reference to the kstats structure in our own stats
+		 * info structure.
+		 */
 
-	sip->ippsi_ksp = ksp;
-	sip->ippsi_data = ksp->ks_data;
+		sip->ippsi_ksp = ksp;
+		sip->ippsi_data = ksp->ks_data;
+	} else {
+		sip->ippsi_ksp = NULL;
+		sip->ippsi_data = NULL;
+	}
 
 	/*
 	 * Fill in the rest of the stats info structure.
@@ -1747,7 +1752,9 @@ ipp_stat_destroy(
 	 */
 
 	DBG1(DBG_STATS, "destroying stat set '%s'\n", sip->ippsi_name);
-	kstat_delete(sip->ippsi_ksp);
+
+	if (sip->ippsi_ksp != NULL) 
+		kstat_delete(sip->ippsi_ksp);
 
 	/*
 	 * Destroy the stats info structure itself.

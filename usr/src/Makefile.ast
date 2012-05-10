@@ -37,6 +37,7 @@ CERRWARN += -erroff=E_UNRECOGNIZED_PRAGMA_IGNORED
 # common CPP flags for libshell consumers (ksh etc.)
 LIBSHELLCPPFLAGS = \
 	-I$(ROOT)/usr/include/ast \
+	-I$(ROOT)/usr/include \
 	-DKSHELL \
 	-DSHOPT_BRACEPAT \
 	-DSHOPT_CMDLIB_BLTIN=0 \

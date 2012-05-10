@@ -22,7 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/note.h>
@@ -3198,11 +3200,12 @@ da_log_enter(dev_info_t *dip)
 	bcopy(da, da_log, sizeof (devinfo_audit_t));
 	da->da_lastlog = da_log;
 }
-
+#if !defined(USB_INIT_ENABLE) && !defined(IO_FASTBOOT_ENABLE)
 static void
 attach_drivers()
 {
 	int i;
+
 	for (i = 0; i < devcnt; i++) {
 		struct devnames *dnp = &devnamesp[i];
 		if ((dnp->dn_flags & DN_FORCE_ATTACH) &&
@@ -3210,7 +3213,7 @@ attach_drivers()
 			ddi_rele_driver((major_t)i);
 	}
 }
-
+#endif
 /*
  * Launch a thread to force attach drivers. This avoids penalty on boot time.
  */
@@ -3237,19 +3240,27 @@ i_ddi_forceattach_drivers()
 	 * unnecessary connects and disconnects on the companion controller
 	 * when ehci sets up the routing.
 	 */
+#if !defined(USB_INIT_ENABLE)
+	/*
+	 * On ARM, the USB drivers do not need to load on boot time,
+	 * because the USB console doesn't exist.
+	 */
 	(void) ddi_hold_installed_driver(ddi_name_to_major("ehci"));
 	(void) ddi_hold_installed_driver(ddi_name_to_major("uhci"));
 	(void) ddi_hold_installed_driver(ddi_name_to_major("ohci"));
-
+#endif
 	/*
 	 * Attach IB VHCI driver before the force-attach thread attaches the
 	 * IB HCA driver. IB HCA driver will fail if IB Nexus has not yet
 	 * been attached.
 	 */
 	(void) ddi_hold_installed_driver(ddi_name_to_major("ib"));
-
+#if !defined(USB_INIT_ENABLE) && !defined(IO_FASTBOOT_ENABLE)
 	(void) thread_create(NULL, 0, (void (*)())attach_drivers, NULL, 0, &p0,
 	    TS_RUN, minclsyspri);
+#else
+	fastboot_thread_create_initdrv_parallel();
+#endif
 }
 
 /*

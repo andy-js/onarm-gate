@@ -23,6 +23,11 @@
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
+
+#
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
 #
 # Definitions common to tool source.
 #
@@ -35,8 +40,11 @@ TOOLS_PROTO=		$(TOOLS)/proto
 ROOTONBLD=		$(TOOLS_PROTO)/opt/onbld
 ROOTONBLDBIN=		$(ROOTONBLD)/bin
 ROOTONBLDBINMACH=	$(ROOTONBLD)/bin/$(MACH)
+ROOTONBLDBINNATIVEMACH=	$(ROOTONBLD)/bin/$(NATIVE_MACH)
 ROOTONBLDLIB=		$(ROOTONBLD)/lib
 ROOTONBLDLIBMACH=	$(ROOTONBLD)/lib/$(MACH)
+ROOTONBLDLIBPERL=	$(ROOTONBLD)/lib/perl
+ROOTONBLDLIBPERLMACH=	$(ROOTONBLD)/lib/perl/$(MACH)
 ROOTONBLDENV=		$(ROOTONBLD)/env
 ROOTONBLDGK=		$(ROOTONBLD)/gk
 ROOTONBLDMAN=		$(ROOTONBLD)/man
@@ -51,6 +59,7 @@ LDFLAGS=		$(MAPFILE.NES:%=-M%) $(MAPFILE.NED:%=-M%) \
 
 ROOTONBLDPROG=		$(PROG:%=$(ROOTONBLDBIN)/%)
 ROOTONBLDMACHPROG=	$(PROG:%=$(ROOTONBLDBINMACH)/%)
+ROOTONBLDNATTIVEMACHPROG=	$(PROG:%=$(ROOTONBLDBINNATIVEMACH)/%)
 ROOTONBLDSHFILES=	$(SHFILES:%=$(ROOTONBLDBIN)/%)
 ROOTONBLDMAKEFILES=	$(MAKEFILES:%=$(ROOTONBLDBIN)/%)
 ROOTONBLDMACHSHFILES=	$(SHFILES:%=$(ROOTONBLDBINMACH)/%)
@@ -74,6 +83,9 @@ $(ROOTONBLDBIN)/%: %
 $(ROOTONBLDBINMACH)/%: %
 	$(INS.file)
 
+$(ROOTONBLDBINNATIVEMACH)/%: %
+	$(INS.file)
+
 $(ROOTONBLDMAN1)/%: %
 	$(INS.file)
 
@@ -82,3 +94,47 @@ $(ROOTONBLDENV)/%: %
 
 $(ROOTONBLDGK)/.%: %
 	$(INS.rename)
+
+# The following lines will be activated if USE_WS_TOOLS is not '#'.
+$(USE_WS_TOOLS)TARGET_MACH	= $(MACH)
+$(USE_WS_TOOLS)MACH		= $(NATIVE_MACH)
+$(USE_WS_TOOLS)CPPFLAGS		+= -DTARGET_$(MACH)=1
+$(USE_WS_TOOLS)CC		= GNU_ROOT=$(NATIVE_GNU_ROOT) \
+				  $($(NATIVE_MACH)_CC)
+$(USE_WS_TOOLS)CCC		= GNU_ROOT=$(NATIVE_GNU_ROOT) \
+				  $($(NATIVE_MACH)_CCC)
+$(USE_WS_TOOLS)CPP		= GNU_ROOT=$(NATIVE_GNU_ROOT) \
+				  $($(NATIVE_MACH)_CPP)
+$(USE_WS_TOOLS)AS		= GNU_ROOT=$(NATIVE_GNU_ROOT) \
+				  $($(NATIVE_MACH)_AS)
+$(USE_WS_TOOLS)LD		= GNU_ROOT=$(NATIVE_GNU_ROOT) \
+				  $($(NATIVE_MACH)_LD)
+$(USE_WS_TOOLS)LINT		= GNU_ROOT=$(NATIVE_GNU_ROOT) \
+				  $($(NATIVE_MACH)_LINT)
+$(USE_WS_TOOLS)CFLAGS		= $(COPTFLAG) $($(NATIVE_MACH)_CFLAGS) \
+				  $(SPACEFLAG) $(CCMODE) $(ILDOFF) \
+				  $(CERRWARN) $(C99MODE) $(CCUNBOUND) \
+				  $(CGLOBALSTATIC)
+$(USE_WS_TOOLS)CCFLAGS		= $(CCOPTFLAG) $($(NATIVE_MACH)_CCFLAGS)
+$(USE_WS_TOOLS)MAPFILE.NED	= $(MAPFILE.NED_$(NATIVE_MACH))
+$(USE_WS_TOOLS)MAPFILE.PGA	= \
+	$(SRC)/common/mapfiles/$(NATIVE_MACH)/map.pagealign
+
+# We should tell gcc to search /usr/include before /usr/local/include.
+$(USE_WS_TOOLS)WS_ROOT		= $(CODEMGR_WS)/proto/root_$(MACH)
+$(USE_WS_TOOLS)$(__GNUC)CPPFLAGS	+= $(GCC_ISYSTEM) /usr/include \
+					   $(GCC_ISYSTEM) /usr/sfw/include
+
+# Convert POD into ROFF.
+POD2MAN		= /usr/perl5/bin/pod2man
+POS2MAN_ARGS	= --center='User Commands' --section=1 \
+		  --release='SunOS $(RELEASE)'
+POD2MAN_BUILD	= \
+	name=`basename $@ .1`; \
+	if test -f $${name}.pl; then \
+	    src=$${name}.pl; \
+	else \
+	    src=$${name}.pod; \
+	fi; \
+	$(POD2MAN) $(POS2MAN_ARGS) --name=$$name $$src > $@ || \
+		($(RM) $@; exit 1)

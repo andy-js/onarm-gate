@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -57,6 +61,7 @@ static int	drv_getinfo(dev_info_t	*, ddi_info_cmd_t, void *, void **);
 static int	drv_attach(dev_info_t *, ddi_attach_cmd_t);
 static int	drv_detach(dev_info_t *, ddi_detach_cmd_t);
 
+#ifndef DLD_NOUSE_SEC_OBJ_IOCTL
 /*
  * Secure objects declarations
  */
@@ -69,6 +74,7 @@ static void		drv_secobj_fini(void);
 static void		drv_ioc_secobj_set(dld_ctl_str_t *, mblk_t *);
 static void		drv_ioc_secobj_get(dld_ctl_str_t *, mblk_t *);
 static void		drv_ioc_secobj_unset(dld_ctl_str_t *, mblk_t *);
+#endif /* !DLD_NOUSE_SEC_OBJ_IOCTL */
 
 /*
  * The following entry points are private to dld and are used for control
@@ -147,7 +153,7 @@ static	struct modlinkage	drv_modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	err;
 
@@ -159,8 +165,9 @@ _init(void)
 	return (0);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	err;
 
@@ -174,9 +181,10 @@ _fini(void)
 
 	return (err);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&drv_modlinkage, modinfop));
 }
@@ -189,7 +197,9 @@ drv_init(void)
 {
 	dld_ctl_vmem = vmem_create("dld_ctl", (void *)1, MAXMIN, 1,
 	    NULL, NULL, NULL, 1, VM_SLEEP | VMC_IDENTIFIER);
+#ifndef DLD_NOUSE_SEC_OBJ_IOCTL
 	drv_secobj_init();
+#endif /* !DLD_NOUSE_SEC_OBJ_IOCTL */
 	dld_str_init();
 	/*
 	 * Create a hash table for autopush configuration.
@@ -227,7 +237,9 @@ drv_fini(void)
 	if ((err = dld_str_fini()) != 0)
 		return (err);
 
+#ifndef DLD_NOUSE_SEC_OBJ_IOCTL
 	drv_secobj_fini();
+#endif /* !DLD_NOUSE_SEC_OBJ_IOCTL */
 	vmem_destroy(dld_ctl_vmem);
 	mod_hash_destroy_idhash(dld_ap_hashp);
 	rw_destroy(&dld_ap_hash_lock);
@@ -571,6 +583,7 @@ drv_ioc_getprop(dld_ctl_str_t *ctls, mblk_t *mp)
 	drv_ioc_prop_common(ctls, mp, B_FALSE);
 }
 
+#ifndef DLD_NOUSE_VLAN_IOCTL
 /*
  * DLDIOC_CREATE_VLAN
  */
@@ -672,7 +685,9 @@ drv_ioc_vlan_attr(dld_ctl_str_t *ctls, mblk_t *mp)
 failed:
 	miocnak(q, mp, 0, err);
 }
+#endif /* !DLD_NOUSE_VLAN_IOCTL */
 
+#ifndef DLD_NOUSE_RENAME_IOCTL
 /*
  * DLDIOC_RENAME.
  *
@@ -727,7 +742,9 @@ done:
 	else
 		miocnak(q, mp, 0, err);
 }
+#endif /* !DLD_NOUSE_RENAME_IOCTL */
 
+#ifndef DLD_NOUSE_AUTOPUSH_IOCTL
 /*
  * DLDIOC_SETAUTOPUSH
  */
@@ -870,7 +887,9 @@ done:
 	else
 		miocnak(q, mp, 0, err);
 }
+#endif /* !DLD_NOUSE_AUTOPUSH_IOCTL */
 
+#ifndef DLD_NOUSE_DOOR_IOCTL
 /*
  * DLDIOC_DOORSERVER
  */
@@ -893,7 +912,9 @@ done:
 	else
 		miocnak(q, mp, 0, err);
 }
+#endif /* !DLD_NOUSE_DOOR_IOCTL */
 
+#ifndef DLD_NOUSE_ZONE_IOCTL
 /*
  * DLDIOC_SETZID
  */
@@ -939,6 +960,7 @@ done:
 	else
 		miocnak(q, mp, 0, err);
 }
+#endif /* !DLD_NOUSE_ZONE_IOCTL */
 
 /*
  * Process an IOCTL message received by the control node.
@@ -956,6 +978,7 @@ drv_ioc(dld_ctl_str_t *ctls, mblk_t *mp)
 	case DLDIOC_PHYS_ATTR:
 		drv_ioc_phys_attr(ctls, mp);
 		return;
+#ifndef DLD_NOUSE_SEC_OBJ_IOCTL
 	case DLDIOC_SECOBJ_SET:
 		drv_ioc_secobj_set(ctls, mp);
 		return;
@@ -965,12 +988,14 @@ drv_ioc(dld_ctl_str_t *ctls, mblk_t *mp)
 	case DLDIOC_SECOBJ_UNSET:
 		drv_ioc_secobj_unset(ctls, mp);
 		return;
+#endif /* !DLD_NOUSE_SEC_OBJ_IOCTL */
 	case DLDIOCSETPROP:
 		drv_ioc_setprop(ctls, mp);
 		return;
 	case DLDIOCGETPROP:
 		drv_ioc_getprop(ctls, mp);
 		return;
+#ifndef DLD_NOUSE_VLAN_IOCTL
 	case DLDIOC_CREATE_VLAN:
 		drv_ioc_create_vlan(ctls, mp);
 		return;
@@ -980,6 +1005,8 @@ drv_ioc(dld_ctl_str_t *ctls, mblk_t *mp)
 	case DLDIOC_VLAN_ATTR:
 		drv_ioc_vlan_attr(ctls, mp);
 		return;
+#endif /* !DLD_NOUSE_VLAN_IOCTL */
+#ifndef DLD_NOUSE_AUTOPUSH_IOCTL
 	case DLDIOC_SETAUTOPUSH:
 		drv_ioc_setap(ctls, mp);
 		return;
@@ -989,18 +1016,25 @@ drv_ioc(dld_ctl_str_t *ctls, mblk_t *mp)
 	case DLDIOC_CLRAUTOPUSH:
 		drv_ioc_clrap(ctls, mp);
 		return;
+#endif /* !DLD_NOUSE_AUTOPUSH_IOCTL */
+#ifndef DLD_NOUSE_DOOR_IOCTL
 	case DLDIOC_DOORSERVER:
 		drv_ioc_doorserver(ctls, mp);
 		return;
+#endif /* !DLD_NOUSE_DOOR_IOCTL */
+#ifndef DLD_NOUSE_ZONE_IOCTL
 	case DLDIOC_SETZID:
 		drv_ioc_setzid(ctls, mp);
 		return;
 	case DLDIOC_GETZID:
 		drv_ioc_getzid(ctls, mp);
 		return;
+#endif /* !DLD_NOUSE_ZONE_IOCTL */
+#ifndef DLD_NOUSE_RENAME_IOCTL
 	case DLDIOC_RENAME:
 		drv_ioc_rename(ctls, mp);
 		return;
+#endif /* !DLD_NOUSE_RENAME_IOCTL */
 	default:
 		miocnak(ctls->cs_wq, mp, 0, ENOTSUP);
 		return;
@@ -1086,6 +1120,7 @@ dld_autopush(dev_t *devp, struct dlautopush *dlap)
 	return (1);
 }
 
+#ifndef DLD_NOUSE_SEC_OBJ_IOCTL
 /*
  * Secure objects implementation
  */
@@ -1304,3 +1339,4 @@ failed:
 	ASSERT(err != 0);
 	miocnak(q, mp, 0, err);
 }
+#endif /* !DLD_NOUSE_SEC_OBJ_IOCTL */

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/spa.h>
@@ -39,6 +43,7 @@
 #ifdef _KERNEL
 #include <sys/kobj.h>
 #endif
+#include <zfs_types.h>
 
 /*
  * Pool configuration repository.
@@ -88,8 +93,12 @@ spa_config_load(void)
 	    (rootdir != NULL) ? "./" : "", spa_config_dir, ZPOOL_CACHE_FILE);
 
 	file = kobj_open_file(pathname);
-	if (file == (struct _buf *)-1)
+	if (file == (struct _buf *)-1) {
+		if (spa_config_load_arch(&nvlist) == 0) {
+			goto next;
+		}
 		return;
+	}
 
 	if (kobj_get_filesize(file, &fsize) != 0)
 		goto out;
@@ -108,6 +117,7 @@ spa_config_load(void)
 	if (nvlist_unpack(buf, fsize, &nvlist, KM_SLEEP) != 0)
 		goto out;
 
+next:
 	/*
 	 * Iterate over all elements in the nvlist, creating a new spa_t for
 	 * each one with the specified configuration.
@@ -139,7 +149,8 @@ out:
 	if (buf != NULL)
 		kmem_free(buf, fsize);
 
-	kobj_close_file(file);
+	if (file != (struct _buf *)-1)
+		kobj_close_file(file);
 }
 
 /*
@@ -370,7 +381,7 @@ spa_config_set(spa_t *spa, nvlist_t *config)
  * based on whether vd is the root vdev.
  */
 nvlist_t *
-spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
+spa_config_generate(spa_t *spa, vdev_t *vd, txg_t txg, int getstats)
 {
 	nvlist_t *config, *nvroot;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -385,7 +396,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	/*
 	 * If txg is -1, report the current value of spa->spa_config_txg.
 	 */
-	if (txg == -1ULL)
+	if (txg == (txg_t)-1)
 		txg = spa->spa_config_txg;
 
 	VERIFY(nvlist_alloc(&config, NV_UNIQUE_NAME, KM_SLEEP) == 0);
@@ -396,7 +407,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	    spa_name(spa)) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE,
 	    spa_state(spa)) == 0);
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_TXG,
+	VERIFY(nvlist_add_txg(config, ZPOOL_CONFIG_POOL_TXG,
 	    txg) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_GUID,
 	    spa_guid(spa)) == 0);
@@ -433,16 +444,19 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
  * Update all disk labels, generate a fresh config based on the current
  * in-core state, and sync the global config cache.
  */
-void
+int
 spa_config_update(spa_t *spa, int what)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
-	uint64_t txg;
+	txg_t txg;
 	int c;
+	int error = 0;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
-	spa_config_enter(spa, RW_WRITER, FTAG);
+	if ((error = spa_config_enter(spa, RW_WRITER, FTAG, SPA_NOWAIT)) != 0)
+		return (error);
+
 	txg = spa_last_synced_txg(spa) + 1;
 	if (what == SPA_CONFIG_UPDATE_POOL) {
 		vdev_config_dirty(rvd);
@@ -467,7 +481,9 @@ spa_config_update(spa_t *spa, int what)
 	/*
 	 * Wait for the mosconfig to be regenerated and synced.
 	 */
-	txg_wait_synced(spa->spa_dsl_pool, txg);
+	error = txg_wait_synced(spa->spa_dsl_pool, txg);
+	if (error)
+		return (error);
 
 	/*
 	 * Update the global config cache to reflect the new mosconfig.
@@ -475,5 +491,7 @@ spa_config_update(spa_t *spa, int what)
 	spa_config_sync();
 
 	if (what == SPA_CONFIG_UPDATE_POOL)
-		spa_config_update(spa, SPA_CONFIG_UPDATE_VDEVS);
+		error = spa_config_update(spa, SPA_CONFIG_UPDATE_VDEVS);
+
+	return (error);
 }

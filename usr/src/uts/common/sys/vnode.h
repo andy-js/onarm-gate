@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_VNODE_H
 #define	_SYS_VNODE_H
 
@@ -780,7 +784,7 @@ struct seg;
 struct as;
 struct pollhead;
 
-#ifdef	_KERNEL
+#if	defined(_KERNEL) || defined(_KMEMUSER)
 
 /*
  * VNODE_OPS defines all the vnode operations.  It is used to define
@@ -905,6 +909,8 @@ typedef struct vnodeops {
 
 typedef int (*fs_generic_func_p) ();	/* Generic vop/vfsop/femop/fsemop ptr */
 
+#ifdef	_KERNEL
+
 extern int	fop_open(vnode_t **, int, cred_t *, caller_context_t *);
 extern int	fop_close(vnode_t *, int, int, offset_t, cred_t *,
 				caller_context_t *);
@@ -988,6 +994,8 @@ extern int	fop_vnevent(vnode_t *, vnevent_t, vnode_t *, char *,
 				caller_context_t *);
 
 #endif	/* _KERNEL */
+
+#endif	/* defined(_KERNEL) || defined(_KMEMUSER) */
 
 #define	VOP_OPEN(vpp, mode, cr, ct) \
 	fop_open(vpp, mode, cr, ct)

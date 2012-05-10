@@ -23,11 +23,16 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/uberblock_impl.h>
 #include <sys/vdev_impl.h>
+#include <zfs_types.h>
 
 int
 uberblock_verify(uberblock_t *ub)
@@ -46,7 +51,7 @@ uberblock_verify(uberblock_t *ub)
  * anything changed in this transaction group.
  */
 int
-uberblock_update(uberblock_t *ub, vdev_t *rvd, uint64_t txg)
+uberblock_update(uberblock_t *ub, vdev_t *rvd, txg_t txg)
 {
 	ASSERT(ub->ub_txg < txg);
 

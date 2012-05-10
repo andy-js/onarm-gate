@@ -72,7 +72,11 @@ typedef struct cyc_timer {
  * The hash size might need to be tuned if the lock contention is
  * observed. So far the current size (1024) is sufficient though.
  */
+#if defined(__arm)
+#define	TM_HASH_SZ	(8)		/* must be power of 2 */
+#else
 #define	TM_HASH_SZ	(1024)		/* must be power of 2 */
+#endif /* defined(__arm) */
 #define	TM_HASH(x)	((x) & (TM_HASH_SZ -1))
 	timer_tw_t idhash[TM_HASH_SZ];	/* ID hash */
 	timer_tw_t exhash[TM_HASH_SZ];  /* expiration time hash */

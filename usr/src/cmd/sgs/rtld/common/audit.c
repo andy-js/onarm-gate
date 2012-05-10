@@ -46,6 +46,11 @@
  * The latter link-map list equivalence test insures that auditors themselves
  * (invoked through DT_DEPAUDIT) are not audited.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<stdio.h>
@@ -837,6 +842,8 @@ static const Aud_info aud_info[] = {
 	{ MSG_SYM_LAAMD64PLTENTER, /* MSG_ORIG(MSG_SYM_LAAMD64PLTENTER) */
 #elif	defined(__i386)
 	{ MSG_SYM_LAX86PLTENTER,	/* MSG_ORIG(MSG_SYM_LAX86PLTENTER) */
+#elif 	defined(__arm)
+	{ MSG_SYM_LAARMPLTENTER,	/* MSG_ORIG(MSG_SYM_LAARMPLTENTER) */
 #else
 #error platform not defined!
 #endif

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef _SYS_DDI_IMPLDEFS_H
 #define	_SYS_DDI_IMPLDEFS_H
 
@@ -42,6 +46,7 @@
 #include <sys/ddidmareq.h>
 #include <sys/ddi_intr.h>
 #include <sys/ddi_isa.h>
+
 
 #ifdef	__cplusplus
 extern "C" {
@@ -764,7 +769,7 @@ typedef struct ddi_dma_impl {
 
 } ddi_dma_impl_t;
 
-#elif defined(__x86)
+#elif defined(__x86) || defined(__arm)
 
 /*
  * ddi_dma_impl portion that genunix (sunddi.c) depends on. x86 rootnex

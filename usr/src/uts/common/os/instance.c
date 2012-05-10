@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -50,6 +54,7 @@
 #include <sys/modctl.h>
 #include <sys/console.h>
 #include <sys/cladm.h>
+#include <sys/modstatic.h>
 
 static void in_preassign_instance(void);
 static void i_log_devfs_instance_mod(void);
@@ -163,7 +168,7 @@ e_ddi_instance_init(void)
 	in_endrv(e_ddi_inst_state.ins_root, dp);
 
 	file = instance_file;
-	switch (in_get_infile(file)) {
+	switch (IN_GET_INFILE(file)) {
 	default:
 	case PTI_NOT_FOUND:
 		/* make sure path_to_inst is recreated */

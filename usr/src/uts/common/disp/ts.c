@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* from SVr4.0 1.23 */
 
@@ -81,19 +84,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	return (EBUSY);		/* don't remove TS for now */
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -106,7 +111,9 @@ _info(struct modinfo *modinfop)
 /*
  * Extern declarations for variables defined in the ts master file
  */
+#ifndef	TSMAXUPRI
 #define	TSMAXUPRI 60
+#endif	/* !TSMAXUPRI */
 
 pri_t	ts_maxupri = TSMAXUPRI;	/* max time-sharing user priority */
 pri_t	ts_maxumdpri;		/* maximum user mode ts priority */

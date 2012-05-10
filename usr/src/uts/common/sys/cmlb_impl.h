@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #ifndef _SYS_CMLB_IMPL_H
 #define	_SYS_CMLB_IMPL_H
 
@@ -36,10 +40,18 @@ extern "C" {
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
 
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+#define	CMLB_EXTPART
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+
 #if defined(_SUNOS_VTOC_8)
 #define	NSDMAP			NDKMAP
 #elif defined(_SUNOS_VTOC_16)
+#ifndef CMLB_EXTPART
 #define	NSDMAP			(NDKMAP + FD_NUMPART + 1)
+#else /* CMLB_EXTPART */
+#define	NSDMAP		(NDKMAP + FD_NUMPART + 1 + _EXTFDISK_PARTITION + 1)
+#endif /* !CMLB_EXTPART */
 #else
 #error "No VTOC format defined."
 #endif
@@ -48,7 +60,7 @@ extern "C" {
 #define	WD_NODE			7
 
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 
 #define	P0_RAW_DISK		(NDKMAP)
 #define	FDISK_P1		(NDKMAP+1)
@@ -56,7 +68,7 @@ extern "C" {
 #define	FDISK_P3		(NDKMAP+3)
 #define	FDISK_P4		(NDKMAP+4)
 
-#endif  /* __i386 || __amd64 */
+#endif  /* __i386 || __amd64 || __arm */
 
 /* Driver Logging Levels */
 #define	CMLB_LOGMASK_ERROR	0x00000001
@@ -84,8 +96,13 @@ extern "C" {
 
 #elif defined(_SUNOS_VTOC_16)
 
+#ifndef CMLB_EXTPART
 #define	CMLBUNIT_SHIFT		6
 #define	CMLBPART_MASK		63
+#else /* CMLB_EXTPART */
+#define	CMLBUNIT_SHIFT		7
+#define	CMLBPART_MASK		127
+#endif /* !CMLB_EXTPART */
 
 #else
 #error "No VTOC format defined."
@@ -140,7 +157,12 @@ typedef struct cmlb_lun {
 	struct  dk_map  cl_map[MAXPART];	/* logical partitions */
 	diskaddr_t	cl_offset[MAXPART];	/* partition start blocks */
 
+#ifndef CMLB_EXTPART
 	struct fmap	cl_fmap[FD_NUMPART];	/* fdisk partitions */
+#else
+	struct fmap	cl_fmap[FD_NUMPART + 1 + _EXTFDISK_PARTITION];
+						/* fdisk partitions */
+#endif
 
 	uchar_t		cl_asciilabel[LEN_DKL_ASCII];	/* Disk ASCII label */
 
@@ -187,6 +209,15 @@ typedef struct cmlb_lun {
 
 } cmlb_lun_t;
 
+/*
+ * Driver minor node structure
+ */
+struct driver_minor_data {
+	char	*name;
+	minor_t	minor;
+	int	type;
+};
+
 _NOTE(MUTEX_PROTECTS_DATA(cmlb_lun::cl_mutex, cmlb_lun))
 _NOTE(SCHEME_PROTECTS_DATA("stable data", cmlb_lun::cmlb_tg_ops))
 _NOTE(SCHEME_PROTECTS_DATA("stable data", cmlb_lun::cl_devi))
@@ -227,6 +258,29 @@ _NOTE(SCHEME_PROTECTS_DATA("safe sharing", cmlb_lun::cl_f_geometry_is_valid))
 #define	DK_TG_GETATTRIBUTE(ihdlp, attributep, tg_cookie) \
 	(ihdlp->cmlb_tg_ops->tg_getinfo)(CMLB_DEVINFO(ihdlp), TG_GETATTR,\
 	    attributep, tg_cookie)
+
+#ifdef CMLB_EXTPART
+extern int cmlb_update_fdisk_and_vtoc(struct cmlb_lun *cl, void *tg_cookie); 
+extern void cmlb_setup_default_geometry(struct cmlb_lun *cl, void *tg_cookie);
+extern int cmlb_create_logical_partition_nodes(struct cmlb_lun *cl,
+    int instance);
+extern void cmlb_setup_logical_partition(struct cmlb_lun *cl);
+extern int cmlb_read_logical_partition(struct cmlb_lun *cl,
+    struct ipart fdisk[], caddr_t bufp, int *uidx, uint_t *solaris_offset,
+    daddr_t *solaris_size, uint32_t blocksize, void *tg_cookie);
+extern int cmlb_dkio_get_ebr(struct cmlb_lun *cl, caddr_t arg, int flag,
+    void *tg_cookie);
+extern int cmlb_dkio_set_ebr(struct cmlb_lun *cl, caddr_t arg, int flag,
+    void *tg_cookie);
+#endif /* CMLB_EXTPART */
+
+#ifdef DISK_ACCESS_CTRL
+extern void cmlb_access_ctrl_invalidate_nodes(struct cmlb_lun *cl, int instance,
+    struct driver_minor_data *dmdp);
+extern void cmlb_access_ctrl_invalidate_extpartition(struct cmlb_lun *cl,
+    struct driver_minor_data dmdp_blk[], struct driver_minor_data dmdp_chr[]);
+extern void cmlb_dbg(uint_t comp, struct cmlb_lun *cl, const char *fmt, ...);
+#endif /* DISK_ACCESS_CTRL */
 
 #ifdef __cplusplus
 }

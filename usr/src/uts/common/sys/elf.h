@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
 
 #ifndef _SYS_ELF_H
 #define	_SYS_ELF_H
@@ -755,6 +758,10 @@ int	elfheadcheck(unsigned char, Elf32_Half, Elf32_Word);
 
 #if defined(ELF_TARGET_ALL) || defined(ELF_TARGET_AMD64)
 #include <sys/elf_amd64.h>
+#endif
+
+#if defined(ELF_TARGET_ALL) || defined(ELF_TARGET_ARM)
+#include <sys/elf_ARM.h>
 #endif
 
 #endif	/* _SYS_ELF_H */

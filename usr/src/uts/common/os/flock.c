@@ -3788,9 +3788,8 @@ flk_convert_lock_data(vnode_t *vp, flock64_t *flp,
 		 * Because this allows easy specification of
 		 * the last n bytes of the file.
 		 */
-		*end = *start;
+		*end = *start - 1;
 		*start += (u_offset_t)flp->l_len;
-		(*start)++;
 	}
 	return (0);
 }

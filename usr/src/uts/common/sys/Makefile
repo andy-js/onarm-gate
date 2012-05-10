@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
 include $(SRC)/uts/Makefile.uts
 
 GROUP=bin
@@ -55,6 +59,25 @@ i386_HDRS=			\
 	mse.h			\
 	vuidmice.h		\
 	ucode.h
+
+arm_HDRS=			\
+	agp/agpamd64gart_io.h	\
+	agp/agpdefs.h		\
+	agp/agpgart_impl.h	\
+	agp/agpmaster_io.h	\
+	agp/agptarget_io.h	\
+	agpgart.h		\
+	asy.h			\
+	audio/audio810.h	\
+	audio/audiohd.h	\
+	bmc_intf.h		\
+	fd_debug.h		\
+	fdc.h			\
+	fdmedia.h		\
+	mouse.h			\
+	mse.h			\
+	vuidmice.h
+
 
 AVHDRS=				\
 	av/iec61883.h
@@ -204,6 +227,7 @@ CHKHDRS=			\
 	ecppvar.h               \
 	efi_partition.h		\
 	elf.h			\
+	elf_ARM.h		\
 	elf_386.h		\
 	elf_SPARC.h		\
 	elf_notes.h		\
@@ -617,6 +641,8 @@ CHKHDRS=			\
 	winlockio.h		\
 	zcons.h			\
 	zone.h			\
+	xramdev.h		\
+	xramdisk.h		\
 	xti_inet.h		\
 	xti_osi.h		\
 	xti_xtiopt.h		\
@@ -794,6 +820,7 @@ FSHDRS=				\
 	ufs_quota.h		\
 	ufs_snap.h              \
 	ufs_trans.h		\
+	xnode.h			\
 	zfs.h
 
 PCMCIAHDRS=		\

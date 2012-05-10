@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -468,15 +472,27 @@ usba_init_pipe_handle(dev_info_t *dip,
 		    ddi_driver_name(dip), ep->bEndpointAddress, def_instance);
 	}
 
-	ph_data->p_taskq = taskq_create(tq_name,
-		    pipe_policy->pp_max_async_reqs + 1,
-		    ((ep->bmAttributes & USB_EP_ATTR_MASK) ==
-			USB_EP_ATTR_ISOCH) ?
-			(maxclsyspri - 5) : minclsyspri,
-		    2 * (pipe_policy->pp_max_async_reqs + 1),
-		    8 * (pipe_policy->pp_max_async_reqs + 1),
-		    TASKQ_PREPOPULATE);
-
+#ifdef __arm
+	/*
+	 * usba don't issue a request more than two at the same time,
+	 * reduce the number of the threads to one.
+	 */
+	if (usba_is_root_hub(dip)) {
+		ph_data->p_taskq = taskq_create(tq_name, 1,
+			    minclsyspri, 2, 8, TASKQ_PREPOPULATE);
+	} else
+#endif /* __arm */
+	{
+		ph_data->p_taskq = taskq_create(tq_name,
+			    pipe_policy->pp_max_async_reqs + 1,
+			    ((ep->bmAttributes & USB_EP_ATTR_MASK) ==
+				USB_EP_ATTR_ISOCH) ?
+				(maxclsyspri - 5) : minclsyspri,
+			    2 * (pipe_policy->pp_max_async_reqs + 1),
+			    8 * (pipe_policy->pp_max_async_reqs + 1),
+			    TASKQ_PREPOPULATE);
+	}
+	
 	/*
 	 * Create a shared taskq.
 	 */

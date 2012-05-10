@@ -22,6 +22,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -979,7 +982,7 @@ create_disk(char *deviceid, char *kernel_name, struct search_args *args)
 
 	    if (diskp->removable == -1) {
 		diskp->removable = 0;
-#if defined(i386) || defined(__amd64)
+#if defined(i386) || defined(__amd64) || defined(__arm)
 		/*
 		 * x86 does not have removable property.  Check for common
 		 * removable drives, zip & jaz, and mark those correctly.

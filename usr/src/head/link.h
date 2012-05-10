@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _LINK_H
 #define	_LINK_H
 
@@ -208,6 +212,15 @@ typedef struct {
 	lagreg_t	lr_esp;
 	lagreg_t	lr_ebp;
 } La_i86_regs;
+
+typedef	struct {
+	lagreg_t	lr_r0;
+	lagreg_t	lr_r1;
+	lagreg_t	lr_r2;
+	lagreg_t	lr_r3;
+	lagreg_t	lr_sp;
+	lagreg_t	lr_lr;
+} La_arm_regs;
 #endif
 
 #if	!defined(_SYS_INT_TYPES_H)
@@ -246,6 +259,8 @@ extern uintptr_t	la_sparcv8_pltenter(Elf32_Sym *, uint_t, uintptr_t *,
 				uintptr_t *, La_sparcv8_regs *, uint_t *);
 extern uintptr_t	la_i86_pltenter(Elf32_Sym *, uint_t, uintptr_t *,
 				uintptr_t *, La_i86_regs *, uint_t *);
+extern uintptr_t	la_arm_pltenter(Elf32_Sym *, uint_t, uintptr_t *,
+				uintptr_t *, La_arm_regs *, uint_t *);
 extern uintptr_t	la_pltexit(Elf32_Sym *, uint_t, uintptr_t *,
 				uintptr_t *, uintptr_t);
 #endif /* _LP64 */
@@ -262,6 +277,7 @@ extern uintptr_t	la_symbind64();
 #else  /* _ILP32 */
 extern uintptr_t	la_sparcv8_pltenter();
 extern uintptr_t	la_i86_pltenter();
+extern uintptr_t	la_arm_pltenter();
 extern uintptr_t	la_pltexit();
 extern uintptr_t	la_symbind32();
 #endif /* _LP64 */

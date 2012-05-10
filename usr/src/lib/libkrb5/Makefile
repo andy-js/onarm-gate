@@ -25,9 +25,14 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 include		$(SRC)/lib/Makefile.lib
 
-SUBDIRS=	$(MACH) $(MACH64)
+SUBDIRS=	$(MACH)
+$(BUILD64)SUBDIRS+= $(MACH64)
 
 INSTALLED_HDRS= com_err.h krb5.h
 COMERRH= $(SRC)/lib/gss_mechs/mech_krb5/include/com_err.h

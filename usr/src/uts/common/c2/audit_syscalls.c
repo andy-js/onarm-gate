@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * This file contains the auditing system call code.
  *
  */
@@ -114,7 +118,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int retval;
 
@@ -140,14 +144,16 @@ _init()
 	return (0);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
 include ../Makefile.master
 
 #	Note that libcurses installs commands along with its library.
@@ -52,7 +56,7 @@ include ../Makefile.master
 # consolidated into one $(CLOSED_BUILD)SUBDIRS += (all closed libs) as
 # shown in HDRSUBDIRS
 #
-SUBDIRS= \
+SUBDIRS-common= \
 	common			.WAIT	\
 	../cmd/sgs/libconv		\
 	../cmd/sgs/libdl	.WAIT
@@ -60,8 +64,15 @@ SUBDIRS= \
 $(CLOSED_BUILD)SUBDIRS += \
 	$(CLOSED)/lib/libc_i18n
 
-SUBDIRS += \
-	libc			.WAIT	\
+SUBDIRS-common += \
+	libc			.WAIT
+
+$(ARM_BLD)SUBDIRS-common	+=	\
+	libm				\
+	libgcc				\
+	.WAIT
+
+SUBDIRS-common	+=			\
 	../cmd/sgs/libelf	.WAIT	\
 	libmd				\
 	libmd5				\
@@ -147,9 +158,9 @@ SUBDIRS += \
 	libkrb5	.WAIT	\
 	krb5	.WAIT	\
 	libsmbfs
-$(CLOSED_BUILD)SUBDIRS += \
+$(CLOSED_BUILD)SUBDIRS-common += \
 	$(CLOSED)/lib/smartcard
-SUBDIRS += \
+SUBDIRS-common += \
 	passwdutil	\
 	pam_modules	\
 	crypt_modules	\
@@ -169,10 +180,10 @@ SUBDIRS += \
 	libdhcpdu	\
 	libdhcputil	\
 	libipsecutil
-$(CLOSED_BUILD)SUBDIRS += \
+$(CLOSED_BUILD)SUBDIRS-common += \
 	$(CLOSED)/lib/libike \
 	$(CLOSED)/lib/libndmp
-SUBDIRS += \
+SUBDIRS-common += \
 	nsswitch	\
 	print		\
 	libuutil	\
@@ -227,6 +238,7 @@ SUBDIRS += \
 	libzpool	\
 	libzfs		\
 	libzfs_jni	\
+	libczfs		\
 	libmapid	\
 	brand		\
 	policykit	\
@@ -237,8 +249,7 @@ SUBDIRS += \
 	libipmi		\
 	libexacct/demo	\
 	libvscan	\
-	smbsrv		\
-	$($(MACH)_SUBDIRS)
+	smbsrv
 
 sparc_SUBDIRS= .WAIT	\
 	efcode		\
@@ -254,6 +265,22 @@ sparc_SUBDIRS= .WAIT	\
 	libpcp		\
 	libtsalarm
 
+arm_SUBDIRS	=			\
+	../cmd/sgs/liblddbg .WAIT	\
+	../cmd/sgs/librtld		\
+	../cmd/sgs/libld .WAIT		\
+	../cmd/sgs/rtld			\
+	libz
+
+
+SUBDIRS		= $(SUBDIRS-common) $($(MACH)_SUBDIRS)
+SUBDIRS_ALL	= $(SUBDIRS-common) $($(MACH)_SUBDIRS)
+
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(SUBDIRS-common) $($(MACH)_SUBDIRS)
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
+
 FM_sparc_DEPLIBS= libpri
 
 fm:			\
@@ -267,10 +294,10 @@ fm:			\
 #
 NOWAIT_SUBDIRS= $(SUBDIRS:.WAIT=)
 
-DCSUBDIRS =		\
+DCSUBDIRS-common =	\
 	lvm
 
-MSGSUBDIRS=		\
+MSGSUBDIRS-common=	\
 	abi		\
 	auditd_plugins	\
 	brand		\
@@ -316,6 +343,7 @@ MSGSUBDIRS=		\
 	libwanboot	\
 	libwanbootutil	\
 	libzfs		\
+	libczfs		\
 	libzonecfg	\
 	lvm		\
 	madv		\
@@ -324,8 +352,19 @@ MSGSUBDIRS=		\
 	rpcsec_gss
 $(CLOSED_BUILD)MSGSUBDIRS += \
 	$(CLOSED)/lib/smartcard
-MSGSUBDIRS += \
-	$($(MACH)_MSGSUBDIRS)
+
+DCSUBDIRS	= $(DCSUBDIRS-common)
+MSGSUBDIRS	= $(MSGSUBDIRS-common) $($(MACH)_MSGSUBDIRS)
+
+# Do not build message catalog for modules that are not supported on ARM build.
+$(ARM_BLD)MSGSUBDIR_FIXUP	= 		\
+	$(SUBDIRFIX) -f $(SUBDIRFIX_SKIP) 	\
+		$(MSGSUBDIRS-common) $($(MACH)_MSGSUBDIRS)
+$(ARM_BLD)MSGSUBDIRS	= $(MSGSUBDIR_FIXUP:sh)
+
+$(ARM_BLD)DCSUBDIR_FIXUP	= \
+	$(SUBDIRFIX) -f $(SUBDIRFIX_SKIP) $(DCSUBDIRS-common)
+$(ARM_BLD)DCSUBDIRS	= $(DCSUBDIR_FIXUP:sh)
 
 sparc_MSGSUBDIRS=	\
 	libprtdiag	\
@@ -444,6 +483,10 @@ sparc_HDRSUBDIRS=	\
 	libdscp		\
 	libpri
 
+arm_HDRSUBDIRS	=	\
+	libz
+
+
 all :=		TARGET= all
 check :=	TARGET= check
 clean :=	TARGET= clean
@@ -505,7 +548,7 @@ libdevinfo:	libnvpair libsec
 libdhcpagent:	libsocket libdhcputil libuuid libdlpi
 libdhcpsvc:	libinetutil
 libdhcputil:	libnsl libgen libinetutil libdlpi
-libdladm:	libdevinfo libinetutil libsocket
+libdladm:	libdevinfo libinetutil libsocket librcm libkstat
 libdll: 	libast
 libdlpi:	libinetutil libdladm
 libdtrace:	libproc libgen libctf
@@ -526,7 +569,7 @@ sasl_plugins:	pkcs11 libgss libsocket libsasl
 libsctp:	libsocket
 libshell:	libast libcmd libdll libsocket libsecdb
 libsip:		libmd5
-libsmbfs:	libsocket libnsl libkrb5
+libsmbfs:	libsocket libnsl libkrb5 libmapid
 libsocket:	libnsl
 libldap5:	libsasl libsocket libnsl libmd
 libsldap:	libldap5 libtsol
@@ -550,17 +593,24 @@ librestart:	libuutil libscf
 pkcs11:		libcryptoutil
 print:		libldap5
 udapl/udapl_tavor:	udapl/libdat
-libzfs:		libdevinfo libdevid libgen libnvpair libuutil libiscsitgt
+libzfs:		libdevinfo libdevid libgen libnvpair libuutil libiscsitgt libm
 libzfs_jni:	libdiskmgt libnvpair libzfs
 libzpool:	libavl libumem libnvpair
+libczfs:	libdevinfo libdevid libgen libnvpair libuutil libiscsitgt libm
 libsec:		libavl
 brand:		libc libsocket
-libshare:	libscf libzfs libuuid libfsmgt libsecdb libumem libsmbfs
+libshare:	libscf libzfs libczfs libuuid libfsmgt libsecdb libumem libsmbfs
 libexacct/demo:	libexacct libproject libsocket libnsl
 libtsalarm:	libpcp
 smbsrv:		libsocket libnsl libmd libxnet libpthread librt \
 		libshare libidmap pkcs11 libsqlite
 libvscan:	libscf
+
+libpam:		libbsm
+libraidcfg:	libcfgadm
+librcm:		libnvpair
+
+$(ARM_BLD)nsswitch:	libresolv2
 
 #
 # The reason this rule checks for the existence of the
@@ -575,7 +625,7 @@ $(SUBDIRS): FRC
 		true; \
 	fi
 
-$(SUBDIRS:%=%-nodepend):
+$(SUBDIRS_ALL:%=%-nodepend):
 	@if [ -f $(@:%-nodepend=%)/Makefile  ]; then \
 		cd $(@:%-nodepend=%); pwd; $(MAKE) $(TARGET); \
 	else \

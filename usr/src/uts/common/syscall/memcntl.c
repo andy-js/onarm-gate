@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -142,6 +145,10 @@ memcntl(caddr_t addr, size_t len, int cmd, caddr_t arg, int attr, int mask)
 	case MC_UNLOCK:
 		break;
 	case MC_HAT_ADVISE:
+#ifdef	LPG_DISABLE
+		/* Ignore request to change page size. */
+		return (0);
+#else	/* !LPG_DISABLE */
 		/*
 		 * Set prefered page size.
 		 */
@@ -347,6 +354,7 @@ memcntl(caddr_t addr, size_t len, int cmd, caddr_t arg, int attr, int mask)
 			as_rangeunlock(as);
 		}
 		return (error);
+#endif	/* LPG_DISABLE */
 	case MC_ADVISE:
 		if ((uintptr_t)arg == MADV_FREE) {
 			len &= PAGEMASK;

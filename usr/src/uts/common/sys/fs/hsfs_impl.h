@@ -26,6 +26,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_HSFS_IMPL_H
 #define	_SYS_FS_HSFS_IMPL_H
 
@@ -34,6 +38,8 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#include <sys/vfs_opreg.h>
 
 /*
  * global routines.

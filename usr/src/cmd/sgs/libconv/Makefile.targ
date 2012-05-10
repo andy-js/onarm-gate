@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 pics/%.o:	../common/%.c
 		$(COMPILE.c) -o $@ $<
 		$(POST_PROCESS_O)
@@ -80,6 +84,14 @@ $(LIBRARY):	pics $$(PICS)
 		@ $(RM) $(LIBRARY)
 		$(AR) $(ARFLAGS) $@ $(PICS)
 		$(POST_PROCESS_A)
+
+# Special target for cross builds
+cross:		$(CROSSLIB)/$(LIBRARY)
+
+$(CROSSLIB)/$(LIBRARY):	pics $$(PICS)
+	@$(RM) $(LIBRARY)
+	$(AR) $(ARFLAGS) $@ $(PICS)
+	$(POST_PROCESS_A)
 
 chkmsg:		$(LINTSRCS)
 		sh $(CHKMSG) $(CHKMSGFLAGS) $(LINTSRCS)

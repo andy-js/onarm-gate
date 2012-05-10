@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_ZAP_H
 #define	_SYS_ZAP_H
 
@@ -82,6 +86,7 @@
  */
 
 #include <sys/dmu.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -119,18 +124,18 @@ typedef enum matchtype
  *     regard to case (eg. looking for "foo" can find an entry "Foo").
  * Eventually, other flags will permit unicode normalization as well.
  */
-uint64_t zap_create(objset_t *ds, dmu_object_type_t ot,
+objid_t zap_create(objset_t *ds, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-uint64_t zap_create_norm(objset_t *ds, int normflags, dmu_object_type_t ot,
+objid_t zap_create_norm(objset_t *ds, int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
 
 /*
  * Create a new zapobj with no attributes from the given (unallocated)
  * object number.
  */
-int zap_create_claim(objset_t *ds, uint64_t obj, dmu_object_type_t ot,
+int zap_create_claim(objset_t *ds, objid_t obj, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-int zap_create_claim_norm(objset_t *ds, uint64_t obj,
+int zap_create_claim_norm(objset_t *ds, objid_t obj,
     int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
 
@@ -144,7 +149,7 @@ int zap_create_claim_norm(objset_t *ds, uint64_t obj,
  *
  * Frees the object number using dmu_object_free.
  */
-int zap_destroy(objset_t *ds, uint64_t zapobj, dmu_tx_t *tx);
+int zap_destroy(objset_t *ds, objid_t zapobj, dmu_tx_t *tx);
 
 /*
  * Manipulate attributes.
@@ -179,9 +184,9 @@ int zap_destroy(objset_t *ds, uint64_t zapobj, dmu_tx_t *tx);
  * If normalization_conflictp is not NULL, it will be set if there is
  * another name with the same case/unicode normalized form.
  */
-int zap_lookup(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_lookup(objset_t *ds, objid_t zapobj, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf);
-int zap_lookup_norm(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_lookup_norm(objset_t *ds, objid_t zapobj, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf,
     matchtype_t mt, char *realname, int rn_len,
     boolean_t *normalization_conflictp);
@@ -192,7 +197,7 @@ int zap_lookup_norm(objset_t *ds, uint64_t zapobj, const char *name,
  * If an attribute with the given name already exists, the call will
  * fail and return EEXIST.
  */
-int zap_add(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_add(objset_t *ds, objid_t zapobj, const char *name,
     int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx);
 
@@ -204,7 +209,7 @@ int zap_add(objset_t *ds, uint64_t zapobj, const char *name,
  * existing attribute's integer size, in which case the attribute's
  * integer size will be updated to the new value.
  */
-int zap_update(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_update(objset_t *ds, objid_t zapobj, const char *name,
     int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
 
 /*
@@ -214,7 +219,7 @@ int zap_update(objset_t *ds, uint64_t zapobj, const char *name,
  * If the requested attribute does not exist, the call will fail and
  * return ENOENT.
  */
-int zap_length(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_length(objset_t *ds, objid_t zapobj, const char *name,
     uint64_t *integer_size, uint64_t *num_integers);
 
 /*
@@ -223,15 +228,15 @@ int zap_length(objset_t *ds, uint64_t zapobj, const char *name,
  * If the specified attribute does not exist, the call will fail and
  * return ENOENT.
  */
-int zap_remove(objset_t *ds, uint64_t zapobj, const char *name, dmu_tx_t *tx);
-int zap_remove_norm(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_remove(objset_t *ds, objid_t zapobj, const char *name, dmu_tx_t *tx);
+int zap_remove_norm(objset_t *ds, objid_t zapobj, const char *name,
     matchtype_t mt, dmu_tx_t *tx);
 
 /*
  * Returns (in *count) the number of attributes in the specified zap
  * object.
  */
-int zap_count(objset_t *ds, uint64_t zapobj, uint64_t *count);
+int zap_count(objset_t *ds, objid_t zapobj, uint64_t *count);
 
 
 /*
@@ -240,7 +245,7 @@ int zap_count(objset_t *ds, uint64_t zapobj, uint64_t *count);
  * pointed to by name must be at least 256 bytes long.  If mask==0, the
  * match must be exact (ie, same as mask=-1ULL).
  */
-int zap_value_search(objset_t *os, uint64_t zapobj,
+int zap_value_search(objset_t *os, objid_t zapobj,
     uint64_t value, uint64_t mask, char *name);
 
 struct zap;
@@ -250,7 +255,7 @@ typedef struct zap_cursor {
 	objset_t *zc_objset;
 	struct zap *zc_zap;
 	struct zap_leaf *zc_leaf;
-	uint64_t zc_zapobj;
+	objid_t zc_zapobj;
 	uint64_t zc_hash;
 	uint32_t zc_cd;
 } zap_cursor_t;
@@ -278,7 +283,7 @@ typedef struct {
  * Initialize a zap cursor, pointing to the "first" attribute of the
  * zapobj.  You must _fini the cursor when you are done with it.
  */
-void zap_cursor_init(zap_cursor_t *zc, objset_t *ds, uint64_t zapobj);
+void zap_cursor_init(zap_cursor_t *zc, objset_t *ds, objid_t zapobj);
 void zap_cursor_fini(zap_cursor_t *zc);
 
 /*
@@ -309,7 +314,7 @@ uint64_t zap_cursor_serialize(zap_cursor_t *zc);
  * zap_cursor_init(...).)
  */
 void zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *ds,
-    uint64_t zapobj, uint64_t serialized);
+    objid_t zapobj, uint64_t serialized);
 
 
 #define	ZAP_HISTOGRAM_SIZE 10
@@ -401,7 +406,7 @@ typedef struct zap_stats {
  * statistics.  This interface shouldn't be relied on unless you really
  * know what you're doing.
  */
-int zap_get_stats(objset_t *ds, uint64_t zapobj, zap_stats_t *zs);
+int zap_get_stats(objset_t *ds, objid_t zapobj, zap_stats_t *zs);
 
 #ifdef	__cplusplus
 }

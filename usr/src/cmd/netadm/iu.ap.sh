@@ -26,6 +26,9 @@
 #	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T
 #	  All Rights Reserved
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
 
 #ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -77,6 +80,22 @@ case "$MACH" in
 	ipsecah	-1	0	ipsecah
 	oplmsu	0	0	ldterm ttcompat
 " >iu.ap
+	;;
+  "arm" )
+	echo "# /dev/console and /dev/contty autopush setup
+#
+#       major minor   lastminor       modules
+
+#	wc	0	0	ldterm ttcompat
+	ne_uart	-1	0	ldterm ttcompat
+#	ptsl	0	47	ldterm ttcompat
+#	usbsacm -1	0	ldterm ttcompat
+#	usbser_edge	-1	0	ldterm ttcompat
+#	usbsprl	-1	0	ldterm ttcompat
+#	usbsksp	-1	0	ldterm ttcompat
+#	ipsecesp -1	0	ipsecesp
+#	ipsecah	-1	0	ipsecah
+" > iu.ap
 	;;
   * )
 	echo "Unknown architecture."

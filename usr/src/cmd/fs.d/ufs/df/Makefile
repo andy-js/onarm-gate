@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 FSTYPE=		ufs
 LIBPROG=	df
 ATTMK=		$(LIBPROG)
@@ -36,6 +40,8 @@ OBJS=	df.o
 
 CPPFLAGS +=	-D_LARGEFILE64_SOURCE
 LDLIBS += -ladm
+
+$(ARM_BLD)CPPFLAGS +=	-DMNTFS_DISABLE
 
 # for messaging catalogue file
 #

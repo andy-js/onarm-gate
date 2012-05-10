@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_INET_KSSL_KSSLIMPL_H
 #define	_INET_KSSL_KSSLIMPL_H
 
@@ -216,7 +220,8 @@ typedef struct kssl_stats {
 
 extern kssl_stats_t *kssl_statp;
 
-#define	KSSL_COUNTER(p, v)	 atomic_add_64(&kssl_statp->p.value.ui64, v)
+#define	KSSL_COUNTER(p, v) \
+if (kssl_statp) atomic_add_64(&kssl_statp->p.value.ui64, v)
 
 #define	IS_SSL_PORT	1
 #define	IS_PROXY_PORT	2

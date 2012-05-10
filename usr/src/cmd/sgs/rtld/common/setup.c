@@ -28,6 +28,9 @@
  */
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 /*
  * Run time linker common setup.
@@ -706,11 +709,15 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 		ulong_t	mhwcap;
 
 		if ((mhwcap = (HWCAP(mlmp) & ~hwcap)) != 0) {
+#ifdef	__arm
+			const char	*str = MSG_INTL(MSG_PT_SUNWCAP);
+#else
 			Conv_cap_val_hw1_buf_t cap_val_hw1_buf;
 
 			const char *str =
 			    conv_cap_val_hw1(mhwcap, M_MACH, 0,
 			    &cap_val_hw1_buf);
+#endif
 
 			if (lml_main.lm_flags & LML_FLG_TRC_ENABLE) {
 				(void) printf(MSG_INTL(MSG_LDD_GEN_HWCAP_1),

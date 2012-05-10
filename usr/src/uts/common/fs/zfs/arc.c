@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -133,6 +137,7 @@
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
+#include <zfs_types.h>
 
 static kmutex_t		arc_reclaim_thr_lock;
 static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
@@ -160,8 +165,22 @@ static int arc_dead;
 /*
  * These tunables are for performance analysis.
  */
+#ifdef ZFS_ARC_MAX
+uint64_t zfs_arc_max = ZFS_ARC_MAX << 20;
+#else
 uint64_t zfs_arc_max;
+#endif	/* ZFS_ARC_MAX */
+
+#ifdef ZFS_ARC_MIN
+uint64_t zfs_arc_min = ZFS_ARC_MIN << 20;
+#else
 uint64_t zfs_arc_min;
+#endif	/* ZFS_ARC_MIN */
+
+#ifndef ARC_LOWER_LIMIT
+#define	ARC_LOWER_LIMIT	(64<<20)	/* 64MB */
+#endif	/* ARC_LOWER_LIMIT */
+
 uint64_t zfs_arc_meta_limit = 0;
 
 /*
@@ -211,6 +230,7 @@ static arc_state_t ARC_mfu;
 static arc_state_t ARC_mfu_ghost;
 static arc_state_t ARC_l2c_only;
 
+#ifndef ZFS_COMPACT
 typedef struct arc_stats {
 	kstat_named_t arcstat_hits;
 	kstat_named_t arcstat_misses;
@@ -344,6 +364,9 @@ static arc_stats_t arc_stats = {
 			ARCSTAT_BUMP(arcstat_##notstat1##_##notstat2##_##stat);\
 		}							\
 	}
+#else
+static	arc_stats_t	arc_stats;
+#endif	/* ZFS_COMPACT */
 
 kstat_t			*arc_ksp;
 static arc_state_t 	*arc_anon;
@@ -398,7 +421,7 @@ struct arc_write_callback {
 struct arc_buf_hdr {
 	/* protected by hash lock */
 	dva_t			b_dva;
-	uint64_t		b_birth;
+	txg_t			b_birth;
 	uint64_t		b_cksum0;
 
 	kmutex_t		b_freeze_lock;
@@ -487,7 +510,12 @@ static void arc_evict_ghost(arc_state_t *state, spa_t *spa, int64_t bytes);
  * Hash table routines
  */
 
+#if defined(__sparc) || !defined(__GNUC__) || \
+    defined(__SUNPRO_CC) && __SUNPRO_CC < 0x590
 #define	HT_LOCK_PAD	64
+#else
+#define	HT_LOCK_PAD	roundup(sizeof (kmutex_t), 8)
+#endif
 
 struct ht_lock {
 	kmutex_t	ht_lock;
@@ -496,7 +524,11 @@ struct ht_lock {
 #endif
 };
 
+#ifdef ZFS_BUF_LOCKS
+#define	BUF_LOCKS ZFS_BUF_LOCKS
+#else
 #define	BUF_LOCKS 256
+#endif	/* ZFS_BUF_LOCKS */
 typedef struct buf_hash_table {
 	uint64_t ht_mask;
 	arc_buf_hdr_t **ht_table;
@@ -523,12 +555,10 @@ uint64_t zfs_crc64_table[256];
 #define	L2ARC_FEED_DELAY	180		/* starting grace */
 #define	L2ARC_FEED_SECS		1		/* caching interval */
 
-#define	l2arc_writes_sent	ARCSTAT(arcstat_l2_writes_sent)
-#define	l2arc_writes_done	ARCSTAT(arcstat_l2_writes_done)
-
 /*
  * L2ARC Performance Tunables
  */
+#ifndef ZFS_NO_L2ARC
 uint64_t l2arc_write_max = L2ARC_WRITE_SIZE;	/* default max write size */
 uint64_t l2arc_headroom = L2ARC_HEADROOM;	/* number of dev writes */
 uint64_t l2arc_feed_secs = L2ARC_FEED_SECS;	/* interval seconds */
@@ -594,9 +624,14 @@ static uint8_t l2arc_thread_exit;
 static void l2arc_read_done(zio_t *zio);
 static void l2arc_hdr_stat_add(void);
 static void l2arc_hdr_stat_remove(void);
+#else	/* ZFS_NO_L2ARC */
+boolean_t l2arc_noprefetch = B_FALSE;	/* Not to set ARC_DONT_L2ACAHE */
+#define	l2arc_hdr_stat_add()
+#define	l2arc_hdr_stat_remove()
+#endif	/* ZFS_NO_L2ARC */
 
 static uint64_t
-buf_hash(spa_t *spa, dva_t *dva, uint64_t birth)
+buf_hash(spa_t *spa, dva_t *dva, txg_t birth)
 {
 	uintptr_t spav = (uintptr_t)spa;
 	uint8_t *vdva = (uint8_t *)dva;
@@ -613,6 +648,7 @@ buf_hash(spa_t *spa, dva_t *dva, uint64_t birth)
 	return (crc);
 }
 
+#ifndef ZFS_COMPACT
 #define	BUF_EMPTY(buf)						\
 	((buf)->b_dva.dva_word[0] == 0 &&			\
 	(buf)->b_dva.dva_word[1] == 0 &&			\
@@ -622,9 +658,10 @@ buf_hash(spa_t *spa, dva_t *dva, uint64_t birth)
 	((buf)->b_dva.dva_word[0] == (dva)->dva_word[0]) &&	\
 	((buf)->b_dva.dva_word[1] == (dva)->dva_word[1]) &&	\
 	((buf)->b_birth == birth) && ((buf)->b_spa == spa)
+#endif	/* ZFS_COMPACT */
 
 static arc_buf_hdr_t *
-buf_hash_find(spa_t *spa, dva_t *dva, uint64_t birth, kmutex_t **lockp)
+buf_hash_find(spa_t *spa, dva_t *dva, txg_t birth, kmutex_t **lockp)
 {
 	uint64_t idx = BUF_HASH_INDEX(spa, dva, birth);
 	kmutex_t *hash_lock = BUF_HASH_LOCK(idx);
@@ -786,7 +823,7 @@ static void
 buf_init(void)
 {
 	uint64_t *ct;
-	uint64_t hsize = 1ULL << 12;
+	uint64_t hsize = 1ULL << 9;
 	int i, j;
 
 	/*
@@ -806,9 +843,10 @@ retry:
 		goto retry;
 	}
 
-	hdr_cache = kmem_cache_create("arc_buf_hdr_t", sizeof (arc_buf_hdr_t),
-	    0, hdr_cons, hdr_dest, hdr_recl, NULL, NULL, 0);
-	buf_cache = kmem_cache_create("arc_buf_t", sizeof (arc_buf_t),
+	hdr_cache = kmem_cache_create(KMEM_ARC_BUF_HDR_T,
+	    sizeof (arc_buf_hdr_t), 0, hdr_cons, hdr_dest, hdr_recl, NULL,
+	    NULL, 0);
+	buf_cache = kmem_cache_create(KMEM_ARC_BUF_T, sizeof (arc_buf_t),
 	    0, NULL, NULL, NULL, NULL, NULL, 0);
 
 	for (i = 0; i < 256; i++)
@@ -843,6 +881,7 @@ arc_cksum_verify(arc_buf_t *buf)
 	mutex_exit(&buf->b_hdr->b_freeze_lock);
 }
 
+#ifndef ZFS_NO_L2ARC
 static int
 arc_cksum_equal(arc_buf_t *buf)
 {
@@ -856,6 +895,7 @@ arc_cksum_equal(arc_buf_t *buf)
 
 	return (equal);
 }
+#endif	/* ZFS_NO_L2ARC */
 
 static void
 arc_cksum_compute(arc_buf_t *buf, boolean_t force)
@@ -1173,6 +1213,7 @@ arc_buf_add_ref(arc_buf_t *buf, void* tag)
 	    data, metadata, hits);
 }
 
+#ifndef ZFS_NO_L2ARC
 /*
  * Free the arc data buffer.  If it is an l2arc write in progress,
  * the buffer is placed on l2arc_free_on_write to be freed later.
@@ -1195,6 +1236,9 @@ arc_buf_data_free(arc_buf_hdr_t *hdr, void (*free_func)(void *, size_t),
 		free_func(data, size);
 	}
 }
+#else	/* ZFS_NO_L2ARC */
+#define	arc_buf_data_free(hdr, free_func, data,	size)	free_func(data, size)
+#endif	/* ZFS_NO_L2ARC */
 
 static void
 arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t all)
@@ -1259,6 +1303,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 	ASSERT3P(hdr->b_state, ==, arc_anon);
 	ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 
+#ifndef ZFS_NO_L2ARC
 	if (hdr->b_l2hdr != NULL) {
 		if (!MUTEX_HELD(&l2arc_buflist_mtx)) {
 			/*
@@ -1282,6 +1327,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			l2arc_hdr_stat_remove();
 		hdr->b_l2hdr = NULL;
 	}
+#endif	/* ZFS_NO_L2ARC */
 
 	if (!BUF_EMPTY(hdr)) {
 		ASSERT(!HDR_IN_HASH_TABLE(hdr));
@@ -2545,6 +2591,7 @@ top:
 		    demand, prefetch, hdr->b_type != ARC_BUFC_METADATA,
 		    data, metadata, misses);
 
+#ifndef ZFS_NO_L2ARC
 		if (l2arc_ndev != 0) {
 			/*
 			 * Read from the L2ARC if the following are true:
@@ -2594,6 +2641,7 @@ top:
 					ARCSTAT_BUMP(arcstat_l2_rw_clash);
 			}
 		}
+#endif	/* ZFS_NO_L2ARC */
 		mutex_exit(hash_lock);
 
 		rzio = zio_read(pio, spa, bp, buf->b_data, size,
@@ -2808,12 +2856,14 @@ arc_release(arc_buf_t *buf, void *tag)
 			atomic_add_64(size, -hdr->b_size);
 		}
 		hdr->b_datacnt -= 1;
+#ifndef ZFS_NO_L2ARC
 		if (hdr->b_l2hdr != NULL) {
 			mutex_enter(&l2arc_buflist_mtx);
 			l2hdr = hdr->b_l2hdr;
 			hdr->b_l2hdr = NULL;
 			buf_size = hdr->b_size;
 		}
+#endif	/* ZFS_NO_L2ARC */
 		arc_cksum_verify(buf);
 
 		mutex_exit(hash_lock);
@@ -2838,12 +2888,14 @@ arc_release(arc_buf_t *buf, void *tag)
 		ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 		arc_change_state(arc_anon, hdr, hash_lock);
 		hdr->b_arc_access = 0;
+#ifndef ZFS_NO_L2ARC
 		if (hdr->b_l2hdr != NULL) {
 			mutex_enter(&l2arc_buflist_mtx);
 			l2hdr = hdr->b_l2hdr;
 			hdr->b_l2hdr = NULL;
 			buf_size = hdr->b_size;
 		}
+#endif	/* ZFS_NO_L2ARC */
 		mutex_exit(hash_lock);
 
 		bzero(&hdr->b_dva, sizeof (dva_t));
@@ -2854,6 +2906,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	buf->b_efunc = NULL;
 	buf->b_private = NULL;
 
+#ifndef ZFS_NO_L2ARC
 	if (l2hdr) {
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
@@ -2861,6 +2914,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	}
 	if (MUTEX_HELD(&l2arc_buflist_mtx))
 		mutex_exit(&l2arc_buflist_mtx);
+#endif	/* ZFS_NO_L2ARC */
 }
 
 int
@@ -2993,7 +3047,7 @@ arc_write_done(zio_t *zio)
 
 zio_t *
 arc_write(zio_t *pio, spa_t *spa, int checksum, int compress, int ncopies,
-    uint64_t txg, blkptr_t *bp, arc_buf_t *buf,
+    txg_t txg, blkptr_t *bp, arc_buf_t *buf,
     arc_done_func_t *ready, arc_done_func_t *done, void *private, int priority,
     int flags, zbookmark_t *zb)
 {
@@ -3020,7 +3074,7 @@ arc_write(zio_t *pio, spa_t *spa, int checksum, int compress, int ncopies,
 }
 
 int
-arc_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+arc_free(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private, uint32_t arc_flags)
 {
 	arc_buf_hdr_t *ab;
@@ -3172,11 +3226,11 @@ arc_init(void)
 
 	/*
 	 * Allow the tunables to override our calculations if they are
-	 * reasonable (ie. over 64MB)
+	 * reasonable (ie. over ARC_LOWER_LIMIT)
 	 */
-	if (zfs_arc_max > 64<<20 && zfs_arc_max < physmem * PAGESIZE)
+	if (zfs_arc_max >= ARC_LOWER_LIMIT && zfs_arc_max < physmem * PAGESIZE)
 		arc_c_max = zfs_arc_max;
-	if (zfs_arc_min > 64<<20 && zfs_arc_min <= arc_c_max)
+	if (zfs_arc_min >= ARC_LOWER_LIMIT && zfs_arc_min <= arc_c_max)
 		arc_c_min = zfs_arc_min;
 
 	arc_c = arc_c_max;
@@ -3241,8 +3295,9 @@ arc_init(void)
 	mutex_init(&arc_eviction_mtx, NULL, MUTEX_DEFAULT, NULL);
 	bzero(&arc_eviction_hdr, sizeof (arc_buf_hdr_t));
 
-	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
-	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
+	arc_ksp = kstat_create(ZFS_MODULE, 0, "arcstats", "misc",
+	    KSTAT_TYPE_NAMED, sizeof (arc_stats) / sizeof (kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
 
 	if (arc_ksp != NULL) {
 		arc_ksp->ks_data = &arc_stats;
@@ -3410,6 +3465,7 @@ arc_fini(void)
  * integrated, and also may become zpool properties.
  */
 
+#ifndef ZFS_NO_L2ARC
 static void
 l2arc_hdr_stat_add(void)
 {
@@ -3508,7 +3564,7 @@ l2arc_write_done(zio_t *zio)
 		mutex_exit(hash_lock);
 	}
 
-	atomic_inc_64(&l2arc_writes_done);
+	ARCSTAT_BUMP(arcstat_l2_writes_done);
 	list_remove(buflist, head);
 	kmem_cache_free(hdr_cache, head);
 	mutex_exit(&l2arc_buflist_mtx);
@@ -4077,12 +4133,6 @@ l2arc_remove_vdev(vdev_t *vd)
 	l2arc_dev_t *dev, *nextdev, *remdev = NULL;
 
 	/*
-	 * We can only grab the spa config lock when cache device writes
-	 * complete.
-	 */
-	ASSERT3U(l2arc_writes_sent, ==, l2arc_writes_done);
-
-	/*
 	 * Find the device by vdev
 	 */
 	mutex_enter(&l2arc_dev_mtx);
@@ -4118,8 +4168,6 @@ l2arc_init()
 {
 	l2arc_thread_exit = 0;
 	l2arc_ndev = 0;
-	l2arc_writes_sent = 0;
-	l2arc_writes_done = 0;
 
 	mutex_init(&l2arc_feed_thr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&l2arc_feed_thr_cv, NULL, CV_DEFAULT, NULL);
@@ -4157,3 +4205,4 @@ l2arc_fini()
 	list_destroy(l2arc_dev_list);
 	list_destroy(l2arc_free_on_write);
 }
+#endif	/* ZFS_NO_L2ARC */

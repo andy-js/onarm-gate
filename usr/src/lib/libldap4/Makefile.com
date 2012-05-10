@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -68,7 +73,7 @@ SRCDIR =	../common
 SRCS=		$(LDAPOBJS:%.o=../common/%.c)	$(BEROBJS:%.o=../ber/%.c) \
 		$(UTILOBJS:%.o=../util/%.c)	$(SECOBJS:%.o=../sec/%.c) 
 
-LIBS =		$(DYNLIB)
+LIBS =		$(ARLIB) $(DYNLIB)
 
 $(LINTLIB):= 	SRCS=../common/llib-lldap
 

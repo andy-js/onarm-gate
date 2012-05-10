@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG = ucodeadm
 
 PROG_OBJS = ucodeadm.o ucode_errno.o
@@ -45,7 +49,7 @@ AMD_UCODE_FILE = amd-ucode.txt
 ROOTUCODEPATH = $(ROOT)/platform/i86pc/ucode
 ROOTINTELUCODE = $(INTEL_UCODE_FILE:%=$(ROOTUCODEPATH)/%)
 
-CPPFLAGS = -I../../common -I../../uts/common
+CPPFLAGS = -I../../common -I../../uts/common -I$(ROOT)/usr/include
 CFLAGS	+= -v
 LINTFLAGS += -errtags -erroff=E_NAME_DEF_NOT_USED2
 LINTFLAGS += -erroff=E_INCONS_ARG_DECL2,E_INCONS_VAL_TYPE_DECL2

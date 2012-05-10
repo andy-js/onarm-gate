@@ -36,6 +36,9 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -226,7 +229,7 @@ extern void ufs_lockfs_tsd_destructor(void *);
 extern uint_t bypass_snapshot_throttle_key;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	/*
 	 * Create an index into the per thread array so that any thread doing
@@ -237,14 +240,16 @@ _init(void)
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -468,7 +473,7 @@ ufs_mountroot(struct vfs *vfsp, enum whymountroot why)
 			 */
 			ufsvfsp = (ufsvfs_t *)vfsp->vfs_data;
 			fsp = ufsvfsp->vfs_fs;
-			if (TRANS_ISTRANS(ufsvfsp) &&
+			if (!fsp->fs_ronly && TRANS_ISTRANS(ufsvfsp) &&
 			    !TRANS_ISERROR(ufsvfsp) &&
 			    (fsp->fs_rolled == FS_NEED_ROLL)) {
 				ml_unit_t *ul = ufsvfsp->vfs_log;
@@ -757,6 +762,9 @@ int ufs_maxmaxphys = (1024 * 1024);
 int ufs_mount_error_delay = 20;	/* default to 20ms */
 int ufs_mount_timeout = 60000;	/* default to 1 minute */
 
+#define SBRETRY	0x01		/* The second super block reading */
+#define LOGLOAD	0x02		/* The second super block log reading */
+
 static int
 mountfs(struct vfs *vfsp, enum whymountroot why, struct vnode *devvp,
 	char *path, cred_t *cr, int isroot, void *raw_argsp, int args_len)
@@ -778,6 +786,7 @@ mountfs(struct vfs *vfsp, enum whymountroot why, struct vnode *devvp,
 	int elapsed;
 	int status;
 	extern	int	maxphys;
+	int reloadflag = 0;
 
 	if (args_len == sizeof (struct ufs_args) && raw_argsp)
 		flags = ((struct ufs_args *)raw_argsp)->flags;
@@ -833,10 +842,17 @@ mountfs(struct vfs *vfsp, enum whymountroot why, struct vnode *devvp,
 	 */
 	ufsvfsp = kmem_zalloc(sizeof (struct ufsvfs), KM_SLEEP);
 	tp = UFS_BREAD(ufsvfsp, dev, SBLOCK, SBSIZE);
-	if (tp->b_flags & B_ERROR)
-		goto out;
+	if (tp->b_flags & B_ERROR) {
+		brelse(tp);
+		tp = UFS_BREAD(ufsvfsp, dev, ALTSBLOCK, SBSIZE);
+		if (tp->b_flags & B_ERROR) {
+			goto out;
+		}
+		reloadflag |= SBRETRY;
+	}
 	fsp = (struct fs *)tp->b_un.b_addr;
 
+reload:
 	if ((fsp->fs_magic != FS_MAGIC) && (fsp->fs_magic != MTB_UFS_MAGIC)) {
 		cmn_err(CE_NOTE,
 		    "mount: not a UFS magic number (0x%x)", fsp->fs_magic);
@@ -936,27 +952,37 @@ mountfs(struct vfs *vfsp, enum whymountroot why, struct vnode *devvp,
 	 * superblock. We guarantee that the fields needed to
 	 * scan the log will not be in the log.
 	 */
-	if (fsp->fs_logbno && fsp->fs_clean == FSLOG &&
-	    (fsp->fs_state + fsp->fs_time == FSOKAY)) {
-		error = lufs_snarf(ufsvfsp, fsp, (vfsp->vfs_flag & VFS_RDONLY));
-		if (error) {
-			/*
-			 * Allow a ro mount to continue even if the
-			 * log cannot be processed - yet.
-			 */
-			if (!(vfsp->vfs_flag & VFS_RDONLY)) {
-				cmn_err(CE_WARN, "Error accessing ufs "
-				    "log for %s; Please run fsck(1M)", path);
+	if (!(reloadflag & LOGLOAD)) {
+		if (fsp->fs_logbno && fsp->fs_clean == FSLOG &&
+		    (fsp->fs_state + fsp->fs_time == FSOKAY)) {
+			error = lufs_snarf(ufsvfsp, fsp, (vfsp->vfs_flag & VFS_RDONLY));
+			if (error) {
+				/*
+				 * Allow a ro mount to continue even if the
+				 * log cannot be processed - yet.
+				 */
+				if (!(vfsp->vfs_flag & VFS_RDONLY)) {
+					cmn_err(CE_WARN, "Error accessing ufs "
+						"log for %s; Please run fsck(1M)",
+						path);
+					goto out;
+				}
+			}
+			tp->b_flags |= (B_AGE | B_STALE);
+			brelse(tp);
+			tp = UFS_BREAD(ufsvfsp, dev, SBLOCK, SBSIZE);
+			fsp = (struct fs *)tp->b_un.b_addr;
+			ufsvfsp->vfs_bufp = tp;
+			if (tp->b_flags & B_ERROR) {
 				goto out;
+			} else if (reloadflag & SBRETRY) {
+				reloadflag |= LOGLOAD;
+				ufs_vfs_remove(ufsvfsp);
+				ufs_thread_exit(&ufsvfsp->vfs_delete);
+				ufs_thread_exit(&ufsvfsp->vfs_reclaim);
+				goto reload;
 			}
 		}
-		tp->b_flags |= (B_AGE | B_STALE);
-		brelse(tp);
-		tp = UFS_BREAD(ufsvfsp, dev, SBLOCK, SBSIZE);
-		fsp = (struct fs *)tp->b_un.b_addr;
-		ufsvfsp->vfs_bufp = tp;
-		if (tp->b_flags & B_ERROR)
-			goto out;
 	}
 
 	/*
@@ -1230,6 +1256,8 @@ mountfs(struct vfs *vfsp, enum whymountroot why, struct vnode *devvp,
 
 	if (why == ROOT_INIT && isroot)
 		rootvp = devvp;
+
+	mutex_init(&ufsvfsp->vfs_renamelock, NULL, MUTEX_DEFAULT, NULL);
 
 	return (0);
 out:
@@ -1674,6 +1702,7 @@ ufs_unmount(struct vfs *vfsp, int fflag, struct cred *cr)
 		mutex_exit(&ulp->ul_lock);
 	} else {
 		mutex_destroy(&ufsvfsp->vfs_lock);
+		mutex_destroy(&ufsvfsp->vfs_renamelock);
 		kmem_free(ufsvfsp, sizeof (struct ufsvfs));
 	}
 

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DSL_POOL_H
 #define	_SYS_DSL_POOL_H
 
@@ -32,6 +36,7 @@
 #include <sys/txg.h>
 #include <sys/txg_impl.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -46,7 +51,7 @@ typedef struct dsl_pool {
 	struct objset *dp_meta_objset;
 	struct dsl_dir *dp_root_dir;
 	struct dsl_dir *dp_mos_dir;
-	uint64_t dp_root_dir_obj;
+	objid_t dp_root_dir_obj;
 
 	/* No lock needed - sync context only */
 	blkptr_t dp_meta_rootbp;
@@ -67,10 +72,10 @@ typedef struct dsl_pool {
 	krwlock_t dp_config_rwlock;
 } dsl_pool_t;
 
-int dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp);
+int dsl_pool_open(spa_t *spa, txg_t txg, dsl_pool_t **dpp);
 void dsl_pool_close(dsl_pool_t *dp);
-dsl_pool_t *dsl_pool_create(spa_t *spa, uint64_t txg);
-void dsl_pool_sync(dsl_pool_t *dp, uint64_t txg);
+dsl_pool_t *dsl_pool_create(spa_t *spa, txg_t txg);
+void dsl_pool_sync(dsl_pool_t *dp, txg_t txg);
 void dsl_pool_zil_clean(dsl_pool_t *dp);
 int dsl_pool_sync_context(dsl_pool_t *dp);
 uint64_t dsl_pool_adjustedsize(dsl_pool_t *dp, boolean_t netfree);

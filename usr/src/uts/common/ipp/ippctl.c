@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -241,9 +245,9 @@ static int		ippctl_windex = -1;
  * Module linkage functions
  */
 
-#define	__FN__	"_init"
+#define	__FN__	MODDRV_ENTRY_INIT_STR
 int
-_init(
+MODDRV_ENTRY_INIT(
 	void)
 {
 	int	rc;
@@ -257,9 +261,10 @@ _init(
 }
 #undef	__FN__
 
-#define	__FN__	"_fini"
+#ifndef	STATIC_DRIVER
+#define	__FN__	MODDRV_ENTRY_FINI_STR
 int
-_fini(
+MODDRV_ENTRY_FINI(
 	void)
 {
 	int	rc;
@@ -272,10 +277,11 @@ _fini(
 	return (rc);
 }
 #undef	__FN__
+#endif	/* !STATIC_DRIVER */
 
-#define	__FN__	"_info"
+#define	__FN__	MODDRV_ENTRY_INFO_STR
 int
-_info(
+MODDRV_ENTRY_INFO(
 	struct modinfo	*modinfop)
 {
 	DBG0(DBG_MODLINK, "calling mod_info\n");

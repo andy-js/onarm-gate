@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -43,7 +48,7 @@ DYNFLAGS +=	$(ZIGNORE)
 
 LINTSRC=	$(LINTLIB:%.ln=%)
 
-LIBS  = $(DYNLIB)
+LIBS  = $(ARLIB) $(DYNLIB)
 
 LDLIBS += -lgss -lnsl -lc
 
@@ -56,6 +61,6 @@ include ../../Makefile.targ
 
 # librpcsec build rules
 
-pics/%.o: ../%.c
+objs/%.o pics/%.o: ../%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)

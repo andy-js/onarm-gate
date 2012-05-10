@@ -23,6 +23,9 @@
 /*	Copyright (c) 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -60,6 +63,7 @@ static const char *format[3] = {
 	"%lld + %lld + %lld = %lld\n"
 };
 
+static void	process_phdr(Elf *elf, GElf_Half num);
 
 void
 process(Elf * elf)
@@ -92,7 +96,6 @@ process(Elf * elf)
 	int		notfirst = 0;
 	int		i;
 	char		*name = 0;
-	static void	process_phdr(Elf *elf, GElf_Half num);
 
 /*
  * If there is a program header and the -f flag requesting section infor-

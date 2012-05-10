@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "mt.h"
@@ -68,6 +72,9 @@ static int notin(char *, char *);
 static int ifdate(char *);
 static int classmatch(char *[], char *[]);
 
+static void sysreset(void);
+static void devreset(void);
+
 static char *Myline = CNULL;	/* to force which line will be used */
 static char *Mytype = CNULL;	/* to force selection of specific device type */
 
@@ -85,7 +92,6 @@ conn(char *system)
 {
 	int nf, fn = FAIL;
 	char *flds[F_MAX+1];
-	static void sysreset(void);
 
 	CDEBUG(4, "conn(%s)\n", system);
 	Uerror = 0;
@@ -137,7 +143,6 @@ getto(char *flds[])
 	int dcf = -1;
 	int reread = 0;
 	int tries = 0;	/* count of call attempts - for limit purposes */
-	static void devreset(void);
 
 	CDEBUG(1, "Device Type %s wanted\n", flds[F_TYPE]);
 	Uerror = 0;

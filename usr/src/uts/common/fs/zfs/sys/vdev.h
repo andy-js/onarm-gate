@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_VDEV_H
 #define	_SYS_VDEV_H
 
@@ -33,6 +37,7 @@
 #include <sys/dmu.h>
 #include <sys/space_map.h>
 #include <sys/fs/zfs.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -50,22 +55,22 @@ extern boolean_t zfs_nocacheflush;
 extern int vdev_open(vdev_t *);
 extern int vdev_validate(vdev_t *);
 extern void vdev_close(vdev_t *);
-extern int vdev_create(vdev_t *, uint64_t txg, boolean_t isreplace);
-extern void vdev_init(vdev_t *, uint64_t txg);
+extern int vdev_create(vdev_t *, txg_t txg, boolean_t isreplace);
+extern void vdev_init(vdev_t *, txg_t txg);
 extern void vdev_reopen(vdev_t *);
 extern int vdev_validate_aux(vdev_t *vd);
 extern int vdev_probe(vdev_t *);
 
 extern vdev_t *vdev_lookup_top(spa_t *spa, uint64_t vdev);
 extern vdev_t *vdev_lookup_by_guid(vdev_t *vd, uint64_t guid);
-extern void vdev_dtl_dirty(space_map_t *sm, uint64_t txg, uint64_t size);
-extern int vdev_dtl_contains(space_map_t *sm, uint64_t txg, uint64_t size);
-extern void vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
+extern void vdev_dtl_dirty(space_map_t *sm, txg_t txg, uint64_t size);
+extern int vdev_dtl_contains(space_map_t *sm, txg_t txg, uint64_t size);
+extern void vdev_dtl_reassess(vdev_t *vd, txg_t txg, txg_t scrub_txg,
     int scrub_done);
 
 extern const char *vdev_description(vdev_t *vd);
 
-extern int vdev_metaslab_init(vdev_t *vd, uint64_t txg);
+extern int vdev_metaslab_init(vdev_t *vd, txg_t txg);
 extern void vdev_metaslab_fini(vdev_t *vd);
 
 extern void vdev_get_stats(vdev_t *vd, vdev_stat_t *vs);
@@ -95,11 +100,19 @@ extern int vdev_is_dead(vdev_t *vd);
 extern int vdev_readable(vdev_t *vd);
 extern int vdev_writeable(vdev_t *vd);
 
+#ifndef ZFS_NO_VDEVCACHE
 extern void vdev_cache_init(vdev_t *vd);
 extern void vdev_cache_fini(vdev_t *vd);
 extern int vdev_cache_read(zio_t *zio);
 extern void vdev_cache_write(zio_t *zio);
 extern void vdev_cache_purge(vdev_t *vd);
+#else
+#define	vdev_cache_init(vd)
+#define	vdev_cache_fini(vd)
+#define	vdev_cache_read(zio)    1
+#define	vdev_cache_write(zio)
+#define	vdev_cache_purge(vd)
+#endif	/* ZFS_NO_VDEVCACHE */
 
 extern void vdev_queue_init(vdev_t *vd);
 extern void vdev_queue_fini(vdev_t *vd);
@@ -108,7 +121,7 @@ extern void vdev_queue_io_done(zio_t *zio);
 
 extern void vdev_config_dirty(vdev_t *vd);
 extern void vdev_config_clean(vdev_t *vd);
-extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg);
+extern int vdev_config_sync(vdev_t **svd, int svdcount, txg_t txg);
 
 extern nvlist_t *vdev_config_generate(spa_t *spa, vdev_t *vd,
     boolean_t getstats, boolean_t isspare, boolean_t isl2cache);
@@ -129,7 +142,7 @@ typedef enum {
 	VDEV_LABEL_L2CACHE	/* add an L2ARC cache device */
 } vdev_labeltype_t;
 
-extern int vdev_label_init(vdev_t *vd, uint64_t txg, vdev_labeltype_t reason);
+extern int vdev_label_init(vdev_t *vd, txg_t txg, vdev_labeltype_t reason);
 
 #ifdef	__cplusplus
 }

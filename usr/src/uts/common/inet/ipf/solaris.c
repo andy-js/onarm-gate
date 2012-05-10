@@ -7,6 +7,11 @@
  * Use is subject to license terms.
  */
 /* #pragma ident   "@(#)solaris.c	1.12 6/5/96 (C) 1995 Darren Reed"*/
+
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident "@(#)$Id: solaris.c,v 2.73.2.6 2005/07/13 21:40:47 darrenr Exp $"
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
@@ -301,7 +306,7 @@ ipf_kstat_update(kstat_t *ksp, int rwflag)
 	return (0);
 }
 
-int _init()
+int MODDRV_ENTRY_INIT()
 {
 	int ipfinst;
 
@@ -313,7 +318,8 @@ int _init()
 }
 
 
-int _fini(void)
+#ifndef	STATIC_DRIVER
+int MODDRV_ENTRY_FINI(void)
 {
 	int ipfinst;
 
@@ -323,9 +329,10 @@ int _fini(void)
 #endif
 	return ipfinst;
 }
+#endif	/* !STATIC_DRIVER */
 
 
-int _info(modinfop)
+int MODDRV_ENTRY_INFO(modinfop)
 struct modinfo *modinfop;
 {
 	int ipfinst;

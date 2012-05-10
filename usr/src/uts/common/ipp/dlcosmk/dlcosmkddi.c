@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -81,19 +85,21 @@ static struct modlinkage modlinkage = {
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -374,7 +380,8 @@ dlcosmk_statinit(ipp_action_id_t aid, dlcosmk_data_t *dlcosmk_data)
 	}
 
 	statp = (dlcosmk_stat_t *)(dlcosmk_data->stats)->ipps_data;
-	ASSERT(statp != NULL);
+	if (statp == 0)
+		return (0);
 
 	if ((err = ipp_stat_named_init(dlcosmk_data->stats, "npackets",
 	    IPP_STAT_UINT64, &statp->npackets)) != 0) {
@@ -430,7 +437,9 @@ dlcosmk_update_stats(ipp_stat_t *sp, void *arg, int rw)
 	uint32_t upri, bband;
 
 	ASSERT(dlcosmk_data != NULL);
-	ASSERT(snames != NULL);
+
+	if (snames == NULL)
+		return (0);
 
 	upri = dlcosmk_data->usr_pri;
 	bband = dlcosmk_data->b_band;

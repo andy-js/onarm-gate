@@ -25,6 +25,10 @@
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -84,6 +88,10 @@ static diskaddr_t get_device_size(int, caddr_t);
 static diskaddr_t brute_force_get_device_size(int);
 static void cg_constants(int, daddr32_t *, daddr32_t *, daddr32_t *,
 	    daddr32_t *, daddr32_t *, daddr32_t *);
+
+#ifdef	NO_SUPPORT_EFI
+#define	efi_alloc_and_read(fd, efi)	(-1)
+#endif	/* NO_SUPPORT_EFI */
 
 int
 ftypeok(struct dinode *dp)

@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -256,7 +259,7 @@ static void tim_send_ioctl_tpi_msg(queue_t *, mblk_t *, struct tim_tim *,
 static void tim_clear_peer(struct tim_tim *);
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 
@@ -270,8 +273,9 @@ _init(void)
 	return (0);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -281,9 +285,10 @@ _fini(void)
 	rw_destroy(&tim_list_rwlock);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

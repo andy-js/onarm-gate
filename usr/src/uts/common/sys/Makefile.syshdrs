@@ -24,6 +24,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 # Common definitions for open and closed headers.
 
 # check files really don't exist
@@ -149,6 +153,10 @@ sparc_ROOTDIRS=	$(ROOTDKTPDIR) $(ROOTDIR)/scsi/adapters \
 
 i386_ROOTDIRS=	$(ROOTDKTPDIR) $(ROOTDIR)/scsi/adapters $(ROOTDIR)/scsi/targets \
 		$(ROOTDIR)/agp $(ROOTDIR)/sata
+
+arm_ROOTDIRS=	$(ROOTDKTPDIR) $(ROOTDIR)/scsi/adapters $(ROOTDIR)/scsi/targets \
+		$(ROOTDIR)/i2o $(ROOTDIR)/agp $(ROOTDIR)/sata
+
 
 ROOTDIRS=			\
 	$(ROOTDIR)		\
@@ -277,6 +285,11 @@ sparc_ROOTHDRS=	$(ROOTSDKTPHDRS) $(ROOTSCSICADHDRS) $(ROOTSCSITARGETSHDRS) \
 i386_ROOTHDRS=	$(ROOTDKTPHDRS) $(ROOTPCHDRS) $(ROOTSCSITARGETSHDRS)	\
 		$(ROOTSCSIVHCIHDRS) $(ROOTFCHDRS)	\
 		$(ROOTPCMCIAHDRS) $(ROOTHOTPLUGHDRS) \
+		$(ROOTHOTPLUGPCIHDRS) $(ROOTSATAGENHDRS)
+
+arm_ROOTHDRS=	$(ROOTDKTPHDRS) $(ROOTPCHDRS) $(ROOTSCSITARGETSHDRS)	\
+		$(ROOTSCSIVHCIHDRS) $(ROOTFCHDRS)	\
+		$(ROOTI2OHDRS) $(ROOTPCMCIAHDRS) $(ROOTHOTPLUGHDRS) \
 		$(ROOTHOTPLUGPCIHDRS) $(ROOTSATAGENHDRS)
 
 # install rules

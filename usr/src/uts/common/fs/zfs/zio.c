@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -34,6 +38,7 @@
 #include <sys/zio_impl.h>
 #include <sys/zio_compress.h>
 #include <sys/zio_checksum.h>
+#include <zfs_types.h>
 
 /*
  * ==========================================================================
@@ -71,6 +76,10 @@ int zio_write_retry = 1;
 /* Taskq to handle reissuing of I/Os */
 taskq_t *zio_taskq;
 int zio_resume_threads = 4;
+#ifdef ZFS_ZIOTASKQ_CREATE_ASNEED
+int resume_counts;
+kmutex_t resume_thread_lock;
+#endif	/* ZFS_ZIOTASKQ_CREATE_ASNEED */
 
 typedef struct zio_sync_pass {
 	int	zp_defer_free;		/* defer frees after this pass */
@@ -130,7 +139,7 @@ zio_init(void)
 	data_alloc_arena = zio_alloc_arena;
 #endif
 
-	zio_cache = kmem_cache_create("zio_cache", sizeof (zio_t), 0,
+	zio_cache = kmem_cache_create(KMEM_ZIO_CACHE, sizeof (zio_t), 0,
 	    NULL, NULL, NULL, NULL, NULL, 0);
 
 	/*
@@ -157,11 +166,12 @@ zio_init(void)
 
 		if (align != 0) {
 			char name[36];
-			(void) sprintf(name, "zio_buf_%lu", (ulong_t)size);
+			(void) sprintf(name, KMEM_ZIO_BUF_SIZE, (ulong_t)size);
 			zio_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL, NULL, KMC_NODEBUG);
 
-			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
+			(void) sprintf(name, KMEM_ZIO_DATA_BUF_SIZE,
+			    (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL, data_alloc_arena,
 			    KMC_NODEBUG);
@@ -179,8 +189,12 @@ zio_init(void)
 			zio_data_buf_cache[c - 1] = zio_data_buf_cache[c];
 	}
 
+#ifndef ZFS_ZIOTASKQ_CREATE_ASNEED
 	zio_taskq = taskq_create("zio_taskq", zio_resume_threads,
 	    maxclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
+#else
+	mutex_init(&resume_thread_lock, NULL, MUTEX_DEFAULT, NULL);
+#endif	/* ZFS_ZIOTASKQ_CREATE_ASNEED */
 
 	zio_inject_init();
 }
@@ -206,7 +220,11 @@ zio_fini(void)
 		zio_data_buf_cache[c] = NULL;
 	}
 
+#ifndef ZFS_ZIOTASKQ_CREATE_ASNEED
 	taskq_destroy(zio_taskq);
+#else
+	mutex_destroy(&resume_thread_lock);
+#endif	/* ZFS_ZIOTASKQ_CREATE_ASNEED */
 
 	kmem_cache_destroy(zio_cache);
 
@@ -331,7 +349,7 @@ zio_clear_transform_stack(zio_t *zio)
  * ==========================================================================
  */
 static zio_t *
-zio_create(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+zio_create(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
     void *data, uint64_t size, zio_done_func_t *done, void *private,
     zio_type_t type, int priority, int flags, uint8_t stage, uint32_t pipeline)
 {
@@ -383,7 +401,8 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 	if (pio == NULL) {
 		if (type != ZIO_TYPE_NULL &&
 		    !(flags & ZIO_FLAG_CONFIG_HELD)) {
-			spa_config_enter(spa, RW_READER, zio);
+			(void) spa_config_enter(spa, RW_READER, zio,
+			    SPA_WAIT);
 			zio->io_flags |= ZIO_FLAG_CONFIG_GRABBED;
 		}
 		zio->io_root = zio;
@@ -397,7 +416,8 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 		    !(pio->io_flags & ZIO_FLAG_CONFIG_GRABBED) &&
 		    !(pio->io_flags & ZIO_FLAG_CONFIG_HELD)) {
 			pio->io_flags |= ZIO_FLAG_CONFIG_GRABBED;
-			spa_config_enter(spa, RW_READER, pio);
+			(void) spa_config_enter(spa, RW_READER, pio,
+			    SPA_WAIT);
 		}
 		if (stage < ZIO_STAGE_READY)
 			pio->io_children_notready++;
@@ -464,7 +484,7 @@ zio_read(zio_t *pio, spa_t *spa, blkptr_t *bp, void *data,
 	 * If the user has specified that we allow I/Os to continue
 	 * then attempt to satisfy the read.
 	 */
-	if (spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE)
+	if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_WAIT)
 		ZIO_ENTER(spa);
 
 	zio = zio_create(pio, spa, bp->blk_birth, bp, data, size, done, private,
@@ -484,7 +504,7 @@ zio_read(zio_t *pio, spa_t *spa, blkptr_t *bp, void *data,
 
 zio_t *
 zio_write(zio_t *pio, spa_t *spa, int checksum, int compress, int ncopies,
-    uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
+    txg_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *ready, zio_done_func_t *done, void *private, int priority,
     int flags, zbookmark_t *zb)
 {
@@ -528,7 +548,7 @@ zio_write(zio_t *pio, spa_t *spa, int checksum, int compress, int ncopies,
 
 zio_t *
 zio_rewrite(zio_t *pio, spa_t *spa, int checksum,
-    uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
+    txg_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *done, void *private, int priority, int flags,
     zbookmark_t *zb)
 {
@@ -560,7 +580,7 @@ zio_write_allocate_ready(zio_t *zio)
 
 static zio_t *
 zio_write_allocate(zio_t *pio, spa_t *spa, int checksum,
-    uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
+    txg_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *done, void *private, int priority, int flags)
 {
 	zio_t *zio;
@@ -582,7 +602,7 @@ zio_write_allocate(zio_t *pio, spa_t *spa, int checksum,
 }
 
 zio_t *
-zio_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+zio_free(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private)
 {
 	zio_t *zio;
@@ -605,7 +625,7 @@ zio_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 }
 
 zio_t *
-zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+zio_claim(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private)
 {
 	zio_t *zio;
@@ -829,15 +849,15 @@ zio_nowait(zio_t *zio)
 void
 zio_interrupt(zio_t *zio)
 {
-	(void) taskq_dispatch(zio->io_spa->spa_zio_intr_taskq[zio->io_type],
-	    (task_func_t *)zio_execute, zio, TQ_SLEEP);
+	taskq_t *tq = zio->io_spa->spa_zio_intr_taskq[zio->io_type];
+	(void) taskq_dispatch(tq, (task_func_t *)zio_execute, zio, TQ_SLEEP);
 }
 
 static int
 zio_issue_async(zio_t *zio)
 {
-	(void) taskq_dispatch(zio->io_spa->spa_zio_issue_taskq[zio->io_type],
-	    (task_func_t *)zio_execute, zio, TQ_SLEEP);
+	taskq_t *tq = zio->io_spa->spa_zio_issue_taskq[zio->io_type];
+	(void) taskq_dispatch(tq, (task_func_t *)zio_execute, zio, TQ_SLEEP);
 
 	return (ZIO_PIPELINE_STOP);
 }
@@ -1021,6 +1041,15 @@ zio_vdev_resume_io(spa_t *spa)
 	 */
 	vdev_clear(spa, NULL, B_FALSE);
 
+#ifdef ZFS_ZIOTASKQ_CREATE_ASNEED
+	mutex_enter(&resume_thread_lock);
+	if (resume_counts++ == 0) {
+		zio_taskq = taskq_create("zio_taskq", zio_resume_threads,
+		    maxclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
+	}
+	mutex_exit(&resume_thread_lock);
+#endif	/* ZFS_ZIOTASKQ_CREATE_ASNEED */
+
 	spa->spa_state = POOL_STATE_ACTIVE;
 	while ((zio = list_head(&spa->spa_zio_list)) != NULL) {
 		list_remove(&spa->spa_zio_list, zio);
@@ -1049,6 +1078,13 @@ zio_vdev_resume_io(spa_t *spa)
 	 * it's possible that a resumed I/O has failed again.
 	 */
 	taskq_wait(zio_taskq);
+#ifdef ZFS_ZIOTASKQ_CREATE_ASNEED
+	mutex_enter(&resume_thread_lock);
+	if (--resume_counts == 0) {
+		taskq_destroy(zio_taskq);
+	}
+	mutex_exit(&resume_thread_lock);
+#endif	/* ZFS_ZIOTASKQ_CREATE_ASNEED */
 	if (spa_state(spa) == POOL_STATE_IO_FAILURE)
 		return (EIO);
 
@@ -1071,15 +1107,25 @@ zio_vdev_suspend_io(zio_t *zio)
 	 */
 	spa->spa_state = POOL_STATE_IO_FAILURE;
 
-	mutex_enter(&spa->spa_zio_lock);
-	list_insert_tail(&spa->spa_zio_list, zio);
+	/*
+	 * Abort the processing waiting for transaction group and
+	 * the processing waiting to get "RW_WRITER spa_config_lock"
+	 * when abort is set to failuremode. Additionally, I/O shall
+	 * not be registered on zio error list.
+	 */
+	if (spa->spa_failmode == ZIO_FAILURE_MODE_ABORT) {
+		txg_wait_abort(spa->spa_dsl_pool);
+		spa_config_abort(spa);
+	} else {
+		mutex_enter(&spa->spa_zio_lock);
+		list_insert_tail(&spa->spa_zio_list, zio);
 
 #ifndef _KERNEL
-	/* Used to notify ztest that the pool has suspended */
-	cv_broadcast(&spa->spa_zio_cv);
+		/* Used to notify ztest that the pool has suspended */
+		cv_broadcast(&spa->spa_zio_cv);
 #endif
-	mutex_exit(&spa->spa_zio_lock);
-
+		mutex_exit(&spa->spa_zio_lock);
+	}
 	return (ZIO_PIPELINE_STOP);
 }
 
@@ -1094,9 +1140,11 @@ zio_assess(zio_t *zio)
 	ASSERT(zio->io_children_notdone == 0);
 
 	if (bp != NULL) {
+#ifndef ZFS_COMPACT
 		ASSERT(bp->blk_pad[0] == 0);
 		ASSERT(bp->blk_pad[1] == 0);
 		ASSERT(bp->blk_pad[2] == 0);
+#endif	/* ZFS_COMPACT */
 		ASSERT(bcmp(bp, &zio->io_bp_copy, sizeof (blkptr_t)) == 0);
 		if (zio->io_type == ZIO_TYPE_WRITE && !BP_IS_HOLE(bp) &&
 		    !(zio->io_flags & ZIO_FLAG_IO_REPAIR)) {
@@ -1179,6 +1227,7 @@ zio_assess(zio_t *zio)
 			    vdev_description(vd),
 			    (u_longlong_t)zio->io_offset,
 			    (void *)zio, blkbuf ? blkbuf : "", zio->io_error);
+			kmem_free(blkbuf, BP_SPRINTF_LEN);
 #endif
 
 			if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_PANIC) {
@@ -1535,7 +1584,7 @@ zio_write_allocate_gang_members(zio_t *zio, metaslab_class_t *mc)
 	dva_t *dva = bp->blk_dva;
 	spa_t *spa = zio->io_spa;
 	zio_gbh_phys_t *gbh;
-	uint64_t txg = zio->io_txg;
+	txg_t txg = zio->io_txg;
 	uint64_t resid = zio->io_size;
 	uint64_t maxalloc = P2ROUNDUP(zio->io_size >> 1, SPA_MINBLOCKSIZE);
 	uint64_t gsize, loff, lsize;
@@ -1709,8 +1758,9 @@ zio_vdev_io_start(zio_t *zio)
 	 * this IO until the problem is resolved. We will reissue them
 	 * at that time.
 	 */
-	if (spa_state(spa) == POOL_STATE_IO_FAILURE &&
-	    zio->io_type == ZIO_TYPE_WRITE)
+	if ((spa_state(spa) == POOL_STATE_IO_FAILURE &&
+	    zio->io_type == ZIO_TYPE_WRITE) &&
+	    spa_get_failmode(spa) != ZIO_FAILURE_MODE_ABORT)
 		return (zio_vdev_suspend_io(zio));
 
 	/*
@@ -2016,11 +2066,11 @@ zio_io_should_fail(uint16_t range)
  */
 int
 zio_alloc_blk(spa_t *spa, uint64_t size, blkptr_t *new_bp, blkptr_t *old_bp,
-    uint64_t txg)
+    txg_t txg)
 {
 	int error;
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 
 	if (zio_zil_fail_shift && zio_io_should_fail(zio_zil_fail_shift)) {
 		spa_config_exit(spa, FTAG);
@@ -2059,11 +2109,11 @@ zio_alloc_blk(spa_t *spa, uint64_t size, blkptr_t *new_bp, blkptr_t *old_bp,
  * nothing to do except metaslab_free() it.
  */
 void
-zio_free_blk(spa_t *spa, blkptr_t *bp, uint64_t txg)
+zio_free_blk(spa_t *spa, blkptr_t *bp, txg_t txg)
 {
 	ASSERT(!BP_IS_GANG(bp));
 
-	spa_config_enter(spa, RW_READER, FTAG);
+	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
 
 	metaslab_free(spa, bp, txg, B_FALSE);
 

@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -649,7 +654,7 @@ update_osym(Ofl_desc *ofl)
 			 */
 			if (ld_assign_got(ofl, sdp) == S_ERROR)
 				return ((Addr)S_ERROR);
-#elif	defined(__x86)
+#elif	defined(__x86) || defined(__arm)
 /* nothing to do */
 #else
 #error Unknown architecture!
@@ -1128,7 +1133,7 @@ update_osym(Ofl_desc *ofl)
 #if	defined(__sparc)
 		if (ld_assign_got(ofl, sdp) == S_ERROR)
 			return ((Addr)S_ERROR);
-#elif	defined(__x86)
+#elif	defined(__x86) || defined(__arm)
 /* nothing to do */
 #else
 #error Unknown architecture!
@@ -2813,7 +2818,7 @@ update_oehdr(Ofl_desc * ofl)
 	else
 		ehdr->e_type = ET_EXEC;
 
-	return (1);
+	return (ld_mach_update_oehdr(ofl));
 }
 
 /*

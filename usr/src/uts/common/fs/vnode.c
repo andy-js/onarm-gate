@@ -36,6 +36,9 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -75,6 +78,7 @@
 /* Tunable via /etc/system; used only by admin/install */
 int nfs_global_client_only;
 
+#ifndef KSTAT_DISABLE
 /*
  * Array of vopstats_t for per-FS-type vopstats.  This array has the same
  * number of entries as and parallel to the vfssw table.  (Arguably, it could
@@ -101,6 +105,7 @@ kmutex_t	vskstat_tree_lock;
 
 /* Global variable which enables/disables the vopstats collection */
 int vopstats_enabled = 1;
+#endif	/* KSTAT_DISABLE */
 
 /*
  * forward declarations for internal vnode specific data (vsd)
@@ -135,6 +140,7 @@ static list_t *vsd_list = NULL;
 /* per-key destructor funcs */
 static void 		(**vsd_destructor)(void *);
 
+#ifndef KSTAT_DISABLE
 /*
  * The following is the common set of actions needed to update the
  * vopstats structure from a vnode op.  Both VOPSTATS_UPDATE() and
@@ -184,6 +190,11 @@ static void 		(**vsd_destructor)(void *);
 		}							\
 	}								\
 }
+#else	/* KSTAT_DISABLE */
+
+#define	VOPSTATS_UPDATE(vp, counter)
+#define	VOPSTATS_UPDATE_IO(vp, counter, bytecounter, bytesval)
+#endif	/* !KSTAT_DISABLE */
 
 /*
  * If the filesystem does not support XIDs map credential
@@ -391,6 +402,7 @@ xva_getxoptattr(xvattr_t *xvap)
 	return (xoap);
 }
 
+#ifndef KSTAT_DISABLE
 /*
  * Used by the AVL routines to compare two vsk_anchor_t structures in the tree.
  * We use the f_fsid reported by VFS_STATVFS() since we use that for the
@@ -682,6 +694,7 @@ get_vskstat_anchor(vfs_t *vfsp)
 	}
 	return (vskp);
 }
+#endif /* !KSTAT_DISABLE */
 
 /*
  * We're in the process of tearing down the vfs and need to cleanup
@@ -691,6 +704,7 @@ get_vskstat_anchor(vfs_t *vfsp)
 void
 teardown_vopstats(vfs_t *vfsp)
 {
+#ifndef KSTAT_DISABLE
 	vsk_anchor_t	*vskap;
 	avl_index_t	where;
 
@@ -717,6 +731,7 @@ teardown_vopstats(vfs_t *vfsp)
 	mutex_exit(&vskstat_tree_lock);
 
 	kmem_cache_free(vsk_anchor_cache, vskap);
+#endif /* !KSTAT_DISABLE */
 }
 
 /*
@@ -1896,7 +1911,11 @@ vn_compare(vnode_t *vp1, vnode_t *vp2)
  * The number of locks to hash into.  This value must be a power
  * of 2 minus 1 and should probably also be prime.
  */
+#ifdef	VNODE_NUM_BUCKETS
+#define	NUM_BUCKETS	(VNODE_NUM_BUCKETS - 1)
+#else
 #define	NUM_BUCKETS	1023
+#endif	/* VNODE_NUM_BUCKETS */
 
 struct  vn_vfslocks_bucket {
 	kmutex_t vb_lock;
@@ -2361,6 +2380,7 @@ vn_free(vnode_t *vp)
 	kmem_cache_free(vn_cache, vp);
 }
 
+#ifndef FEM_DISABLE
 /*
  * vnode status changes, should define better states than 1, 0.
  */
@@ -2494,6 +2514,7 @@ vnevent_mountedover(vnode_t *vp, caller_context_t *ct)
 	}
 	(void) VOP_VNEVENT(vp, VE_MOUNTEDOVER, NULL, NULL, ct);
 }
+#endif	/* FEM_DISABLE */
 
 /*
  * Vnode accessors.
@@ -3288,12 +3309,16 @@ fop_lookup(
 
 	VOPXID_MAP_CR(dvp, cr);
 
+#ifndef NEA_DISABLE
 	if ((flags & LOOKUP_XATTR) && (flags & LOOKUP_HAVE_SYSATTR_DIR) == 0) {
 		ret = xattr_dir_lookup(dvp, vpp, flags, cr);
 	} else {
+#endif	/* NEA_DISABLE */
 		ret = (*(dvp)->v_op->vop_lookup)
 		    (dvp, nm, vpp, pnp, flags, rdir, cr, ct, deflags, ppnp);
+#ifndef NEA_DISABLE
 	}
+#endif	/* NEA_DISABLE */
 	if (ret == 0 && *vpp) {
 		VOPSTATS_UPDATE(*vpp, lookup);
 		if ((*vpp)->v_path == NULL) {
@@ -4063,6 +4088,7 @@ fop_vnevent(vnode_t *vp, vnevent_t vnevent, vnode_t *dvp, char *fnm,
 	return (err);
 }
 
+#ifndef VSD_DISABLE
 /*
  * Default destructor
  *	Needed because NULL destructor means that the key is unused
@@ -4321,3 +4347,4 @@ vsd_realloc(void *old, size_t osize, size_t nsize)
 	}
 	return (new);
 }
+#endif	/* VSD_DISABLE */

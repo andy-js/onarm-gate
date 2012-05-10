@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/stropts.h>
@@ -2034,9 +2038,11 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 			return (ENOTSUP);
 		err = nvs_native(&nvs, nvl, buf, buflen);
 		break;
+#if !defined(__ARM_INIT)
 	case NV_ENCODE_XDR:
 		err = nvs_xdr(&nvs, nvl, buf, buflen);
 		break;
+#endif
 	default:
 		err = ENOTSUP;
 		break;
@@ -2524,6 +2530,7 @@ nvs_native(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 	return (err);
 }
 
+#if !defined(__ARM_INIT)
 /*
  * XDR encoding functions
  *
@@ -3003,3 +3010,4 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 
 	return (err);
 }
+#endif  /* __ARM_INIT */

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -42,6 +46,7 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{NULL,			NULL,			0,	"uncompressed"},
 	{lzjb_compress,		lzjb_decompress,	0,	"lzjb"},
 	{NULL,			NULL,			0,	"empty"},
+#ifndef ZFS_COMPACT
 	{gzip_compress,		gzip_decompress,	1,	"gzip-1"},
 	{gzip_compress,		gzip_decompress,	2,	"gzip-2"},
 	{gzip_compress,		gzip_decompress,	3,	"gzip-3"},
@@ -51,6 +56,7 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{gzip_compress,		gzip_decompress,	7,	"gzip-7"},
 	{gzip_compress,		gzip_decompress,	8,	"gzip-8"},
 	{gzip_compress,		gzip_decompress,	9,	"gzip-9"},
+#endif	/* ZFS_COMPACT */
 };
 
 uint8_t

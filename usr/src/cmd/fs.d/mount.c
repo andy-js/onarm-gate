@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.82	*/
 
 #include	<stdio.h>
@@ -53,6 +57,9 @@
 #include	<sys/conf.h>
 #include	<locale.h>
 #include	"fslib.h"
+#ifdef MNTFS_DISABLE
+#include	<sys/sysmacros.h>
+#endif	/* MNTFS_DISABLE */
 
 #define	VFS_PATH	"/usr/lib/fs"
 #define	ALT_PATH	"/etc/fs"
@@ -599,14 +606,36 @@ print_mnttab(int vflg, int pflg)
 	char	time_buf[TIME_MAX];	/* array to hold date and time */
 	struct extmnttab	mget;
 	time_t	ltime;
+#ifdef MNTFS_DISABLE
+	struct mnttab	gmtab;
+#endif	/* MNTFS_DISABLE */
 
 	if ((fd = fopen(mnttab, "r")) == NULL) {
 		fprintf(stderr, gettext("%s: Cannot open mnttab\n"), myname);
 		exit(1);
 	}
 	rfp = fopen(REMOTE, "r");
+#ifndef MNTFS_DISABLE
 	while ((ret = getextmntent(fd, &mget, sizeof (struct extmnttab)))
 	    == 0) {
+#else
+	while ((ret = getmntent(fd, &gmtab)) == 0) {
+		struct stat64 msb;
+
+		if (stat64(gmtab.mnt_mountp, &msb) == -1) {
+			fprintf(stderr,
+			    gettext("%s: Cannot stat mnttab\n"), myname);
+			exit(2);
+		}
+		mget.mnt_special = gmtab.mnt_special;
+		mget.mnt_mountp = gmtab.mnt_mountp;
+		mget.mnt_fstype = gmtab.mnt_fstype;
+		mget.mnt_mntopts = gmtab.mnt_mntopts;
+		mget.mnt_time = gmtab.mnt_time;
+		mget.mnt_major = (uint_t) major(msb.st_dev);
+		mget.mnt_minor = (uint_t) minor(msb.st_dev);
+
+#endif	/* MNTFS_DISABLE */
 		if (ignore(mget.mnt_mntopts))
 			continue;
 		if (mget.mnt_special && mget.mnt_mountp &&

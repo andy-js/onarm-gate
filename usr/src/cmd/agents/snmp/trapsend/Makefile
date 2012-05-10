@@ -25,9 +25,15 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 include ../../Makefile.vars
 
 include $(SRC)/cmd/Makefile.cmd
+
+$(ARM_BLD)TARGET_ARCH	= -arm
 
 #
 # In order to conform with the Solaris 2.6 way of packaging things,

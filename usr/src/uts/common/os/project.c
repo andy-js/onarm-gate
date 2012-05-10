@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/project.h>
@@ -908,13 +912,23 @@ project_init(void)
 	rc_project_shmmni = rctl_register("project.max-shm-ids",
 	    RCENTITY_PROJECT, RCTL_GLOBAL_DENY_ALWAYS | RCTL_GLOBAL_NOBASIC |
 	    RCTL_GLOBAL_COUNT, IPC_IDS_MAX, IPC_IDS_MAX, &project_shmmni_ops);
+#ifdef	SHMMNI
+	rctl_add_default_limit("project.max-shm-ids", SHMMNI,
+			       RCPRIV_PRIVILEGED, RCTL_LOCAL_DENY);
+#else	/* !SHMMNI */
 	rctl_add_legacy_limit("project.max-shm-ids", "shmsys",
 	    "shminfo_shmmni", 128, IPC_IDS_MAX);
+#endif	/* SHMMNI */
 
 	rc_project_shmmax = rctl_register("project.max-shm-memory",
 	    RCENTITY_PROJECT, RCTL_GLOBAL_DENY_ALWAYS | RCTL_GLOBAL_NOBASIC |
 	    RCTL_GLOBAL_BYTES, UINT64_MAX, UINT64_MAX, &project_shmmax_ops);
 
+#if	defined(SHMMAX) && defined(SHMMNI)
+	check = B_TRUE;
+	shmmni = (rctl_qty_t)SHMMNI;
+	shmmax = (rctl_qty_t)SHMMAX;
+#else	/* !(defined(SHMMAX) && defined(SHMMNI)) */
 	check = B_FALSE;
 	if (!mod_sysvar("shmsys", "shminfo_shmmni", &shmmni))
 		shmmni = 100;
@@ -924,6 +938,7 @@ project_init(void)
 		shmmax = 0x800000;
 	else
 		check = B_TRUE;
+#endif	/* defined(SHMMAX) && defined(SHMMNI) */
 
 	/*
 	 * Default to a quarter of the machine's memory

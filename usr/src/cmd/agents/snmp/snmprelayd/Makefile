@@ -26,12 +26,18 @@
 # snmp/snmprelayd/Makefile
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 include ../../Makefile.vars
 
 MANIFEST = snmpdx.xml
 SVCMETHOD = svc-snmpdx
 
 include $(SRC)/cmd/Makefile.cmd
+
+$(ARM_BLD)TARGET_ARCH	= -arm
 
 #
 # In order to conform with the Solaris 2.6 way of packaging things,

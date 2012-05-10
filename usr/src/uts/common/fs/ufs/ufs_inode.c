@@ -36,6 +36,9 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -174,6 +177,7 @@ ufs_inode_kstat_update(kstat_t *ksp, int rw)
 void
 ufs_iinit(void)
 {
+	int     i;
 	/*
 	 * Validate that ufs_HW > ufs_LW.
 	 * The default values for these two tunables have been increased.
@@ -226,6 +230,22 @@ ufs_iinit(void)
 	 */
 	ufs_thread_init(&ufs_idle_q, ufs_idle_max);
 	ufs_thread_start(&ufs_idle_q, ufs_thread_idle, NULL);
+
+	ufs_niqhash = (ufs_idle_q.uq_lowat >> 1) / IQHASHQLEN;
+	ufs_niqhash = 1 << highbit(ufs_niqhash); /* round up to power of 2 */
+	ufs_iqhashmask = ufs_niqhash - 1;
+	ufs_junk_iq = kmem_alloc(ufs_niqhash * sizeof (*ufs_junk_iq),
+	    KM_SLEEP);
+	ufs_useful_iq = kmem_alloc(ufs_niqhash * sizeof (*ufs_useful_iq),
+	    KM_SLEEP);
+
+	/* Initialize hash queue headers */
+	for (i = 0; i < ufs_niqhash; i++) {
+		ufs_junk_iq[i].i_freef = (inode_t *)&ufs_junk_iq[i];
+		ufs_junk_iq[i].i_freeb = (inode_t *)&ufs_junk_iq[i];
+		ufs_useful_iq[i].i_freef = (inode_t *)&ufs_useful_iq[i];
+		ufs_useful_iq[i].i_freeb = (inode_t *)&ufs_useful_iq[i];
+	}
 
 	/*
 	 * global hlock thread

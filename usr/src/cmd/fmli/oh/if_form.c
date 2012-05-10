@@ -28,6 +28,9 @@
 /*	Copyright (c) 1984, 1985, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -192,6 +195,8 @@ static int objform_stream();
 static int fld_ck();
 static int is_valid();
 static struct fm_mn parse_form();
+
+static int chk_page();
 
 static struct actrec *Cur_rec;		/* current activation record */
 static char *Equal = "=";
@@ -989,7 +994,6 @@ chk_form()
 {
     register int n, page, fldnum;
     int savefield, savepage, retval;
-    static int chk_page();
 
     /*
      * Save current form page/field

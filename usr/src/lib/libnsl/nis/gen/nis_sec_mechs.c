@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -42,7 +46,9 @@
 #include <sys/file.h>
 #include <thread.h>
 #include <synch.h>
+#ifndef STATIC_LINK
 #include <dlfcn.h>
+#endif
 #include <rpcsvc/nis_dhext.h>
 
 
@@ -1110,6 +1116,9 @@ __nis_get_mechanism_symbol(keylen_t keylen,
 				const char *symname)
 
 {
+#ifdef STATIC_LINK
+	return (NULL);
+#else /* STATIC_LINK */
 	void *handle;
 	char libname[MAXDHNAME+1];
 	char libpath[MAXPATHLEN+1];
@@ -1127,4 +1136,5 @@ __nis_get_mechanism_symbol(keylen_t keylen,
 		return (NULL);
 
 	return (dlsym(handle, symname));
+#endif /* STATIC_LINK */
 }

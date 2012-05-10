@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/socket.h>
@@ -47,7 +51,9 @@
 #include "sctp_addr.h"
 
 /* Default association hash size.  The size must be a power of 2. */
+#ifndef SCTP_CONN_HASH_SIZE
 #define	SCTP_CONN_HASH_SIZE	8192
+#endif
 
 uint_t		sctp_conn_hash_size = SCTP_CONN_HASH_SIZE; /* /etc/system */
 

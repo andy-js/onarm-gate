@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <syslog.h>
@@ -35,6 +39,7 @@
 #include <libintl.h>
 
 static int parse_allow_name(char *, char *);
+static char *getname(char *, char *);
 
 /*
  * pam_sm_acct_mgmt	main account managment routine.
@@ -110,7 +115,6 @@ static int
 parse_allow_name(char *who, char *cp)
 {
 	char name[256];
-	static char *getname();
 
 	/* catch "allow=" */
 	if (*cp == '\0')

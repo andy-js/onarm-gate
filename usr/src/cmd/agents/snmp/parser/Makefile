@@ -24,6 +24,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 ##############################################
 #
 # Makefile for parser
@@ -37,6 +41,8 @@
 include ../../Makefile.vars
 
 include $(SRC)/cmd/Makefile.cmd
+
+$(ARM_BLD)TARGET_ARCH	= -arm
 
 TARGET=	mibcodegen
 

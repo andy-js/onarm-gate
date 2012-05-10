@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -230,13 +234,14 @@ pc_rele(struct pcnode *pcp)
 	pcp->pc_flags |= PC_RELEHOLD;
 
 retry:
-	if (vp->v_type != VDIR && (pcp->pc_flags & PC_INVAL) == 0) {
+	if (!(pcp->pc_flags & PC_INVAL)) {
 		/*
 		 * If the file was removed while active it may be safely
 		 * truncated now.
 		 */
 
-		if (pcp->pc_entry.pcd_filename[0] == PCD_ERASED) {
+		if (vp->v_type != VDIR &&
+		    pcp->pc_entry.pcd_filename[0] == PCD_ERASED) {
 			(void) pc_truncate(pcp, 0);
 		} else if (pcp->pc_flags & PC_CHG) {
 			(void) pc_nodeupdate(pcp);
@@ -533,13 +538,10 @@ pc_nodeupdate(struct pcnode *pcp)
 
 	vp = PCTOV(pcp);
 	fsp = VFSTOPCFS(vp->v_vfsp);
-	if (IS_FAT32(fsp) && (vp->v_flag & VROOT)) {
+	if (vp->v_flag & VROOT) {
 		/* no node to update */
 		pcp->pc_flags &= ~(PC_CHG | PC_MOD | PC_ACC);
 		return (0);
-	}
-	if (vp->v_flag & VROOT) {
-		panic("pc_nodeupdate");
 	}
 	if (pcp->pc_flags & PC_INVAL)
 		return (0);

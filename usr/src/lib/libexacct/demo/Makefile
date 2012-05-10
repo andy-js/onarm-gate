@@ -28,9 +28,17 @@
 # lib/libexacct/demo/Makefile
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 PROG = exdump
 
 include ../../../cmd/Makefile.cmd
+
+# Do not build exdump on ARM build.
+$(ARM_BLD)PROG	=
+$(ARM_BLD)CLOBBERFILES	+= exdump
 
 LDLIBS += -lexacct -lproject -lsocket -lnsl
 CFLAGS += $(CCVERBOSE)

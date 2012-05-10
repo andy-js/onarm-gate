@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <errno.h>
@@ -257,6 +261,9 @@ static int pool_xml_parse_document(pool_conf_t *);
 void
 xml_init()
 {
+#if defined(__COMPACTION)
+	return;
+#else
 	(void) mutex_lock(&_xml_lock);
 	if (_libpool_xml_initialised == PO_TRUE) {
 		(void) mutex_unlock(&_xml_lock);
@@ -278,6 +285,7 @@ xml_init()
 	build_dtype_accelerator();
 	_libpool_xml_initialised = PO_TRUE;
 	(void) mutex_unlock(&_xml_lock);
+#endif /* __COMPACTION */
 }
 
 /*
@@ -314,6 +322,9 @@ get_unique_id(xmlNodePtr node, char *id)
 xmlNodePtr
 node_create(xmlNodePtr parent, const xmlChar *name)
 {
+#if defined(__COMPACTION)
+	return (NULL);
+#else
 	xmlNodePtr node;
 
 	if (parent == NULL)
@@ -321,6 +332,7 @@ node_create(xmlNodePtr parent, const xmlChar *name)
 	else
 		node = xmlNewChild(parent, NULL, name, NULL);
 	return (node);
+#endif /* __COMPACTION */
 }
 
 /*
@@ -650,6 +662,9 @@ pool_xml_get_attr(xmlNodePtr node, xmlChar *name, pool_value_t *value)
 int
 pool_xml_set_attr(xmlNodePtr node, xmlChar *name, const pool_value_t *value)
 {
+#if defined(__COMPACTION)
+	return (PO_FAIL);
+#else
 	xmlChar buf[MAX_PROP_SIZE] = {0};
 	uint64_t ures;
 	int64_t ires;
@@ -713,6 +728,7 @@ pool_xml_set_attr(xmlNodePtr node, xmlChar *name, const pool_value_t *value)
 		return (PO_FAIL);
 	}
 	return (PO_SUCCESS);
+#endif /* __COMPACTION */
 }
 
 /*
@@ -823,6 +839,9 @@ pool_xml_get_prop(xmlNodePtr node, xmlChar *name, pool_value_t *value)
 int
 pool_xml_set_prop(xmlNodePtr node, xmlChar *name, const pool_value_t *value)
 {
+#if defined(__COMPACTION)
+	return (PO_FAIL);
+#else
 /* First check if we have a property with this name (and type???). */
 	xmlXPathContextPtr ctx;
 	xmlXPathObjectPtr path;
@@ -921,6 +940,7 @@ pool_xml_set_prop(xmlNodePtr node, xmlChar *name, const pool_value_t *value)
 	xmlXPathFreeObject(path);
 	xmlXPathFreeContext(ctx);
 	return (PO_SUCCESS);
+#endif /* __COMPACTION */
 }
 
 /*
@@ -1608,6 +1628,9 @@ pool_xml_elem_create(pool_conf_t *conf, pool_elem_class_t class,
 int
 pool_xml_connection_alloc(pool_conf_t *conf, int oflags)
 {
+#if defined(__COMPACTION)
+	return (PO_FAIL);
+#else
 	pool_xml_connection_t *prov;
 
 	xml_init();
@@ -1677,6 +1700,7 @@ pool_xml_connection_alloc(pool_conf_t *conf, int oflags)
 	}
 
 	return (PO_SUCCESS);
+#endif /* __COMPACTION */
 }
 
 /*

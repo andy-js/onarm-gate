@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -27,6 +27,10 @@
  * Copyright (c) 1980 Regents of the University of California.
  * All rights reserved. The Berkeley software License Agreement
  * specifies the terms and conditions for redistribution.
+ */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
  */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
@@ -125,7 +129,7 @@ pc_tvtopct(
 		/*
 		 * "before beginning of all time" for DOS ...
 		 */
-		return (EOVERFLOW);
+		unixtime = 0;
 	}
 	for (year = YEAR_ZERO; unixtime >= days_in_year(year) * 86400;
 	    year++)
@@ -221,14 +225,14 @@ pc_pcttotv(
 	*unixtime = (int64_t)sec;
 	*unixtime += 60 * (int64_t)min;
 	*unixtime += 3600 * (int64_t)hour;
-	*unixtime += 86400 * (int64_t)day;
+	*unixtime += 86400 * (int64_t)(day -1);
 	while (month > 1) {
 		month--;
 		*unixtime += 86400 * (int64_t)days_in_month(month, year);
 	}
 	while (year > YEAR_ZERO) {
-		*unixtime += 86400 * (int64_t)days_in_year(year);
 		year--;
+		*unixtime += 86400 * (int64_t)days_in_year(year);
 	}
 	/*
 	 * For FAT, the beginning of all time is 01/01/1980,
@@ -300,35 +304,47 @@ pc_valid_long_fn(char *namep, int utf8)
 int
 pc_fname_ext_to_name(char *namep, char *fname, char *ext, int foldcase)
 {
-	int	i;
+	int	i, state_multibyte = 0;
 	char	*tp = namep;
 	char	c;
 
 	i = PCFNAMESIZE;
 	while (i-- && ((c = *fname) != ' ')) {
-		if (!(c == '.' || pc_validchar(c))) {
+		if (state_multibyte) {
+			state_multibyte = 0;
+		} else if (pc_is_cp932mb1st(c)) {
+			state_multibyte = 1;
+		} else if (!(c == '.' || pc_validchar(c))) {
 			return (-1);
+		} else if (foldcase) {
+			c = tolower(c);
 		}
-		if (foldcase)
-			*tp++ = tolower(c);
-		else
-			*tp++ = c;
+		*tp++ = c;
 		fname++;
 	}
+	if (state_multibyte)
+		return (-1);
+
 	if (*ext != ' ') {
 		*tp++ = '.';
 		i = PCFEXTSIZE;
 		while (i-- && ((c = *ext) != ' ')) {
-			if (!pc_validchar(c)) {
+			if (state_multibyte) {
+				state_multibyte = 0;
+			} else if (pc_is_cp932mb1st(c)) {
+				state_multibyte = 1;
+			} else if (!pc_validchar(c)) {
 				return (-1);
+			} else if (foldcase) {
+				c = tolower(c);
 			}
-			if (foldcase)
-				*tp++ = tolower(c);
-			else
-				*tp++ = c;
+			*tp++ = c;
 			ext++;
 		}
 	}
+	if (state_multibyte)
+		return (-1);
+
 	*tp = '\0';
 	return (0);
 }

@@ -25,6 +25,11 @@
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
+
+#
+# Copyright (c) 2006-2007 NEC Corporation
+#
+
 #
 # Based on the nightly script from the integration folks,
 # Mostly modified and owned by mike_s.
@@ -58,6 +63,8 @@
 # under certain circumstances, which can really screw things up; unset it.
 #
 unset CDPATH
+USE_WS_TOOLS=#;		export USE_WS_TOOLS
+USE_UTSTUNE=#;		export USE_UTSTUNE
 
 #
 # Print the tag string used to identify a build (e.g., "DEBUG
@@ -803,6 +810,17 @@ build_tools() {
 	/bin/time $MAKE ROOT=${DESTROOT} -e install 2>&1 | \
 	    tee -a ${TOOLS}/${INSTALLOG}.out >> $LOGFILE
 
+	if [ "$USE_UTSTUNE" != "#" ]; then
+	    # Setup utstune parameter database.
+	    cd $SRC/uts
+	    if [ "$F_FLAG" != "n" ]; then
+		unset RELEASE_BUILD
+	    fi
+	    USE_UTSTUNE= $MAKE -e tune-setup 2>&1 | \
+		tee -a ${TOOLS}/${INSTALLOG}.out >> $LOGFILE
+	    cd $TOOLS
+	fi
+
 	echo "\n==== Tools build errors ====\n" >> $mail_msg_file
 
 	egrep ":" ${TOOLS}/${INSTALLOG}.out |
@@ -1131,6 +1149,7 @@ LC_MESSAGES=C;	export LC_MESSAGES
 LC_MONETARY=C;	export LC_MONETARY
 LC_NUMERIC=C;	export LC_NUMERIC
 LC_TIME=C;	export LC_TIME
+LANG=C;		export LANG
 
 # clear environment variables we know to be bad for the build
 unset LD_OPTIONS
@@ -1142,6 +1161,7 @@ unset LD_DEBUG		LD_DEBUG_32		LD_DEBUG_64
 unset LD_DEMANGLE	LD_DEMANGLE_32		LD_DEMANGLE_64
 unset LD_FLAGS		LD_FLAGS_32		LD_FLAGS_64
 unset LD_LIBRARY_PATH	LD_LIBRARY_PATH_32	LD_LIBRARY_PATH_64
+unset LD_RUN_PATH	LD_RUN_PATH_32		LD_RUN_PATH_64
 unset LD_LOADFLTR	LD_LOADFLTR_32		LD_LOADFLTR_64
 unset LD_NOAUDIT	LD_NOAUDIT_32		LD_NOAUDIT_64
 unset LD_NOAUXFLTR	LD_NOAUXFLTR_32		LD_NOAUXFLTR_64
@@ -1172,6 +1192,7 @@ if [ -f /etc/nightly.conf ]; then
 fi    
 
 if [ -f $1 ]; then
+	CONFFILE=$1
 	if [[ $1 = */* ]]; then
 		. $1
 	else
@@ -1179,6 +1200,7 @@ if [ -f $1 ]; then
 	fi
 else
 	if [ -f $OPTHOME/onbld/env/$1 ]; then
+		CONFFILE=/opt/onbld/env/$1
 		. $OPTHOME/onbld/env/$1
 	else
 		echo "Cannot find env file as either $1 or $OPTHOME/onbld/env/$1"
@@ -1189,6 +1211,15 @@ fi
 # contents of stdenv.sh inserted after next line:
 # STDENV_START
 # STDENV_END
+
+STAMPFILES="initenv.sh VERSION"
+for stamp in $STAMPFILES; do
+	if [ "$CODEMGR_WS/$stamp" -nt $CONFFILE ]; then
+		echo "\"$CONFFILE\" is too old."
+		echo "Type \"./initenv.sh\" under \"$CODEMGR_WS\" and try again."
+		exit 1
+	fi
+done
 
 #
 # place ourselves in a new task, respecting BUILD_PROJECT if set.
@@ -1924,8 +1955,9 @@ else
 	exit 1
 fi
 
-( cd $srcroot
-  for target in cc-version cc64-version java-version; do
+if [ "$USE_WS_TOOLS" = "#" ]; then
+    ( cd $srcroot
+      for target in cc-version cc64-version java-version; do
 	echo
 	#
 	# Put statefile somewhere we know we can write to rather than trip
@@ -1937,9 +1969,10 @@ fi
 		continue
 	fi
 	touch $TMPDIR/nocompiler
-  done
-  echo
-) | tee -a $mail_msg_file >> $LOGFILE
+      done
+      echo
+      ) | tee -a $mail_msg_file >> $LOGFILE
+fi
 
 if [ -f $TMPDIR/nocompiler ]; then
 	rm -f $TMPDIR/nocompiler
@@ -1993,6 +2026,17 @@ fi
 #
 if [ "$i_FLAG" = "n" -a -d "$SRC" ]; then
 	echo "\n==== Make clobber at `date` ====\n" >> $LOGFILE
+
+	if [ "$USE_WS_TOOLS" != "#" ]; then
+	    # Build tools may be required by make clobber.
+	    export INTERNAL_RELEASE_BUILD ; INTERNAL_RELEASE_BUILD=
+	    export RELEASE_BUILD ; RELEASE_BUILD=
+	    unset EXTRA_OPTIONS
+	    unset EXTRA_CFLAGS
+
+	    export ONBLD_TOOLS=${ONBLD_TOOLS:=${TOOLS_PROTO}/opt/onbld}
+	    build_tools ${TOOLS_PROTO}
+	fi
 
 	cd $SRC
 	# remove old clobber file

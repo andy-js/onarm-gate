@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/kmem.h>
@@ -45,7 +49,11 @@ static void brand_plat_interposition_disable(void);
 struct brand_mach_ops native_mach_ops  = {
 		NULL, NULL
 };
-#else /* !__sparcv9 */
+#elif defined(__arm)
+struct brand_mach_ops native_mach_ops  = {
+	NULL, NULL
+};
+#else /* !__sparcv9 && !__arm */
 struct brand_mach_ops native_mach_ops  = {
 		NULL, NULL, NULL, NULL, NULL, NULL
 };

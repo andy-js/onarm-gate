@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef _INET_SCTP_IP_H
 #define	_INET_SCTP_IP_H
@@ -99,6 +102,10 @@ extern void sctp_ire_cache_flush(ipif_t *);
  * than 2^16.
  */
 #define	SCTP_IOC_DEFAULT_Q	(('S' << 16) | 1024)
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <inet/sctp_ip_impl.h>
+#endif /* defined(_KERNEL_BUILD_TREE) */
 
 #ifdef __cplusplus
 }

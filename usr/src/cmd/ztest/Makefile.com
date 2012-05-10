@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG= ztest
 SRCS= ../$(PROG).c
 
@@ -33,6 +37,7 @@ include ../../Makefile.cmd
 
 INCS += -I../../../lib/libzpool/common 
 INCS += -I../../../uts/common/fs/zfs 
+INCS += -I../../../common/zfs
 
 LDLIBS += -lumem -lzpool -lm -lnvpair
 

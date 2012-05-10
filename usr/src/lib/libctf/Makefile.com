@@ -22,6 +22,10 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2007 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -49,7 +53,7 @@ include ../../Makefile.lib
 include ../../Makefile.rootfs
 
 SRCS = $(COMMON_OBJS:%.o=../../../common/ctf/%.c) $(LIB_OBJS:%.o=../common/%.c)
-LIBS = $(DYNLIB) $(LINTLIB)
+LIBS = $(ARLIB) $(DYNLIB) $(LINTLIB)
 
 SRCDIR = ../common
 

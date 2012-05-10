@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef _FLOAT_H
 #define	_FLOAT_H
 
@@ -99,13 +103,24 @@ extern int __flt_rounds;
 	(!defined(_STRICT_STDC) && !defined(__XOPEN_OR_POSIX))
 #if defined(__sparc)
 #define	DECIMAL_DIG	36
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 #define	DECIMAL_DIG	21
 #endif
 #endif /* defined(__EXTENSIONS__) || defined(_STDC_C99)... */
 
+#if defined(__arm)
 
-#if defined(__i386) || defined(__amd64)
+#define LDBL_MANT_DIG   DBL_MANT_DIG 
+#define LDBL_EPSILON    DBL_EPSILON 
+#define LDBL_DIG        DBL_DIG 
+#define LDBL_MIN_EXP    DBL_MIN_EXP 
+#define LDBL_MIN        DBL_MIN 
+#define LDBL_MIN_10_EXP DBL_MIN_10_EXP 
+#define LDBL_MAX_EXP    DBL_MAX_EXP 
+#define LDBL_MAX        DBL_MAX 
+#define LDBL_MAX_10_EXP DBL_MAX_10_EXP 
+
+#elif defined(__i386) || defined(__amd64) 
 
 /* Follows IEEE standards for 80-bit floating point */
 #define	LDBL_MANT_DIG	64

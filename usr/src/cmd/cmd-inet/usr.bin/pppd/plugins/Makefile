@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 MINCONN =	minconn.so
 PASSPROMPT = 	passprompt.so
 PPPOE =		pppoe.so
@@ -51,6 +55,12 @@ HSONAME=
 $(MINCONN):=	MAPFILES = mapfile-minconn
 $(PASSPROMPT):=	MAPFILES = mapfile-passprompt
 $(PPPOE):=	MAPFILES = mapfile-pppoe
+
+# -zdefs must not be passed to GNU ld because it can't use Solaris ld's
+# mapfile.
+$(__GNULD)$(MINCONN)	:= ZDEFS =
+$(__GNULD)$(PASSPROMPT)	:= ZDEFS =
+$(__GNULD)$(PPPOE)	:= ZDEFS =
 
 # A bug in pmake causes redundancy when '+=' is conditionally assigned, so
 # '=' is used with extra variables.

@@ -36,6 +36,9 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -89,10 +92,12 @@
 
 #include <fs/fs_subr.h>
 
+#ifndef KSTAT_DISABLE
 /* Private interfaces to create vopstats-related data structures */
 extern void		initialize_vopstats(vopstats_t *);
 extern vopstats_t	*get_fstype_vopstats(struct vfs *, struct vfssw *);
 extern vsk_anchor_t	*get_vskstat_anchor(struct vfs *);
+#endif	/* !KSTAT_DISABLE */
 
 static void vfs_clearmntopt_nolock(mntopts_t *, const char *, int);
 static void vfs_setmntopt_nolock(mntopts_t *, const char *,
@@ -530,6 +535,7 @@ vfs_init(vfs_t *vfsp, vfsops_t *op, void *data)
 void
 vfsimpl_setup(vfs_t *vfsp)
 {
+#if !defined(FEM_DISABLE) || !defined(KSTAT_DISABLE)
 	int i;
 
 	if (vfsp->vfs_implp != NULL) {
@@ -546,6 +552,7 @@ vfsimpl_setup(vfs_t *vfsp)
 	for (i = 1; i <  VFS_FEATURE_MAXSZ; i++) {
 		vfsp->vfs_featureset[i] = 0;
 	}
+#endif	/* !FEM_DISABLE && !KSTAT_DISABLE */
 }
 
 /*
@@ -691,6 +698,9 @@ vfs_mountdevices(void)
 	VN_RELE(devicesdir);
 }
 
+#ifdef	__arm
+#define	vfs_mountdev1()		/* ARM Solaris doesn't use /dev filesystem. */
+#else	/* !__arm */
 /*
  * mount the first instance of /dev  to root and remain mounted
  */
@@ -768,6 +778,7 @@ vfs_mountdev1(void)
 	vfs_unlock(&dev);
 	VN_RELE(devdir);
 }
+#endif	/* __arm */
 
 /*
  * Mount required filesystem. This is done right after root is mounted.
@@ -794,6 +805,95 @@ vfs_mountfs(char *module, char *spec, char *path)
 	VN_RELE(mvp);
 }
 
+#if VFS_TMP_SIZE || VFS_VAR_RUN_SIZE || VFS_ETC_SVC_VOLATILE_SIZE || \
+    VFS_TMP_INUM || VFS_VAR_RUN_INUM || VFS_ETC_SVC_VOLATILE_INUM 
+static void
+vfs_mountfs_opt(char *module, char *spec, char *path, char *optptr, int optlen)
+{
+	struct vnode *mvp;
+	struct mounta mounta;
+	vfs_t *vfsp;
+
+	mounta.flags = MS_SYSSPACE | MS_DATA | MS_OPTIONSTR;
+	mounta.fstype = module;
+	mounta.spec = spec;
+	mounta.dir = path;
+	mounta.optptr = optptr;
+	mounta.optlen = optlen;
+	if (lookupname(path, UIO_SYSSPACE, FOLLOW, NULLVPP, &mvp)) {
+		cmn_err(CE_WARN, "Cannot find %s\n", path);
+		return;
+	}
+	if (domount(NULL, &mounta, mvp, CRED(), &vfsp))
+		cmn_err(CE_WARN, "Cannot mount %s\n", path);
+	else
+		VFS_RELE(vfsp);
+	VN_RELE(mvp);
+}
+#endif
+
+/*
+ * Although this function should be static declaration originally,
+ * static was removed because it did not want to be built as inline.
+ */
+void
+vfs_mount_tmpfs()
+{
+#if VFS_TMP_SIZE || VFS_VAR_RUN_SIZE || VFS_ETC_SVC_VOLATILE_SIZE || \
+    VFS_TMP_INUM || VFS_VAR_RUN_INUM || VFS_ETC_SVC_VOLATILE_INUM
+	char optbuf[MAX_MNTOPT_STR];
+#endif
+
+#if VFS_ETC_SVC_VOLATILE_SIZE != -1
+#if VFS_ETC_SVC_VOLATILE_SIZE == 0 && VFS_ETC_SVC_VOLATILE_INUM == 0
+	vfs_mountfs("tmpfs", "/etc/svc/volatile", "/etc/svc/volatile");
+#else
+#if VFS_ETC_SVC_VOLATILE_INUM == 0
+	(void) sprintf(optbuf, "size=%dk", VFS_ETC_SVC_VOLATILE_SIZE);
+#elif VFS_ETC_SVC_VOLATILE_SIZE == 0
+	(void) sprintf(optbuf, "inum=%u", VFS_ETC_SVC_VOLATILE_INUM);
+#else
+	(void) sprintf(optbuf, "size=%dk,inum=%u", VFS_ETC_SVC_VOLATILE_SIZE,
+	    VFS_ETC_SVC_VOLATILE_INUM);
+#endif
+	vfs_mountfs_opt("tmpfs", "/etc/svc/volatile", "/etc/svc/volatile",
+	    optbuf, MAX_MNTOPT_STR);
+#endif
+#endif
+
+#if VFS_TMP_SIZE != -1
+#if VFS_TMP_SIZE == 0 && VFS_TMP_INUM == 0
+	vfs_mountfs("tmpfs", "/tmp", "/tmp");
+#else
+#if VFS_TMP_INUM == 0 
+	(void) sprintf(optbuf, "size=%dk", VFS_TMP_SIZE);
+#elif VFS_TMP_SIZE == 0
+	(void) sprintf(optbuf, "inum=%u", VFS_TMP_INUM);
+#else
+	(void) sprintf(optbuf, "size=%dk,inum=%u", VFS_TMP_SIZE, VFS_TMP_INUM);
+#endif
+	vfs_mountfs_opt("tmpfs", "/tmp", "/tmp", optbuf, MAX_MNTOPT_STR);
+#endif
+#endif
+
+#if VFS_VAR_RUN_SIZE != -1
+#if VFS_VAR_RUN_SIZE == 0 && VFS_VAR_RUN_INUM == 0
+	vfs_mountfs("tmpfs", "/var/run", "/var/run");
+#else
+#if VFS_VAR_RUN_INUM == 0
+	(void) sprintf(optbuf, "size=%dk", VFS_VAR_RUN_SIZE);
+#elif VFS_VAR_RUN_SIZE == 0
+	(void) sprintf(optbuf, "inum=%u", VFS_VAR_RUN_INUM);
+#else
+	(void) sprintf(optbuf, "size=%dk,inum=%u", VFS_VAR_RUN_SIZE,
+	    VFS_VAR_RUN_INUM);
+#endif
+	vfs_mountfs_opt("tmpfs", "/var/run", "/var/run", optbuf,
+	    MAX_MNTOPT_STR);
+#endif
+#endif
+}
+
 /*
  * vfs_mountroot is called by main() to mount the root filesystem.
  */
@@ -803,7 +903,9 @@ vfs_mountroot(void)
 	struct vnode	*rvp = NULL;
 	char		*path;
 	size_t		plen;
+#ifndef KSTAT_DISABLE
 	struct vfssw	*vswp;
+#endif	/* !KSTAT_DISABLE */
 
 	rw_init(&vfssw_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&vfslist, NULL, RW_DEFAULT, NULL);
@@ -852,6 +954,7 @@ vfs_mountroot(void)
 	 */
 	clboot_mountroot();
 
+#ifndef KSTAT_DISABLE
 	/* Now that we're all done with the root FS, set up its vopstats */
 	if ((vswp = vfs_getvfsswbyvfsops(vfs_getops(rootvfs))) != NULL) {
 		/* Set flag for statistics collection */
@@ -864,23 +967,35 @@ vfs_mountroot(void)
 		}
 		vfs_unrefvfssw(vswp);
 	}
+#endif	/* !KSTAT_DISABLE */
 
 	/*
 	 * Mount /devices, /dev instance 1, /system/contract, /etc/mnttab,
-	 * /etc/svc/volatile, /etc/dfs/sharetab, /system/object, and /proc.
+	 * /etc/svc/volatile, /etc/dfs/sharetab, /system/object, /proc,
+	 * /dev/fd, /tmp, and /var/run.
 	 */
 	vfs_mountdevices();
 	vfs_mountdev1();
 
+#ifndef	CONTRACT_DISABLE
 	vfs_mountfs("ctfs", "ctfs", CTFS_ROOT);
+#endif	/* CONTRACT_DISABLE */
 	vfs_mountfs("proc", "/proc", "/proc");
+#ifndef MNTFS_DISABLE
 	vfs_mountfs("mntfs", "/etc/mnttab", "/etc/mnttab");
-	vfs_mountfs("tmpfs", "/etc/svc/volatile", "/etc/svc/volatile");
-	vfs_mountfs("objfs", "objfs", OBJFS_ROOT);
+#endif	/* MNTFS_DISABLE */
 
+#ifndef OBJFS_DISABLE
+	vfs_mountfs("objfs", "objfs", OBJFS_ROOT);
+#endif	/* OBJFS_DISABLE */
+	vfs_mount_tmpfs();
+	vfs_mountfs("fd", "/dev/fd", "/dev/fd");
+
+#ifndef SHAREFS_DISABLE
 	if (getzoneid() == GLOBAL_ZONEID) {
 		vfs_mountfs("sharefs", "sharefs", "/etc/dfs/sharetab");
 	}
+#endif	/* SHAREFS_DISABLE */
 
 #ifdef __sparc
 	/*
@@ -1561,6 +1676,7 @@ domount(char *fsname, struct mounta *uap, vnode_t *vp, struct cred *credp,
 			}
 		}
 
+#ifndef KSTAT_DISABLE
 		/*
 		 * If this isn't a remount, set up the vopstats before
 		 * anyone can touch this. We only allow spliced file
@@ -1584,6 +1700,7 @@ domount(char *fsname, struct mounta *uap, vnode_t *vp, struct cred *credp,
 			vfsp->vfs_flag |= VFS_STATS;
 			vfsp->vfs_fstypevsp = get_fstype_vopstats(vfsp, vswp);
 		}
+#endif	/* !KSTAT_DISABLE */
 
 		if (vswp->vsw_flag & VSW_XID)
 			vfsp->vfs_flag |= VFS_XID;
@@ -1595,6 +1712,7 @@ domount(char *fsname, struct mounta *uap, vnode_t *vp, struct cred *credp,
 		vn_vfsunlock(vp);
 
 	if ((error == 0) && (copyout_error == 0)) {
+#ifndef KSTAT_DISABLE
 		if (!remount) {
 			/*
 			 * Don't call get_vskstat_anchor() while holding
@@ -1612,6 +1730,7 @@ domount(char *fsname, struct mounta *uap, vnode_t *vp, struct cred *credp,
 				vfs_unlock(vfsp);
 			}
 		}
+#endif	/* !KSTAT_DISABLE */
 		/* Return vfsp to caller. */
 		*vfspp = vfsp;
 	}
@@ -3975,8 +4094,10 @@ vfsinit(void)
 {
 	struct vfssw *vswp;
 	int error;
+#ifndef KSTAT_DISABLE
 	extern int vopstats_enabled;
 	extern void vopstats_startup();
+#endif	/* !KSTAT_DISABLE */
 
 	static const fs_operation_def_t EIO_vfsops_template[] = {
 		VFSNAME_MOUNT,		{ .error = vfs_EIO },
@@ -4045,6 +4166,7 @@ vfsinit(void)
 		RUNLOCK_VFSSW();
 	}
 
+#ifndef KSTAT_DISABLE
 	vopstats_startup();
 
 	if (vopstats_enabled) {
@@ -4054,6 +4176,7 @@ vfsinit(void)
 		EIO_vfs.vfs_vskap = NULL;
 		EIO_vfs.vfs_flag |= VFS_STATS;
 	}
+#endif	/* !KSTAT_DISABLE */
 
 	xattr_init();
 }
@@ -4261,7 +4384,7 @@ fs_default(void)
 	return (0);
 }
 
-#ifdef __sparc
+#if	defined(__sparc) || defined(USE_SWAPGENERIC)
 
 /*
  * Part of the implementation of booting off a mirrored root
@@ -4414,6 +4537,11 @@ vfs_set_feature(vfs_t *vfsp, vfs_feature_t feature)
 	/* Note that vfs_featureset[] is found in *vfsp->vfs_implp */
 	if (vfsp->vfs_implp == NULL)
 		return;
+
+#ifdef NEA_DISABLE
+	if (feature == VFSFT_XVATTR)
+		return;
+#endif	/* NEA_DISABLE */
 
 	vfsp->vfs_featureset[VFTINDEX(feature)] |= VFTBITS(feature);
 }

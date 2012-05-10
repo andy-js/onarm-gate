@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -53,6 +57,11 @@ e1000_tbi_adjust_stats(struct e1000g *Adapter,
 	struct e1000_hw *hw = &Adapter->shared;
 	uint32_t carry_bit;
 	p_e1000g_stat_t e1000g_ksp;
+
+	if ((Adapter->e1000g_ksp == NULL) ||
+		(Adapter->e1000g_ksp->ks_data == NULL)) {
+		return;
+	}
 
 	e1000g_ksp = (p_e1000g_stat_t)Adapter->e1000g_ksp->ks_data;
 
@@ -317,6 +326,11 @@ e1000g_m_stat(void *arg, uint_t stat, uint64_t *val)
 	struct e1000_hw *hw = &Adapter->shared;
 	p_e1000g_stat_t e1000g_ksp;
 	uint32_t low_val, high_val;
+
+	if ((Adapter->e1000g_ksp == NULL) ||
+		(Adapter->e1000g_ksp->ks_data == NULL)) {
+		return (0);
+	}
 
 	e1000g_ksp = (p_e1000g_stat_t)Adapter->e1000g_ksp->ks_data;
 
@@ -702,9 +716,8 @@ e1000g_init_stats(struct e1000g *Adapter)
 	    sizeof (e1000g_stat_t) / sizeof (kstat_named_t), 0);
 
 	if (ksp == NULL) {
-		e1000g_log(Adapter, CE_WARN,
-		    "Could not create kernel statistics\n");
-		return (DDI_FAILURE);
+		Adapter->e1000g_ksp = NULL;
+		return (DDI_SUCCESS);
 	}
 
 	Adapter->e1000g_ksp = ksp;	/* Fill in the Adapters ksp */

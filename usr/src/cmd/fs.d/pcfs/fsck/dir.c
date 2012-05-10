@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -149,7 +153,7 @@ appendToPath(struct pcdir *dp, char *thePath, int *theLen)
 		 *  end of the interesting characters in the name.
 		 */
 		if ((dp->pcd_filename[i] == ' ') ||
-		    !(pc_validchar(dp->pcd_filename[i])))
+		    !(pc_validchar((uchar_t)dp->pcd_filename[i])))
 			break;
 		*(thePath + (*theLen)++) = dp->pcd_filename[i++];
 	}
@@ -157,7 +161,7 @@ appendToPath(struct pcdir *dp, char *thePath, int *theLen)
 	 *  Leave now, if we don't have an extension (or room for one)
 	 */
 	if ((dp->pcd_ext[i] == ' ') || ((*theLen) >= MAXPATHLEN) ||
-	    (!(pc_validchar(dp->pcd_ext[i]))))
+	    (!(pc_validchar((uchar_t)dp->pcd_ext[i]))))
 		return;
 	/*
 	 *  Tack on the extension
@@ -165,7 +169,7 @@ appendToPath(struct pcdir *dp, char *thePath, int *theLen)
 	*(thePath + (*theLen)++) = '.';
 	i = 0;
 	while ((*theLen < MAXPATHLEN) && (i < PCFEXTSIZE)) {
-		if ((dp->pcd_ext[i] == ' ') || !(pc_validchar(dp->pcd_ext[i])))
+		if ((dp->pcd_ext[i] == ' ') || !(pc_validchar((uchar_t)dp->pcd_ext[i])))
 			break;
 		*(thePath + (*theLen)++) = dp->pcd_ext[i++];
 	}
@@ -177,13 +181,13 @@ printName(FILE *outDest, struct pcdir *dp)
 	int i;
 	for (i = 0; i < PCFNAMESIZE; i++) {
 		if ((dp->pcd_filename[i] == ' ') ||
-		    !(pc_validchar(dp->pcd_filename[i])))
+		    !(pc_validchar((uchar_t)dp->pcd_filename[i])))
 			break;
 		(void) fprintf(outDest, "%c", dp->pcd_filename[i]);
 	}
 	(void) fprintf(outDest, ".");
 	for (i = 0; i < PCFEXTSIZE; i++) {
-		if (!(pc_validchar(dp->pcd_ext[i])))
+		if (!(pc_validchar((uchar_t)dp->pcd_ext[i])))
 			break;
 		(void) fprintf(outDest, "%c", dp->pcd_ext[i]);
 	}

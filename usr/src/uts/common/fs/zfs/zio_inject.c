@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -180,6 +184,7 @@ zio_handle_device_injection(vdev_t *vd, int error)
 	return (ret);
 }
 
+#ifndef ZFS_IOCTL_MINIMUMSET
 /*
  * Create a new handler for the given record.  We add it to the list, adding
  * a reference to the spa_t in the process.  We increment zio_injection_enabled,
@@ -300,6 +305,7 @@ zio_clear_fault(int id)
 
 	return (ret);
 }
+#endif	/* ZFS_IOCTL_MINIMUMSET */
 
 void
 zio_inject_init(void)

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<sys/param.h>
@@ -111,19 +115,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -142,9 +148,17 @@ _info(struct modinfo *modinfop)
 #define	TIMOD		"timod"
 
 #define	UDPDEV		"/devices/pseudo/udp@0:udp"
+#ifdef USE_INET6
 #define	TCP6DEV		"/devices/pseudo/tcp6@0:tcp6"
+#else
+#define	TCP6DEV		"/devices/pseudo/tcp@0:tcp"
+#endif /*USE_INET6*/
 #define	SCTP6DEV	"/devices/pseudo/sctp6@0:sctp6"
+#ifdef USE_INET6
 #define	IP6DEV		"/devices/pseudo/ip6@0:ip6"
+#else
+#define	IP6DEV		"/devices/pseudo/ip@0:ip"
+#endif /*USE_INET6*/
 
 typedef struct strplumb_modspec {
 	char	*sm_type;
@@ -154,15 +168,25 @@ typedef struct strplumb_modspec {
 static strplumb_modspec_t	strplumb_modlist[] = {
 	{ "drv", DLD_DRIVER_NAME },
 	{ "drv", IP },
+#ifdef USE_INET6
 	{ "drv", IP6 },
+#endif /*USE_INET6*/
 	{ "drv", TCP },
+#ifdef USE_INET6
 	{ "drv", TCP6 },
+#endif /*USE_INET6*/
 	{ "drv", UDP },
+#ifdef USE_INET6
 	{ "drv", UDP6 },
+#endif /*USE_INET6*/
+#ifndef SCTP_SHRINK
 	{ "drv", SCTP },
 	{ "drv", SCTP6 },
+#endif
 	{ "drv", ICMP },
+#ifdef USE_INET6
 	{ "drv", ICMP6 },
+#endif /*USE_INET6*/
 	{ "drv", ARP },
 	{ "strmod", TIMOD }
 };
@@ -249,6 +273,7 @@ strplumb_autopush(void)
 	return (0);
 }
 
+#ifndef SCTP_SHRINK
 static int
 strplumb_sctpq(ldi_ident_t li)
 {
@@ -274,6 +299,7 @@ strplumb_sctpq(ldi_ident_t li)
 
 	return (0);
 }
+#endif
 
 static int
 strplumb_tcpq(ldi_ident_t li)
@@ -599,8 +625,10 @@ strplumb(void)
 	 * Setup the TCP and SCTP default queues for the global stack.
 	 * tcp/sctp_stack_init will do this for additional stack instances.
 	 */
+#ifndef SCTP_SHRINK
 	if ((err = strplumb_sctpq(li)) != 0)
 		goto done;
+#endif
 
 	if ((err = strplumb_tcpq(li)) != 0)
 		goto done;

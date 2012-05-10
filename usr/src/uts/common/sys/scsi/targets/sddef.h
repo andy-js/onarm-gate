@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_SCSI_TARGETS_SDDEF_H
 #define	_SYS_SCSI_TARGETS_SDDEF_H
 
@@ -93,9 +97,15 @@ extern "C" {
 
 #elif defined(_SUNOS_VTOC_16)
 
+#if !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0))
 #define	SDUNIT_SHIFT	6
 #define	SDPART_MASK	63
 #define	NSDMAP		(NDKMAP + FD_NUMPART + 1)
+#else /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
+#define	SDUNIT_SHIFT	7
+#define	SDPART_MASK	127
+#define	NSDMAP		(NDKMAP + FD_NUMPART + 1 + _EXTFDISK_PARTITION + 1)
+#endif /* !(defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)) */
 
 #else
 #error "No VTOC format defined."
@@ -580,7 +590,7 @@ struct sd_lun {
  * for physio, for devices without tagged queuing enabled.
  * The default for devices with tagged queuing enabled is SD_MAX_XFER_SIZE
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_DEFAULT_MAX_XFER_SIZE	(256 * 1024)
 #endif
 #define	SD_MAX_XFER_SIZE		(1024 * 1024)
@@ -1201,7 +1211,7 @@ struct sd_fi_arq {
 #define	SD_DELAYED_RETRY_ISSUED		1
 #define	SD_IMMEDIATE_RETRY_ISSUED	2
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_UPDATE_B_RESID(bp, pktp)	\
 	((bp)->b_resid += (pktp)->pkt_resid + (SD_GET_XBUF(bp)->xb_dma_resid))
 #else
@@ -1633,7 +1643,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling driver to set the controller type from sd.conf
  * sd-config-list and driver table.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_CTYPE		1
 #elif defined(__fibre)
 #define	SD_CONF_SET_CTYPE		5
@@ -1646,7 +1656,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling driver to set the not ready retry count for a device from
  * sd.conf sd-config-list and driver table.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_NOTREADY_RETRIES	10
 #elif defined(__fibre)
 #define	SD_CONF_SET_NOTREADY_RETRIES	1
@@ -1659,7 +1669,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling driver to set SCSI status BUSY Retries from sd.conf
  * sd-config-list and driver table.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_BUSY_RETRIES 	11
 #elif defined(__fibre)
 #define	SD_CONF_SET_BUSY_RETRIES 	2
@@ -1672,7 +1682,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling driver that device does not have a valid/unique serial
  * number.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_FAB_DEVID		2
 #else
 #define	SD_CONF_SET_FAB_DEVID		3
@@ -1682,7 +1692,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
 /*
  * Bit flag telling driver to disable all caching for disk device.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_NOCACHE		3
 #else
 #define	SD_CONF_SET_NOCACHE		4
@@ -1693,7 +1703,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling driver that the PLAY AUDIO command requires parms in BCD
  * format rather than binary.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_PLAYMSF_BCD		4
 #else
 #define	SD_CONF_SET_PLAYMSF_BCD		6
@@ -1704,7 +1714,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling driver that the response from the READ SUBCHANNEL command
  * has BCD fields rather than binary.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_READSUB_BCD		5
 #else
 #define	SD_CONF_SET_READSUB_BCD		7
@@ -1715,7 +1725,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit in flags telling driver that the track number fields in the READ TOC
  * request and respone are in BCD rather than binary.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_READ_TOC_TRK_BCD	6
 #else
 #define	SD_CONF_SET_READ_TOC_TRK_BCD	8
@@ -1726,7 +1736,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling driver that the address fields in the READ TOC request and
  * respone are in BCD rather than binary.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_READ_TOC_ADDR_BCD	7
 #else
 #define	SD_CONF_SET_READ_TOC_ADDR_BCD	9
@@ -1737,7 +1747,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling the driver that the device doesn't support the READ HEADER
  * command.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_NO_READ_HEADER	8
 #else
 #define	SD_CONF_SET_NO_READ_HEADER	10
@@ -1748,7 +1758,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", sd_uscsi_info))
  * Bit flag telling the driver that for the READ CD command the device uses
  * opcode 0xd4 rather than 0xbe.
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	SD_CONF_SET_READ_CD_XD4		9
 #else
 #define	SD_CONF_SET_READ_CD_XD4 	11
@@ -2059,7 +2069,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", mode_header_grp2))
 /*
  * Addition from sddef.intel.h
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 
 #define	P0_RAW_DISK	(NDKMAP)
 #define	FDISK_P1	(NDKMAP+1)
@@ -2067,7 +2077,7 @@ _NOTE(SCHEME_PROTECTS_DATA("Unshared data", mode_header_grp2))
 #define	FDISK_P3	(NDKMAP+3)
 #define	FDISK_P4	(NDKMAP+4)
 
-#endif	/* __i386 || __amd64 */
+#endif	/* __i386 || __amd64 || __arm */
 
 #ifdef	__cplusplus
 }

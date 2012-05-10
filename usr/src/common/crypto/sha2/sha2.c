@@ -35,6 +35,10 @@
  * and appreciated.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -104,6 +108,25 @@ static uint8_t PADDING[128] = { 0x80, /* all zeros */ };
 	T2 = BIGSIGMA0(a) + Maj(a, b, c);				\
 	h = T1 + T2
 
+#if	defined(__GNUC__) && defined(__arm)
+
+#define HAVE_BSWAP
+
+/*
+ * arm optimization:
+ * 	REV instruction (ARM v6 or later)
+ */
+static __inline__ uint32_t
+bswap(uint32_t value)
+{
+	uint32_t	ret;
+
+	__asm__ __volatile__
+		("rev	%0, %1" : "=r" (ret) : "r" (value));
+	return ret;
+}
+#endif	/* defined(__GNUC__) && defined(__arm) */
+
 /*
  * sparc optimization:
  *
@@ -119,8 +142,12 @@ static uint8_t PADDING[128] = { 0x80, /* all zeros */ };
 
 #else	/* little endian -- will work on big endian, but slowly */
 
+#ifdef	HAVE_BSWAP
+#define	LOAD_BIG_32(addr) bswap(*((uint32_t *)(addr)))
+#else	/* !HAVE_BSWAP */
 #define	LOAD_BIG_32(addr)	\
 	(((addr)[0] << 24) | ((addr)[1] << 16) | ((addr)[2] << 8) | (addr)[3])
+#endif	/* HAVE_BSWAP */
 #endif
 
 
@@ -130,12 +157,18 @@ static uint8_t PADDING[128] = { 0x80, /* all zeros */ };
 
 #else	/* little endian -- will work on big endian, but slowly */
 
+#ifdef	HAVE_BSWAP
+#define	LOAD_BIG_64(addr)	\
+	(((uint64_t)bswap((uint32_t)	\
+	    ((*((uint64_t *)(addr))) & 0xffffffff)) << 32) |	\
+	    (uint64_t)bswap((uint32_t)((*((uint64_t *)(addr))) >> 32)))
+#else	/* !HAVE_BSWAP */
 #define	LOAD_BIG_64(addr)	\
 	(((uint64_t)(addr)[0] << 56) | ((uint64_t)(addr)[1] << 48) |	\
 	    ((uint64_t)(addr)[2] << 40) | ((uint64_t)(addr)[3] << 32) |	\
 	    ((uint64_t)(addr)[4] << 24) | ((uint64_t)(addr)[5] << 16) |	\
 	    ((uint64_t)(addr)[6] << 8) | (uint64_t)(addr)[7])
-
+#endif	/* HAVE_BSWAP */
 #endif
 
 

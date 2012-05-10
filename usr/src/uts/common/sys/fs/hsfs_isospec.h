@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_HSFS_ISOSPEC_H
 #define	_SYS_FS_HSFS_ISOSPEC_H
 
@@ -49,7 +53,7 @@ extern "C" {
 #define	MSB_SHORT(x)	((ZERO(x) << 8) | ONE(x))
 #define	LSB_SHORT(x)	((ONE(x) << 8) | ZERO(x))
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	BOTH_SHORT(x)	(short)*((short *)x)
 #define	BOTH_INT(x)	(int)*((int *)x)
 #elif defined(__sparc)
@@ -63,6 +67,25 @@ extern "C" {
  */
 #define	BOTH_SHORT(x)	LSB_SHORT(x)
 #define	BOTH_INT(x)	LSB_INT(x)
+
+#else
+
+/*
+ * Copy integer data from CD to memory one byte at a time to avoid
+ * unexpected address alignment fault.
+ */
+#include <sys/isa_defs.h>
+
+#if	defined(_LITTLE_ENDIAN)
+#define	BOTH_SHORT(x)	MSB_SHORT(x)
+#define	BOTH_INT(x)	MSB_INT(x)
+#elif	defined(_BIG_ENDIAN)
+#define	BOTH_SHORT(x)	LSB_SHORT(x)
+#define	BOTH_INT(x)	LSB_INT(x)
+#else	/* !_LITTLE_ENDIAN && !_BIG_ENDIAN */
+#error	"Endianess is not defined."
+#endif	/* defined(_LITTLE_ENDIAN) */
+
 #endif
 
 /*

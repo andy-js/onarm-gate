@@ -25,6 +25,10 @@
  */
 /* Copyright (c) 1990 Mentat Inc. */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_INET_IP_H
 #define	_INET_IP_H
 
@@ -64,7 +68,9 @@ extern "C" {
 #define	CONN_DEBUG
 #endif
 
+#ifndef _NETWORK_EXTENSION
 #define	IP_DEBUG
+#endif
 /*
  * The mt-streams(9F) flags for the IP module; put here so that other
  * "drivers" that are actually IP (e.g., ICMP, UDP) can use the same set
@@ -727,7 +733,11 @@ typedef struct ire_expire_arg_s {
 /*
  * Extra structures need for per-src-addr filtering (IGMPv3/MLDv2)
  */
+#if defined(_NETWORK_EXTENSION)
+#define	MAX_FILTER_SIZE	1
+#else
 #define	MAX_FILTER_SIZE	64
+#endif /* _NETWORK_EXTENSION */
 
 typedef struct slist_s {
 	int		sl_numsrc;
@@ -1221,7 +1231,7 @@ typedef struct ifrt_s {
  */
 #define	MAX_IPIF_SELECT_SOURCE	50
 
-#ifdef IP_DEBUG
+#if defined(DEBUG) || !defined(_NETWORK_EXTENSION)
 /*
  * Tracing refholds and refreleases for debugging. Existing tracing mechanisms
  * do not allow the granularity need to trace refrences to ipif/ill/ire's. This
@@ -1247,7 +1257,7 @@ typedef struct th_hash_s {
 	mod_hash_t	*thh_hash;
 	ip_stack_t	*thh_ipst;
 } th_hash_t;
-#endif
+#endif 
 
 /* The following are ipif_state_flags */
 #define	IPIF_CONDEMNED		0x1	/* The ipif is being removed */

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_CCOMPILE_H
 #define	_SYS_CCOMPILE_H
 
@@ -101,6 +105,11 @@ extern "C" {
 #define	___sun_attr_inner(__a)	__sun_attr_##__a
 #define	__sun_attr__(__a)	___sun_attr_inner __a
 
+/*
+ * Prevents a function from being considered for inlining
+ */
+#define	__sun_attr___noinline__	__attribute__((__noinline__))
+
 #else	/* __ATTRIBUTE_IMPLEMENTED || __GNUC__ */
 
 #define	__sun_attr__(__a)
@@ -118,7 +127,7 @@ extern "C" {
 #define	__NORETURN		__sun_attr__((__noreturn__))
 #define	__CONST			__sun_attr__((__const__))
 #define	__PURE			__sun_attr__((__pure__))
-
+#define	__NOINLINE		__sun_attr__((__noinline__))
 
 #ifdef	__cplusplus
 }

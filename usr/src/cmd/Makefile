@@ -26,6 +26,10 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 include ../Makefile.master
 include ../Makefile.ksh93switch
 
@@ -111,6 +115,8 @@ COMMON_SUBDIRS=		\
 	ctstat		\
 	ctwatch		\
 	cut		\
+	czfs		\
+	czpool		\
 	datadm		\
 	date		\
 	dc		\
@@ -424,6 +430,7 @@ COMMON_SUBDIRS=		\
 	write		\
 	xntpd		\
 	xargs		\
+	xramdiskadm	\
 	xstr		\
 	yes		\
 	ypcmd		\
@@ -486,11 +493,15 @@ sparc_SUBDIRS=		\
 	sf880drd	\
 	vntsd
 
+arm_SUBDIRS=		\
+	pt_chmod
+
+
 #
 # Commands that are messaged.  Note that 'lp' and 'man' come first
 # (see previous comment about 'lp' and 'man').
 #
-MSGSUBDIRS=		\
+COMMON_MSGSUBDIRS=	\
 	lp		\
 	man		\
 	abi		\
@@ -540,6 +551,8 @@ MSGSUBDIRS=		\
 	ctstat		\
 	ctwatch		\
 	cut		\
+	czfs		\
+	czpool		\
 	datadm		\
 	date		\
 	dc		\
@@ -731,6 +744,13 @@ $(CLOSED_BUILD)MSGSUBDIRS += \
 	$(CLOSED)/cmd/tr	\
 	$(CLOSED)/cmd/tr_xpg4
 
+MSGSUBDIRS	= $(COMMON_MSGSUBDIRS)
+
+# Do not build message catalog for modules that are not supported on ARM build.
+$(ARM_BLD)MSGSUBDIR_FIXUP	= \
+	$(SUBDIRFIX) -f $(SUBDIRFIX_SKIP) $(COMMON_MSGSUBDIRS)
+$(ARM_BLD)MSGSUBDIRS	= $(MSGSUBDIR_FIXUP:sh)
+
 sparc_MSGSUBDIRS=	\
 	fruadm		\
 	prtdscp		\
@@ -888,6 +908,11 @@ _dc :=		TARGET = _dc
 .KEEP_STATE:
 
 SUBDIRS = $(COMMON_SUBDIRS) $($(MACH)_SUBDIRS)
+
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(COMMON_SUBDIRS) $($(MACH)_SUBDIRS)
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
 
 .PARALLEL:	$(BWOSDIRS) $(SUBDIRS) $(MSGSUBDIRS) $(BSMSUBDIRS) \
 		$(MANIFEST_SUBDIRS) $(DTEST_SUBDIRS)

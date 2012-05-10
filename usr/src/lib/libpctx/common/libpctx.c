@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -362,6 +366,8 @@ pctx_set_events(pctx_t *pctx, ...)
 
 static sigset_t termsig;
 
+#pragma init(__libpctx_init)
+
 static void
 __libpctx_init(void)
 {
@@ -375,8 +381,6 @@ __libpctx_init(void)
 	(void) sigaddset(&termsig, SIGINT);
 	(void) sigaddset(&termsig, SIGQUIT);
 }
-
-#pragma init(__libpctx_init)
 
 static void
 pctx_begin_syscalls(pctx_t *pctx)

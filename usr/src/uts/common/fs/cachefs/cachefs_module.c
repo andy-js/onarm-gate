@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/errno.h>
@@ -89,10 +93,10 @@ static struct modlinkage modlinkage = {
 	MODREV_1, (void *)&modlfs, NULL
 };
 
-char _depends_on[] = "strmod/rpcmod";
+MODDRV_DEPENDS_ON("strmod/rpcmod");
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int status;
 
@@ -110,13 +114,14 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int status;
 
@@ -132,6 +137,7 @@ _fini(void)
 
 	return (status);
 }
+#endif	/* !STATIC_DRIVER */
 
 extern kmutex_t cachefs_cachelock;		/* Cache list mutex */
 extern kmutex_t cachefs_newnum_lock;

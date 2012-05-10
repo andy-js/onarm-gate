@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	Copyright (c) 1988 AT&T	*/
@@ -66,7 +70,7 @@ _wcstod(const wchar_t *cp, wchar_t **ptr)
 		*ptr = (wchar_t *)cp;
 	if (form == 0)
 		return (0.0);	/* Shameful kluge for SVID's sake. */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	mr.rd = __xgetRD();
 #elif defined(__sparc)
 	mr.rd = _QgetRD();
@@ -96,7 +100,7 @@ wcstof(const wchar_t *cp, wchar_t **ptr)
 		*ptr = (wchar_t *)cp;
 	if (form == 0)
 		return (0.0f);
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	mr.rd = __xgetRD();
 #elif defined(__sparc)
 	mr.rd = _QgetRD();
@@ -126,7 +130,7 @@ wcstold(const wchar_t *cp, wchar_t **ptr)
 		*ptr = (wchar_t *)cp;
 	if (form == 0)
 		return (0.0L);
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	mr.rd = __xgetRD();
 	if (form < 0)
 		__hex_to_extended(&dr, mr.rd, (extended *)&x, &fs);

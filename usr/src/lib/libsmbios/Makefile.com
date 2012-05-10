@@ -46,7 +46,7 @@ COMMON_SRCDIR = ../../../common/smbios
 COMMON_HDR = $(SRC)/uts/common/sys/smbios.h
 
 SRCS = $(COMMON_OBJS:%.o=$(COMMON_SRCDIR)/%.c) $(LIB_OBJS:%.o=../common/%.c)
-LIBS = $(DYNLIB) $(LINTLIB)
+LIBS = $(ARLIB) $(DYNLIB) $(LINTLIB)
 
 SRCDIR = ../common
 

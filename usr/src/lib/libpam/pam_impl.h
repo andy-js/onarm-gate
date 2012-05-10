@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_PAM_IMPL_H
 #define	_PAM_IMPL_H
 
@@ -215,6 +219,7 @@ typedef struct env_list {
 } env_list;
 
 /* pam_inmodule values for pam item checking */
+#define	RW_NG	-1
 #define	RW_OK	0	/* Read Write items OK */
 #define	RO_OK	1	/* Read Only items OK */
 #define	WO_OK	2	/* Write Only items/data OK */

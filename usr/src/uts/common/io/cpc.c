@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -950,7 +954,7 @@ kcpc_fini(void)
 }
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int ret;
 
@@ -963,8 +967,9 @@ _init(void)
 	return (ret);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int ret;
 
@@ -972,9 +977,10 @@ _fini(void)
 		kcpc_fini();
 	return (ret);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *mi)
+MODDRV_ENTRY_INFO(struct modinfo *mi)
 {
 	return (mod_info(&modl, mi));
 }

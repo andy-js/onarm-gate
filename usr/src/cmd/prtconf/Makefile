@@ -26,6 +26,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 PROG= 		prtconf 
 
 include ../Makefile.cmd
@@ -56,8 +60,8 @@ $(ROOTSYMLINK):
 clean clobber lint:	$(SUBDIRS)
 
 install:	$(SUBDIRS) $(ROOTSYMLINK)
-	-$(RM) $(ROOTUSRSBINPROG)
-	-$(LN) $(ISAEXEC) $(ROOTUSRSBINPROG)
+	-$(USE_ISAEXEC)$(RM) $(ROOTUSRSBINPROG)
+	-$(USE_ISAEXEC)$(LN) $(ISAEXEC) $(ROOTUSRSBINPROG)
 
 $(SUBDIRS):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)

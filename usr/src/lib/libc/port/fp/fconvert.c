@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #pragma weak fconvert = _fconvert
@@ -45,7 +49,7 @@ fconvert(double arg, int ndigits, int *decpt, int *sign, char *buf)
 
 #if defined(__sparc)
 	dm.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	dm.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -99,7 +103,7 @@ sfconvert(single *arg, int ndigits, int *decpt, int *sign, char *buf)
 
 #if defined(__sparc)
 	dm.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	dm.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -142,6 +146,8 @@ sfconvert(single *arg, int ndigits, int *decpt, int *sign, char *buf)
 	}
 	return (buf);
 }
+
+#if defined(__sparc) || defined(__i386) || defined(__amd64)
 
 char *
 qfconvert(quadruple *arg, int ndigits, int *decpt, int *sign, char *buf)
@@ -211,3 +217,15 @@ qfconvert(quadruple *arg, int ndigits, int *decpt, int *sign, char *buf)
 	}
 	return (buf);
 }
+
+#elif defined(__arm)
+
+char *
+qfconvert(quadruple *arg, int ndigits, int *decpt, int *sign, char *buf)
+{
+	return (fconvert((double)*arg, ndigits, decpt, sign, buf));
+}
+
+#else
+#error Unknown architecture
+#endif

@@ -37,6 +37,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -1449,8 +1453,10 @@ parse_attr_args(char *aoptsstr, sec_args_t **sec_args)
 				for (i = 0; i < numofattrs; i++) {
 					if (attractptr[i] == A_UNDEF_OP) {
 						(void) set_attr_args(i,
-						    (action == A_SET_OP) ?
-						    A_SET_OP : A_INVERSE_OP,
+						    ((action == A_SET_OP) ||
+						    ((action == A_REPLACE_OP) &&
+						    (atype == A_ALLATTRS_TYPE)))
+						    ? A_SET_OP : A_INVERSE_OP,
 						    attractptr);
 					}
 				}

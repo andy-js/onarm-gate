@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -40,7 +45,7 @@ MAPFILES +=	$(MAPFILE32)
 
 $(LINTLIB) :=	SRCS = $(SRCDIR)/$(LINTSRC)
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 LDLIBS +=	-lc
 CFLAGS +=	$(CCVERBOSE)
 

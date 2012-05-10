@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 include		../Makefile.lib
 
 HDRS=		libzfs.h
@@ -43,6 +47,8 @@ lint :=		TARGET= lint
 MSGFILES =	`$(GREP) -l gettext $(HDRDIR)/*.[ch]`
 POFILE =	libzfs.po
 
+MACROS =  LIBRARY=libzfs.a
+
 .KEEP_STATE:
 
 all clean clobber install lint: $(SUBDIRS)
@@ -56,7 +62,7 @@ check: $(CHECKHDRS)
 _msg: $(MSGDOMAINPOFILE)
 
 $(SUBDIRS): FRC
-	@cd $@; pwd; $(MAKE) $(TARGET)
+	@cd $@; pwd; $(MAKE) $(TARGET) $(MACROS)
 
 FRC:
 

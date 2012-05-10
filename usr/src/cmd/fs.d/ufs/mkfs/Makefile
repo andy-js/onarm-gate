@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 FSTYPE=		ufs
 LIBPROG=	mkfs
 ATTMK=		$(LIBPROG)
@@ -50,7 +54,11 @@ $(POFILE):      $(SRCS)
 	$(RM) $(POFILE).i messages.po
 
 CPPFLAGS +=	-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
-LDLIBS +=	-ladm -lefi
+LIBEFI	=	-lefi
+LDLIBS +=	-ladm $(LIBEFI)
+
+$(ARM_BLD)CPPFLAGS	+= -DNO_SUPPORT_EFI -DMNTFS_DISABLE
+$(ARM_BLD)LIBEFI	=
 
 $(LIBPROG):	$(OBJS)
 		$(LINK.c) -o $@ $(OBJS) $(LDLIBS)

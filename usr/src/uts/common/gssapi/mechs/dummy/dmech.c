@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -33,8 +37,6 @@
  * specified through dummy_mech.conf located in /etc.
  */
 
-char _depends_on[] = "misc/kgssapi";
-
 #include <sys/types.h>
 #include <sys/modctl.h>
 #include <sys/errno.h>
@@ -43,6 +45,8 @@ char _depends_on[] = "misc/kgssapi";
 #include <mechglueP.h>
 #include <gssapi/kgssapi_defs.h>
 #include <sys/debug.h>
+
+MODDRV_DEPENDS_ON("misc/kgssapi");
 
 #ifdef DUMMY_MECH_DEBUG
 /*
@@ -154,7 +158,7 @@ static struct modlinkage modlinkage = {
 static int dummy_fini_code = EBUSY;
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int retval;
 	gss_mechanism mech, tmp;
@@ -187,8 +191,9 @@ _init()
 	return (retval);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int ret = dummy_fini_code;
 
@@ -197,9 +202,10 @@ _fini()
 	}
 	return (ret);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

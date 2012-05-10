@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -211,5 +215,37 @@ tmp_convnum(char *str, pgcnt_t *maxpg)
 	 */
 	if ((*maxpg = (pgcnt_t)btopr(num)) == 0 && num != 0)
 		return (EINVAL);
+	return (0);
+}
+
+int
+tmp_convfig(char *str, uint_t *maxnum)
+{
+	uint64_t num = 0, oldnum;
+	char *c;
+
+	if (str == NULL) {
+		return (EINVAL);
+	}
+	c = str;
+
+	/*
+	 * Convert str to number
+	 */
+	while ((*c >= '0') && (*c <= '9')) {
+		oldnum = num;
+		num = num * 10 + (*c++ - '0');
+		if (oldnum > num) { /* overflow */
+			return (EINVAL);
+		}
+	}
+
+	/*
+	 * Terminate on null
+	 */
+	if ((*c != '\0') || (num > (uint64_t)UINT_MAX)) {
+		return (EINVAL);
+	}
+	*maxnum = (uint_t)num;
 	return (0);
 }

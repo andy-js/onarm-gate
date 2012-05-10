@@ -28,9 +28,14 @@
 # cmd/awk/Makefile
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # NOTE: awk is oawk.
 
 PROG= nawk
+LINKPROG =	awk
 
 OBJ1= b.o lib.o main.o parse.o proctab.o run.o tran.o
 OBJ2= awk.g.o awk.lx.o
@@ -49,8 +54,12 @@ XGETFLAGS += -a -x awk.xcl
 CPPFLAGS += -D_FILE_OFFSET_BITS=64
 YFLAGS += -d
 LDLIBS += -lm
+NATIVE_LDLIBS = $(LDLIBS)
+$(ARM_BLD)NATIVE_LDLIBS = -lm -lc
 LINTFLAGS += -u
 CLEANFILES= maketab proctab.c awk.g.c awk.lx.c y.tab.h
+
+ROOTLINK =	$(LINKPROG:%=$(ROOTBIN)/%)
 
 .KEEP_STATE:
 
@@ -73,9 +82,12 @@ proctab.c: maketab
 	rm -f $@; ./maketab > $@
 
 maketab: maketab.c
-	$(NATIVECC) -O maketab.c -o $@ $(LDLIBS)
+	$(NATIVECC) $(NATIVE_CPPFLAGS) -O maketab.c -o $@ $(NATIVE_LDLIBS)
 
 install: all $(ROOTPROG) $(ROOTLINK)
+
+$(ROOTLINK) :	$(ROOTPROG)
+		$(RM) $@; $(LN) $(ROOTPROG) $@
 
 clean:
 	$(RM) $(OBJS) $(CLEANFILES)

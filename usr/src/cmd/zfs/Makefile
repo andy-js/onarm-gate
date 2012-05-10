@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 PROG=		zfs
 OBJS=		zfs_main.o zfs_iter.o
 SRCS=		$(OBJS:%.o=%.c)
@@ -38,12 +42,16 @@ LINKPROGS=	mount umount
 ROOTETCFSTYPE=  $(ROOTETC)/fs/$(FSTYPE)
 USRLIBFSTYPE=	$(ROOTLIB)/fs/$(FSTYPE)
 
-LDLIBS += -lzfs -luutil -lumem -lnvpair -lavl
+LIBUMEM = -lumem
+$(ARM_BLD)LIBUMEM =
+LDLIBS += -lzfs -luutil $(LIBUMEM) -lnvpair -lavl
 
 C99MODE=	-xc99=%all
 C99LMODE=	-Xc99=%all
 
-CPPFLAGS += -D_LARGEFILE64_SOURCE=1 -D_REENTRANT
+CPPFLAGS += -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -I./
+
+$(ARM_BLD)CPPFLAGS += -DMNTFS_DISABLE
 
 # lint complains about unused _umem_* functions
 LINTFLAGS += -xerroff=E_NAME_DEF_NOT_USED2 

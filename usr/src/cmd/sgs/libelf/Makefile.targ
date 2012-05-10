@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 $(VAR_POUND_2)LIBS +=	$(LIBRARY)
 
 objs/%.o \
@@ -50,9 +54,9 @@ pics/%.o:	../common/%.c
 all:		$(BLTSRCS) .WAIT $(LIBS) $(LIBLINKS)
 
 install:	all .WAIT $(ROOTFS_LIBS) $(ROOTFS_LINKS) \
-		$(ROOTFS_LINTLIB) \
+		$(LINTLIB_TARGET1) \
 		.WAIT $(ROOTDEMODIRS) .WAIT $(ROOTDEMOFILES) \
-		$(ROOTFS_LIBDIR)/$(LINTLIBSRC)
+		$(LINTLIB_TARGET2)
 
 $(VAR_POUND_1)$(ROOTFS_LIBDIR)/$(LINTLIBSRC): ../common/$(LINTLIBSRC)
 $(VAR_POUND_1)	$(INS.file) ../common/$(LINTLIBSRC)
@@ -135,6 +139,10 @@ $(SGSPROTO)/$(DYNLIB): \
 		-@$(RM) $(SGSPROTO)/$(LIBLINKS)
 		$(SYMLINK) $(DYNLIB) $(SGSPROTO)/$(LIBLINKS)
 
+# Special target for cross builds
+cross:		$(CROSSLIB)/$(DYNLIB)
+
+cross	:=	CPPFLAGS += -DNATIVE_BUILD
 
 # Derived source and header files (messaging).  Make sure that the sgsmsg
 # command is constructed - libelf might not be built with the whole sgs.

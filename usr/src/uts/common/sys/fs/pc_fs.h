@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_PC_FS_H
 #define	_SYS_FS_PC_FS_H
 
@@ -32,10 +36,13 @@
 #include <sys/ksynch.h>
 #include <sys/sysmacros.h>
 #include <sys/byteorder.h>
+#include <sys/queue.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	PCFS_ENABLE_CACHE
 
 typedef	uint16_t	pc_cluster16_t;
 typedef	uint32_t	pc_cluster32_t;
@@ -143,6 +150,11 @@ struct fat32_bootsec {
 	uint16_t	f_reserved2[6];
 };
 
+#define	PCFS_CLUSTER_RESERVEDMASK	0xf0000000
+#define	PCFS_CLUSTER_RESERVEDMASKHI	0xf000
+#define	BPB_EXTFLAG_MIRROR_MASK		0x0080
+#define	BPB_EXTFLAG_ACTIVEFAT_MASK	0x000f
+#define	PCFS_ENTRYMAXSIZE		(1024 * 1024 * 2)
 
 #define	OFF_JMPBOOT	0
 #define	OFF_OEMNAME	3
@@ -250,7 +262,7 @@ struct fat32_bootsec {
  */
 #define	VALID_VOLLAB(l)		(			\
 	pc_validchar((l)[0]) && pc_validchar((l)[1]) && \
-	pc_validchar((l)[2]) &&	pc_validchar((l)[3]) && \
+	pc_validchar((l)[2]) && pc_validchar((l)[3]) && \
 	pc_validchar((l)[4]) && pc_validchar((l)[5]) && \
 	pc_validchar((l)[6]) && pc_validchar((l)[7]) && \
 	pc_validchar((l)[8]) && pc_validchar((l)[9]) && \
@@ -312,13 +324,13 @@ struct fat32_bootsec {
 	(BPB_SECSIZE_OK | BPB_SECPERCLUS_OK | BPB_CLSIZE_OK |		\
 	BPB_RSVDSECCNT_OK | BPB_NUMFAT_OK | BPB_ROOTENTCNT_OK |		\
 	BPB_TOTSEC_OK | BPB_TOTSEC16_OK |				\
-	BPB_FATSZ_OK | BPB_FATSZ16_OK |	BPB_BPBSIG_OK)
+	BPB_FATSZ_OK | BPB_FATSZ16_OK |	BPB_BPBSIG_OK | BPB_JMPBOOT_OK)
 
 #define	FAT16_VALIDMSK							\
 	(BPB_SECSIZE_OK | BPB_SECPERCLUS_OK | BPB_CLSIZE_OK |		\
 	BPB_RSVDSECCNT_OK | BPB_NUMFAT_OK | BPB_ROOTENTCNT_OK |		\
 	BPB_TOTSEC_OK | BPB_TOTSEC16_OK | BPB_TOTSEC32_OK | 		\
-	BPB_FATSZ_OK | BPB_FATSZ16_OK | BPB_BPBSIG_OK)
+	BPB_FATSZ_OK | BPB_FATSZ16_OK | BPB_BPBSIG_OK | BPB_JMPBOOT_OK)
 
 /*
  * A note on FAT32: According to the FAT spec, FAT32 _must_ have a valid
@@ -342,7 +354,7 @@ struct fat32_bootsec {
 	BPB_TOTSEC_OK | BPB_TOTSEC16_OK | BPB_TOTSEC32_OK | 		\
 	BPB_FATSZ_OK | BPB_FATSZ16_OK |	BPB_FATSZ32_OK |		\
 	BPB_EXTFLAGS_OK | BPB_FSVER_OK | BPB_ROOTCLUSTER_OK |		\
-	BPB_BPBSIG_OK)
+	BPB_BPBSIG_OK | BPB_JMPBOOT_OK)
 
 /*
  * FAT32 BPB allows 'versioning' via FSVer32. We follow the 'NULL' spec.
@@ -386,6 +398,48 @@ typedef struct fat_od_fsi {
 
 typedef enum { FAT12, FAT16, FAT32, FAT_UNKNOWN, FAT_QUESTIONABLE } fattype_t;
 
+#ifdef PCFS_ENABLE_CACHE
+#ifdef PCFS_ENABLE_FASTCACHE
+#define	PCFS_FATCACHE_UNITSIZE(f)	((IS_FAT32(f) ? 16 : 8) * 1024)
+#else
+#define	PCFS_FATCACHE_UNITSIZE(f)	(8 * 1024)
+#endif	/* PCFS_ENABLE_FASTCACHE */
+#define	PCFS_FATCACHE_UNITS_FAT12	1
+#define	PCFS_FATCACHE_UNITS_FAT16	16
+#ifndef	PCFS_FATCACHE_UNITS_FAT32
+#define	PCFS_FATCACHE_UNITS_FAT32	16
+#endif	/* !PCFS_FATCACHE_UNITS_FAT32 */
+
+#define	PCFS_FATCACHE_UNITS(f)						\
+		(IS_FAT32(f) ? PCFS_FATCACHE_UNITS_FAT32 : IS_FAT16(f) ?\
+		    PCFS_FATCACHE_UNITS_FAT16 : PCFS_FATCACHE_UNITS_FAT12)
+
+#define	PCFS_FATCACHE_SIZE(f)						\
+		(PCFS_FATCACHE_UNITS(f) * PCFS_FATCACHE_UNITSIZE(f))
+
+#define	PCFS_FATCACHE_LISTSIZE(f)					\
+		(PCFS_FATCACHE_UNITS(f) * sizeof (struct pcfs_fatcache_unit))
+
+#define	PCFS_FATCACHE_UNITSEC(f)					\
+		(PCFS_FATCACHE_UNITSIZE(f) / (f)->pcfs_secsize)
+
+#ifdef PCFS_ENABLE_FASTCACHE
+#define	PCFS_SYNCCACHE_ALL		1
+#define	PCFS_SYNCCACHE_UNIT		0
+#endif	/* PCFS_ENABLE_FASTCACHE */
+
+struct pcfs_fatcache_unit {
+	LIST_ENTRY(pcfs_fatcache_unit)	entries;
+	uchar_t		*fatp;		/* FAT */
+	int32_t		offset;		/* byte offset */
+	int		dirty;		/* dirty flag */
+};
+
+struct pcfs_fatcache {
+	struct pcfs_fatcache_unit *unit;
+	LIST_HEAD(pcfs_fatcache_list, pcfs_fatcache_unit) mru_list;
+};
+#endif	/* PCFS_ENABLE_CACHE */
 
 struct pcfs {
 	struct vfs *pcfs_vfs;		/* vfs for this fs */
@@ -415,8 +469,12 @@ struct pcfs {
 	int pcfs_frefs;			/* number of active file pcnodes */
 	int pcfs_nxfrecls;		/* next free cluster */
 	uchar_t *pcfs_fatp;		/* ptr to FAT data */
+#ifdef PCFS_ENABLE_CACHE
+	struct pcfs_fatcache pcfs_fatcache;	/* FAT cache */
+#else
 	uchar_t *pcfs_fat_changemap;	/* map of changed fat data */
 	int pcfs_fat_changemapsize;	/* size of FAT changemap */
+#endif	/* PCFS_ENABLE_CACHE */
 	time_t pcfs_fattime;		/* time FAT becomes invalid */
 	time_t pcfs_verifytime;		/* time to reverify disk */
 	kmutex_t	pcfs_lock;		/* per filesystem lock */
@@ -433,6 +491,7 @@ struct pcfs {
 	pc_cluster32_t pcfs_lastclmark;
 	pc_cluster32_t pcfs_rootclnum;
 	timestruc_t pcfs_mounttime;	/* timestamp for "/" */
+	uint16_t pcfs_extflags;		/* mirroring FAT number */
 };
 
 /*
@@ -569,7 +628,9 @@ struct pcfs_args {
  */
 #define	pc_validcl(PCFS, CL)		/* check that cluster no is legit */ \
 	((int)(CL) >= PCF_FIRSTCLUSTER && \
-	    (int)(CL) <= (PCFS)->pcfs_ncluster)
+	    (int)(CL) < PCF_MAXCLUSTER(PCFS))
+
+#define	PCF_MAXCLUSTER(PCFS)	(PCF_FIRSTCLUSTER + (PCFS)->pcfs_ncluster)
 
 /*
  * external routines.
@@ -578,12 +639,17 @@ extern int pc_lockfs(struct pcfs *, int, int); /* lock fs and get fat */
 extern void pc_unlockfs(struct pcfs *);	/* ulock the fs */
 extern int pc_getfat(struct pcfs *);	/* get fat from disk */
 extern void pc_invalfat(struct pcfs *);	/* invalidate incore fat */
+#ifdef PCFS_ENABLE_FASTCACHE
+extern int pc_syncfatcache(struct pcfs *, int);
+#endif	/* PCFS_ENABLE_FASTCACHE */
 extern int pc_syncfat(struct pcfs *);	/* sync fat to disk */
 extern int pc_freeclusters(struct pcfs *);	/* num free clusters in fs */
-extern pc_cluster32_t pc_alloccluster(struct pcfs *, int);
-extern void pc_setcluster(struct pcfs *, pc_cluster32_t, pc_cluster32_t);
+extern int pc_alloccluster(struct pcfs *, int, pc_cluster32_t *);
+extern int pc_setcluster(struct pcfs *, pc_cluster32_t, pc_cluster32_t);
+#ifndef PCFS_ENABLE_CACHE
 extern void pc_mark_fat_updated(struct pcfs *fsp, pc_cluster32_t cn);
 extern int pc_fat_is_changed(struct pcfs *fsp, pc_cluster32_t bn);
+#endif	/* !PCFS_ENABLE_CACHE */
 
 /*
  * debugging

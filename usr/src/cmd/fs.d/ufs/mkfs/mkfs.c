@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -197,7 +201,7 @@
 			else \
 				(void) fprintf(stderr, x);
 
-#define	ALTSB		32	/* Location of first backup superblock */
+#define	ALTSB		ALTSBLOCK	/* Location of first backup superblock */
 
 /*
  * range_check "user_supplied" flag values.
@@ -264,6 +268,10 @@ extern long	lrand48();
 extern int	optind;
 extern char	*optarg;
 
+#ifdef	NO_SUPPORT_EFI
+#define	efi_alloc_and_read(fd, efi)	(-1)
+#define	efi_free(vtoc)
+#endif	/* NO_SUPPORT_EFI */
 
 /*
  * The size of a cylinder group is calculated by CGSIZE. The maximum size
@@ -632,7 +640,9 @@ main(int argc, char *argv[])
 	FILE *mnttab;
 	struct mnttab mntp;
 	char *special;
+#ifndef MNTFS_DISABLE
 	struct statvfs64 fs;
+#endif	/* MNTFS_DISABLE */
 	struct dk_geom dkg;
 	struct dk_cinfo dkcinfo;
 	char pbuf[sizeof (uint64_t) * 3 + 1];
@@ -1419,6 +1429,7 @@ retry_alternate_logic:
 	}
 
 	if (!Nflag) {
+#ifndef MNTFS_DISABLE
 		/*
 		 * Check if MNTTAB is trustable
 		 */
@@ -1434,6 +1445,7 @@ retry_alternate_logic:
 			    MNTTAB, MNTTYPE_MNTFS);
 			exit(32);
 		}
+#endif	/* MNTFS_DISABLE */
 
 		special = getfullblkname(fsys);
 		checkdev(fsys, special);
@@ -2389,6 +2401,7 @@ get_max_size(int fd)
 	struct vtoc vtoc;
 	dk_gpt_t *efi_vtoc;
 	diskaddr_t	slicesize;
+	struct part_info pi;
 
 	int index = read_vtoc(fd, &vtoc);
 
@@ -2403,20 +2416,12 @@ get_max_size(int fd)
 	}
 
 	if (index < 0) {
-		switch (index) {
-		case VT_ERROR:
-			break;
-		case VT_EIO:
-			errno = EIO;
-			break;
-		case VT_EINVAL:
-			errno = EINVAL;
+		if (ioctl(fd, DKIOCPARTINFO, &pi) == -1) {
+			perror(gettext("Can not determine partition size"));
+			lockexit(32);
 		}
-		perror(gettext("Can not determine partition size"));
-		lockexit(32);
-	}
-
-	if (label_type == LABEL_TYPE_EFI) {
+		slicesize = pi.p_length;
+	} else if (label_type == LABEL_TYPE_EFI) {
 		slicesize = efi_vtoc->efi_parts[index].p_size;
 		efi_free(efi_vtoc);
 	} else {

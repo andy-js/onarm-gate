@@ -38,6 +38,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -69,7 +73,6 @@ extern char		*editfile;	/* Name of file being edited */
 extern int		exitflg;	/* -e for mail test */
 extern NODE		*fplist;	/* ???? */
 extern struct grouphead	*groups[];	/* Pointer to active groups */
-extern struct hdr	header[];	/* Known header types */
 extern int		hflag;		/* Sequence number for network -h */
 extern char		homedir[];	/* Name of home directory */
 extern char		host[];		/* ???? */

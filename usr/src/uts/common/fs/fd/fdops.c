@@ -28,6 +28,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All rights reserved.  	*/
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -566,13 +569,13 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

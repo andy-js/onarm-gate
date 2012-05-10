@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * Loopback mount info - one per mount
  */
 
@@ -35,6 +39,8 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#include <sys/vfs_opreg.h>
 
 struct lnode;
 

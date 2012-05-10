@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -35,6 +39,7 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/dmu_impl.h>
+#include <zfs_types.h>
 
 #define	BP_SPAN_SHIFT(level, width)	((level) * (width))
 
@@ -139,7 +144,7 @@ compare_bookmark(zbookmark_t *szb, zbookmark_t *ezb, dnode_phys_t *dnp,
 }
 
 static int
-advance_objset(zseg_t *zseg, uint64_t objset, int advance)
+advance_objset(zseg_t *zseg, objid_t objset, int advance)
 {
 	zbookmark_t *zb = &zseg->seg_start;
 
@@ -160,7 +165,7 @@ advance_objset(zseg_t *zseg, uint64_t objset, int advance)
 }
 
 static int
-advance_object(zseg_t *zseg, uint64_t object, int advance)
+advance_object(zseg_t *zseg, objid_t object, int advance)
 {
 	zbookmark_t *zb = &zseg->seg_start;
 
@@ -353,11 +358,11 @@ traverse_read(traverse_handle_t *th, traverse_blk_cache_t *bc, blkptr_t *bp,
 		bc->bc_errno = error;
 		error = traverse_callback(th, NULL, bc);
 		ASSERT(error == EAGAIN || error == EINTR || error == ERESTART);
-		bc->bc_blkptr.blk_birth = -1ULL;
+		bc->bc_blkptr.blk_birth = (txg_t)-1;
 	}
 
-	dprintf("cache %02x error %d <%llu, %llu, %d, %llx>\n",
-	    bc - &th->th_cache[0][0], error,
+	dprintf("cache %02x error %d <%" PRIuOBJID ", %" PRIuOBJID
+	    ", %d, %llx>\n", bc - &th->th_cache[0][0], error,
 	    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid);
 
 	return (error);
@@ -424,19 +429,19 @@ find_block(traverse_handle_t *th, zseg_t *zseg, dnode_phys_t *dnp, int depth)
 }
 
 static int
-get_dnode(traverse_handle_t *th, uint64_t objset, dnode_phys_t *mdn,
-    uint64_t *objectp, dnode_phys_t **dnpp, uint64_t txg, int type, int depth)
+get_dnode(traverse_handle_t *th, objid_t objset, dnode_phys_t *mdn,
+    objid_t *objectp, dnode_phys_t **dnpp, txg_t txg, int type, int depth)
 {
 	zseg_t zseg;
 	zbookmark_t *zb = &zseg.seg_start;
-	uint64_t object = *objectp;
+	objid_t object = *objectp;
 	int i, rc;
 
 	SET_BOOKMARK(zb, objset, 0, 0, object / DNODES_PER_BLOCK);
 	SET_BOOKMARK(&zseg.seg_end, objset, 0, 0, ZB_MAXBLKID);
 
 	zseg.seg_mintxg = txg;
-	zseg.seg_maxtxg = -1ULL;
+	zseg.seg_maxtxg = (txg_t)-1;
 
 	for (;;) {
 		rc = find_block(th, &zseg, mdn, depth);
@@ -472,7 +477,7 @@ get_dnode(traverse_handle_t *th, uint64_t objset, dnode_phys_t *mdn,
 
 /* ARGSUSED */
 static void
-traverse_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
+traverse_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, txg_t claim_txg)
 {
 	traverse_handle_t *th = arg;
 	traverse_blk_cache_t *bc = &th->th_zil_cache;
@@ -492,7 +497,7 @@ traverse_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 
 /* ARGSUSED */
 static void
-traverse_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
+traverse_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, txg_t claim_txg)
 {
 	traverse_handle_t *th = arg;
 	traverse_blk_cache_t *bc = &th->th_zil_cache;
@@ -522,7 +527,7 @@ traverse_zil(traverse_handle_t *th, traverse_blk_cache_t *bc)
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	objset_phys_t *osphys = bc->bc_data;
 	zil_header_t *zh = &osphys->os_zil_header;
-	uint64_t claim_txg = zh->zh_claim_txg;
+	txg_t claim_txg = zh->zh_claim_txg;
 	zilog_t *zilog;
 
 	ASSERT(bc == &th->th_cache[ZB_MDN_CACHE][ZB_MAXLEVEL - 1]);
@@ -554,7 +559,7 @@ traverse_segment(traverse_handle_t *th, zseg_t *zseg, blkptr_t *mosbp)
 	int worklimit = 100;
 	int rc;
 
-	dprintf("<%llu, %llu, %d, %llx>\n",
+	dprintf("<%" PRIuOBJID ", %" PRIuOBJID ", %d, %llx>\n",
 	    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid);
 
 	bc = &th->th_cache[ZB_MOS_CACHE][ZB_MAXLEVEL - 1];
@@ -570,7 +575,7 @@ traverse_segment(traverse_handle_t *th, zseg_t *zseg, blkptr_t *mosbp)
 	ASSERT(dn->dn_nlevels < ZB_MAXLEVEL);
 
 	if (zb->zb_objset != 0) {
-		uint64_t objset = zb->zb_objset;
+		objid_t objset = zb->zb_objset;
 		dsl_dataset_phys_t *dsp;
 
 		rc = get_dnode(th, 0, dn, &objset, &dn_tmp, 0,
@@ -637,7 +642,7 @@ traverse_segment(traverse_handle_t *th, zseg_t *zseg, blkptr_t *mosbp)
 	}
 
 	if (zb->zb_object != 0) {
-		uint64_t object = zb->zb_object;
+		objid_t object = zb->zb_object;
 
 		rc = get_dnode(th, zb->zb_objset, dn, &object, &dn_tmp,
 		    zseg->seg_mintxg, -1, ZB_MDN_CACHE);
@@ -703,7 +708,7 @@ traverse_segment(traverse_handle_t *th, zseg_t *zseg, blkptr_t *mosbp)
  * doesn't go away during traversal.
  */
 int
-traverse_dsl_dataset(dsl_dataset_t *ds, uint64_t txg_start, int advance,
+traverse_dsl_dataset(dsl_dataset_t *ds, txg_t txg_start, int advance,
     blkptr_cb_t func, void *arg)
 {
 	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
@@ -712,7 +717,7 @@ traverse_dsl_dataset(dsl_dataset_t *ds, uint64_t txg_start, int advance,
 
 	th = traverse_init(spa, func, arg, advance, ZIO_FLAG_MUSTSUCCEED);
 
-	traverse_add_objset(th, txg_start, -1ULL, ds->ds_object);
+	traverse_add_objset(th, txg_start, (txg_t)-1, ds->ds_object);
 
 	while ((err = traverse_more(th)) == EAGAIN)
 		continue;
@@ -725,7 +730,7 @@ int
 traverse_more(traverse_handle_t *th)
 {
 	zseg_t *zseg = list_head(&th->th_seglist);
-	uint64_t save_txg;	/* XXX won't be necessary with real itinerary */
+	txg_t save_txg;		/* XXX won't be necessary with real itinerary */
 	krwlock_t *rw = spa_traverse_rwlock(th->th_spa);
 	blkptr_t *mosbp = spa_get_rootblkptr(th->th_spa);
 	int rc;
@@ -764,9 +769,9 @@ traverse_more(traverse_handle_t *th)
  * mintxg < birth < maxtxg.
  */
 static void
-traverse_add_segment(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg,
-    uint64_t sobjset, uint64_t sobject, int slevel, uint64_t sblkid,
-    uint64_t eobjset, uint64_t eobject, int elevel, uint64_t eblkid)
+traverse_add_segment(traverse_handle_t *th, txg_t mintxg, txg_t maxtxg,
+    objid_t sobjset, objid_t sobject, int slevel, uint64_t sblkid,
+    objid_t eobjset, objid_t eobject, int elevel, uint64_t eblkid)
 {
 	zseg_t *zseg;
 
@@ -789,8 +794,8 @@ traverse_add_segment(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg,
 }
 
 void
-traverse_add_dnode(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg,
-    uint64_t objset, uint64_t object)
+traverse_add_dnode(traverse_handle_t *th, txg_t mintxg, txg_t maxtxg,
+    objid_t objset, objid_t object)
 {
 	if (th->th_advance & ADVANCE_PRE)
 		traverse_add_segment(th, mintxg, maxtxg,
@@ -803,8 +808,8 @@ traverse_add_dnode(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg,
 }
 
 void
-traverse_add_objset(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg,
-    uint64_t objset)
+traverse_add_objset(traverse_handle_t *th, txg_t mintxg, txg_t maxtxg,
+    objid_t objset)
 {
 	if (th->th_advance & ADVANCE_PRE)
 		traverse_add_segment(th, mintxg, maxtxg,
@@ -817,7 +822,7 @@ traverse_add_objset(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg,
 }
 
 void
-traverse_add_pool(traverse_handle_t *th, uint64_t mintxg, uint64_t maxtxg)
+traverse_add_pool(traverse_handle_t *th, txg_t mintxg, txg_t maxtxg)
 {
 	if (th->th_advance & ADVANCE_PRE)
 		traverse_add_segment(th, mintxg, maxtxg,

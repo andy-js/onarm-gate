@@ -24,6 +24,9 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2008 NEC Corporation
+#
 
 PROG= _sactab _pmtab _sysconfig iu.ap ttydefs
 
@@ -94,6 +97,7 @@ $(SUBDIRS): FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)
 
 clean: $(SUBDIRS)
+	$(RM) $(PROG)
 
 lint: $(SUBDIRS)
 

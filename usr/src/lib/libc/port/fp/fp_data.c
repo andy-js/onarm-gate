@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.8	*/
 
 /*
@@ -44,6 +48,9 @@
  */
 
 #include <sys/feature_tests.h>
+#if defined(__arm)
+#include "base_conversion.h"
+#endif
 
 #undef _STDC_C99	/* to force the definition of '_h_val' */
 #undef __C99FEATURES__	/* to force the definition of '_h_val' */
@@ -52,6 +59,13 @@
 
 /* IEEE infinity */
 const _h_val __huge_val =
+#if defined(__arm)
+#if (HIWORD)
+	{ 0x00000000ul, 0x7ff00000ul };
+#else
+	{ 0x7ff00000ul, 0x00000000ul };
+#endif
+#else
 #if defined(_LP64)			/* long == long long */
 	{ 0x7ff0000000000000ull };
 #elif defined(_LONG_LONG_HTOL)		/* like 32-bit sparc */
@@ -60,4 +74,5 @@ const _h_val __huge_val =
 	{ 0x00000000ul, 0x7ff00000ul };
 #else
 #error "none of { _LP64 _LONG_LONG_HTOL _LONG_LONG_LTOH } is defined"
+#endif
 #endif

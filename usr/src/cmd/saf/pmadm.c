@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -35,10 +39,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "extern.h"
 #include "misc.h"
 #include <sac.h>
 #include "structs.h"
+#include "extern.h"
 
 #define	ADD		0x1	/* -a or other required options seen */
 #define	REMOVE		0x2	/* -r seen */

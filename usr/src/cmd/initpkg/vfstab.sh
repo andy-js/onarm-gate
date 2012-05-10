@@ -29,6 +29,10 @@
 #	  All Rights Reserved
 
 #
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
+#
 
 echo "#device		device		mount		FS	fsck	mount	mount
 #to mount	to fsck		point		type	pass	at boot	options
@@ -39,5 +43,10 @@ ctfs		-		/system/contract ctfs	-	no	-
 objfs		-		/system/object	objfs	-	no	-
 sharefs		-		/etc/dfs/sharetab	sharefs	-	no	-
 fd		-		/dev/fd		fd	-	no	-
-swap		-		/tmp		tmpfs	-	yes	-
-">vfstab
+swap		-		/tmp		tmpfs	-	yes	-" >vfstab
+
+if [ "$MACH" = "arm" ]; then
+  echo "swap		-		/var/run	tmpfs	-	yes	size=1m" >>vfstab
+fi
+
+echo "">>vfstab

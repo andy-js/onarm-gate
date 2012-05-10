@@ -25,6 +25,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "mt.h"
@@ -43,16 +47,27 @@
 #include <ucontext.h>
 #include <syslog.h>
 #include <rpcsvc/daemon_utils.h>
+#ifndef DISABLE_SMF
 #include <libscf.h>
+#endif
 
 static int open_daemon_lock(const char *, int);
+#ifndef DISABLE_SMF
 static int is_auto_enabled(char *);
+#endif
 
 /*
  * Check an array of services and enable any that don't have the
  * "application/auto_enable" property set to "false", which is
  * the interface to turn off this behaviour (see PSARC 2004/739).
  */
+#ifdef DISABLE_SMF
+void
+_check_services(char **svcs)
+{
+	return;
+}
+#else
 void
 _check_services(char **svcs)
 {
@@ -69,6 +84,7 @@ _check_services(char **svcs)
 		}
 	}
 }
+#endif
 
 /*
  * Use an advisory lock to ensure that only one daemon process is
@@ -214,6 +230,7 @@ _create_daemon_lock(const char *name, uid_t uid, gid_t gid)
 	return (ret);
 }
 
+#ifndef DISABLE_SMF
 /*
  * Check the "application/auto_enable" property for the passed FMRI.
  * scf_simple_prop_get() should find the property on an instance
@@ -237,3 +254,4 @@ is_auto_enabled(char *fmri)
 	scf_simple_prop_free(prop);
 	return (retval);
 }
+#endif /* ! DISABLE_SMF */

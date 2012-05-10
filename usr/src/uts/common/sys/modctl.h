@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
+
 #ifndef	_SYS_MODCTL_H
 #define	_SYS_MODCTL_H
 
@@ -468,6 +472,21 @@ struct modctl_list {
 	struct modctl *modl_modp;
 };
 
+/* Statically-linked module information */
+typedef struct mod_static {
+	const char	**ms_namespace;		/* Module namespaces */
+	const char	*ms_modname;		/* Module name */
+	const struct mod_static  **ms_depends;	/* Dependency */
+	int		(*ms_init)(void);	/* _init entry */
+	int		(*ms_info)(struct modinfo *);	/* _info entry */
+	uint_t		ms_flags;		/* Flags */
+	const size_t	ms_nhwc;		/* Number of hwc_spec */
+	const struct hwc_spec	*ms_hwc;	/* Parsed driver.conf */
+} mod_static_t;
+
+/* Flags for ms_flags */
+#define	MS_STUB		0x1		/* Stub entry exists in modstubs.s */
+
 /*
  * Structure to manage a loadable module.
  * Note: the module (mod_mp) structure's "text" and "text_size" information
@@ -506,6 +525,9 @@ typedef struct modctl {
 
 	int		mod_gencount;	/* # times loaded/unloaded */
 	struct modctl	*mod_requisite_loading;	/* mod circular dependency */
+#ifdef	STATIC_UNIX
+	mod_static_t	*mod_static;	/* Static-linked module information */
+#endif	/* STATIC_UNIX */
 } modctl_t;
 
 /*
@@ -672,6 +694,60 @@ extern int modctl(int, ...);
 #define	MODDEBUG_MP_MATCH	0x00000004	/* dev_minorperm */
 #define	MODDEBUG_MINORPERM	0x00000002	/* minor perm modctls */
 #define	MODDEBUG_USERDEBUG	0x00000001	/* bpt after init_module() */
+
+/* The following structures are used to embed binding file into kernel. */
+typedef struct static_bind {
+	const char	*sb_name;		/* Bind name */
+	const int	sb_number;		/* Number */
+} static_bind_t;
+
+typedef struct static_strbind {
+	const char	*ss_name;		/* Bind name */
+	const char	*ss_value;		/* Value */
+} static_strbind_t;
+
+/*
+ * Define name of module entry point function.
+ * These names can be changed by build environment for static linking.
+ */
+#ifndef	MODDRV_ENTRY_INIT
+#define	MODDRV_ENTRY_INIT	_init
+#endif	/* !MODDRV_ENTRY_INIT */
+
+#ifndef	MODDRV_ENTRY_INIT_STR
+#define	MODDRV_ENTRY_INIT_STR	"_init"
+#endif	/* !MODDRV_ENTRY_INIT_STR */
+
+#ifndef	MODDRV_ENTRY_FINI
+#define	MODDRV_ENTRY_FINI	_fini
+#endif	/* !MODDRV_ENTRY_FINI */
+
+#ifndef	MODDRV_ENTRY_FINI_STR
+#define	MODDRV_ENTRY_FINI_STR	"_fini"
+#endif	/* !MODDRV_ENTRY_INIT_STR */
+
+#ifndef	MODDRV_ENTRY_INFO
+#define	MODDRV_ENTRY_INFO	_info
+#endif	/* !MODDRV_ENTRY_INFO */
+
+#ifndef	MODDRV_ENTRY_INFO_STR
+#define	MODDRV_ENTRY_INFO_STR	"_info"
+#endif	/* !MODDRV_ENTRY_INFO_STR */
+
+/* Declare _depends_on string to define module dependency. */
+#ifdef	STATIC_UNIX
+
+/*
+ * If STATIC_UNIX is define, module dependency must be defined in modinfo
+ * file, not _depends_on string.
+ */
+#define	MODDRV_DEPENDS_ON(dstr)
+
+#else	/* !STATIC_UNIX */
+
+#define	MODDRV_DEPENDS_ON(dstr)	char _depends_on[] = dstr
+
+#endif	/* STATIC_UNIX */
 
 #ifdef	__cplusplus
 }

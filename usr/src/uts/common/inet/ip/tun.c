@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
+/*
  * Tunnel driver
  * This module acts like a driver/DLPI provider as viewed from the top
  * and a stream head/TPI user from the bottom
@@ -308,7 +312,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	rc;
 
@@ -329,8 +333,9 @@ _init(void)
 	return (rc);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int error;
 
@@ -340,9 +345,10 @@ _fini(void)
 
 	return (error);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -5795,8 +5801,7 @@ tun_statinit(tun_stats_t *tun_stat, char *modname, netstackid_t stackid)
 	if ((ksp = kstat_create_netstack(mod_buf, tun_stat->ts_ppa, buf, "net",
 	    KSTAT_TYPE_NAMED, sizeof (struct tunstat) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_PERSISTENT, stackid)) == NULL) {
-		cmn_err(CE_CONT, "tun: kstat_create failed tun%d",
-		    tun_stat->ts_ppa);
+		tun_stat->ts_ksp = NULL;
 		return;
 	}
 	tun_stat->ts_ksp = ksp;

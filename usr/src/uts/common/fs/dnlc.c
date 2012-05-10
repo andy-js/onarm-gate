@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -122,7 +126,11 @@ static nc_hash_t *dnlc_free_rotor;
  * a random string of bits, probably not
  * normally chosen by a systems administrator
  */
+#ifdef DNLC_NCSIZE
+int ncsize = DNLC_NCSIZE;
+#else
 int ncsize = -1;
+#endif	/* DNLC_NCSIZE */
 volatile uint32_t dnlc_nentries = 0;	/* current num of name cache entries */
 static int nc_hashsz;			/* size of hash table */
 static int nc_hashmask;			/* size of hash table minus 1 */

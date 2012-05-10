@@ -32,6 +32,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -419,8 +423,10 @@ prtvtoc(char *devname)
 			    getmntpt(major(sb.st_rdev),
 			    noparttn(minor(sb.st_rdev))));
 	}
+#ifndef NO_SUPPORT_EFI
 	if (newvtoc)
 		efi_free(efi);
+#endif
 	return (0);
 }
 
@@ -634,8 +640,12 @@ readefi(int fd, char *name, struct dk_gpt **efi)
 {
 	int	retval;
 
+#ifdef NO_SUPPORT_EFI
+	retval = VT_EINVAL;
+#else
 	if ((retval = efi_alloc_and_read(fd, efi)) >= 0)
 		return (0);
+#endif
 
 	switch (retval) {
 	case (VT_EIO):

@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -1613,3 +1617,16 @@ out:
 	mutex_exit(ahm);
 	return (error);
 }
+
+#ifdef	__arm
+/*
+ * int
+ * swap_kern_add(struct vnode *vp, char *swapname)
+ *	Interface to add swap device from kernel.
+ */
+int
+swap_kern_add(struct vnode *vp, char *swapname)
+{
+	return swapadd(vp, 0, 0, swapname);
+}
+#endif	/* __arm */

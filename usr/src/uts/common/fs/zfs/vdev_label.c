@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -247,7 +251,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_IS_SPARE, 1) == 0);
 
 	if (!isspare && !isl2cache && vd == vd->vdev_top) {
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_METASLAB_ARRAY,
+		VERIFY(nvlist_add_objid(nv, ZPOOL_CONFIG_METASLAB_ARRAY,
 		    vd->vdev_ms_array) == 0);
 		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_METASLAB_SHIFT,
 		    vd->vdev_ms_shift) == 0);
@@ -260,7 +264,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 	}
 
 	if (vd->vdev_dtl.smo_object != 0)
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_DTL,
+		VERIFY(nvlist_add_objid(nv, ZPOOL_CONFIG_DTL,
 		    vd->vdev_dtl.smo_object) == 0);
 
 	if (getstats) {
@@ -357,12 +361,13 @@ vdev_label_read_config(vdev_t *vd)
  * in with the device guid if this spare is active elsewhere on the system.
  */
 static boolean_t
-vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
+vdev_inuse(vdev_t *vd, txg_t crtxg, vdev_labeltype_t reason,
     uint64_t *spare_guid, uint64_t *l2cache_guid)
 {
 	spa_t *spa = vd->vdev_spa;
-	uint64_t state, pool_guid, device_guid, txg, spare_pool;
-	uint64_t vdtxg = 0;
+	uint64_t state, pool_guid, device_guid, spare_pool;
+	txg_t txg;
+	txg_t vdtxg = 0;
 	nvlist_t *label;
 
 	if (spare_guid)
@@ -376,7 +381,7 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	if ((label = vdev_label_read_config(vd)) == NULL)
 		return (B_FALSE);
 
-	(void) nvlist_lookup_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
+	(void) nvlist_lookup_txg(label, ZPOOL_CONFIG_CREATE_TXG,
 	    &vdtxg);
 
 	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_STATE,
@@ -390,7 +395,7 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE &&
 	    (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID,
 	    &pool_guid) != 0 ||
-	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_TXG,
+	    nvlist_lookup_txg(label, ZPOOL_CONFIG_POOL_TXG,
 	    &txg) != 0)) {
 		nvlist_free(label);
 		return (B_FALSE);
@@ -466,7 +471,7 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
  * itself.
  */
 int
-vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
+vdev_label_init(vdev_t *vd, txg_t crtxg, vdev_labeltype_t reason)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *label;
@@ -504,8 +509,9 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	    vdev_inuse(vd, crtxg, reason, &spare_guid, &l2cache_guid))
 		return (EBUSY);
 
-	ASSERT(reason != VDEV_LABEL_REMOVE ||
-	    vdev_inuse(vd, crtxg, reason, NULL, NULL));
+	if (spa_get_failmode(spa) != ZIO_FAILURE_MODE_ABORT)
+		ASSERT(reason != VDEV_LABEL_REMOVE ||
+		    vdev_inuse(vd, crtxg, reason, NULL, NULL));
 
 	/*
 	 * If this is a request to add or replace a spare or l2cache device
@@ -605,7 +611,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * vdev uses as described above, and automatically expires if we
 		 * fail.
 		 */
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
+		VERIFY(nvlist_add_txg(label, ZPOOL_CONFIG_CREATE_TXG,
 		    crtxg) == 0);
 	}
 
@@ -869,7 +875,7 @@ vdev_label_sync_top_done(zio_t *zio)
  * Write all even or odd labels to all leaves of the specified vdev.
  */
 static void
-vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg)
+vdev_label_sync(zio_t *zio, vdev_t *vd, int l, txg_t txg)
 {
 	nvlist_t *label;
 	vdev_phys_t *vp;
@@ -912,7 +918,7 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg)
 }
 
 int
-vdev_label_sync_list(spa_t *spa, int l, int flags, uint64_t txg)
+vdev_label_sync_list(spa_t *spa, int l, int flags, txg_t txg)
 {
 	list_t *dl = &spa->spa_dirty_list;
 	vdev_t *vd;
@@ -960,7 +966,7 @@ vdev_label_sync_list(spa_t *spa, int l, int flags, uint64_t txg)
  * at any time, you can just call it again, and it will resume its work.
  */
 int
-vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg)
+vdev_config_sync(vdev_t **svd, int svdcount, txg_t txg)
 {
 	spa_t *spa = svd[0]->vdev_spa;
 	uberblock_t *ub = &spa->spa_uberblock;

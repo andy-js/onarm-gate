@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/callo.h>
@@ -125,7 +129,7 @@ timeout_common(void (*func)(void *), void *arg, clock_t delta,
 	 */
 	if (delta <= 0)
 		delta = 1;
-	cp->c_runtime = runtime = lbolt + delta;
+	cp->c_runtime = runtime = lbolt_fast + delta + 1;
 
 	/*
 	 * Assign an ID to this callout

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -344,7 +348,7 @@ static conskbd_state_t	conskbd = { 0 };
 static int kbd_layout_bak = 0;
 
 /*
- * _init()
+ * MODDRV_ENTRY_INIT()
  *
  * Description:
  *      Driver initialization, called when driver is first loaded.
@@ -358,7 +362,7 @@ static int kbd_layout_bak = 0;
  *      mod_install() status, see mod_install(9f)
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 
@@ -373,10 +377,11 @@ _init(void)
 
 	return (error);
 
-}	/* _init() */
+}	/* MODDRV_ENTRY_INIT() */
 
+#ifndef	STATIC_DRIVER
 /*
- * _fini()
+ * MODDRV_ENTRY_FINI()
  *
  * Description:
  *      Module de-initialization, called when the driver is to be unloaded.
@@ -388,7 +393,7 @@ _init(void)
  *      mod_remove() status, see mod_remove(9f)
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -401,9 +406,10 @@ _fini(void)
 	return (0);
 
 }	/* _fini() */
+#endif	/* !STATIC_DRIVER */
 
 /*
- * _info()
+ * MODDRV_ENTRY_INFO()
  *
  * Description:
  *      Module information, returns information about the driver.
@@ -415,7 +421,7 @@ _fini(void)
  *      mod_info() status, see mod_info(9f)
  */
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 

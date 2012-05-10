@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -157,6 +161,9 @@
 #include <vm/as.h>
 #include <vm/seg_vn.h>
 #include <vm/seg_spt.h>
+#include <sys/lpg_config.h>
+
+#ifndef	VMUSAGE_DISABLE
 
 #define	VMUSAGE_HASH_SIZE		512
 
@@ -907,7 +914,8 @@ vmu_amp_update_incore_bounds(struct anon_map *amp, vmu_bound_t **first,
 			if (ap != NULL && vn != NULL && vn->v_pages != NULL &&
 			    (page = page_exists(vn, off)) != NULL) {
 				page_type = VMUSAGE_BOUND_INCORE;
-				if (page->p_szc > 0) {
+				SZC_ASSERT(page->p_szc);
+				if (SZC_EVAL(page->p_szc) > 0) {
 					pgcnt = page_get_pagecnt(page->p_szc);
 					pgshft = page_get_shift(page->p_szc);
 					pgmsk = (0x1 << (pgshft - PAGESHIFT))
@@ -995,7 +1003,8 @@ vmu_vnode_update_incore_bounds(vnode_t *vnode, vmu_bound_t **first,
 			if (vnode->v_pages != NULL &&
 			    (page = page_exists(vnode, ptob(index))) != NULL) {
 				page_type = VMUSAGE_BOUND_INCORE;
-				if (page->p_szc > 0) {
+				SZC_ASSERT(page->p_szc);
+				if (SZC_EVAL(page->p_szc) > 0) {
 					pgcnt = page_get_pagecnt(page->p_szc);
 					pgshft = page_get_shift(page->p_szc);
 					pgmsk = (0x1 << (pgshft - PAGESHIFT))
@@ -1235,7 +1244,8 @@ vmu_calculate_seg(vmu_entity_t *vmu_entities, struct seg *seg)
 			 * page in mapping, and increment indicies to the next
 			 * large page.
 			 */
-			if (page->p_szc > 0) {
+			SZC_ASSERT(page->p_szc);
+			if (SZC_EVAL(page->p_szc) > 0) {
 
 				pgcnt = page_get_pagecnt(page->p_szc);
 				pgshft = page_get_shift(page->p_szc);
@@ -1990,3 +2000,18 @@ start:
 	vmu_data.vmu_pending_waiters--;
 	goto start;
 }
+
+#else	/* VMUSAGE_DISABLE */
+
+void
+vm_usage_init()
+{
+}
+
+int
+vm_getusage(uint_t flags, time_t age, vmusage_t *buf, size_t *nres)
+{
+	return (set_errno(ENOTSUP));
+}
+
+#endif	/* VMUSAGE_DISABLE */

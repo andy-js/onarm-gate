@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -33,7 +38,7 @@ TSTOBJECTS =    diagcode_test.o
 include ../../../Makefile.lib
 include ../../Makefile.lib
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS = $(ARLIB) $(DYNLIB) $(LINTLIB)
 LDLIBS +=	-lc
 
 CLOBBERFILES += test $(TSTOBJECTS)

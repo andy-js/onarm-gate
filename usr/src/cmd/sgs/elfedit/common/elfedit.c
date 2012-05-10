@@ -23,6 +23,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<sys/types.h>
@@ -173,6 +178,10 @@ static const char *isa_i_str = MSG_ORIG(MSG_ISA_X86_64);
 static const char *isa_I_str = MSG_ORIG(MSG_ISA_X86_64);
 #endif
 
+#ifdef	__arm
+static const char *isa_i_str = MSG_ORIG(MSG_ISA_ARM_32);
+static const char *isa_I_str = MSG_ORIG(MSG_STR_EMPTY);
+#endif	/* __arm */
 
 
 /* Forward declarations */

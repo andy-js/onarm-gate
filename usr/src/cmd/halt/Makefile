@@ -23,6 +23,10 @@
 # Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2007 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -36,6 +40,8 @@ include ../Makefile.cmd
 
 FILEMODE = 0755
 GROUP = bin
+
+$(ARM_BLD)CPPFLAGS += -D__NO_BOOTADM
 
 .KEEP_STATE:
 

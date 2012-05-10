@@ -22,6 +22,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -244,6 +249,7 @@ delete_entry(
 	if ((tptr = calloc(strlen(oldfile) + strlen(XEND) + 1, 1)) == NULL) {
 		perror(NULL);
 		(void) fprintf(stderr, gettext(ERR_NO_MEM));
+		return (ERROR);
 	}
 
 	(void) strcpy(tptr, oldfile);
@@ -1145,6 +1151,7 @@ update_minor_entry(char *driver_name, char *perm_list)
 	if ((tptr = calloc(strlen(minor_perm) + strlen(XEND) + 1, 1)) == NULL) {
 		perror(NULL);
 		(void) fprintf(stderr, gettext(ERR_NO_MEM));
+		return (ERROR);
 	}
 	(void) strcpy(tptr, minor_perm);
 	(void) strcat(tptr, XEND);

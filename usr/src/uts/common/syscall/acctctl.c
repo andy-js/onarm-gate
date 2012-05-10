@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/proc.h>
@@ -588,7 +592,7 @@ exacct_zone_fini(zoneid_t zoneid, void *data)
 }
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int error;
 
@@ -608,13 +612,15 @@ _init()
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */

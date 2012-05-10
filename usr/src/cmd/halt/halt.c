@@ -35,6 +35,9 @@
  * software developed by the University of California, Berkeley, and its
  * contributors.
  */
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -653,12 +656,12 @@ main(int argc, char *argv[])
 		need_check_zones = halt_zones();
 	}
 
-
+#ifndef	__NO_BOOTADM	
 	/* sync boot archive in the global zone */
 	if (zoneid == GLOBAL_ZONEID && !nosync) {
 		(void) system("/sbin/bootadm -a update_all");
 	}
-
+#endif	/* __NO_BOOTADM */
 	/*
 	 * If we're not forcing a crash dump, mark the system as quiescing for
 	 * smf(5)'s benefit, and idle the init process.

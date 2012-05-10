@@ -30,6 +30,10 @@
 
 /* Copyright (c) 1981 Regents of the University of California */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>	/* BUFSIZ: stdio = 1024, VMUNIX = 1024 */
@@ -86,6 +90,7 @@ void searchdir(unsigned char *);
 void scrapbad(void);
 void findtmp(unsigned char *);
 void listfiles(unsigned char *);
+static void catch();
 
 int
 main(int argc, char *argv[])
@@ -842,7 +847,6 @@ unsigned char	*prompt;
 	int c;
 	static unsigned char pbuf[9];
 	void	(*sig)(); 
-	static void catch();
 
 	setbuf(stdin, (char*)NULL);
 	sig = signal(SIGINT, catch);

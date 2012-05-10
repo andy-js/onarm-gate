@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _THR_UBERDATA_H
 #define	_THR_UBERDATA_H
 
@@ -118,7 +122,7 @@
 #define	WAITERMASK64	0x00000000000000ffULL
 #define	SPINNERMASK64	0x0000000000ff0000ULL
 
-#elif defined(__x86)
+#elif defined(__x86) || defined(__arm)
 
 /* lock.lock64.pad[x]	   7 6 5 4 */
 #define	LOCKMASK	0xff000000
@@ -229,7 +233,7 @@ typedef union {
 #define	MUTEX_TRY	0
 #define	MUTEX_LOCK	1
 
-#if defined(__x86)
+#if defined(__x86) || defined(__arm)
 
 typedef struct {	/* structure returned by fnstenv */
 	int	fctrl;		/* control word */
@@ -471,7 +475,7 @@ typedef struct ulwp {
 	uint32_t	ul_dreturn;	/* dtrace: return %o0 */
 #endif
 	struct ulwp	*ul_self;	/* pointer to self */
-#if defined(__i386)
+#if defined(__i386) || defined(__arm)
 	uint8_t		ul_dinstr[40];	/* scratch space for dtrace */
 #elif defined(__amd64)
 	uint8_t		ul_dinstr[56];	/* scratch space for dtrace */
@@ -871,7 +875,7 @@ typedef struct ulwp32 {
 	uint32_t	ul_dreturn;	/* dtrace: return %o0 */
 #endif
 	caddr32_t	ul_self;	/* pointer to self */
-#if defined(__x86)
+#if defined(__x86) || defined(__arm)
 	uint8_t		ul_dinstr[40];	/* scratch space for dtrace */
 #endif
 	caddr32_t	ul_uberdata;	/* uber (super-global) data */

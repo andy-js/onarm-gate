@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -86,6 +90,7 @@
 #include <sys/debug.h>
 #include <sys/log.h>
 #include <sys/fs/snode.h>
+#include <sys/modstatic.h>
 
 /*
  * Enumeration of the ops exported by the dacf framework.
@@ -275,7 +280,7 @@ dacf_init()
 	 */
 	(void) dacf_module_register(kmod_name, &kmod_dacfsw);
 
-	(void) read_dacf_binding_file(NULL);
+	(void) BUILD_DACF_BINDING(NULL);
 
 	dprintf("dacf_init: dacf is ready\n");
 }

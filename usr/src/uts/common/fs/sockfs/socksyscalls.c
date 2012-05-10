@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -160,11 +164,22 @@ so_socket(int domain, int type, int protocol, char *devpath, int version)
 	}
 
 	if (protocol == IPPROTO_SCTP) {
+#ifdef SCTP_SHRINK
+                /* Enable SCTP shrinking */
+		return (set_errno(EPROTONOSUPPORT));
+#else
+                /* Orignal Program */
 		so = sosctp_create(accessvp, domain, type, protocol, version,
 		    NULL, &error);
+#endif
 	} else if (protocol == PROTO_SDP) {
+#ifdef SOCKFS_SHRINK
+                /* Enable SOCKFS shrinking */
+		return (set_errno(EPROTONOSUPPORT));
+#else
 		so = sosdp_create(accessvp, domain, type, protocol, version,
 		    NULL, &error);
+#endif
 	} else {
 		so = sotpi_create(accessvp, domain, type, protocol, version,
 		    NULL, &error);

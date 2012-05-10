@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "uucp.h"
@@ -51,6 +55,8 @@ void cleanup(), ruux(), usage();
 int eaccess(), guinfo(), vergrd(), gwd(), ckexpf(), uidstat(), uidxcp(),
 	copy(), gtcfile();
 void commitall(), wfabort(), mailst(), gename(), svcfile();
+
+static FILE	*syscfile();
 
 char	Sfile[MAXFULLNAME];
 
@@ -485,7 +491,6 @@ copy(s1, f1, s2, f2)
 char *s1, *f1, *s2, *f2;
 {
 	FILE *cfp;
-	static FILE *syscfile();
 	struct stat stbuf, stbuf1;
 	int type, statret;
 	char dfile[NAMESIZE];

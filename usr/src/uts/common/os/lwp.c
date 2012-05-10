@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -59,6 +63,7 @@
 #include <sys/sdt.h>
 #include <sys/cmn_err.h>
 #include <sys/brand.h>
+#include <sys/lwp_private.h>
 
 void *segkp_lwp;		/* cookie for pool of segkp resources */
 extern void reapq_move_lq_to_tq(kthread_t *);
@@ -940,7 +945,7 @@ top:
 		 */
 		if (ISWAKEABLE(t) || ISWAITING(t)) {
 			setrun_locked(t);
-		} else if (t->t_state == TS_ONPROC && t->t_cpu != CPU) {
+		} else if (t->t_state == TS_ONPROC && t->t_cpu != CPU_GLOBAL) {
 			poke_cpu(t->t_cpu->cpu_id);
 		}
 
@@ -1214,8 +1219,8 @@ holdcheck(int clearflags)
  *              - Waits for all threads to be either stopped or have
  *                TP_WATCHSTOP set.
  *              - Sets the SWATCHOK flag on the process
- *              - Unsets TP_WATCHSTOP
  *              - Waits for the other threads to completely stop
+ *              - Unsets TP_WATCHSTOP
  *              - Unsets SWATCHOK
  *
  * 	o If SHOLDWATCH is already set when we enter this function, then another
@@ -1271,11 +1276,14 @@ holdwatch(void)
 		p->p_flag |= SHOLDWATCH;
 		pokelwps(p);
 
+		t->t_proc_flag |= TP_WATCHSTOP;
+
 		/*
 		 * Wait for all threads to be stopped or have TP_WATCHSTOP set.
 		 */
 		while (pr_allstopped(p, 1) > 0) {
 			if (holdcheck(SHOLDWATCH) != 0) {
+				t->t_proc_flag &= ~TP_WATCHSTOP;
 				p->p_flag &= ~SHOLDWATCH;
 				mutex_exit(&p->p_lock);
 				return (-1);
@@ -1289,7 +1297,6 @@ holdwatch(void)
 		 * Set SWATCHOK and let them stop completely.
 		 */
 		p->p_flag |= SWATCHOK;
-		t->t_proc_flag &= ~TP_WATCHSTOP;
 		cv_broadcast(&p->p_holdlwps);
 
 		while (pr_allstopped(p, 0) > 0) {
@@ -1301,6 +1308,7 @@ holdwatch(void)
 			 * takes precedence over watchpoints.
 			 */
 			if (holdcheck(SHOLDWATCH | SWATCHOK) != 0) {
+				t->t_proc_flag &= ~TP_WATCHSTOP;
 				p->p_flag &= ~(SHOLDWATCH | SWATCHOK);
 				mutex_exit(&p->p_lock);
 				return (-1);
@@ -1312,6 +1320,7 @@ holdwatch(void)
 		/*
 		 * All threads are now completely stopped.
 		 */
+		t->t_proc_flag &= ~TP_WATCHSTOP;
 		p->p_flag &= ~SWATCHOK;
 		p->p_flag &= ~SHOLDWATCH;
 		p->p_lwprcnt++;
@@ -1411,7 +1420,7 @@ pokelwps(proc_t *p)
 				}
 			}
 		} else if (t->t_state == TS_ONPROC) {
-			if (t->t_cpu != CPU)
+			if (t->t_cpu != CPU_GLOBAL)
 				poke_cpu(t->t_cpu->cpu_id);
 		}
 		thread_unlock(t);
@@ -1627,8 +1636,8 @@ forklwp(klwp_t *lwp, proc_t *cp, id_t lwpid)
 		/* copy args out of registers first */
 		(void) save_syscall_args();
 
-	clwp = lwp_create(cp->p_lwpcnt == 0 ? lwp_rtt_initial : lwp_rtt,
-	    NULL, 0, cp, TS_STOPPED, t->t_pri, &t->t_hold, NOCLASS, lwpid);
+	clwp = lwp_create(LWP_RTT(t, cp), NULL, 0, cp, TS_STOPPED,
+			  t->t_pri, &t->t_hold, NOCLASS, lwpid);
 	if (clwp == NULL)
 		return (NULL);
 
@@ -1661,6 +1670,10 @@ forklwp(klwp_t *lwp, proc_t *cp, id_t lwpid)
 #if defined(__sparc)
 	clwp->lwp_pcb.pcb_step = STEP_NONE;
 #endif
+#if defined(__arm)
+	clwp->lwp_pcb.pcb_step = STEP_NONE;
+	bzero(&clwp->lwp_pcb.pcb_bpinfo, sizeof (struct bp_info));
+#endif
 	clwp->lwp_cursig = 0;
 	clwp->lwp_extsig = 0;
 	clwp->lwp_curinfo = (struct sigqueue *)0;
@@ -1676,7 +1689,7 @@ forklwp(klwp_t *lwp, proc_t *cp, id_t lwpid)
 	clwp->lwp_lastfaddr = 0;
 
 	/* copy parent's struct regs to child. */
-	lwp_forkregs(lwp, clwp);
+	LWP_FORKREGS(t, lwp, clwp);
 
 	/*
 	 * Fork thread context ops, if any.

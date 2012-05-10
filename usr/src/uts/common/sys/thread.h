@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_THREAD_H
 #define	_SYS_THREAD_H
 
@@ -338,6 +342,8 @@ typedef struct _kthread {
 	hrtime_t	t_hrtime;	/* high-res last time on cpu */
 	kmutex_t	t_ctx_lock;	/* protects t_ctx in removectx() */
 	struct waitq	*t_waitq;	/* wait queue */
+	ushort_t	t_dont_setdq_cnt;	/* protected by thread_lock */
+	ushort_t	t_dont_setdq_flag;	/* protected by thread_lock */
 } kthread_t;
 
 /*
@@ -500,8 +506,13 @@ typedef struct _kthread {
 #define	lwptot(x)	((x)->lwp_thread)
 #define	lwptoproc(x)	((x)->lwp_procp)
 
+#if defined(__arm)
+#define	t_pc		t_pcb.val[10]
+#define	t_sp		t_pcb.val[9]
+#else
 #define	t_pc		t_pcb.val[0]
 #define	t_sp		t_pcb.val[1]
+#endif	/* __arm */
 
 #ifdef	_KERNEL
 
@@ -640,7 +651,7 @@ caddr_t	thread_stk_init(caddr_t);	/* init thread stack */
  * thread deoes not become unlocked, since these stores can be reordered.
  */
 #define	THREAD_ONPROC(tp, cpu)	\
-		THREAD_SET_STATE(tp, TS_ONPROC, &(cpu)->cpu_thread_lock)
+	THREAD_SET_STATE(tp, TS_ONPROC, &(CPU_SELF(cpu))->cpu_thread_lock)
 
 /*
  * Set the thread into the TS_SLEEP state, and set the lock pointer to
@@ -658,7 +669,7 @@ caddr_t	thread_stk_init(caddr_t);	/* init thread stack */
  * points at the associated CPU's lock.
  */
 #define	THREAD_FREEINTR(tp, cpu)	\
-		THREAD_SET_STATE(tp, TS_FREE, &(cpu)->cpu_thread_lock)
+	THREAD_SET_STATE(tp, TS_FREE, &(CPU_SELF(cpu))->cpu_thread_lock)
 
 #ifdef	__cplusplus
 }

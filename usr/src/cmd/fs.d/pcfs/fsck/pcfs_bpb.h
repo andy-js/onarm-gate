@@ -24,6 +24,10 @@
  * All rights reserved.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef _PCFS_BPB_H
 #define	_PCFS_BPB_H
 
@@ -84,9 +88,9 @@ extern "C" {
  *	|     File area     |
  *	|___________________|
  */
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma	pack(1)
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 struct _orig_bios_param_blk {
 	uint16_t bytes_per_sector;
 	uchar_t	 sectors_per_cluster;
@@ -109,13 +113,13 @@ struct _orig_bios_param_blk {
 	uint32_t hidden_sectors;
 	uint32_t sectors_in_logical_volume;
 };
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma pack()
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma	pack(1)
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 struct _bpb32_extensions {
 	uint32_t big_sectors_per_fat;
 	uint16_t ext_flags;
@@ -126,13 +130,13 @@ struct _bpb32_extensions {
 	uint16_t backupboot;
 	uint16_t reserved[6];
 };
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma pack()
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma	pack(1)
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 struct _bpb_extensions {
 	uchar_t  phys_drive_num;
 	uchar_t  reserved;
@@ -141,20 +145,20 @@ struct _bpb_extensions {
 	uchar_t  volume_label[11];
 	uchar_t  type[8];
 };
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma pack()
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma	pack(1)
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 struct _sun_bpb_extensions {
 	uint16_t  bs_offset_high;
 	uint16_t  bs_offset_low;
 };
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma pack()
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 
 /*
  * bpb_t is a conglomeration of all the fields a bpb can have.  Every
@@ -168,7 +172,7 @@ typedef struct _bios_param_blk {
 	struct _sun_bpb_extensions  sunbpb;
 } bpb_t;
 
-#ifdef i386
+#if	defined(i386) || defined(__arm)
 #pragma	pack(1)
 struct _bpb_head {
 	uchar_t			    bs_jump_code[3];
@@ -196,7 +200,7 @@ struct _boot_sector32 {
 	uchar_t			    bs_signature[2];
 };
 #pragma pack()
-#else
+#else	/* !(defined(i386) || defined(__arm)) */
 #define	ORIG_BPB_START_INDEX	8	/* index into filler field */
 #define	EXT_BPB_START_INDEX	33	/* index into filler field */
 #define	BPB_32_START_INDEX	33	/* index into filler field */
@@ -215,7 +219,7 @@ struct _boot_sector32 {
 	uchar_t	 bs_bootstrap[420];
 	uchar_t  bs_signature[2];
 };
-#endif
+#endif	/* defined(i386) || defined(__arm) */
 
 typedef union _ubso {
 	struct _boot_sector	bs;

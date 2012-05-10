@@ -307,6 +307,13 @@ SUNW_0.7 {		# SunOS 5.3 (Solaris 2.3)
 	ypprot_err;
 	yp_unbind;
 	yp_update;
+$if _ELF32
+} SYSVABI_1.3;
+
+SYMBOL_VERSION SYSVABI_1.3 {
+    global:
+	t_rcvconnect;
+$endif
 };
 
 # There really should be only one SUNWprivate version.

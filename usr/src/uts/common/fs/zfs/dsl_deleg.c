@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * DSL permissions are stored in a two level zap attribute
  * mechanism.   The first level identifies the "class" of
  * entry.  The class is identified by the first 2 letters of
@@ -83,6 +87,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/cred.h>
 #include <sys/sunddi.h>
+#include <zfs_types.h>
 
 #include "zfs_deleg.h"
 
@@ -158,7 +163,7 @@ dsl_deleg_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	nvlist_t *nvp = arg2;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	nvpair_t *whopair = NULL;
-	uint64_t zapobj = dd->dd_phys->dd_deleg_zapobj;
+	objid_t zapobj = dd->dd_phys->dd_deleg_zapobj;
 
 	if (zapobj == 0) {
 		dmu_buf_will_dirty(dd->dd_dbuf, tx);
@@ -170,15 +175,16 @@ dsl_deleg_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 		const char *whokey = nvpair_name(whopair);
 		nvlist_t *perms;
 		nvpair_t *permpair = NULL;
-		uint64_t jumpobj;
+		objid_t jumpobj;
 
 		VERIFY(nvpair_value_nvlist(whopair, &perms) == 0);
 
-		if (zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj) != 0) {
+		if (zap_lookup(mos, zapobj, whokey, sizeof (jumpobj),
+		    1, &jumpobj) != 0) {
 			jumpobj = zap_create(mos, DMU_OT_DSL_PERMS,
 			    DMU_OT_NONE, 0, tx);
 			VERIFY(zap_update(mos, zapobj,
-			    whokey, 8, 1, &jumpobj, tx) == 0);
+			    whokey, sizeof (jumpobj), 1, &jumpobj, tx) == 0);
 		}
 
 		while (permpair = nvlist_next_nvpair(perms, permpair)) {
@@ -189,7 +195,7 @@ dsl_deleg_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 			    perm, 8, 1, &n, tx) == 0);
 			spa_history_internal_log(LOG_DS_PERM_UPDATE,
 			    dd->dd_pool->dp_spa, tx, cr,
-			    "%s %s dataset = %llu", whokey, perm,
+			    "%s %s dataset = %" PRIuOBJID, whokey, perm,
 			    dd->dd_phys->dd_head_dataset_obj);
 		}
 	}
@@ -202,7 +208,7 @@ dsl_deleg_unset_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	nvlist_t *nvp = arg2;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	nvpair_t *whopair = NULL;
-	uint64_t zapobj = dd->dd_phys->dd_deleg_zapobj;
+	objid_t zapobj = dd->dd_phys->dd_deleg_zapobj;
 
 	if (zapobj == 0)
 		return;
@@ -211,22 +217,23 @@ dsl_deleg_unset_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 		const char *whokey = nvpair_name(whopair);
 		nvlist_t *perms;
 		nvpair_t *permpair = NULL;
-		uint64_t jumpobj;
+		objid_t jumpobj;
 
 		if (nvpair_value_nvlist(whopair, &perms) != 0) {
-			if (zap_lookup(mos, zapobj, whokey, 8,
+			if (zap_lookup(mos, zapobj, whokey, sizeof (jumpobj),
 			    1, &jumpobj) == 0) {
 				(void) zap_remove(mos, zapobj, whokey, tx);
 				VERIFY(0 == zap_destroy(mos, jumpobj, tx));
 			}
 			spa_history_internal_log(LOG_DS_PERM_WHO_REMOVE,
 			    dd->dd_pool->dp_spa, tx, cr,
-			    "%s dataset = %llu", whokey,
+			    "%s dataset = %" PRIuOBJID, whokey,
 			    dd->dd_phys->dd_head_dataset_obj);
 			continue;
 		}
 
-		if (zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj) != 0)
+		if (zap_lookup(mos, zapobj, whokey, sizeof (jumpobj),
+		    1, &jumpobj) != 0)
 			continue;
 
 		while (permpair = nvlist_next_nvpair(perms, permpair)) {
@@ -242,7 +249,7 @@ dsl_deleg_unset_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 			}
 			spa_history_internal_log(LOG_DS_PERM_REMOVE,
 			    dd->dd_pool->dp_spa, tx, cr,
-			    "%s %s dataset = %llu", whokey, perm,
+			    "%s %s dataset = %" PRIuOBJID, whokey, perm,
 			    dd->dd_phys->dd_head_dataset_obj);
 		}
 	}
@@ -311,6 +318,12 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
+	if (spa_state(dp->dp_spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(dp->dp_spa) == ZIO_FAILURE_MODE_ABORT) {
+		dsl_dir_close(startdd, FTAG);
+		return (EIO);
+	}
+
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
 	for (dd = startdd; dd != NULL; dd = dd->dd_parent) {
 		zap_cursor_t basezc;
@@ -336,7 +349,8 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 			zap_attribute_t za;
 			nvlist_t *perms_nvp;
 
-			ASSERT(baseza.za_integer_length == 8);
+			ASSERT(baseza.za_integer_length ==
+			    sizeof (dd->dd_phys->dd_deleg_zapobj));
 			ASSERT(baseza.za_num_integers == 1);
 
 			VERIFY(nvlist_alloc(&perms_nvp,
@@ -398,15 +412,16 @@ perm_set_compare(const void *arg1, const void *arg2)
  * there is no perm in that jumpobj.
  */
 static int
-dsl_check_access(objset_t *mos, uint64_t zapobj,
+dsl_check_access(objset_t *mos, objid_t zapobj,
     char type, char checkflag, void *valp, const char *perm)
 {
 	int error;
-	uint64_t jumpobj, zero;
+	objid_t jumpobj;
+	uint64_t zero;
 	char whokey[ZFS_MAX_DELEG_NAME];
 
 	zfs_deleg_whokey(whokey, type, checkflag, valp);
-	error = zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj);
+	error = zap_lookup(mos, zapobj, whokey, sizeof (jumpobj), 1, &jumpobj);
 	if (error == 0) {
 		error = zap_lookup(mos, jumpobj, perm, 8, 1, &zero);
 		if (error == ENOENT)
@@ -419,7 +434,7 @@ dsl_check_access(objset_t *mos, uint64_t zapobj,
  * check a specified user/group for a requested permission
  */
 static int
-dsl_check_user_access(objset_t *mos, uint64_t zapobj, const char *perm,
+dsl_check_user_access(objset_t *mos, objid_t zapobj, const char *perm,
     int checkflag, cred_t *cr)
 {
 	const	gid_t *gids;
@@ -463,20 +478,20 @@ dsl_check_user_access(objset_t *mos, uint64_t zapobj, const char *perm,
  * and load them into the permsets avl tree.
  */
 static int
-dsl_load_sets(objset_t *mos, uint64_t zapobj,
+dsl_load_sets(objset_t *mos, objid_t zapobj,
     char type, char checkflag, void *valp, avl_tree_t *avl)
 {
 	zap_cursor_t zc;
 	zap_attribute_t za;
 	perm_set_t *permnode;
 	avl_index_t idx;
-	uint64_t jumpobj;
+	objid_t jumpobj;
 	int error;
 	char whokey[ZFS_MAX_DELEG_NAME];
 
 	zfs_deleg_whokey(whokey, type, checkflag, valp);
 
-	error = zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj);
+	error = zap_lookup(mos, zapobj, whokey, sizeof (jumpobj), 1, &jumpobj);
 	if (error != 0)
 		return (error);
 
@@ -502,7 +517,7 @@ dsl_load_sets(objset_t *mos, uint64_t zapobj,
  * Load all permissions user based on cred belongs to.
  */
 static void
-dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
+dsl_load_user_sets(objset_t *mos, objid_t zapobj, avl_tree_t *avl,
     char checkflag, cred_t *cr)
 {
 	const	gid_t *gids;
@@ -575,10 +590,16 @@ dsl_deleg_access(const char *ddname, const char *perm, cred_t *cr)
 	avl_create(&permsets, perm_set_compare, sizeof (perm_set_t),
 	    offsetof(perm_set_t, p_node));
 
+	if (spa_state(dp->dp_spa) == POOL_STATE_IO_FAILURE &&
+	    spa_get_failmode(dp->dp_spa) == ZIO_FAILURE_MODE_ABORT) {
+		dsl_dir_close(startdd, FTAG);
+		return (EIO);
+	}
+
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
 	for (dd = startdd; dd != NULL; dd = dd->dd_parent,
 	    checkflag = ZFS_DELEG_DESCENDENT) {
-		uint64_t zapobj;
+		objid_t zapobj;
 		boolean_t expanded;
 
 		/*
@@ -651,12 +672,12 @@ success:
  */
 
 static void
-copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
+copy_create_perms(dsl_dir_t *dd, objid_t pzapobj,
     boolean_t dosets, uint64_t uid, dmu_tx_t *tx)
 {
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	uint64_t jumpobj, pjumpobj;
-	uint64_t zapobj = dd->dd_phys->dd_deleg_zapobj;
+	objid_t jumpobj, pjumpobj;
+	objid_t zapobj = dd->dd_phys->dd_deleg_zapobj;
 	zap_cursor_t zc;
 	zap_attribute_t za;
 	char whokey[ZFS_MAX_DELEG_NAME];
@@ -664,7 +685,8 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 	zfs_deleg_whokey(whokey,
 	    dosets ? ZFS_DELEG_CREATE_SETS : ZFS_DELEG_CREATE,
 	    ZFS_DELEG_LOCAL, NULL);
-	if (zap_lookup(mos, pzapobj, whokey, 8, 1, &pjumpobj) != 0)
+	if (zap_lookup(mos, pzapobj, whokey, sizeof (pjumpobj), 1,
+	    &pjumpobj) != 0)
 		return;
 
 	if (zapobj == 0) {
@@ -676,16 +698,19 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 	zfs_deleg_whokey(whokey,
 	    dosets ? ZFS_DELEG_USER_SETS : ZFS_DELEG_USER,
 	    ZFS_DELEG_LOCAL, &uid);
-	if (zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj) == ENOENT) {
+	if (zap_lookup(mos, zapobj, whokey, sizeof (jumpobj), 1,
+	    &jumpobj) == ENOENT) {
 		jumpobj = zap_create(mos, DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
-		VERIFY(zap_add(mos, zapobj, whokey, 8, 1, &jumpobj, tx) == 0);
+		VERIFY(zap_add(mos, zapobj, whokey, sizeof (jumpobj), 1,
+		    &jumpobj, tx) == 0);
 	}
 
 	for (zap_cursor_init(&zc, mos, pjumpobj);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
 		uint64_t zero = 0;
-		ASSERT(za.za_integer_length == 8 && za.za_num_integers == 1);
+		ASSERT(za.za_integer_length == sizeof (pjumpobj) &&
+		    za.za_num_integers == 1);
 
 		VERIFY(zap_update(mos, jumpobj, za.za_name,
 		    8, 1, &zero, tx) == 0);
@@ -707,7 +732,7 @@ dsl_deleg_set_create_perms(dsl_dir_t *sdd, dmu_tx_t *tx, cred_t *cr)
 		return;
 
 	for (dd = sdd->dd_parent; dd != NULL; dd = dd->dd_parent) {
-		uint64_t pzapobj = dd->dd_phys->dd_deleg_zapobj;
+		objid_t pzapobj = dd->dd_phys->dd_deleg_zapobj;
 
 		if (pzapobj == 0)
 			continue;
@@ -718,7 +743,7 @@ dsl_deleg_set_create_perms(dsl_dir_t *sdd, dmu_tx_t *tx, cred_t *cr)
 }
 
 int
-dsl_deleg_destroy(objset_t *mos, uint64_t zapobj, dmu_tx_t *tx)
+dsl_deleg_destroy(objset_t *mos, objid_t zapobj, dmu_tx_t *tx)
 {
 	zap_cursor_t zc;
 	zap_attribute_t za;
@@ -729,7 +754,8 @@ dsl_deleg_destroy(objset_t *mos, uint64_t zapobj, dmu_tx_t *tx)
 	for (zap_cursor_init(&zc, mos, zapobj);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
-		ASSERT(za.za_integer_length == 8 && za.za_num_integers == 1);
+		ASSERT(za.za_integer_length == sizeof (zapobj) &&
+		    za.za_num_integers == 1);
 		VERIFY(0 == zap_destroy(mos, za.za_first_integer, tx));
 	}
 	zap_cursor_fini(&zc);

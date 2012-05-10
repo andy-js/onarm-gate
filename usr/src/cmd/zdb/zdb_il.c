@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -39,6 +43,8 @@
 #include <sys/resource.h>
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
+
+#include "zfs_types.h"
 
 extern uint8_t dump_opt[256];
 
@@ -133,7 +139,8 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 			ASSERT3U(bp->blk_cksum.zc_word[ZIL_ZC_OBJSET], ==,
 			    dmu_objset_id(zilog->zl_os));
 
-			zb.zb_objset = bp->blk_cksum.zc_word[ZIL_ZC_OBJSET];
+			zb.zb_objset =
+			    (objid_t)bp->blk_cksum.zc_word[ZIL_ZC_OBJSET];
 			zb.zb_object = 0;
 			zb.zb_level = -1;
 			zb.zb_blkid = bp->blk_cksum.zc_word[ZIL_ZC_SEQ];
@@ -217,6 +224,7 @@ zil_prt_rec_setattr(zilog_t *zilog, int txtype, lr_setattr_t *lr)
 	}
 }
 
+#ifndef ZFS_COMPACT
 /* ARGSUSED */
 static void
 zil_prt_rec_acl(zilog_t *zilog, int txtype, lr_acl_t *lr)
@@ -224,6 +232,7 @@ zil_prt_rec_acl(zilog_t *zilog, int txtype, lr_acl_t *lr)
 	(void) printf("\t\t\tfoid %llu, aclcnt %llu\n",
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_aclcnt);
 }
+#endif	/* ZFS_COMPACT */
 
 typedef void (*zil_prt_rec_func_t)();
 typedef struct zil_rec_info {
@@ -245,19 +254,29 @@ static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
 	{	zil_prt_rec_write,	"TX_WRITE           " },
 	{	zil_prt_rec_truncate,	"TX_TRUNCATE        " },
 	{	zil_prt_rec_setattr,	"TX_SETATTR         " },
+#ifndef ZFS_COMPACT
 	{	zil_prt_rec_acl,	"TX_ACL_V0          " },
 	{	zil_prt_rec_acl,	"TX_ACL_ACL         " },
 	{	zil_prt_rec_create,	"TX_CREATE_ACL      " },
+#else
+	{	NULL,			"TX_ACL_V0          " },
+	{	NULL,			"TX_ACL_ACL         " },
+	{	NULL,			"TX_CREATE_ACL      " },
+#endif	/* ZFS_COMAPCT */
 	{	zil_prt_rec_create,	"TX_CREATE_ATTR     " },
 	{	zil_prt_rec_create,	"TX_CREATE_ACL_ATTR " },
+#ifndef ZFS_COMPACT
 	{	zil_prt_rec_create,	"TX_MKDIR_ACL       " },
+#else
+	{	NULL,			"TX_MKDIR_ACL       " },
+#endif	/* ZFS_COMPACT */
 	{	zil_prt_rec_create,	"TX_MKDIR_ATTR      " },
 	{	zil_prt_rec_create,	"TX_MKDIR_ACL_ATTR  " },
 };
 
 /* ARGSUSED */
 static void
-print_log_record(zilog_t *zilog, lr_t *lr, void *arg, uint64_t claim_txg)
+print_log_record(zilog_t *zilog, lr_t *lr, void *arg, txg_t claim_txg)
 {
 	int txtype;
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
@@ -284,7 +303,7 @@ print_log_record(zilog_t *zilog, lr_t *lr, void *arg, uint64_t claim_txg)
 
 /* ARGSUSED */
 static void
-print_log_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
+print_log_block(zilog_t *zilog, blkptr_t *bp, void *arg, txg_t claim_txg)
 {
 	char blkbuf[BP_SPRINTF_LEN];
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);

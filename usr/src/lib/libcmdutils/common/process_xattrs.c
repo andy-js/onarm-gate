@@ -23,9 +23,12 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include <c_synonyms.h>
 #include "libcmdutils.h"
 
 

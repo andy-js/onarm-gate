@@ -28,12 +28,19 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 
 #ifndef _ERRNO_H
 #define	_ERRNO_H
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.4.1.5 */
 
+#if defined(_AEABI_PORTABILITY_LEVEL)
+#error "not supported AEABI."
+#endif
 /*
  * Error codes
  */

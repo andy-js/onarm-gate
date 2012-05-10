@@ -27,6 +27,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -1483,6 +1488,22 @@ ld_sym_validate(Ofl_desc *ofl)
 				isp->is_file->ifl_flags |= FLG_IF_FILEREF;
 			}
 		}
+#ifdef	__arm
+		/*
+		 * _init, _fini may not be referenced, but it must not be
+		 * eliminated even if -zignore is specified. So the input
+		 * section that contains _init and _fini must be marked as
+		 * referenced.
+		 */
+		if (sdp->sd_ref == REF_REL_NEED &&  type == STT_FUNC &&
+		    sym->st_shndx != SHN_UNDEF &&
+		    (strcmp(sdp->sd_name, MSG_ORIG(MSG_SYM_INIT_U)) == 0 ||
+		     strcmp(sdp->sd_name, MSG_ORIG(MSG_SYM_FINI_U)) == 0) &&
+		    (isp = sdp->sd_isc) != NULL) {
+			isp->is_flags |= FLG_IS_SECTREF;
+			isp->is_file->ifl_flags |= FLG_IF_FILEREF;
+		}
+#endif	/* __arm */
 	}
 
 	/*
@@ -2015,6 +2036,23 @@ ld_sym_process(Is_desc *isc, Ifl_desc *ifl, Ofl_desc *ofl)
 			 * won't be a problem unless a relocation is required
 			 * against it.
 			 */
+#ifdef	__arm
+			/*
+			 * GNU assembler may set symbol table section index
+			 * into st_shndx for a symbol declared by .set
+			 * directive. We should ignore such symbols.
+			 */
+			if (sdp->sd_isc && sdp->sd_isc->is_osdesc == 0 &&
+			    sym->st_shndx < ifl->ifl_shnum) {
+				Is_desc	*sc = ifl->ifl_isdesc[sym->st_shndx];
+
+				if (sc->is_shdr->sh_type == SHT_SYMTAB) {
+					sdp->sd_isc = NULL;
+					sdp->sd_flags |= FLG_SY_INVALID;
+					continue;
+				}
+			}
+#endif	/* __arm */
 			if (((sdp->sd_flags & FLG_SY_SPECSEC) &&
 			    ((sym->st_shndx == SHN_COMMON)) ||
 			    ((type == STT_FILE) &&

@@ -5,6 +5,10 @@
 # All rights reserved.
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 NATIVE=native
 PROG= zic
 KSHPROG= tzselect
@@ -29,7 +33,7 @@ CLOBBERFILES= $(NOBJS) $(NPROG) $(NATIVE)/zic.c $(NATIVE)/tzfile.h
 
 include ../Makefile.cmd
 
-NCPPFLAGS=	-I$(NATIVE)
+NCPPFLAGS=	-I$(NATIVE) $(NATIVE_CPPFLAGS)
 ROOTTZD=	$(ROOTSHLIB)/zoneinfo
 ROOTTZSRCD=	$(ROOTSHLIB)/zoneinfo/src
 ROOTTZTABD=	$(ROOTSHLIB)/zoneinfo/tab

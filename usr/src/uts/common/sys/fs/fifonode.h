@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_SYS_FS_FIFONODE_H
 #define	_SYS_FS_FIFONODE_H
@@ -36,6 +39,7 @@
 extern "C" {
 #endif
 
+#include <sys/vfs_opreg.h>
 
 /*
  * Each FIFOFS object is identified by a struct fifonode/vnode pair.

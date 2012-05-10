@@ -24,6 +24,10 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG=	dis
 OBJS=	dis_target.o dis_main.o dis_util.o dis_list.o
 SRCS=	$(OBJS:%.o=%.c)
@@ -48,3 +52,5 @@ clean:
 lint: lint_SRCS
 
 include ../Makefile.targ
+
+$(ARM_BLD)include	Makefile.cross

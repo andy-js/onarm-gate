@@ -23,6 +23,9 @@
  * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -43,7 +46,7 @@
 #include <string.h>
 #include <sys/byteorder.h>
 #include <errno.h>
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 #include <sys/dktp/altsctr.h>
 #endif
 #include <sys/dktp/dadkio.h>
@@ -65,18 +68,18 @@ int	updatebadsec();
 
 #ifdef  __STDC__
 static int	ata_ck_format(void);
-#ifdef i386
+#if defined(i386) || defined(__arm)
 static int	ata_ex_cur(struct defect_list *);
 static int	ata_wr_cur(struct defect_list *);
 static int	ata_repair(int, int);
-#endif /* i386 */
+#endif /* i386 || __arm */
 #else /* __STDC__ */
 static int	ata_ck_format();
-#ifdef i386
+#if defined(i386) || defined(__arm)
 static int	ata_ex_cur();
 static int	ata_wr_cur();
 static int	ata_repair();
-#endif /* i386 */
+#endif /* i386 || __arm */
 #endif
 
 struct  ctlr_ops ataops = {
@@ -113,9 +116,9 @@ struct  ctlr_ops pcmcia_ataops = {
 };
 
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 static struct	partition	*dpart = NULL;
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 extern	struct	badsec_lst	*badsl_chain;
 extern	int	badsl_chain_cnt;
 extern	struct	badsec_lst	*gbadsl_chain;
@@ -141,15 +144,15 @@ static char *dadkrawioerrs[] = {
 	};
 
 /*ARGSUSED6*/
-#if	defined(i386)
+#if	defined(i386) || defined(__arm)
 int
 ata_rdwr(int dir, int fd, diskaddr_t blk64, int secnt, caddr_t bufaddr,
 		int flags, int *xfercntp)
-#else	/* defined(i386) */
+#else	/* defined(i386) || defined(__arm) */
 static int
 ata_rdwr(int dir, int fd, diskaddr_t blk64, int secnt, caddr_t bufaddr,
 		int flags, int *xfercntp)
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 {
 	int	tmpsec;
 	struct dadkio_rwcmd	dadkio_rwcmd;
@@ -225,7 +228,7 @@ ata_ck_format()
 }
 
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 
 static int
 get_alts_slice()
@@ -529,4 +532,4 @@ ata_wr_cur(struct defect_list *list)
 	return (status);
 }
 
-#endif	/*  defined(i386)  */
+#endif	/*  defined(i386) || defined(__arm)  */

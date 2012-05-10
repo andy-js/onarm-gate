@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_SPACE_MAP_H
 #define	_SYS_SPACE_MAP_H
 
@@ -30,6 +34,7 @@
 
 #include <sys/avl.h>
 #include <sys/dmu.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -59,7 +64,10 @@ typedef struct space_seg {
 } space_seg_t;
 
 typedef struct space_map_obj {
-	uint64_t	smo_object;	/* on-disk space map object */
+	objid_t		smo_object;	/* on-disk space map object */
+#ifdef ZFS_COMPACT
+	uint32_t	smo_pad;
+#endif	/* ZFS_COMPACT */
 	uint64_t	smo_objsize;	/* size of the object */
 	uint64_t	smo_alloc;	/* space allocated from the map */
 } space_map_obj_t;

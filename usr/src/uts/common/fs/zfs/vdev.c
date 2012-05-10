@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
@@ -40,6 +44,7 @@
 #include <sys/zio.h>
 #include <sys/zap.h>
 #include <sys/fs/zfs.h>
+#include <zfs_types.h>
 
 /*
  * Virtual device management.
@@ -47,12 +52,18 @@
 
 static vdev_ops_t *vdev_ops_table[] = {
 	&vdev_root_ops,
+#ifndef ZFS_NO_RAIDZ
 	&vdev_raidz_ops,
+#endif	/* ZFS_NO_RAIDZ */
+#ifndef ZFS_NO_MIRROR
 	&vdev_mirror_ops,
 	&vdev_replacing_ops,
 	&vdev_spare_ops,
+#endif	/* ZFS_NO_MIRROR */
 	&vdev_disk_ops,
+#ifndef ZFS_NO_UFSFILE
 	&vdev_file_ops,
+#endif	/* ZFS_NO_UFSFILE */
 	&vdev_missing_ops,
 	NULL
 };
@@ -350,6 +361,10 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	if ((ops = vdev_getops(type)) == NULL)
 		return (EINVAL);
 
+	if (ops == VDEV_MIRROR_OPS_ADDR) {
+		return (EINVAL);
+	}
+
 	/*
 	 * If this is a load, get the vdev guid from the nvlist.
 	 * Otherwise, vdev_alloc_common() will generate one for us.
@@ -365,6 +380,13 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 			return (EINVAL);
 	} else if (alloctype == VDEV_ALLOC_SPARE) {
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
+			return (EINVAL);
+	} else if (alloctype == VDEV_ALLOC_ADD) {
+		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0)
+			(void)nvlist_remove(nv, ZPOOL_CONFIG_GUID,
+					    DATA_TYPE_UINT64);
+
+		if (guid != 0 && spa_guid_exists(guid, 0) != 0)
 			return (EINVAL);
 	} else if (alloctype == VDEV_ALLOC_L2CACHE) {
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
@@ -389,7 +411,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	 * Set the nparity property for RAID-Z vdevs.
 	 */
 	nparity = -1ULL;
-	if (ops == &vdev_raidz_ops) {
+	if (ops == VDEV_RAIDZ_OPS_ADDR) {
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 		    &nparity) == 0) {
 			/*
@@ -457,7 +479,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	 * If we're a top-level vdev, try to load the allocation parameters.
 	 */
 	if (parent && !parent->vdev_parent && alloctype == VDEV_ALLOC_LOAD) {
-		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_METASLAB_ARRAY,
+		(void) nvlist_lookup_objid(nv, ZPOOL_CONFIG_METASLAB_ARRAY,
 		    &vd->vdev_ms_array);
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_METASLAB_SHIFT,
 		    &vd->vdev_ms_shift);
@@ -469,7 +491,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	 * If we're a leaf vdev, try to load the DTL object and other state.
 	 */
 	if (vd->vdev_ops->vdev_op_leaf && alloctype == VDEV_ALLOC_LOAD) {
-		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DTL,
+		(void) nvlist_lookup_objid(nv, ZPOOL_CONFIG_DTL,
 		    &vd->vdev_dtl.smo_object);
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_OFFLINE,
 		    &vd->vdev_offline);
@@ -724,7 +746,7 @@ vdev_remove_parent(vdev_t *cvd)
 }
 
 int
-vdev_metaslab_init(vdev_t *vd, uint64_t txg)
+vdev_metaslab_init(vdev_t *vd, txg_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_meta_objset;
@@ -763,9 +785,9 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	for (m = oldc; m < newc; m++) {
 		space_map_obj_t smo = { 0, 0, 0 };
 		if (txg == 0) {
-			uint64_t object = 0;
+			objid_t object = 0;
 			error = dmu_read(mos, vd->vdev_ms_array,
-			    m * sizeof (uint64_t), sizeof (uint64_t), &object);
+			    m * sizeof (objid_t), sizeof (objid_t), &object);
 			if (error)
 				return (error);
 			if (object != 0) {
@@ -1104,7 +1126,7 @@ vdev_reopen(vdev_t *vd)
 }
 
 int
-vdev_create(vdev_t *vd, uint64_t txg, boolean_t isreplacing)
+vdev_create(vdev_t *vd, txg_t txg, boolean_t isreplacing)
 {
 	int error;
 
@@ -1139,7 +1161,7 @@ vdev_create(vdev_t *vd, uint64_t txg, boolean_t isreplacing)
  * if anything fails; this is much harder if we have pending transactions.
  */
 void
-vdev_init(vdev_t *vd, uint64_t txg)
+vdev_init(vdev_t *vd, txg_t txg)
 {
 	/*
 	 * Aim for roughly 200 metaslabs per vdev.
@@ -1155,7 +1177,7 @@ vdev_init(vdev_t *vd, uint64_t txg)
 }
 
 void
-vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
+vdev_dirty(vdev_t *vd, int flags, void *arg, txg_t txg)
 {
 	ASSERT(vd == vd->vdev_top);
 	ASSERT(ISP2(flags));
@@ -1170,7 +1192,7 @@ vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
 }
 
 void
-vdev_dtl_dirty(space_map_t *sm, uint64_t txg, uint64_t size)
+vdev_dtl_dirty(space_map_t *sm, txg_t txg, uint64_t size)
 {
 	mutex_enter(sm->sm_lock);
 	if (!space_map_contains(sm, txg, size))
@@ -1179,7 +1201,7 @@ vdev_dtl_dirty(space_map_t *sm, uint64_t txg, uint64_t size)
 }
 
 int
-vdev_dtl_contains(space_map_t *sm, uint64_t txg, uint64_t size)
+vdev_dtl_contains(space_map_t *sm, txg_t txg, uint64_t size)
 {
 	int dirty;
 
@@ -1201,7 +1223,7 @@ vdev_dtl_contains(space_map_t *sm, uint64_t txg, uint64_t size)
  * Reassess DTLs after a config change or scrub completion.
  */
 void
-vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
+vdev_dtl_reassess(vdev_t *vd, txg_t txg, txg_t scrub_txg, int scrub_done)
 {
 	spa_t *spa = vd->vdev_spa;
 	int c;
@@ -1280,7 +1302,7 @@ vdev_dtl_load(vdev_t *vd)
 }
 
 void
-vdev_dtl_sync(vdev_t *vd, uint64_t txg)
+vdev_dtl_sync(vdev_t *vd, txg_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 	space_map_obj_t *smo = &vd->vdev_dtl;
@@ -1291,8 +1313,8 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
 
-	dprintf("%s in txg %llu pass %d\n",
-	    vdev_description(vd), (u_longlong_t)txg, spa_sync_pass(spa));
+	dprintf("%s in txg %" PRIuTXG " pass %d\n",
+	    vdev_description(vd), txg, spa_sync_pass(spa));
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 
@@ -1303,7 +1325,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 			smo->smo_object = 0;
 		}
 		dmu_tx_commit(tx);
-		dprintf("detach %s committed in txg %llu\n",
+		dprintf("detach %s committed in txg %" PRIuTXG "\n",
 		    vdev_description(vd), txg);
 		return;
 	}
@@ -1414,26 +1436,26 @@ vdev_validate_aux(vdev_t *vd)
 }
 
 void
-vdev_sync_done(vdev_t *vd, uint64_t txg)
+vdev_sync_done(vdev_t *vd, txg_t txg)
 {
 	metaslab_t *msp;
 
-	dprintf("%s txg %llu\n", vdev_description(vd), txg);
+	dprintf("%s txg %" PRIuTXG "\n", vdev_description(vd), txg);
 
 	while (msp = txg_list_remove(&vd->vdev_ms_list, TXG_CLEAN(txg)))
 		metaslab_sync_done(msp, txg);
 }
 
 void
-vdev_sync(vdev_t *vd, uint64_t txg)
+vdev_sync(vdev_t *vd, txg_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *lvd;
 	metaslab_t *msp;
 	dmu_tx_t *tx;
 
-	dprintf("%s txg %llu pass %d\n",
-	    vdev_description(vd), (u_longlong_t)txg, spa_sync_pass(spa));
+	dprintf("%s txg %" PRIuTXG " pass %d\n",
+	    vdev_description(vd), txg, spa_sync_pass(spa));
 
 	if (vd->vdev_ms_array == 0 && vd->vdev_ms_shift != 0) {
 		ASSERT(vd == vd->vdev_top);
@@ -1485,7 +1507,7 @@ int
 vdev_fault(spa_t *spa, uint64_t guid)
 {
 	vdev_t *rvd, *vd;
-	uint64_t txg;
+	txg_t txg;
 
 	/*
 	 * Disregard a vdev fault request if the pool has
@@ -1498,7 +1520,8 @@ vdev_fault(spa_t *spa, uint64_t guid)
 	if (spa_state(spa) == POOL_STATE_IO_FAILURE)
 		return (EIO);
 
-	txg = spa_vdev_enter(spa);
+	if ((txg = spa_vdev_enter(spa)) == TXG_INVAL)
+		return (EIO);
 
 	rvd = spa->spa_root_vdev;
 
@@ -1538,9 +1561,7 @@ vdev_fault(spa_t *spa, uint64_t guid)
 
 	vdev_config_dirty(vd->vdev_top);
 
-	(void) spa_vdev_exit(spa, NULL, txg, 0);
-
-	return (0);
+	return (spa_vdev_exit(spa, NULL, txg, 0));
 }
 
 /*
@@ -1552,7 +1573,7 @@ int
 vdev_degrade(spa_t *spa, uint64_t guid)
 {
 	vdev_t *rvd, *vd;
-	uint64_t txg;
+	txg_t txg;
 
 	/*
 	 * Disregard a vdev fault request if the pool has
@@ -1565,7 +1586,8 @@ vdev_degrade(spa_t *spa, uint64_t guid)
 	if (spa_state(spa) == POOL_STATE_IO_FAILURE)
 		return (EIO);
 
-	txg = spa_vdev_enter(spa);
+	if ((txg = spa_vdev_enter(spa)) == TXG_INVAL)
+		return (EIO);
 
 	rvd = spa->spa_root_vdev;
 
@@ -1578,8 +1600,7 @@ vdev_degrade(spa_t *spa, uint64_t guid)
 	 * If the vdev is already faulted, then don't do anything.
 	 */
 	if (vd->vdev_faulted || vd->vdev_degraded) {
-		(void) spa_vdev_exit(spa, NULL, txg, 0);
-		return (0);
+		return (spa_vdev_exit(spa, NULL, txg, 0));
 	}
 
 	vd->vdev_degraded = 1ULL;
@@ -1588,9 +1609,7 @@ vdev_degrade(spa_t *spa, uint64_t guid)
 		    VDEV_AUX_ERR_EXCEEDED);
 	vdev_config_dirty(vd->vdev_top);
 
-	(void) spa_vdev_exit(spa, NULL, txg, 0);
-
-	return (0);
+	return (spa_vdev_exit(spa, NULL, txg, 0));
 }
 
 /*
@@ -1604,7 +1623,8 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags,
     vdev_state_t *newstate)
 {
 	vdev_t *rvd, *vd;
-	uint64_t txg;
+	txg_t txg;
+	int error;
 
 	/*
 	 * Disregard a vdev fault request if the pool has
@@ -1617,7 +1637,8 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags,
 	if (spa_state(spa) == POOL_STATE_IO_FAILURE)
 		return (EIO);
 
-	txg = spa_vdev_enter(spa);
+	if ((txg = spa_vdev_enter(spa)) == TXG_INVAL)
+		return (EIO);
 
 	rvd = spa->spa_root_vdev;
 
@@ -1646,24 +1667,26 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags,
 
 	vdev_config_dirty(vd->vdev_top);
 
-	(void) spa_vdev_exit(spa, NULL, txg, 0);
+	error = spa_vdev_exit(spa, NULL, txg, 0);
 
-	/*
-	 * Must hold spa_namespace_lock in order to post resilver sysevent
-	 * w/pool name.
-	 */
-	mutex_enter(&spa_namespace_lock);
-	VERIFY(spa_scrub(spa, POOL_SCRUB_RESILVER, B_TRUE) == 0);
-	mutex_exit(&spa_namespace_lock);
+	if (error == 0) {
+		/*
+		 * Must hold spa_namespace_lock in order to post resilver
+		 * sysevent w/pool name.
+		 */
+		mutex_enter(&spa_namespace_lock);
+		VERIFY(spa_scrub(spa, POOL_SCRUB_RESILVER, B_TRUE) == 0);
+		mutex_exit(&spa_namespace_lock);
+	}
 
-	return (0);
+	return (error);
 }
 
 int
 vdev_offline(spa_t *spa, uint64_t guid, uint64_t flags)
 {
 	vdev_t *rvd, *vd;
-	uint64_t txg;
+	txg_t txg;
 
 	/*
 	 * Disregard a vdev fault request if the pool has
@@ -1676,7 +1699,8 @@ vdev_offline(spa_t *spa, uint64_t guid, uint64_t flags)
 	if (spa_state(spa) == POOL_STATE_IO_FAILURE)
 		return (EIO);
 
-	txg = spa_vdev_enter(spa);
+	if ((txg = spa_vdev_enter(spa)) == TXG_INVAL)
+		return (EIO);
 
 	rvd = spa->spa_root_vdev;
 
@@ -1863,7 +1887,7 @@ vdev_stat_update(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 	vdev_t *pvd;
-	uint64_t txg = zio->io_txg;
+	txg_t txg = zio->io_txg;
 	vdev_stat_t *vs = &vd->vdev_stat;
 	zio_type_t type = zio->io_type;
 	int flags = zio->io_flags;

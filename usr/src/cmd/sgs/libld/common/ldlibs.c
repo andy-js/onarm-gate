@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -147,6 +151,15 @@ process_lib_path(Ofl_desc *ofl, List *list, char *path, Boolean subsflag)
 uintptr_t
 ld_add_libdir(Ofl_desc *ofl, const char *path)
 {
+#ifdef	CROSS_BUILD
+	/*
+	 * Ignore '=' at the top of path to keep GNU ld compatibility.
+	 */
+	if (*path == '=') {
+		path++;
+	}
+#endif	/* CROSS_BUILD */
+
 	if (insert_lib == NULL) {
 		if (list_prependc(&ofl->ofl_ulibdirs, path) == 0)
 			return (S_ERROR);
@@ -169,8 +182,14 @@ ld_add_libdir(Ofl_desc *ofl, const char *path)
  * Process a required library.  Combine the directory and filename, and then
  * append either a `.so' or `.a' suffix and try opening the associated pathname.
  */
+#ifdef	CROSS_BUILD
+static Ifl_desc *
+real_find_lib_name(const char *dir, const char *file, Ofl_desc *ofl,
+		   Rej_desc *rej)
+#else	/* CROSS_BUILD */
 static Ifl_desc *
 find_lib_name(const char *dir, const char *file, Ofl_desc *ofl, Rej_desc *rej)
+#endif	/* CROSS_BUILD */
 {
 	int		fd;
 	size_t		dlen;
@@ -252,6 +271,59 @@ find_lib_name(const char *dir, const char *file, Ofl_desc *ofl, Rej_desc *rej)
 
 	return (0);
 }
+
+#ifdef	CROSS_BUILD
+
+/*
+ * Cross build specific find_lib_name().
+ * If the given directory path is an absolute path, try to open the given file
+ * with considering root directory is sysroot_path.
+ */
+static Ifl_desc *
+find_lib_name(const char *dir, const char *file, Ofl_desc *ofl, Rej_desc *rej)
+{
+	Ifl_desc	*ifl;
+	char		sdir[PATH_MAX];
+
+	/*
+	 * Do normal handling if:
+	 * - sysroot path is not valid.
+	 * - dir is not an absolute path.
+	 * - user don't want to use sysroot.
+	 * - dir is a sysroot-relative path.
+	 */
+	if (sysroot_pathlen == 0 || *dir != '/' ||
+	    sysroot_order == SRORDER_NONE ||
+	    (strncmp(dir, sysroot_path, sysroot_pathlen) == 0 &&
+	     (*(dir + sysroot_pathlen) == '/' ||
+	      *(dir + sysroot_pathlen) == '\0'))) {
+		return (real_find_lib_name(dir, file, ofl, rej));
+	}
+
+	/*
+	 * Construct sysroot-relative directory path.
+	 */
+	(void)snprintf(sdir, sizeof(sdir), "%s%s", sysroot_path, dir);
+
+	if (sysroot_order == SRORDER_FIRST) {
+		/* Try sysroot first. */
+		ifl = real_find_lib_name(sdir, file, ofl, rej);
+		if (ifl == 0) {
+			ifl = real_find_lib_name(dir, file, ofl, rej);
+		}
+	}
+	else {
+		/* Try the given path first. */
+		ifl = real_find_lib_name(dir, file, ofl, rej);
+		if (ifl == 0) {
+			ifl = real_find_lib_name(sdir, file, ofl, rej);
+		}
+	}
+
+	return (ifl);
+}
+
+#endif	/* CROSS_BUILD */
 
 /*
  * Take the abbreviated name of a library file (from -lfoo) and searches for the

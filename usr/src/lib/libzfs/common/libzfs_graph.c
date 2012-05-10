@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -80,6 +84,7 @@
 #include <unistd.h>
 
 #include <libzfs.h>
+#include <zfs_types.h>
 
 #include "libzfs_impl.h"
 #include "zfs_namecheck.h"
@@ -95,7 +100,7 @@ typedef struct zfs_vertex {
 	char			zv_dataset[ZFS_MAXNAMELEN];
 	struct zfs_vertex	*zv_next;
 	int			zv_visited;
-	uint64_t		zv_txg;
+	txg_t			zv_txg;
 	struct zfs_edge		**zv_edges;
 	int			zv_edgecount;
 	int			zv_edgealloc;
@@ -321,7 +326,7 @@ zfs_graph_hash(zfs_graph_t *zgp, const char *str)
  */
 static zfs_vertex_t *
 zfs_graph_lookup(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *dataset,
-    uint64_t txg)
+    txg_t txg)
 {
 	size_t idx = zfs_graph_hash(zgp, dataset);
 	zfs_vertex_t *zvp;
@@ -353,7 +358,7 @@ zfs_graph_lookup(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *dataset,
  */
 static int
 zfs_graph_add(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *source,
-    const char *dest, uint64_t txg)
+    const char *dest, txg_t txg)
 {
 	zfs_vertex_t *svp, *dvp;
 

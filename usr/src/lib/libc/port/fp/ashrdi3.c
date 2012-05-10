@@ -31,11 +31,18 @@
  * SUCH DAMAGE.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "quadint.h"
 
 #pragma weak __ashrdi3 = ___ashrdi3
+#if defined(__ARM_EABI__)
+#pragma weak __aeabi_lasr = ___ashrdi3
+#endif
 
 /*
  * Shift a (signed) quad value right (arithmetic shift right).

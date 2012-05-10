@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #ifndef	_SYS_FS_ZFS_ZNODE_H
 #define	_SYS_FS_ZFS_ZNODE_H
@@ -39,10 +42,14 @@
 #endif
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
+#include <sys/dnode.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define	KMEM_ZFS_ZNODE_CACHE		"zfs_znode_cache"
 
 /*
  * Additional file level attributes, that are stored
@@ -126,7 +133,7 @@ extern "C" {
  * 12 bits are unused.
  */
 #define	ZFS_DIRENT_TYPE(de) BF64_GET(de, 60, 4)
-#define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, 48)
+#define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, DN_MAX_OBJECT_SHIFT)
 
 /*
  * This is the persistent portion of the znode.  It is stored
@@ -141,16 +148,24 @@ typedef struct znode_phys {
 	uint64_t zp_gen;		/* 64 - generation (txg of creation) */
 	uint64_t zp_mode;		/* 72 - file mode bits */
 	uint64_t zp_size;		/* 80 - size of file */
-	uint64_t zp_parent;		/* 88 - directory parent (`..') */
+	objid_t  zp_parent;		/* 88 - directory parent (`..') */
+#ifdef ZFS_COMPACT
+	objid_t zp_xattr;		/* 92 - DMU object for xattrs */
+#endif	/* ZFS_COMPACT */
 	uint64_t zp_links;		/* 96 - number of links to file */
+#ifndef ZFS_COMPACT
 	uint64_t zp_xattr;		/* 104 - DMU object for xattrs */
-	uint64_t zp_rdev;		/* 112 - dev_t for VBLK & VCHR files */
+#endif	/* ZFS_COMPACT */
+	uint64_t zp_rdev;		/* 112(104) - dev_t for */
+					/* VBLK & VCHR files */
 	uint64_t zp_flags;		/* 120 - persistent flags */
 	uint64_t zp_uid;		/* 128 - file owner */
 	uint64_t zp_gid;		/* 136 - owning group */
 	uint64_t zp_zap;		/* 144 - extra attributes */
+#ifndef ZFS_COMPACT
 	uint64_t zp_pad[3];		/* 152 - future */
 	zfs_acl_phys_t zp_acl;		/* 176 - 263 ACL */
+#endif	/* ZFS_COMPACT */
 	/*
 	 * Data may pad out any remaining bytes in the znode buffer, eg:
 	 *
@@ -182,7 +197,7 @@ typedef struct zfs_dirlock {
 typedef struct znode {
 	struct zfsvfs	*z_zfsvfs;
 	vnode_t		*z_vnode;
-	uint64_t	z_id;		/* object ID for this znode */
+	objid_t		z_id;		/* object ID for this znode */
 	kmutex_t	z_lock;		/* znode modification lock */
 	krwlock_t	z_map_lock;	/* page map lock */
 	krwlock_t	z_parent_lock;	/* parent lock for directories */
@@ -300,7 +315,7 @@ extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
 extern void	zfs_znode_fini(void);
-extern int	zfs_zget(zfsvfs_t *, uint64_t, znode_t **);
+extern int	zfs_zget(zfsvfs_t *, objid_t, znode_t **);
 extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
@@ -344,7 +359,7 @@ extern int zfsfstype;
 
 #endif /* _KERNEL */
 
-extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
+extern int zfs_obj_to_path(objset_t *osp, objid_t obj, char *buf, int len);
 
 #ifdef	__cplusplus
 }

@@ -26,6 +26,7 @@
 #
 
 PROG=		fstyp
+$(__ARLIB)$(ARM_BLD)PROG=
 
 include ../Makefile.cmd
 

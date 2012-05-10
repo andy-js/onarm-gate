@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 /* ONC_PLUS EXTRACT END */
 
@@ -99,19 +103,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -218,6 +224,7 @@ rootconf(void)
 int
 svm_rootconf(void)
 {
+#ifdef	USE_SVM_ROOT
 	int	error;
 	extern int ufs_remountroot(struct vfs *vfsp);
 
@@ -244,6 +251,9 @@ svm_rootconf(void)
 		    rootfs.bo_name, rootfs.bo_fstype);
 	}
 	return (error);
+#else	/* !USE_SVM_ROOT */
+	return ENOSYS;
+#endif	/* USE_SVM_ROOT */
 }
 
 /*
@@ -845,7 +855,7 @@ load_bootpath_drivers(char *bootpath)
 
 	dip = path_to_devinfo(pathcopy);
 
-#if defined(__i386) || defined(__amd64)
+#if	!defined(__sparc)
 	/*
 	 * i386 does not provide stub nodes for all boot devices,
 	 * but we should be able to find the node for the parent,
@@ -873,15 +883,24 @@ load_bootpath_drivers(char *bootpath)
 		    bootpath, leaf));
 
 		dip = path_to_devinfo(pathcopy);
+#ifdef	__arm
+		if (dip != NULL) {
+			char	*nm = ddi_binding_name(dip);
+
+			if (nm != NULL) {
+				leaf = nm;
+			}
+		}
+#endif	/* __arm */
 		if (leaf) {
-			rval = load_boot_driver(leaf, NULL);
+			rval = load_boot_driver(leaf);
 			if (rval == -1) {
 				kmem_free(pathcopy, pathcopy_len);
 				return (NULL);
 			}
 		}
 	}
-#endif
+#endif	/* !__sparc */
 
 	if (dip == NULL) {
 		cmn_err(CE_WARN, "can't bind driver for boot path <%s>",

@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -52,7 +57,9 @@ ROOTUSRSBINLINKS = $(PROG:%=$(ROOTUSRSBIN)/%)
 LDLIBS +=	-lxnet -lsocket -lnsl
 
 # these #defines are required to use UNIX 98 interfaces
-_D_UNIX98_EXTN= -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
+_D_UNIX98_EXTN	= -D_XOPEN_SOURCE=500 -D__EXTENSIONS__ 
+$(USE_INET6)_D_UNIX98_EXTN	+= -DUSE_INET6 
+
 
 $(OBJS)		:= CPPFLAGS +=	$(_D_UNIX98_EXTN)
 

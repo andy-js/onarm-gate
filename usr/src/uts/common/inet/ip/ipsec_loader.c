@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -180,11 +184,16 @@ ipsec_loader_start(ipsec_stack_t *ipss)
 
 	mutex_enter(&ipss->ipsec_loader_lock);
 
+#ifdef	IPSEC_LOADER_DISABLE
+	ipss->ipsec_loader_state = IPSEC_LOADER_FAILED;
+	ipss->ipsec_loader_sig = IPSEC_LOADER_WAIT;
+#else	/* !IPSEC_LOADER_DISABLE */
 	if (ipss->ipsec_loader_tid == 0) {
 		tp = thread_create(NULL, 0, ipsec_loader, ipss, 0, &p0,
 		    TS_RUN, MAXCLSYSPRI);
 		ipss->ipsec_loader_tid = tp->t_did;
 	}
+#endif	/* IPSEC_LOADER_DISABLE */
 	/* Else we lost the race, oh well. */
 	mutex_exit(&ipss->ipsec_loader_lock);
 }

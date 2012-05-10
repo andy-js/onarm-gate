@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -623,7 +628,7 @@ ld_reloc_plt(Rel_desc *rsp, Ofl_desc *ofl)
 {
 	Sym_desc	*sdp = rsp->rel_sym;
 
-#if	defined(__x86)
+#if	defined(__x86) && !defined(__arm)
 #if	defined(_ELF64)
 	/*
 	 * AMD64 TLS code sequences do not use a unique TLS relocation to
@@ -643,7 +648,7 @@ ld_reloc_plt(Rel_desc *rsp, Ofl_desc *ofl)
 		return (ld_add_actrel(FLG_REL_TLSFIX, rsp, ofl));
 	}
 #endif
-#endif	/* __x86 */
+#endif	/* __x86 && !__arm */
 
 	/*
 	 * if (not PLT yet assigned)
@@ -997,14 +1002,14 @@ reloc_relobj(Boolean local, Rel_desc *rsp, Ofl_desc *ofl)
 		 * as a section symbol.  For SPARC and AMD64 (Rela), indicate
 		 * that the addend also needs to be applied to this relocation.
 		 */
-#if	(defined(__i386) || defined(__amd64)) && !defined(_ELF64)
+#if	(defined(__i386) || defined(__amd64) || defined(__arm)) && !defined(_ELF64)
 		oflags = FLG_REL_SCNNDX;
 #else
 		oflags = FLG_REL_SCNNDX | FLG_REL_ADVAL;
 #endif
 	}
 
-#if	(defined(__i386) || defined(__amd64)) && !defined(_ELF64)
+#if	(defined(__i386) || defined(__amd64) || defined(__arm)) && !defined(_ELF64)
 	/*
 	 * Intel (Rel) relocations do not contain an addend.  Any addend is
 	 * contained within the file at the location identified by the
@@ -1114,6 +1119,7 @@ ld_process_sym_reloc(Ofl_desc *ofl, Rel_desc *reld, Rel *reloc, Is_desc *isp,
 	Sym_aux		*sap;
 	Boolean		local;
 	Conv_inv_buf_t	inv_buf;
+	uintptr_t	ret;
 
 	DBG_CALL(Dbg_reloc_in(ofl->ofl_lml, ELF_DBG_LD, M_MACH, M_REL_SHT_TYPE,
 	    (void *)reloc, isname, reld->rel_sname));
@@ -1284,6 +1290,10 @@ ld_process_sym_reloc(Ofl_desc *ofl, Rel_desc *reld, Rel *reloc, Is_desc *isp,
 
 	if ((IS_PLT(rtype)) && ((flags & FLG_OF_BFLAG) == 0))
 		return (ld_reloc_plt(reld, ofl));
+
+	if ((ret = ld_mach_reloc_func(reld, ofl)) != 0) {
+		return (ret);
+	}
 
 	if ((sdp->sd_ref == REF_REL_NEED) ||
 	    (flags & FLG_OF_BFLAG) || (flags & FLG_OF_SHAROBJ) ||
@@ -2089,7 +2099,7 @@ ld_reloc_init(Ofl_desc *ofl)
 #if	defined(__sparc)
 		if (ld_allocate_got(ofl) == S_ERROR)
 			return (S_ERROR);
-#elif	defined(__x86)
+#elif	defined(__x86) || defined(__arm)
 /* nothing to do */
 #else
 #error Unknown architecture!
@@ -2267,6 +2277,12 @@ ld_reloc_process(Ofl_desc *ofl)
 	else if (!(flags & FLG_OF_STRIP) || (flags & FLG_OF_RELOBJ))
 		/* LINTED */
 		ndx = (Word)elf_ndxscn(ofl->ofl_ossymtab->os_scn);
+
+#ifdef	__arm
+	if (ld_reassign_got_ndx(ofl) == S_ERROR) {
+		return (S_ERROR);
+	}
+#endif	/* __arm */
 
 	/*
 	 * Re-initialize counters. These are used to provide relocation

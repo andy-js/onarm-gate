@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <assert.h>
@@ -52,6 +56,7 @@
 #include <sys/spa.h>
 #include <sys/zap.h>
 #include <libzfs.h>
+#include <zfs_types.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
@@ -60,6 +65,7 @@
 
 static int zvol_create_link_common(libzfs_handle_t *, const char *, int);
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Given a single type (not a mask of types), return the type in a human
  * readable form.
@@ -122,6 +128,7 @@ path_to_str(const char *path, int types)
 	assert(types & ZFS_TYPE_VOLUME);
 	return (dgettext(TEXT_DOMAIN, "volume"));
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Validate a ZFS path.  This is used even before trying to open the dataset, to
@@ -465,6 +472,7 @@ zfs_close(zfs_handle_t *zhp)
 	free(zhp);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 int
 zfs_spa_version(zfs_handle_t *zhp, int *spa_version)
 {
@@ -1016,6 +1024,7 @@ zfs_perms_add_who_nvlist(nvlist_t *who_nvp, uint64_t whoid, void *whostr,
 	}
 }
 
+#ifndef ZFS_COMPACT
 /*
  * Construct nvlist to pass down to kernel for setting/removing permissions.
  *
@@ -1706,6 +1715,7 @@ zfs_deleg_permissions(void)
 	(void) zprop_iter(zfs_deleg_prop_cb, NULL, B_FALSE, B_TRUE,
 	    ZFS_TYPE_DATASET|ZFS_TYPE_VOLUME);
 }
+#endif	/* ZFS_COMPACT */
 
 /*
  * Given a property name and value, set the property for the given dataset.
@@ -1951,6 +1961,7 @@ error:
 	changelist_free(cl);
 	return (ret);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * True DSL properties are stored in an nvlist.  The following two functions
@@ -2431,6 +2442,7 @@ zfs_prop_get_int(zfs_handle_t *zhp, zfs_prop_t prop)
 	return (val);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 int
 zfs_prop_set_int(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t val)
 {
@@ -2468,6 +2480,7 @@ zfs_prop_get_numeric(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t *value,
 
 	return (0);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Returns the name of the given zfs handle.
@@ -2585,6 +2598,7 @@ zfs_iter_children(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	return (zfs_iter_snapshots(zhp, func, data));
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Given a complete name, return just the portion that refers to the parent.
  * Can return NULL if this is a pool.
@@ -3197,7 +3211,7 @@ typedef struct promote_data {
 	char cb_mountpoint[MAXPATHLEN];
 	const char *cb_target;
 	const char *cb_errbuf;
-	uint64_t cb_pivot_txg;
+	txg_t cb_pivot_txg;
 } promote_data_t;
 
 static int
@@ -3287,7 +3301,7 @@ zfs_promote(zfs_handle_t *zhp)
 	pzhp = zfs_open(hdl, zhp->zfs_dmustats.dds_origin, ZFS_TYPE_SNAPSHOT);
 	if (pzhp == NULL)
 		return (-1);
-	pd.cb_pivot_txg = zfs_prop_get_int(pzhp, ZFS_PROP_CREATETXG);
+	pd.cb_pivot_txg = (txg_t)zfs_prop_get_int(pzhp, ZFS_PROP_CREATETXG);
 	zfs_close(pzhp);
 	pd.cb_target = zhp->zfs_name;
 	pd.cb_errbuf = errbuf;
@@ -3598,6 +3612,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	}
 	return (err);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Iterate over all dependents for a given dataset.  This includes both
@@ -3635,6 +3650,7 @@ zfs_iter_dependents(zfs_handle_t *zhp, boolean_t allowrecursion,
 	return (ret);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Renames the given dataset.
  */
@@ -3849,6 +3865,7 @@ error:
 	}
 	return (ret);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Given a zvol dataset, issue the ioctl to create the appropriate minor node,
@@ -4084,6 +4101,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp)
 	return (0);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 int
 zfs_iscsi_perm_check(libzfs_handle_t *hdl, char *dataset, ucred_t *cred)
 {
@@ -4147,3 +4165,4 @@ zfs_deleg_share_nfs(libzfs_handle_t *hdl, char *dataset, char *path,
 	error = ioctl(hdl->libzfs_fd, ZFS_IOC_SHARE, &zc);
 	return (error);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */

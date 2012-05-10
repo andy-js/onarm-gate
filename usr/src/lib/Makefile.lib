@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2009 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -157,7 +162,7 @@ ROOTSFWMAN7=	$(ROOT)/usr/sfw/share/man/man7
 # End /usr/sfw freeware rules
 #
 
-LINTLIB=	llib-l$(LIBNAME).ln
+$(__LINT)LINTLIB=	llib-l$(LIBNAME).ln
 LINTFLAGS=	-uaxm
 LINTFLAGS64=	-uaxm -Xarch=$(MACH64:sparcv9=v9)
 LINTSRC=	$(LINTLIB:%.ln=%)
@@ -215,7 +220,7 @@ CTFMERGE_POST	= :
 POST_PROCESS_O += ; $(CTFCONVERT_POST)
 POST_PROCESS_SO += ; $(CTFMERGE_POST)
 
-CTFMERGE_LIB	= $(CTFMERGE) -t -f -L VERSION -o $@ $(PICS)
+CTFMERGE_LIB	= $(CTFMERGE) $(CTFMRGFLAGS) -t -f -L VERSION -o $@ $(PICS)
 
 # conditional assignments
 
@@ -225,6 +230,7 @@ $(PICS)  :=	sparc_CFLAGS += -xregs=no%appl $(sparc_C_PICFLAGS)
 $(PICS)  :=	sparcv9_CFLAGS += -xregs=no%appl $(sparcv9_C_PICFLAGS)
 $(PICS)  :=	i386_CFLAGS += $(i386_C_PICFLAGS)
 $(PICS)  :=	amd64_CFLAGS += $(amd64_C_PICFLAGS)
+$(PICS)  :=	arm_CFLAGS += $(arm_C_PICFLAGS)
 $(PICS)  :=	CCFLAGS += $(CC_PICFLAGS)
 $(PICS)  :=	CPPFLAGS += -DPIC -D_REENTRANT
 $(PICS)  :=	sparcv9_CCFLAGS += -xregs=no%appl $(sparcv9_CC_PICFLAGS)
@@ -286,3 +292,5 @@ TARGETMACH=	$(MACH)
 # shouldn't override this - they should override $(CLOBBERFILES) instead.
 #
 CLOBBERTARGFILES= $(LIBS) $(DYNLIB) $(CLOBBERFILES)
+
+$(ARM_BLD)include	$(SRC)/lib/Makefile.lib.arm

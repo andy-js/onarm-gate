@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/atomic.h>
@@ -41,6 +45,7 @@
 #include <sys/systm.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/timer_prdc.h>
 
 /*
  * global variables for timeout request
@@ -848,6 +853,8 @@ i_timeout(void (*func)(void *), void *arg, hrtime_t interval, int level)
 	 * one, but the fires later can be more accurate due to this.
 	 */
 	req->exp_time = roundup(start_time + req->interval, i_get_res());
+
+	PRDC_TIMER_SETUP(level);
 
 	/* Add the request to the timer */
 	return (add_req(req));

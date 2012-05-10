@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -105,19 +109,21 @@ static struct modlinkage modlinkage = {
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -467,7 +473,8 @@ dscpmk_det_statinit(ipp_action_id_t aid, dscpmk_data_t *dscpmk_data, int val)
 
 	statp = (dscpmk_dscp_stats_t *)
 	    (dscpmk_data->dscp_stats[val].stats)->ipps_data;
-	ASSERT(statp != NULL);
+	if (statp == NULL)
+		return (0);
 
 	if ((err = ipp_stat_named_init(dscpmk_data->dscp_stats[val].stats,
 	    "dscp", IPP_STAT_UINT32, &statp->dscp)) != 0) {
@@ -503,7 +510,8 @@ dscpmk_summ_statinit(ipp_action_id_t aid, dscpmk_data_t *dscpmk_data)
 	}
 
 	statp = (dscpmk_stat_t *)(dscpmk_data->stats)->ipps_data;
-	ASSERT(statp != NULL);
+	if (statp == NULL)
+		return (0);
 
 	if ((err = ipp_stat_named_init(dscpmk_data->stats, "npackets",
 	    IPP_STAT_UINT64, &statp->npackets)) != 0) {
@@ -557,10 +565,11 @@ dscpmk_update_det_stats(ipp_stat_t *sp, void *arg, int rw)
 			continue;
 		statp = (dscpmk_dscp_stats_t *)
 		    (dscpmk_data->dscp_stats[count].stats)->ipps_data;
-		ASSERT(statp != NULL);
-		(void) ipp_stat_named_op(&statp->npackets,
-		    &dscpmk_data->dscp_stats[count].npackets, rw);
-		(void) ipp_stat_named_op(&statp->dscp, &count, rw);
+                if (statp != NULL) {
+			(void) ipp_stat_named_op(&statp->npackets,
+		    	    &dscpmk_data->dscp_stats[count].npackets, rw);
+			(void) ipp_stat_named_op(&statp->dscp, &count, rw);
+		}
 	}
 	return (0);
 }
@@ -571,7 +580,9 @@ dscpmk_update_stats(ipp_stat_t *sp, void *arg, int rw)
 	dscpmk_data_t *dscpmk_data = (dscpmk_data_t *)arg;
 	dscpmk_stat_t *snames = (dscpmk_stat_t *)sp->ipps_data;
 	ASSERT(dscpmk_data != NULL);
-	ASSERT(snames != NULL);
+
+	if (snames == NULL)
+		return (0);
 
 	(void) ipp_stat_named_op(&snames->npackets, &dscpmk_data->npackets, rw);
 	(void) ipp_stat_named_op(&snames->dscp_changed, &dscpmk_data->changed,

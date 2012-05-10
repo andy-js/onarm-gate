@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -99,6 +103,7 @@ ldv(int len, const void *addr)
 	return (0xFEEDFACEDEADBEEFULL);
 }
 
+#ifndef ZFS_COMPACT
 void
 zap_leaf_byteswap(zap_leaf_phys_t *buf, int size)
 {
@@ -150,6 +155,7 @@ zap_leaf_byteswap(zap_leaf_phys_t *buf, int size)
 		}
 	}
 }
+#endif	/* ZFS_COMPACT */
 
 void
 zap_leaf_init(zap_leaf_t *l, boolean_t sort)

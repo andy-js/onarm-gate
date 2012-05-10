@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -498,6 +503,27 @@ ld_create_outfile(Ofl_desc *ofl)
 		for (APLIST_TRAVERSE(sgp->sg_osdescs, idx, osp)) {
 			Listnode	*lnp2;
 
+#ifdef	__arm
+			if (osp->os_shdr->sh_type == SHT_ARM_ATTRIBUTES) {
+				/*
+				 * Create ARM attribute section.
+				 */
+				if (osp->os_scn == NULL) {
+					shidx++;
+					if (create_outsec(ofl, sgp, osp, ptype,
+					    shidx, fixalign) == S_ERROR) {
+						return (S_ERROR);
+					}
+				}
+
+				if (ld_merge_attribute(ofl, osp) == S_ERROR) {
+					return (S_ERROR);
+				}
+
+				osp->os_szoutrels = 0;
+				continue;
+			}
+#endif	/* __arm */
 			dataidx = 0;
 			for (LIST_TRAVERSE(&(osp->os_isdescs), lnp2, isp)) {
 				Elf_Data *	data;

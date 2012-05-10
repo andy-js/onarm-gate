@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -109,6 +113,7 @@
 #include <sys/policy.h>
 #include <sys/zone.h>
 #include <sys/rctl.h>
+#include <sys/lpg_config.h>
 
 #include <sys/ipc.h>
 #include <sys/ipc_impl.h>
@@ -135,6 +140,20 @@ static void shm_dtor(kipc_perm_t *);
 static void shm_rmid(kipc_perm_t *);
 static void shm_remove_zone(zoneid_t, void *);
 
+/* Override segspt macros if it is disabled. */
+#ifdef	SPT_DISABLE
+
+#undef isspt
+#define	isspt(sp)		(B_FALSE)
+
+#define	USE_ISM(useISM)		(B_FALSE)
+
+#else	/* !SPT_DISABLE */
+
+#define	USE_ISM(useISM)		(useISM)
+
+#endif	/* SPT_DISABLE */
+
 /*
  * Semantics for share_page_table and ism_off:
  *
@@ -153,8 +172,18 @@ static void shm_remove_zone(zoneid_t, void *);
  * external exposure; as long as they exist, they should at least work sensibly.
  */
 
+#ifndef	SPT_DISABLE
 int share_page_table;
 int ism_off;
+#endif	/* !SPT_DISABLE */
+
+#ifndef	SHMMAX
+#define	SHMMAX	0x800000
+#endif	/* !SHMMAX */
+
+#ifndef	SHMMNI
+#define	SHMMNI	100
+#endif	/* !SHMMNI */
 
 /*
  * The following tunables are obsolete.  Though for compatibility we
@@ -163,8 +192,8 @@ int ism_off;
  * Shared Memory facility is through the resource controls described at
  * the top of this file.
  */
-size_t	shminfo_shmmax = 0x800000;	/* (obsolete) */
-int	shminfo_shmmni = 100;		/* (obsolete) */
+size_t	shminfo_shmmax = SHMMAX;	/* (obsolete) */
+int	shminfo_shmmni = SHMMNI;	/* (obsolete) */
 size_t	shminfo_shmmin = 1;		/* (obsolete) */
 int	shminfo_shmseg = 6;		/* (obsolete) */
 
@@ -219,7 +248,7 @@ static struct modlinkage modlinkage = {
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int result;
 
@@ -237,14 +266,16 @@ _init(void)
 	return (result);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -265,7 +296,9 @@ shmat(int shmid, caddr_t uaddr, int uflags, uintptr_t *rvp)
 	struct seg 	*segspt = NULL;
 	caddr_t		addr = uaddr;
 	int		flags = (uflags & SHMAT_VALID_FLAGS_MASK);
+#ifndef	SPT_DISABLE
 	int		useISM;
+#endif	/* !SPT_DISABLE */
 	uchar_t		prot = PROT_ALL;
 	int result;
 
@@ -276,6 +309,8 @@ shmat(int shmid, caddr_t uaddr, int uflags, uintptr_t *rvp)
 	if ((flags & SHM_RDONLY) == 0 &&
 	    (error = ipcperm_access(&sp->shm_perm, SHM_W, CRED())))
 		goto errret;
+
+#ifndef	SPT_DISABLE
 	if (spt_invalid(flags)) {
 		error = EINVAL;
 		goto errret;
@@ -303,6 +338,8 @@ shmat(int shmid, caddr_t uaddr, int uflags, uintptr_t *rvp)
 			goto errret;
 		}
 	}
+#endif	/* SPT_DISABLE */
+
 	ANON_LOCK_ENTER(&sp->shm_amp->a_rwlock, RW_WRITER);
 	size = sp->shm_amp->size;
 	ANON_LOCK_EXIT(&sp->shm_amp->a_rwlock);
@@ -313,7 +350,7 @@ shmat(int shmid, caddr_t uaddr, int uflags, uintptr_t *rvp)
 
 	as_rangelock(as);
 
-	if (useISM) {
+	if (USE_ISM(useISM)) {
 		/*
 		 * Handle ISM
 		 */
@@ -554,7 +591,7 @@ shmat(int shmid, caddr_t uaddr, int uflags, uintptr_t *rvp)
 		goto errret;
 
 	/* record shmem range for the detach */
-	sa_add(pp, addr, (size_t)size, useISM ? SHMSA_ISM : 0, sp);
+	sa_add(pp, addr, (size_t)size, USE_ISM(useISM) ? SHMSA_ISM : 0, sp);
 	*rvp = (uintptr_t)addr;
 
 	sp->shm_atime = gethrestime_sec();
@@ -1253,7 +1290,8 @@ shm_rm_amp(kshmid_t *sp)
 	 * Free up the anon_map.
 	 */
 	lgrp_shm_policy_fini(amp, NULL);
-	if (amp->a_szc != 0) {
+	SZC_ASSERT(amp->a_szc);
+	if (SZC_EVAL(amp->a_szc) != 0) {
 		ANON_LOCK_ENTER(&amp->a_rwlock, RW_WRITER);
 		anon_shmap_free_pages(amp, 0, amp->size);
 		ANON_LOCK_EXIT(&amp->a_rwlock);

@@ -18,6 +18,8 @@
  * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
+ *
+ * Copyright (c) 2012 Nexenta Systems, Inc.  All rights reserved.
  */
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -91,7 +93,7 @@ mygetch(void)
 /* get a line from the terminal in non-canonical mode */
 
 int
-getline(char s[], size_t size, int firstchar, BOOL iscaseless)
+mygetline(char s[], size_t size, int firstchar, BOOL iscaseless)
 {
 	int	c, i = 0;
 	int	j;

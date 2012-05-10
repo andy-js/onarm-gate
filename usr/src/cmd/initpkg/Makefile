@@ -23,6 +23,11 @@
 # Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -36,17 +41,21 @@ SUBDIRS=	rcS.d rc0.d rc1.d rc2.d rc3.d
 
 include ../Makefile.cmd
 
+$(ARM_BLD)SHFILES	+= vfstab_ufs_ata vfstab_ufs_sata
+
 ETCINITD=	$(ROOTETC)/init.d
 ETCDFSD=	$(ROOTETC)/dfs
 DIRS=		$(ETCINITD) $(ETCDFSD) $(ROOTETC)/security
 
 SBINF=		rcS mountall rc0 rc1 rc2 rc3 swapadd umountall
+$(ARM_BLD)SBINF=	mountall umountall
 SBINL=		rc5 rc6
 USRSBINF=	mountall shutdown umountall
 
 sparc_ETCTABS=
 i386_ETCTABS=	bootrc
 ETCTABS=	vfstab inittab nscd.conf security/crypt.conf $($(MACH)_ETCTABS)
+$(ARM_BLD)ETCTABS=	vfstab security/crypt.conf vfstab_ufs_ata vfstab_ufs_sata
 
 DFSTAB=		dfstab
 SBINETC=	rcS mountall rc0 rc1 rc2 rc3 rc5 rc6 swapadd umountall
@@ -66,6 +75,8 @@ SYMUSRSBINF=	$(USRSBINETC:%=$(ROOTETC)/%)
 
 $(ROOTETC)/inittab		:= FILEMODE =	0644
 $(ROOTETC)/vfstab		:= FILEMODE =	0644
+$(ROOTETC)/vfstab_ufs_ata	:= FILEMODE =	0644
+$(ROOTETC)/vfstab_ufs_sata	:= FILEMODE =	0644
 $(ROOTETC)/nscd.conf		:= FILEMODE =	0644
 $(ROOTETC)/security/crypt.conf	:= FILEMODE =	0644
 $(ROOTETC)/bootrc		:= FILEMODE =	0755
@@ -101,10 +112,15 @@ ins_init.d: FRC
 $(SHFILES):
 	sh $@.sh $(ROOT)
 
-install: $(ALL) ins_all ins_init.d $(SUBDIRS)
+INSTALL_TARGETS			= $(ALL) ins_all ins_init.d $(SUBDIRS)
+$(ARM_BLD)INSTALL_TARGETS	= $(ALL) ins_all_arm $(MACH)
+
+install:	$(INSTALL_TARGETS)
 
 ins_all : $(ROOTSBINF) $(ROOTSBINL) $(ROOTUSRSBINF) $(ROOTETCTABS) \
 	$(ROOTDFSTAB)  $(SYMSBINF) $(SYMUSRSBINF)
+
+ins_all_arm:	$(ROOTSBINF) $(ROOTUSRSBINF) $(ROOTETCTABS) $(ROOTDFSTAB)
 
 # Don't re-install directories already installed by Targetdirs
 #$(DIRS):
@@ -112,6 +128,9 @@ ins_all : $(ROOTSBINF) $(ROOTSBINL) $(ROOTUSRSBINF) $(ROOTETCTABS) \
 
 $(SUBDIRS):	FRC
 	@cd $@; pwd; ROOT=$(ROOT) CH=$(CH) sh mk.$@.sh
+
+$(ARM_BLD)$(MACH):	FRC
+$(ARM_BLD)	@cd $@; pwd; $(MAKE) $(MFLAGS) install
 
 FRC:
 

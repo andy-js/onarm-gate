@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef	_PGHW_H
 #define	_PGHW_H
@@ -120,6 +123,10 @@ id_t		pg_plat_hw_instance_id(cpu_t *, pghw_type_t);
  * to express cpu <=> core mappings.
  */
 id_t		pg_plat_get_core_id(cpu_t *);
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <sys/pghw_impl.h>
+#endif	/* defined(_KERNEL_BUILD_TREE) */
 
 #endif	/* !_KERNEL && !_KMEMUSER */
 

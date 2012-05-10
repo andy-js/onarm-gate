@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <fcntl.h>
@@ -414,8 +418,8 @@ get_attrs(disk_t *dp, int fd, nvlist_t *attrs)
 		return (ENOMEM);
 	}
 
-	/* only for disks < 1TB  and x86 */
-#if defined(i386) || defined(__amd64)
+	/* only for disks < 1TB  and x86, arm */
+#if defined(i386) || defined(__amd64) || defined(__arm)
 	if (ioctl(fd, DKIOCG_PHYGEOM, &geometry) >= 0) {
 #else
 	/* sparc call */
@@ -467,6 +471,7 @@ get_attrs(disk_t *dp, int fd, nvlist_t *attrs)
 		}
 
 	} else {
+#ifndef	NO_SUPPORT_EFI
 		/* check for disks > 1TB for accessible size */
 		struct dk_gpt	*efip;
 
@@ -492,6 +497,7 @@ get_attrs(disk_t *dp, int fd, nvlist_t *attrs)
 			}
 			efi_free(efip);
 		}
+#endif	/* !NO_SUPPORT_EFI */
 	}
 	return (0);
 }

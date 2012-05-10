@@ -22,6 +22,10 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2008 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 #	This Makefile defines all file modules and build rules for the
@@ -91,6 +95,11 @@ $(OBJS_DIR)/%.o:		$(UTSBASE)/intel/io/%.c
 	$(CTFCONVERT_O)
 
 $(OBJS_DIR)/%.o:		$(UTSBASE)/intel/io/acpica/%.c
+	$(COMPILE.c) -o $@ $<
+	$(CTFCONVERT_O)
+
+# special rule for xramdisk.
+$(OBJS_DIR)/%.o:		$(UTSBASE)/i86pc/io/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
 
@@ -235,6 +244,9 @@ $(OBJS_DIR)/%.o:		$(UTSBASE)/intel/kdi/%.s
 $(OBJS_DIR)/%.o:		$(UTSBASE)/intel/kdi/$(SUBARCH_DIR)/%.s
 	$(COMPILE.s) -o $@ $<
 
+$(OBJS_DIR)/%.o:		$(UTSBASE)/intel/czfs/%.c
+	$(COMPILE.c) -o $@ $<
+	$(CTFCONVERT_O)
 #
 # krtld compiled into unix
 #
@@ -266,7 +278,6 @@ $(OBJS_DIR)/%.o:	$(UTSBASE)/intel/$(SUBARCH_DIR)/krtld/%.s
 $(OBJS_DIR)/%.o:	$(SRC)/common/util/$(SUBARCH_DIR)/%.c
 	$(COMPILE.c) $(KRTLD_INC_PATH) $(KRTLD_CPPFLAGS) -o $@ $<
 	$(CTFCONVERT_O)
-
 
 #
 #	Section 1b: Lint `object' build rules.

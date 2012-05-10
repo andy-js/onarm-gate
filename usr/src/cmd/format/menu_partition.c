@@ -23,6 +23,9 @@
  * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -152,7 +155,7 @@ p_ipart()
 	return (0);
 }
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 /*
  * This routine implements the 'j' command.  It changes the 'j' partition.
  */
@@ -163,7 +166,7 @@ p_jpart()
 	change_partition(9);
 	return (0);
 }
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 /*
  * This routine implements the 'select' command.  It allows the user
@@ -176,7 +179,7 @@ p_select()
 	u_ioparam_t		ioparam;
 	int			i, index, deflt, *defltptr = NULL;
 	long			b_cylno;
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 	long			cyl_offset;
 #endif
 
@@ -221,7 +224,7 @@ p_select()
 		fmt_print("\n");
 		return (0);
 	}
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 	/*
 	 * Adjust for the boot and alternate sectors partition - assuming that
 	 * the alternate sectors partition physical location follows
@@ -234,18 +237,18 @@ p_select()
 			((pptr->pinfo_map[J_PARTITION].dkl_nblk +
 				(spc() - 1)) / spc());
 	}
-#else	/* !defined(i386) */
+#else	/* !defined(i386) || defined(__arm) */
 
 	b_cylno = 0;
 
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 	/*
 	 * Before we blow the current map away, do some limits checking.
 	 */
 	for (i = 0; i < NDKMAP; i++)  {
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 		if (i == I_PARTITION || i == J_PARTITION || i == C_PARTITION) {
 			b_cylno = 0;
 		} else if (pptr->pinfo_map[i].dkl_nblk == 0) {
@@ -256,7 +259,7 @@ p_select()
 		} else {
 			b_cylno = cyl_offset;
 		}
-#endif		/* defined(i386) */
+#endif		/* defined(i386) || defined(__arm) */
 		if (pptr->pinfo_map[i].dkl_cylno < b_cylno ||
 			pptr->pinfo_map[i].dkl_cylno > (ncyl-1)) {
 			err_print(

@@ -27,6 +27,10 @@
 #
 # cmd/fs.d/ufs/newfs/Makefile
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 FSTYPE=		ufs
 LIBPROG=	newfs
 
@@ -36,10 +40,14 @@ LINKVALUE=	../lib/fs/$(FSTYPE)/$(LIBPROG)
 include		../../Makefile.fstype
 
 CPPFLAGS +=	-I../../ -D_LARGEFILE64_SOURCE
-LDLIBS += -ladm -lefi
+LIBEFI	=	-lefi
+LDLIBS += -ladm $(LIBEFI)
 
 OBJS=		$(LIBPROG).o $(FSLIB)
 SRCS=		$(LIBPROG).c $(FSLIBSRC)
+
+$(ARM_BLD)CPPFLAGS	+= -DNO_SUPPORT_EFI
+$(ARM_BLD)LIBEFI	=
 
 $(LIBPROG):	$(OBJS)
 		$(LINK.c) -o $@ $(OBJS) $(LDLIBS)

@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG:sh=	cd ..; basename `pwd`
 SRCS= ../$(PROG).c ../zdb_il.c
 OBJS= $(PROG).o zdb_il.o
@@ -34,6 +38,7 @@ include ../../Makefile.cmd
 
 INCS += -I../../../lib/libzpool/common 
 INCS +=	-I../../../uts/common/fs/zfs
+INCS +=	-I../../../common/zfs
 
 LDLIBS += -lzpool -lumem -lavl -lnvpair -lzfs
 

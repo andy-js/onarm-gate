@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_KMEM_IMPL_H
 #define	_SYS_KMEM_IMPL_H
 
@@ -326,6 +330,61 @@ typedef struct kmem_log_header {
 #define	KMEM_ALIGN		8	/* min guaranteed alignment */
 #define	KMEM_ALIGN_SHIFT	3	/* log2(KMEM_ALIGN) */
 #define	KMEM_VOID_FRACTION	8	/* never waste more than 1/8 of slab */
+
+#define	KMEM_MAXBUF		32768
+
+/*
+ * kmem_alloc_table[] index calculation
+ */
+#if	defined(__arm)
+#define	KMEM_ATBL_SHIFT0	KMEM_ALIGN_SHIFT
+#define	KMEM_ATBL_SHIFT1	6	/* log2(64) */
+#define	KMEM_ATBL_SHIFT2	12	/* log2(4096) */
+
+#define	KMEM_ATBL_MAXBUF0	256
+#define	KMEM_ATBL_MAXBUF1	4096
+#define	KMEM_ATBL_MAXBUF2	KMEM_MAXBUF
+
+#define	KMEM_ATBL_MAXINDEX0	((KMEM_ATBL_MAXBUF0 - 1) >> KMEM_ATBL_SHIFT0)
+#define	KMEM_ATBL_MAXINDEX1						\
+	(((KMEM_ATBL_MAXBUF1 - 1) >> KMEM_ATBL_SHIFT1) + KMEM_ATBL_MAXINDEX0)
+#define	KMEM_ATBL_MAXINDEX2						\
+	(((KMEM_ATBL_MAXBUF2 - 1) >> KMEM_ATBL_SHIFT2) + KMEM_ATBL_MAXINDEX1)
+#define	KMEM_ATBL_MAX		(KMEM_ATBL_MAXINDEX2 + 1)
+
+#define	KMEM_ATBL_INDEX(size)						\
+	(								\
+	(size) <= KMEM_ATBL_MAXBUF0 ?					\
+		(((size) - 1) >> KMEM_ATBL_SHIFT0) :			\
+	(size) <= KMEM_ATBL_MAXBUF1 ?					\
+		(((size) - 1) >> KMEM_ATBL_SHIFT1) + KMEM_ATBL_MAXINDEX0 : \
+		(((size) - 1) >> KMEM_ATBL_SHIFT2) + KMEM_ATBL_MAXINDEX1 \
+	)
+#else	/* !__arm */
+#define	KMEM_ATBL_INDEX(size)	(((size) - 1) >> KMEM_ALIGN_SHIFT)
+#define	KMEM_ATBL_MAX		(KMEM_MAXBUF >> KMEM_ALIGN_SHIFT)
+#endif	/* __arm */
+
+#define	KMEM_CACHE_CHECK(ptr, cp, kmflag)	/* nop */
+#define	KMEM_CACHE_IS_CTLD(cp, ptr)		/* nop */
+#define	KMEM_CNTDOWN(ptr, cp, size, needcnv)	/* nop */
+#define	KMEM_CKPT_CACHE_ALLOC_ENTER(cp, kmflag, cookie)	/* nop */
+#define	KMEM_CKPT_CACHE_ALLOC_FAIL(cp, cookie)	/* nop */
+#define	KMEM_CKPT_CACHE_ALLOC_DONE(cp, cookie)	/* nop */
+#define	KMEM_CKPT_CACHE_FREE_ENTER(cp, cookie)	/* nop */
+#define	KMEM_CKPT_CACHE_FREE_DONE(cp, cookie)	/* nop */
+#define	KMEM_CKPT_ALLOC_ENTER(size)		/* nop */
+#define	KMEM_CKPT_ALLOC_DONE(buf)		/* nop */
+#define	KMEM_CKPT_FREE_ENTER(buf, size)		/* nop */
+#define	KMEM_CKPT_FREE_DONE(buf, size)		/* nop */
+#define	KMEM_CKPT_KSTAT(kmcp, cp)		/* nop */
+
+#define	KMEM_CKPT_INIT()			/* nop */
+#define	KMEM_CKPT_UNINSTALL(modname)		/* nop */
+
+#ifdef	_KERNEL_BUILD_TREE
+#include <sys/kmrc_impl.h>
+#endif	/* _KERNEL_BUILD_TREE */
 
 #ifdef	__cplusplus
 }

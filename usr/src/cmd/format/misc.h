@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_MISC_H
 #define	_MISC_H
 
@@ -160,6 +164,9 @@ int	conventional_name(char *name);
 
 #if defined(_FIRMWARE_NEEDS_FDISK)
 int	fdisk_physical_name(char *name);
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+int	fdisk_logical_name(char *name);
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 #endif	/* defined(_FIRMWARE_NEEDS_FDISK) */
 
 int	whole_disk_name(char *name);

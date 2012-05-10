@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -87,6 +91,65 @@ segspt_badop()
 }
 
 #define	SEGSPT_BADOP(t)	(t(*)())segspt_badop
+
+#ifdef	SPT_DISABLE
+
+/*
+ * Do not allow any SPT method.
+ */
+struct seg_ops segspt_ops = {
+	SEGSPT_BADOP(int),		/* dup */
+	SEGSPT_BADOP(int),		/* unmap */
+	SEGSPT_BADOP(void),		/* free */
+	SEGSPT_BADOP(int),		/* fault */
+	SEGSPT_BADOP(faultcode_t),	/* faulta */
+	SEGSPT_BADOP(int),		/* setprot */
+	SEGSPT_BADOP(int),		/* checkprot */
+	SEGSPT_BADOP(int),		/* kluster */
+	SEGSPT_BADOP(size_t),		/* swapout */
+	SEGSPT_BADOP(int),		/* sync */
+	SEGSPT_BADOP(size_t),		/* incore */
+	SEGSPT_BADOP(int),		/* lockop */
+	SEGSPT_BADOP(int),		/* getprot */
+	SEGSPT_BADOP(u_offset_t), 	/* getoffset */
+	SEGSPT_BADOP(int),		/* gettype */
+	SEGSPT_BADOP(int),		/* getvp */
+	SEGSPT_BADOP(int),		/* advise */
+	SEGSPT_BADOP(void),		/* dump */
+	SEGSPT_BADOP(int),		/* pagelock */
+	SEGSPT_BADOP(int),		/* setpgsz */
+	SEGSPT_BADOP(int),		/* getmemid */
+	SEGSPT_BADOP(lgrp_mem_policy_info_t *),	/* getpolicy */
+	SEGSPT_BADOP(int),		/* capable */
+};
+
+struct seg_ops segspt_shmops = {
+	SEGSPT_BADOP(int),		/* dup */
+	SEGSPT_BADOP(int),		/* unmap */
+	SEGSPT_BADOP(void),		/* free */
+	SEGSPT_BADOP(int),		/* fault */
+	SEGSPT_BADOP(faultcode_t),	/* faulta */
+	SEGSPT_BADOP(int),		/* setprot */
+	SEGSPT_BADOP(int),		/* checkprot */
+	SEGSPT_BADOP(int),		/* kluster */
+	SEGSPT_BADOP(size_t),		/* swapout */
+	SEGSPT_BADOP(int),		/* sync */
+	SEGSPT_BADOP(size_t),		/* incore */
+	SEGSPT_BADOP(int),		/* lockop */
+	SEGSPT_BADOP(int),		/* getprot */
+	SEGSPT_BADOP(u_offset_t), 	/* getoffset */
+	SEGSPT_BADOP(int),		/* gettype */
+	SEGSPT_BADOP(int),		/* getvp */
+	SEGSPT_BADOP(int),		/* advise */
+	SEGSPT_BADOP(void),		/* dump */
+	SEGSPT_BADOP(int),		/* pagelock */
+	SEGSPT_BADOP(int),		/* setpgsz */
+	SEGSPT_BADOP(int),		/* getmemid */
+	SEGSPT_BADOP(lgrp_mem_policy_info_t *),	/* getpolicy */
+	SEGSPT_BADOP(int),		/* capable */
+};
+
+#else	/* !SPT_DISABLE */
 
 struct seg_ops segspt_ops = {
 	SEGSPT_BADOP(int),		/* dup */
@@ -179,6 +242,7 @@ static int segspt_reclaim(struct seg *, caddr_t, size_t, struct page **,
 static int spt_anon_getpages(struct seg *seg, caddr_t addr, size_t len,
 		page_t **ppa);
 
+#endif	/* SPT_DISABLE */
 
 
 /*ARGSUSED*/
@@ -186,6 +250,9 @@ int
 sptcreate(size_t size, struct seg **sptseg, struct anon_map *amp,
 	uint_t prot, uint_t flags, uint_t share_szc)
 {
+#ifdef	SPT_DISABLE
+	return EINVAL;
+#else	/* !SPT_DISABLE */
 	int 	err;
 	struct  as	*newas;
 	struct	segspt_crargs sptcargs;
@@ -219,18 +286,22 @@ sptcreate(size_t size, struct seg **sptseg, struct anon_map *amp,
 	}
 	*sptseg = sptcargs.seg_spt;
 	return (0);
+#endif	/* SPT_DISABLE */
 }
 
 void
 sptdestroy(struct as *as, struct anon_map *amp)
 {
-
+#ifndef	SPT_DISABLE
 #ifdef DEBUG
 	TNF_PROBE_0(sptdestroy, "spt", /* CSTYLED */);
 #endif
 	(void) as_unmap(as, SEGSPTADDR, amp->size);
 	as_free(as);
+#endif	/* !SPT_DISABLE */
 }
+
+#ifndef	SPT_DISABLE
 
 /*
  * called from seg_free().
@@ -2986,3 +3057,5 @@ segspt_shmcapable(struct seg *seg, segcapability_t capability)
 {
 	return (0);
 }
+
+#endif	/* !SPT_DISABLE */

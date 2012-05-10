@@ -22,6 +22,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 # cmd/sendmail/aux/Makefile
@@ -44,16 +48,19 @@ OBJS= 		$(PROG:%=%.o) nisplus.o nisedit.o
 
 SRCS= 		$(PROG:%=%.c) nisplus.c nisedit.c
 
+LIBLDAP			= -lldap
+$(ARM_BLD)LIBLDAP	=
+
 aliasadm :=	LDLIBS += -lnsl
-editmap :=	LDLIBS += -lldap
-mail.local :=	LDLIBS += -lsocket -lnsl -lmail -lldap
+editmap :=	LDLIBS += $(LIBLDAP)
+mail.local :=	LDLIBS += -lsocket -lnsl -lmail $(LIBLDAP)
 mailq :=	LDLIBS += -lsecdb
-mailstats :=	LDLIBS += -lldap
-makemap :=	LDLIBS += -lldap
+mailstats :=	LDLIBS += $(LIBLDAP)
+makemap :=	LDLIBS += $(LIBLDAP)
 mconnect :=	LDLIBS += -lsocket -lnsl
-praliases :=	LDLIBS += -lldap
-smrsh :=	LDLIBS += -lldap
-vacation :=	LDLIBS += -lldap
+praliases :=	LDLIBS += $(LIBLDAP)
+smrsh :=	LDLIBS += $(LIBLDAP)
+vacation :=	LDLIBS += $(LIBLDAP)
 $(ROOTBIN)/mailq :=	FILEMODE = 4555
 
 INCPATH=	-I../src -I../db -I../include

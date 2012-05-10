@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 SHELL=/usr/bin/ksh
 
 include ../../Makefile.cmd
@@ -35,9 +39,11 @@ include ../../Makefile.cmd
 include ../../../Makefile.ast
 
 # build rules
+INCLUDES		= -I$(ROOT)/usr/include/ast
+$(ARM_BLD)INCLUDES	+= -I$(ROOT)/usr/include
 CPPFLAGS = \
         $(DTEXTDOM) $(DTS_ERRNO) \
-        -I$(ROOT)/usr/include/ast \
+	$(INCLUDES) \
 	-D_PACKAGE_ast \
 	'-DUSAGE_LICENSE=\
 	"[-author?Glenn Fowler <gsf@research.att.com>]"\

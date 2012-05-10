@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <signal.h>
@@ -106,6 +110,7 @@ static	int	command(char *);
 static	int	screen(char *);
 static	int	fgetputc();
 static 	char	*pg_strchr();
+static	int	readch();
 
 
 struct line {			/* how line addresses are stored */
@@ -859,7 +864,6 @@ ttyin()
 	int state = 0;
 	int width, length;
 	char multic[MB_LEN_MAX];
-	static	int	readch();
 	int 	len;
 
 	(void) fixterm();

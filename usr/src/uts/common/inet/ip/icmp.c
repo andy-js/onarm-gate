@@ -24,6 +24,9 @@
  */
 /* Copyright (c) 1990 Mentat Inc. */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -5627,26 +5630,27 @@ rawip_stack_fini(netstackid_t stackid, void *arg)
 	kmem_free(is, sizeof (*is));
 }
 
+static rawip_named_kstat_t rawip_mib_template = {
+	{ "inDatagrams",	KSTAT_DATA_UINT32, 0 },
+	{ "inCksumErrs",	KSTAT_DATA_UINT32, 0 },
+	{ "inErrors",		KSTAT_DATA_UINT32, 0 },
+	{ "outDatagrams",	KSTAT_DATA_UINT32, 0 },
+	{ "outErrors",		KSTAT_DATA_UINT32, 0 },
+};
+
 static void *
 rawip_kstat_init(netstackid_t stackid) {
 	kstat_t	*ksp;
-
-	rawip_named_kstat_t template = {
-		{ "inDatagrams",	KSTAT_DATA_UINT32, 0 },
-		{ "inCksumErrs",	KSTAT_DATA_UINT32, 0 },
-		{ "inErrors",		KSTAT_DATA_UINT32, 0 },
-		{ "outDatagrams",	KSTAT_DATA_UINT32, 0 },
-		{ "outErrors",		KSTAT_DATA_UINT32, 0 },
-	};
+	rawip_named_kstat_t *template = &rawip_mib_template;
 
 	ksp = kstat_create_netstack("icmp", 0, "rawip", "mib2",
 					KSTAT_TYPE_NAMED,
 					NUM_OF_FIELDS(rawip_named_kstat_t),
-					0, stackid);
+					KSTAT_FLAG_VIRTUAL, stackid);
 	if (ksp == NULL || ksp->ks_data == NULL)
 		return (NULL);
 
-	bcopy(&template, ksp->ks_data, sizeof (template));
+	ksp->ks_data = template;
 	ksp->ks_update = rawip_kstat_update;
 	ksp->ks_private = (void *)(uintptr_t)stackid;
 
@@ -5658,8 +5662,16 @@ static void
 rawip_kstat_fini(netstackid_t stackid, kstat_t *ksp)
 {
 	if (ksp != NULL) {
+		rawip_named_kstat_t *template = &rawip_mib_template;
+
 		ASSERT(stackid == (netstackid_t)(uintptr_t)ksp->ks_private);
 		kstat_delete_netstack(ksp, stackid);
+
+		template->inDatagrams.value.ui32 = 0;
+		template->inCksumErrs.value.ui32 = 0;
+		template->inErrors.value.ui32 = 0;
+		template->outDatagrams.value.ui32 = 0;
+		template->outErrors.value.ui32 = 0;
 	}
 }
 

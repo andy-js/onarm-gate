@@ -26,6 +26,11 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -200,7 +205,11 @@ found:
 
 		/* LINTED */
 		if ((page = (struct page *)dz_map(0, 0, totpage,
+#ifdef	RTLD_MALLOC_NO_PROTEXEC
+		    PROT_READ | PROT_WRITE,
+#else
 		    PROT_READ | PROT_WRITE | PROT_EXEC,
+#endif
 		    MAP_PRIVATE)) == (struct page *)-1)
 			return (0);
 

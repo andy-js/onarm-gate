@@ -31,6 +31,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -97,6 +101,9 @@
 #include <sys/swap.h>
 
 #include <fs/fs_subr.h>
+#ifdef UFS_FLUSH_WRITE_CACHE
+#include <sys/dkio.h>
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 #include <sys/fs/decomp.h>
 
@@ -305,6 +312,10 @@ ufs_read(struct vnode *vp, struct uio *uiop, int ioflag, struct cred *cr,
 	struct ulockfs *ulp = NULL;
 	int error = 0;
 	int intrans = 0;
+#ifdef UFS_FLUSH_WRITE_CACHE
+	int rval;
+	int rc;
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 	ASSERT(RW_READ_HELD(&ip->i_rwlock));
 
@@ -387,6 +398,12 @@ ufs_read(struct vnode *vp, struct uio *uiop, int ioflag, struct cred *cr,
 	if (ulp) {
 		ufs_lockfs_end(ulp);
 	}
+#ifdef UFS_FLUSH_WRITE_CACHE
+	if (!error && (ioflag & FRSYNC)) {
+		rc = cdev_ioctl(ufsvfsp->vfs_dev, DKIOCFLUSHWRITECACHE,
+		    NULL, FNATIVE|FKIOCTL, cr, &rval); 
+	}
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 out:
 
 	return (error);
@@ -439,6 +456,10 @@ ufs_write(struct vnode *vp, struct uio *uiop, int ioflag, cred_t *cr,
 	int exclusive;
 	int rewriteflg;
 	long start_resid = uiop->uio_resid;
+#ifdef UFS_FLUSH_WRITE_CACHE
+	int rval;
+	int rc;
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 	ASSERT(RW_LOCK_HELD(&ip->i_rwlock));
 
@@ -632,6 +653,12 @@ retry_mandlock:
 		}
 		ufs_lockfs_end(ulp);
 	}
+#ifdef UFS_FLUSH_WRITE_CACHE
+	if (!error && (ioflag & (FSYNC|FDSYNC))) {
+		rc = cdev_ioctl(ufsvfsp->vfs_dev, DKIOCFLUSHWRITECACHE,
+		    NULL, FNATIVE|FKIOCTL, cr, &rval); 
+	} 
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 out:
 	if ((error == ENOSPC) && retry && TRANS_ISTRANS(ufsvfsp)) {
 		/*
@@ -1372,7 +1399,7 @@ rdip(struct inode *ip, struct uio *uio, int ioflag, cred_t *cr)
 	}
 
 	if (!ULOCKFS_IS_NOIACC(ITOUL(ip)) && (fs->fs_ronly == 0) &&
-	    (!ufsvfsp->vfs_noatime)) {
+		(!ufsvfsp->vfs_noatime) && !(ip->i_flag & INOACC)) {
 		mutex_enter(&ip->i_tlock);
 		ip->i_flag |= IACC;
 		mutex_exit(&ip->i_tlock);
@@ -2605,6 +2632,10 @@ ufs_fsync(struct vnode *vp, int syncflag, struct cred *cr,
 	struct ufsvfs *ufsvfsp = ip->i_ufsvfs;
 	struct ulockfs *ulp;
 	int error;
+#ifdef UFS_FLUSH_WRITE_CACHE
+	int rval;
+	int rc;
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 
 	error = ufs_lockfs_begin(ufsvfsp, &ulp, ULOCKFS_FSYNC_MASK);
 	if (error)
@@ -2687,6 +2718,12 @@ out:
 	if (ulp) {
 		ufs_lockfs_end(ulp);
 	}
+#ifdef UFS_FLUSH_WRITE_CACHE
+	if (!error) {
+		rc = cdev_ioctl(ufsvfsp->vfs_dev, DKIOCFLUSHWRITECACHE,
+		    NULL, FNATIVE|FKIOCTL, cr, &rval);
+	}
+#endif	/* UFS_FLUSH_WRITE_CACHE */
 	return (error);
 }
 
@@ -3360,6 +3397,7 @@ ufs_rename(
 	sdp = VTOI(sdvp);
 	slot.fbp = NULL;
 	ufsvfsp = sdp->i_ufsvfs;
+	mutex_enter(&ufsvfsp->vfs_renamelock);
 retry_rename:
 	error = ufs_lockfs_begin(ufsvfsp, &ulp, ULOCKFS_RENAME_MASK);
 	if (error)
@@ -3714,6 +3752,7 @@ unlock:
 		VN_RELE(ITOV(sip));
 
 out:
+	mutex_exit(&ufsvfsp->vfs_renamelock);
 	return (error);
 }
 

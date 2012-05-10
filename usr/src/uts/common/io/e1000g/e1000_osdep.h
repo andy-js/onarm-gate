@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _E1000_OSDEP_H
 #define	_E1000_OSDEP_H
 
@@ -225,13 +229,14 @@ struct e1000g_osdep {
 	struct e1000g *adapter;
 };
 
-#ifdef __sparc	/* on SPARC, use only memory-mapped routines */
+#if	defined(__sparc) || defined(__arm)
+/* on SPARC and ARM, use only memory-mapped routines */
 #define	E1000_WRITE_REG_IO	E1000_WRITE_REG
 #else	/* on x86, use port io routines */
 #define	E1000_WRITE_REG_IO(a, reg, val)	{ \
 	outl(((a)->io_base), reg); \
 	outl(((a)->io_base + 4), val); }
-#endif	/* __sparc */
+#endif	/* __sparc || __arm */
 
 #ifdef __cplusplus
 }

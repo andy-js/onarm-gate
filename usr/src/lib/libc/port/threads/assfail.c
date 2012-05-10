@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
@@ -429,8 +433,9 @@ __assfail(const char *assertion, const char *filename, int line_num)
  * warnings from the check_fnames utility at build time for libraries
  * that define their own version of assfail().
  */
+#pragma weak assfail = _assfail_
 void
-assfail(const char *assertion, const char *filename, int line_num)
+_assfail_(const char *assertion, const char *filename, int line_num)
 {
 	__assfail(assertion, filename, line_num);
 }

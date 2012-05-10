@@ -26,6 +26,10 @@
 #
 # cmd/fs.d/ufs/fsck/Makefile
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 FSTYPE=		ufs
 LIBPROG=	fsck
 ATTMK=		$(LIBPROG)
@@ -48,7 +52,10 @@ OBJS=		$(FSCKOBJS) $(UFSOBJS) $(ROLLOBJS) $(FSLIB)
 SRCS=		$(FSCKSRCS) $(UFSSRCS) $(ROLLSRCS) $(FSLIBSRC)
 
 CPPFLAGS +=	-D_LARGEFILE64_SOURCE -I../../ -I../../../../lib/libadm/inc
-LDLIBS +=	-lefi -lavl
+LIBEFI	=	-lefi
+$(ARM_BLD)CPPFLAGS	+= -DNO_SUPPORT_EFI
+$(ARM_BLD)LIBEFI	=
+LDLIBS	+=	$(LIBEFI) -lavl
 
 $(LIBPROG):	$(OBJS)
 		$(LINK.c) -o $@ $(OBJS) $(LDLIBS) $(CTFMERGE_HOOK)

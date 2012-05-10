@@ -23,6 +23,11 @@
  * Copyright 2000 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 /**************************************************************************
  *
  *	iso_impl.h	internal macros for /usr/etc/fs/HSFS/mkproto
@@ -38,7 +43,7 @@
 #undef howmany
 #endif
 
-#if defined(sun386) || defined(i386)
+#if defined(sun386) || defined(i386) || defined(__arm)
 #define howmany(x, y)   ((((u_int)(x))+(((u_int)(y))-1))/((u_int)(y)))
 #define roundup(x, y)   ((((u_int)(x)+((u_int)(y)-1))/(u_int)(y))*(u_int)(y))
 #else

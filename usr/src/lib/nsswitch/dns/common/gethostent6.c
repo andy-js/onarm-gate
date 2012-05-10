@@ -22,6 +22,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2009 NEC Corporation
+ */
+
 /*
  *	gethostent6.c
  */
@@ -51,8 +56,9 @@
  * core dumps. Hence, we check if a libresolv is already loaded.
  */
 
-
+#ifndef	LIBRESOLV_NEEDED
 #pragma weak	res_endhostent
+#endif	/* !LIBRESOLV_NEEDED */
 
 extern struct hostent *_gethostbyname(int *, const char *);
 extern struct hostent *_nss_dns_gethostbyname2(int *, const char *);

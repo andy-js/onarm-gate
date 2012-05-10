@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <libzfs.h>
@@ -51,6 +55,7 @@
 #include <sys/mkdev.h>
 
 #include "zinject.h"
+#include "zfs_types.h"
 
 extern void kernel_init(int);
 extern void kernel_fini(void);
@@ -379,8 +384,8 @@ translate_record(err_type_t type, const char *object, const char *range,
 	if (object_from_path(dataset, path, &statbuf, record) != 0)
 		goto err;
 
-	ziprintf("raw objset: %llu\n", record->zi_objset);
-	ziprintf("raw object: %llu\n", record->zi_object);
+	ziprintf("raw objset: %" PRIuOBJID "\n", record->zi_objset);
+	ziprintf("raw object: %" PRIuOBJID "\n", record->zi_object);
 
 	/*
 	 * For the given object, calculate the real (type, level, range)
@@ -388,8 +393,8 @@ translate_record(err_type_t type, const char *object, const char *range,
 	if (calculate_range(dataset, type, level, (char *)range, record) != 0)
 		goto err;
 
-	ziprintf("    objset: %llu\n", record->zi_objset);
-	ziprintf("    object: %llu\n", record->zi_object);
+	ziprintf("    objset: %" PRIuOBJID "\n", record->zi_objset);
+	ziprintf("    object: %" PRIuOBJID "\n", record->zi_object);
 	if (record->zi_start == 0 &&
 	    record->zi_end == -1ULL)
 		ziprintf("     range: all\n");

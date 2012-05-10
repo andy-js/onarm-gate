@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -58,7 +62,7 @@
 
 md_ops_t		trans_md_ops;
 #ifndef	lint
-char			_depends_on[] = "drv/md fs/ufs";
+MODDRV_DEPENDS_ON("drv/md fs/ufs");
 md_ops_t		*md_interface_ops = &trans_md_ops;
 #endif	/* lint */
 

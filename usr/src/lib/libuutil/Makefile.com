@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 LIBRARY =	libuutil.a
 VERS =		.1
 
@@ -76,6 +80,8 @@ LINTFLAGS64 +=	-erroff=E_GLOBAL_COULD_BE_STATIC2
 
 MY_NATIVE_CPPFLAGS = -DNATIVE_BUILD -I$(SRCDIR)
 MY_NATIVE_LDLIBS = -lc
+
+$(__GNUC)MY_NATIVE_CPPFLAGS	+= $(NATIVE_CPPFLAGS)
 
 $(NOT_RELEASE_BUILD)CPPFLAGS += -DDEBUG
 

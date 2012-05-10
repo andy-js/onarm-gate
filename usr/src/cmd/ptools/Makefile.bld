@@ -23,7 +23,12 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
+#
 
 PROG:sh = basename `cd ..; pwd`
 
@@ -95,8 +100,8 @@ $(PROG): $$(OBJS)
 # to LEGACY.
 #
 install: all $(ROOTISAPROG)
-	-$(RM) $(ROOTBINPROG)
-	-$(LN) $(ISAEXEC) $(ROOTBINPROG)
+	-$(USE_ISAEXEC)$(RM) $(ROOTBINPROG)
+	-$(USE_ISAEXEC)$(LN) $(ISAEXEC) $(ROOTBINPROG)
 	-$(INSTALL_$(PTOOL_TYPE))
 
 clean:

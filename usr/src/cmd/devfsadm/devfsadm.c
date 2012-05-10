@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -51,6 +55,7 @@ extern void  _reset_devalloc(int);
 extern void _update_devalloc_db(devlist_t *, int, int, char *, char *);
 extern int _da_check_for_usb(char *, char *);
 
+#ifndef _DEVFSPOLICY
 /* create or remove nodes or links. unset with -n */
 static int file_mods = TRUE;
 
@@ -93,10 +98,12 @@ static int load_attach_drv = TRUE;
 
 /* set if invoked via /usr/lib/devfsadm/devfsadmd */
 static int daemon_mode = FALSE;
+#endif /* !_DEVFSPOLICY */
 
 /* output directed to syslog during daemon mode if set */
 static int logflag = FALSE;
 
+#ifndef _DEVFSPOLICY
 /* build links in /dev.  -x to turn off */
 static int build_dev = TRUE;
 
@@ -120,10 +127,12 @@ static int minor_fini_timeout = MINOR_FINI_TIMEOUT_DEFAULT;
 
 /* single-threads /dev modification */
 static sema_t dev_sema;
+#endif /* !_DEVFSPOLICY */
 
 /* the program we were invoked as; ie argv[0] */
 static char *prog;
 
+#ifndef _DEVFSPOLICY
 /* pointers to create/remove link lists */
 static create_list_t *create_head = NULL;
 static remove_list_t *remove_head = NULL;
@@ -131,12 +140,14 @@ static remove_list_t *remove_head = NULL;
 /*  supports the class -c option */
 static char **classes = NULL;
 static int num_classes = 0;
+#endif /* !_DEVFSPOLICY */
 
 /* used with verbose option -v or -V */
 static int num_verbose = 0;
 static char **verbose = NULL;
 
 static struct mperm *minor_perms = NULL;
+#ifndef _DEVFSPOLICY
 static driver_alias_t *driver_aliases = NULL;
 
 /* set if -r alternate root given */
@@ -238,6 +249,7 @@ static struct rcm_eventq *rcm_eventq_tail = NULL;
 static mutex_t rcm_eventq_lock;
 static cond_t rcm_eventq_cv;
 static volatile int need_to_exit_rcm_event_thread = 0;
+#endif /* !_DEVFSPOLICY */
 
 /* Devname globals */
 static int devname_debug_msg = 1;
@@ -249,6 +261,8 @@ static char *lookup_door_path;
 
 static void load_dev_acl(void);
 static void update_drvconf(major_t);
+
+#ifndef	_DEVFSPOLICY
 static void check_reconfig_state(void);
 static void devname_setup_nsmaps(void);
 static int s_stat(const char *, struct stat *);
@@ -260,7 +274,37 @@ static mutex_t  syseventq_mutex = DEFAULTMUTEX;
 static syseventq_t *syseventq_front;
 static syseventq_t *syseventq_back;
 static void process_syseventq();
+#endif	/* !_DEVFSPOLICY */
 
+#ifdef _DEVFSPOLICY
+ 
+int
+main(int argc, char *argv[])
+{
+	(void) setlocale(LC_ALL, "");
+	(void) textdomain(TEXT_DOMAIN);
+
+	if ((prog = strrchr(argv[0], '/')) == NULL) {
+		prog = argv[0];
+	} else {
+		prog++;
+	}
+
+	/*
+	 * Close all files except stdin/stdout/stderr
+	 */
+	closefrom(3);
+	
+	load_dev_acl();
+
+	/* 
+	 * Update kernel driver.conf cache after loading minor_perm.
+	 */ 
+	update_drvconf((major_t)-1);
+
+	return (0);
+}
+#else   /* _DEVFSPOLICY */
 int
 main(int argc, char *argv[])
 {
@@ -438,6 +482,7 @@ main(int argc, char *argv[])
 	}
 	return (0);
 }
+#endif   /* !_DEVFSPOLICY */
 
 static void
 update_drvconf(major_t major)
@@ -451,11 +496,17 @@ update_drvconf(major_t major)
 static void
 load_dev_acl()
 {
-	if (load_devpolicy() != 0)
+	if (load_devpolicy() != 0) {
 		err_print(gettext("device policy load failed\n"));
+#ifdef _DEVFSPOLICY
+		exit(1);
+#endif
+	}
+
 	load_minor_perm_file();
 }
 
+#ifndef _DEVFSPOLICY
 /*
  * As devfsadm is run early in boot to provide the kernel with
  * minor_perm info, we might as well check for reconfig at the
@@ -6786,6 +6837,7 @@ free_link_list(link_list_t *head)
 		free(temp);
 	}
 }
+#endif /* !_DEVFSPOLICY */
 
 /*
  * Prints only if level matches one of the debug levels
@@ -6868,6 +6920,7 @@ devfsadm_errprint(char *message, ...)
 	va_end(ap);
 }
 
+#ifndef _DEVFSPOLICY
 /*
  * return noupdate state (-s)
  */
@@ -7152,6 +7205,7 @@ getattr(char *phy_path, char *aminor, int spectype, dev_t dev, mode_t *mode,
 	*gid = sys_gid;
 	*mode = (spectype | 0600);
 }
+#endif /* !_DEVFSPOLICY */
 
 /*
  * Called by devfs_read_minor_perm() to report errors
@@ -7221,10 +7275,16 @@ static void
 load_minor_perm_file(void)
 {
 	read_minor_perm_file();
-	if (devfs_load_minor_perm(minor_perms, minorperm_err_cb) != 0)
+	if (devfs_load_minor_perm(minor_perms, minorperm_err_cb) != 0) {
 		err_print(gettext("minor_perm load failed\n"));
+#ifdef _DEVFSPOLICY
+		exit(1);
+#endif
+	}
+
 }
 
+#ifndef _DEVFSPOLICY
 static char *
 convert_to_re(char *dev)
 {
@@ -9016,3 +9076,4 @@ devfsadm_is_reserved(devlink_re_t re_array[], char *devlink)
 	free(estruct.er_id);
 	return (match);
 }
+#endif /* !_DEVFSPOLICY */

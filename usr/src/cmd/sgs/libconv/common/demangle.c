@@ -23,6 +23,11 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<stdio.h>
@@ -62,6 +67,16 @@
 const char *
 conv_demangle_name(const char *name)
 {
+#if defined(__arm) && defined(__GNUC__)
+	/*
+	 * On ARM with GNU tool-chain, libdemangle.so.1 doesn't exist.
+	 * And there is no other demangle library ported for OpenSolaris
+	 * on ARM.
+	 * So we do not demangle any C++ symbols.
+	 */
+	return (name);
+
+#else /* defined(__arm) && defined(__GNUC__) */
 	static char	_str[SYM_MAX], *str = _str;
 	static size_t	size = SYM_MAX;
 	static int	again = 1;
@@ -115,4 +130,5 @@ conv_demangle_name(const char *name)
 			return ((const char *)str);
 	}
 	return (name);
+#endif /* defined(__arm) && defined(__GNUC__) */
 }

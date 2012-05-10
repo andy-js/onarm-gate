@@ -24,7 +24,11 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr3.2H 	*/
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
+#pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr3.2H	*/
 
 /*
  * Dump STREAMS module.  Could be used anywhere on a stream to
@@ -280,7 +284,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int i;
 	msgfmt_t mf;
@@ -306,14 +310,16 @@ _init(void)
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

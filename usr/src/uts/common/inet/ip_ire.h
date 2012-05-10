@@ -24,6 +24,10 @@
  */
 /* Copyright (c) 1990 Mentat Inc. */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_INET_IP_IRE_H
 #define	_INET_IP_IRE_H
 
@@ -35,11 +39,22 @@ extern "C" {
 
 #define	IPV6_LL_PREFIXLEN	10	/* Number of bits in link-local pref */
 
+#if defined(_NETWORK_EXTENSION)
+#define	IP_CACHE_TABLE_SIZE	2
+#define	IP_MRTUN_TABLE_SIZE	1	/* Mobile IP reverse tunnel table */
+					/* size. Only used by mipagent */
+#define	IP_SRCIF_TABLE_SIZE	1	/* Per interface routing table size */
+#else
 #define	IP_CACHE_TABLE_SIZE	256
+#endif /* _NETWORK_EXTENSION */
 #define	IP_MASK_TABLE_SIZE	(IP_ABITS + 1)		/* 33 ptrs */
 
 #define	IP6_FTABLE_HASH_SIZE	32	/* size of each hash table in ptrs */
+#if defined(_NETWORK_EXTENSION)
+#define	IP6_CACHE_TABLE_SIZE	1
+#else
 #define	IP6_CACHE_TABLE_SIZE	256
+#endif /* _NETWORK_EXTENSION */
 #define	IP6_MASK_TABLE_SIZE	(IPV6_ABITS + 1)	/* 129 ptrs */
 
 /*

@@ -23,12 +23,17 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/errno.h>
+#include <sys/vnode.h>
 #include <sys/mode.h>
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>

@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 @ _START_
 
 # Message file for cmd/sgs/elfedit.
@@ -1379,6 +1383,7 @@
 @ MSG_ISA_SPARC_64	"sparcv9"
 @ MSG_ISA_X86_32	"i386"
 @ MSG_ISA_X86_64	"amd64"
+@ MSG_ISA_ARM_32	"arm"
 
 # Format strings
 

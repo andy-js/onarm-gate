@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 /* SunOS-4.1 1.16	*/
 
@@ -65,24 +69,41 @@ struct vfssw vfssw[] = {
 	{ "fifofs" },				/* FIFOFS */
 	{ "namefs" },				/* NAMEFS */
 	{ "proc" },				/* PROCFS */
+#ifndef VFS_SHRINK_VFSSW
 	{ "samfs" },				/* QFS */
+#endif	/* VFS_SHRINK_VFSSW */
 	{ "nfs" },				/* NFS Version 2 */
 	{ "zfs" },				/* ZFS */
 	{ "hsfs" },				/* HSFS */
+#ifndef VFS_SHRINK_VFSSW
 	{ "lofs" },				/* LOFS */
+#endif	/* VFS_SHRINK_VFSSW */
 	{ "tmpfs" },				/* TMPFS */
 	{ "fd" },				/* FDFS */
 	{ "pcfs" },				/* PCFS */
 	{ "swapfs", swapinit },			/* SWAPFS */
+#ifndef MNTFS_DISABLE
 	{ "mntfs" },				/* MNTFS */
+#endif	/* MNTFS_DISABLE */
 	{ "devfs" },				/* DEVFS */
+#ifndef __arm
 	{ "dev" },				/* DEV */
+#endif	/* __arm */
+#ifndef CONTRACT_DISABLE
 	{ "ctfs" },				/* CONTRACTFS */
+#endif	/* CONTRACT_DISABLE */
 	{ "objfs" },				/* OBJFS */
+#ifndef SHAREFS_DISABLE
 	{ "sharefs" },				/* SHAREFS */
+#endif	/* SHAREFS_DISABLE */
+#ifndef VFS_SHRINK_VFSSW
 	{ "dcfs" },				/* DCFS */
 	{ "smbfs" },				/* SMBFS */
+#endif	/* VFS_SHRINK_VFSSW */
+	{ "xramfs" },				/* XRAMFS */
+	{ "czfs" },				/* CZFS (Compactified ZFS) */
 	{ "" },					/* reserved for loadable fs */
+#ifndef VFS_SHRINK_VFSSW
 	{ "" },
 	{ "" },
 	{ "" },
@@ -90,7 +111,7 @@ struct vfssw vfssw[] = {
 	{ "" },
 	{ "" },
 	{ "" },
-	{ "" },
+#endif	/* VFS_SHRINK_VFSSW */
 	{ "" },
 	{ "" },
 	{ "" },

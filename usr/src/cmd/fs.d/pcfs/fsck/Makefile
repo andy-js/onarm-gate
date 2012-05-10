@@ -26,6 +26,10 @@
 #
 # cmd/fs.d/pcfs/fsck/Makefile
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 FSTYPE=		pcfs
 LIBPROG=	fsck
 ATTMK=		$(LIBPROG)

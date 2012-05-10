@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -353,7 +357,7 @@ syscall_mstate(int fromms, int toms)
 	ms->ms_prev = fromms;
 	kpreempt_disable(); /* don't change CPU while changing CPU's state */
 	cpu = CPU;
-	ASSERT(cpu == t->t_cpu);
+	ASSERT(CPU_SELF(cpu) == t->t_cpu);
 	if ((toms != LMS_USER) && (cpu->cpu_mstate != CMS_SYSTEM)) {
 		NEW_CPU_MSTATE(CMS_SYSTEM);
 	} else if ((toms == LMS_USER) && (cpu->cpu_mstate != CMS_USER)) {
@@ -594,7 +598,7 @@ new_mstate(kthread_t *t, int new_state)
 	 */
 
 	kpreempt_disable(); /* MUST disable kpreempt before touching t->cpu */
-	ASSERT(t->t_cpu == CPU);
+	ASSERT(t->t_cpu == CPU_GLOBAL);
 	if (!CPU_ON_INTR(t->t_cpu) && curthread->t_intr == NULL) {
 		if (new_state == LMS_USER && t->t_cpu->cpu_mstate != CMS_USER)
 			new_cpu_mstate(CMS_USER, curtime);

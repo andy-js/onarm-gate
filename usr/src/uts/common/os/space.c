@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -232,7 +236,10 @@ int	consmode = CONS_FW;
  * terminal emulator (retreat to PROM terminal emulator if there
  * is PROM).
  */
+
+#ifndef NO_TEM_FRAMEWORK
 int	cons_tem_disable;
+#endif /* NO_TEM_FRAMEWORK */
 
 /*
  * consconfig() in autoconf.c sets this; it's the vnode of the distinguished

@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -33,7 +38,7 @@ LIBBSM=		$(SRC)/lib/libbsm/common
 
 include		$(SRC)/lib/Makefile.lib
 
-LIBS=		$(DYNLIB)
+LIBS=		$(ARLIB) $(DYNLIB)
 LDLIBS		+= -lbsm -lsecdb -lc
 
 CFLAGS		+= $(CCVERBOSE)

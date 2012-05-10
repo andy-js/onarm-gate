@@ -29,6 +29,10 @@
  */
 
 /*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
+/*
  * An application should not include this header directly.  Instead it
  * should be included only through the inclusion of other Sun headers.
  *
@@ -46,6 +50,10 @@
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 /* SVr4.0 1.9.2.9 */
 
+#if defined(_AEABI_PORTABILITY_LEVEL)
+#error "not supported AEABI."
+#endif
+
 #include <sys/feature_tests.h>
 
 #ifdef	__cplusplus
@@ -62,6 +70,9 @@ extern "C" {
 #if defined(__amd64)
 #define	_JBLEN		8	/* ABI value */
 #define	_SIGJBLEN	128	/* ABI value */
+#elif defined(__arm)            
+#define	_JBLEN		24	/* ABI value */ /* 64bit buffer saved reg r4-r15,D8-D15 */
+#define	_SIGJBLEN	34	/* ABI value */ /* 64bit buffer  32/2 + 36/2 */
 #elif defined(__i386)
 #define	_JBLEN		10	/* ABI value */
 #define	_SIGJBLEN	128	/* ABI value */
@@ -79,6 +90,10 @@ extern "C" {
 namespace std {
 #endif
 
+#if defined(__arm)
+typedef long long 	jmp_buf[_JBLEN];
+
+#else
 #if defined(__i386) || defined(__amd64) || \
 	defined(__sparc) || defined(__sparcv9)
 #if defined(_LP64) || defined(_I32LPx)
@@ -88,6 +103,7 @@ typedef int	jmp_buf[_JBLEN];
 #endif
 #else
 #error "ISA not supported"
+#endif
 #endif
 
 #if defined(__STDC__)

@@ -23,6 +23,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #ifndef _SPAWN_H
 #define	_SPAWN_H
@@ -62,22 +65,6 @@ typedef struct {
 } posix_spawn_file_actions_t;
 
 #if defined(__STDC__)
-
-extern int posix_spawn(
-	pid_t *_RESTRICT_KYWD pid,
-	const char *_RESTRICT_KYWD path,
-	const posix_spawn_file_actions_t *file_actions,
-	const posix_spawnattr_t *_RESTRICT_KYWD attrp,
-	char *const argv[_RESTRICT_KYWD],
-	char *const envp[_RESTRICT_KYWD]);
-
-extern int posix_spawnp(
-	pid_t *_RESTRICT_KYWD pid,
-	const char *_RESTRICT_KYWD file,
-	const posix_spawn_file_actions_t *file_actions,
-	const posix_spawnattr_t *_RESTRICT_KYWD attrp,
-	char *const argv[_RESTRICT_KYWD],
-	char *const envp[_RESTRICT_KYWD]);
 
 extern int posix_spawn_file_actions_init(
 	posix_spawn_file_actions_t *file_actions);
@@ -157,8 +144,6 @@ extern int posix_spawnattr_getsigmask(
 
 #else	/* __STDC__ */
 
-extern int posix_spawn();
-extern int posix_spawnp();
 extern int posix_spawn_file_actions_init();
 extern int posix_spawn_file_actions_destroy();
 extern int posix_spawn_file_actions_addopen();
@@ -180,6 +165,104 @@ extern int posix_spawnattr_setsigmask();
 extern int posix_spawnattr_getsigmask();
 
 #endif	/* __STDC__ */
+
+/*
+ * posix_spawn(), posix_spawnp() prototype is defined here.
+ */
+#if defined(__STRICT_SUNOS) && !defined(__lint)
+
+#if defined(__STDC__)
+extern int _posix_spawn(
+	pid_t *_RESTRICT_KYWD pid,
+	const char *_RESTRICT_KYWD path,
+	const posix_spawn_file_actions_t *file_actions,
+	const posix_spawnattr_t *_RESTRICT_KYWD attrp,
+	char *const argv[_RESTRICT_KYWD],
+	char *const envp[_RESTRICT_KYWD]);
+
+extern int _posix_spawnp(
+	pid_t *_RESTRICT_KYWD pid,
+	const char *_RESTRICT_KYWD file,
+	const posix_spawn_file_actions_t *file_actions,
+	const posix_spawnattr_t *_RESTRICT_KYWD attrp,
+	char *const argv[_RESTRICT_KYWD],
+	char *const envp[_RESTRICT_KYWD]);
+
+#else	/* __STDC__ */
+extern int _posix_spawn();
+extern int _posix_spawnp();
+#endif	/* __STDC__ */
+
+static int
+#if defined (__STDC__)
+posix_spawn(
+	pid_t *_RESTRICT_KYWD __pid,
+	const char *_RESTRICT_KYWD __path,
+	const posix_spawn_file_actions_t *__file_actions,
+	const posix_spawnattr_t *_RESTRICT_KYWD __attrp,
+	char *const __argv[_RESTRICT_KYWD],
+	char *const __envp[_RESTRICT_KYWD])
+#else
+posix_spawn()
+	pid_t *_RESTRICT_KYWD __pid;
+	const char *_RESTRICT_KYWD __path;
+	const posix_spawn_file_actions_t *__file_actions;
+	const posix_spawnattr_t *_RESTRICT_KYWD __attrp;
+	char *const __argv[_RESTRICT_KYWD];
+	char *const __envp[_RESTRICT_KYWD];
+#endif	/* __STDC__ */
+{
+	return (_posix_spawn(__pid, __path, __file_actions,
+			     __attrp, __argv, __envp));
+}
+
+static int
+#if defined (__STDC__)
+posix_spawnp(
+	pid_t *_RESTRICT_KYWD __pid,
+	const char *_RESTRICT_KYWD __file,
+	const posix_spawn_file_actions_t *__file_actions,
+	const posix_spawnattr_t *_RESTRICT_KYWD __attrp,
+	char *const __argv[_RESTRICT_KYWD],
+	char *const __envp[_RESTRICT_KYWD])
+#else
+posix_spawnp()
+	pid_t *_RESTRICT_KYWD __pid;
+	const char *_RESTRICT_KYWD __file;
+	const posix_spawn_file_actions_t *__file_actions;
+	const posix_spawnattr_t *_RESTRICT_KYWD __attrp;
+	char *const __argv[_RESTRICT_KYWD];
+	char *const __envp[_RESTRICT_KYWD];
+#endif	/* __STDC__ */
+{
+	return (_posix_spawnp(__pid, __file, __file_actions,
+			     __attrp, __argv, __envp));
+}
+
+#else	/* __STRICT_SUNOS && !__lint */
+
+#if defined (__STDC__)
+extern int posix_spawn(
+	pid_t *_RESTRICT_KYWD pid,
+	const char *_RESTRICT_KYWD path,
+	const posix_spawn_file_actions_t *file_actions,
+	const posix_spawnattr_t *_RESTRICT_KYWD attrp,
+	char *const argv[_RESTRICT_KYWD],
+	char *const envp[_RESTRICT_KYWD]);
+
+extern int posix_spawnp(
+	pid_t *_RESTRICT_KYWD pid,
+	const char *_RESTRICT_KYWD file,
+	const posix_spawn_file_actions_t *file_actions,
+	const posix_spawnattr_t *_RESTRICT_KYWD attrp,
+	char *const argv[_RESTRICT_KYWD],
+	char *const envp[_RESTRICT_KYWD]);
+#else	/* __STDC__ */
+extern int posix_spawn();
+extern int posix_spawnp();
+#endif	/* __STDC__ */
+
+#endif	/* __STRICT_SUNOS && !__lint */
 
 #ifdef	__cplusplus
 }

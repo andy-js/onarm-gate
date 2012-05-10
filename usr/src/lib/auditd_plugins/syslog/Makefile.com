@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -41,7 +46,7 @@ SRCS=		$(SRCDIR)/sysplugin.c	\
 
 LIBBSM=		$(SRC)/lib/libbsm/common
 
-LIBS=		$(DYNLIB)
+LIBS=		$(ARLIB) $(DYNLIB)
 LDLIBS		+= -lbsm -lsecdb -lc -lnsl
 
 CFLAGS		+= $(CCVERBOSE)
@@ -59,10 +64,10 @@ lint:	lintcheck
 
 include		../../../Makefile.targ
 
-pics/%.o: $(SRCDIR)/%.c
+objs/%.o pics/%.o: $(SRCDIR)/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/toktable.o: $(PRAUDIT)/toktable.c
+objs/toktable.o pics/toktable.o: $(PRAUDIT)/toktable.c
 	$(COMPILE.c) $(PRAUDIT)/toktable.c -o $@ $<
 	$(POST_PROCESS_O)

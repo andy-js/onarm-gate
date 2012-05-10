@@ -23,12 +23,17 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_UBERBLOCK_IMPL_H
 #define	_SYS_UBERBLOCK_IMPL_H
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/uberblock.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -50,7 +55,10 @@ extern "C" {
 struct uberblock {
 	uint64_t	ub_magic;	/* UBERBLOCK_MAGIC		*/
 	uint64_t	ub_version;	/* SPA_VERSION			*/
-	uint64_t	ub_txg;		/* txg of last sync		*/
+	txg_t		ub_txg;		/* txg of last sync		*/
+#ifdef ZFS_COMPACT
+	uint32_t	ub_pad;
+#endif	/* ZFS_COMPACT */
 	uint64_t	ub_guid_sum;	/* sum of all vdev guids	*/
 	uint64_t	ub_timestamp;	/* UTC time of last sync	*/
 	blkptr_t	ub_rootbp;	/* MOS objset_phys_t		*/

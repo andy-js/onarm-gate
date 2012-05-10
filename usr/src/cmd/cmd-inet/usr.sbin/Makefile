@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 SYNCPROG=	syncinit syncloop syncstat
 DHCPPROG=	dhcpconfig dhtadm pntadm
 
@@ -65,13 +69,19 @@ K5RLOGINOBJS=	in.rlogind.o
 K5RSHDOBJS=	in.rshd.o
 SRCS=		$(PROGSRCS) $(OTHERSRC)
 
-SUBDIRS=	bootconfchk htable ifconfig in.ftpd in.rdisc in.routed \
+SUBDIRS-common=	bootconfchk htable ifconfig in.ftpd in.rdisc in.routed \
 		in.talkd inetadm inetconv ipqosconf kssl/kssladm kssl/ksslcfg \
 		ping routeadm snoop sppptun traceroute wificonfig ipsecutils
 
 MSGSUBDIRS=	bootconfchk htable ifconfig in.ftpd in.routed in.talkd inetadm \
 		inetconv ipqosconf kssl/ksslcfg routeadm sppptun snoop \
 		wificonfig
+
+SUBDIRS		= $(SUBDIRS-common)
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(SUBDIRS-common)
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
 
 # As programs get lint-clean, add them here and to the 'lint' target.
 # Eventually this hack should go away, and all in PROG should be
@@ -128,10 +138,13 @@ $(LINTCLEAN)		:=	CFLAGS += $(CCVERBOSE)
 $(CONSTCLEAN)		:=	CFLAGS += $(XSTRCONST)
 
 $(SYNCPROG)		:=	LDLIBS += -ldlpi
+$(AUDITPROG)		:=	LDLIBS += -lbsm
+$(__ARLIB)$(ARM_BLD)$(AUDITPROG)	:=	LDLIBS += -ltsol
+$(PAMPROG)		:=	LDLIBS += -lpam
+$(__ARLIB)$(ARM_BLD)$(PAMPROG)		:=	LDLIBS += -lsecdb
 $(SOCKETPROG)		:=	LDLIBS += -lsocket
 $(NSLPROG)		:=	LDLIBS += -lnsl
-$(AUDITPROG)		:=	LDLIBS += -lbsm
-$(PAMPROG)		:=	LDLIBS += -lpam
+$(__ARLIB)$(ARM_BLD)$(NSLPROG)		:=	LDLIBS += -lmd
 $(RPCSVCPROG)		:=	LDLIBS += -lrpcsvc
 $(K5PROGS)		:=	LDFLAGS += $(ZLAZYLOAD) $(KRUNPATH) \
 				-L$(ROOT)$(KLIBDIR_DO) -L$(ROOT)$(KLIBDIR_GL)

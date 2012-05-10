@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_METASLAB_H
 #define	_SYS_METASLAB_H
 
@@ -33,6 +37,7 @@
 #include <sys/txg.h>
 #include <sys/zio.h>
 #include <sys/avl.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -42,17 +47,17 @@ typedef struct metaslab_class metaslab_class_t;
 typedef struct metaslab_group metaslab_group_t;
 
 extern metaslab_t *metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
-    uint64_t start, uint64_t size, uint64_t txg);
+    uint64_t start, uint64_t size, txg_t txg);
 extern void metaslab_fini(metaslab_t *msp);
-extern void metaslab_sync(metaslab_t *msp, uint64_t txg);
-extern void metaslab_sync_done(metaslab_t *msp, uint64_t txg);
+extern void metaslab_sync(metaslab_t *msp, txg_t txg);
+extern void metaslab_sync_done(metaslab_t *msp, txg_t txg);
 
 extern int metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
-    blkptr_t *bp, int ncopies, uint64_t txg, blkptr_t *hintbp,
+    blkptr_t *bp, int ncopies, txg_t txg, blkptr_t *hintbp,
     boolean_t hintbp_avoid);
-extern void metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg,
+extern void metaslab_free(spa_t *spa, const blkptr_t *bp, txg_t txg,
     boolean_t now);
-extern int metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg);
+extern int metaslab_claim(spa_t *spa, const blkptr_t *bp, txg_t txg);
 
 extern metaslab_class_t *metaslab_class_create(void);
 extern void metaslab_class_destroy(metaslab_class_t *mc);

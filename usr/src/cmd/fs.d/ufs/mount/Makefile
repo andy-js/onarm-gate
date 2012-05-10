@@ -26,6 +26,10 @@
 #
 # cmd/fs.d/ufs/mount/Makefile
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 FSTYPE=		ufs
 PROG=		mount
 LIBPROG=	$(PROG)
@@ -41,5 +45,7 @@ include		../../Makefile.fstype
 include		../../Makefile.mount
 
 CPPFLAGS +=	-D_LARGEFILE64_SOURCE
+
+$(ARM_BLD)CPPFLAGS +=	-DMNTFS_DISABLE
 
 include		../../Makefile.mount.targ

@@ -36,6 +36,9 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -1673,11 +1676,12 @@ spec_seek(
 	caller_context_t *ct)
 {
 	offset_t maxoff = spec_maxoffset(vp);
-
-	if (maxoff == -1 || *noffp <= maxoff)
-		return (0);
-	else
+  
+	if (maxoff != -1 &&
+	    ((*noffp > maxoff) || (*noffp < 0 && vp->v_type == VBLK)))
 		return (EINVAL);
+	else
+		return (0);
 }
 
 static int

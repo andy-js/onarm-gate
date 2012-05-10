@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <bsm/adt.h>
@@ -1674,7 +1678,9 @@ adt_set_from_ucred(const adt_session_data_t *session_data, const ucred_t *uc,
 			adt_cpy_tid(&termid, tid64);
 			tid = &termid;
 		} else {
-			tid = NULL;
+			(void)memset(&termid, 0, sizeof (au_tid_addr_t));
+			termid.at_type = AU_IPv4;
+			tid = &termid;
 		}
 		if (ucred_getauid(ucred) == AU_NOAUDITID) {
 			adt_setto_unaudited(state);

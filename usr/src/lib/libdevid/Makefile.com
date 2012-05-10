@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -35,7 +40,7 @@ include ../../Makefile.rootfs
 SRCS =		../deviceid.c $(SRC)/common/devid/devid.c \
 		$(SRC)/common/devid/devid_scsi.c
 $(LINTLIB) :=	SRCS = $(SRCDIR)/$(LINTSRC)
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 #
 # Libraries added to the next line must be present in miniroot
 #
@@ -51,10 +56,10 @@ lint: lintcheck
 
 include ../../Makefile.targ
 
-pics/devid.o:	 $(SRC)/common/devid/devid.c
+objs/devid.o pics/devid.o:	 $(SRC)/common/devid/devid.c
 	$(COMPILE.c) -o $@ $(SRC)/common/devid/devid.c
 	$(POST_PROCESS_O)
 
-pics/devid_scsi.o:	 $(SRC)/common/devid/devid_scsi.c
+objs/devid_scsi.o pics/devid_scsi.o:	 $(SRC)/common/devid/devid_scsi.c
 	$(COMPILE.c) -o $@ $(SRC)/common/devid/devid_scsi.c
 	$(POST_PROCESS_O)

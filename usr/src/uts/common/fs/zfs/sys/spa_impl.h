@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_SPA_IMPL_H
 #define	_SYS_SPA_IMPL_H
 
@@ -38,6 +42,7 @@
 #include <sys/avl.h>
 #include <sys/refcount.h>
 #include <sys/bplist.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -58,7 +63,7 @@ typedef struct spa_history_phys {
 } spa_history_phys_t;
 
 struct spa_aux_vdev {
-	uint64_t	sav_object;		/* MOS object for device list */
+	objid_t		sav_object;		/* MOS object for device list */
 	nvlist_t	*sav_config;		/* cached device config */
 	vdev_t		**sav_vdevs;		/* devices */
 	int		sav_count;		/* number devices */
@@ -81,9 +86,10 @@ struct spa {
 	 */
 	char		*spa_name;		/* pool name */
 	avl_node_t	spa_avl;		/* node in spa_namespace_avl */
+	avl_node_t	spa_err_avl;		/* node in spa_errorlist_avl */
 	nvlist_t	*spa_config;		/* last synced config */
 	nvlist_t	*spa_config_syncing;	/* currently syncing config */
-	uint64_t	spa_config_txg;		/* txg of last config change */
+	txg_t		spa_config_txg;		/* txg of last config change */
 	kmutex_t	spa_config_cache_lock;	/* for spa_config RW_READER */
 	int		spa_sync_pass;		/* iterate-to-convergence */
 	int		spa_state;		/* pool state */
@@ -96,9 +102,9 @@ struct spa {
 	dsl_pool_t	*spa_dsl_pool;
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
-	uint64_t	spa_first_txg;		/* first txg after spa_open() */
-	uint64_t	spa_final_txg;		/* txg of export/destroy */
-	uint64_t	spa_freeze_txg;		/* freeze pool at this txg */
+	txg_t		spa_first_txg;		/* first txg after spa_open() */
+	txg_t		spa_final_txg;		/* txg of export/destroy */
+	txg_t		spa_freeze_txg;		/* freeze pool at this txg */
 	objset_t	*spa_meta_objset;	/* copy of dp->dp_meta_objset */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
@@ -106,9 +112,9 @@ struct spa {
 	list_t		spa_dirty_list;		/* vdevs with dirty labels */
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
 	spa_aux_vdev_t	spa_l2cache;		/* L2ARC cache devices */
-	uint64_t	spa_config_object;	/* MOS object for pool config */
-	uint64_t	spa_syncing_txg;	/* txg currently syncing */
-	uint64_t	spa_sync_bplist_obj;	/* object for deferred frees */
+	objid_t		spa_config_object;	/* MOS object for pool config */
+	txg_t		spa_syncing_txg;	/* txg currently syncing */
+	objid_t		spa_sync_bplist_obj;	/* object for deferred frees */
 	bplist_t	spa_sync_bplist;	/* deferred-free bplist */
 	krwlock_t	spa_traverse_lock;	/* traverse vs. spa_sync() */
 	uberblock_t	spa_ubsync;		/* last synced uberblock */
@@ -116,9 +122,9 @@ struct spa {
 	kmutex_t	spa_scrub_lock;		/* resilver/scrub lock */
 	kthread_t	*spa_scrub_thread;	/* scrub/resilver thread */
 	traverse_handle_t *spa_scrub_th;	/* scrub traverse handle */
-	uint64_t	spa_scrub_restart_txg;	/* need to restart */
-	uint64_t	spa_scrub_mintxg;	/* min txg we'll scrub */
-	uint64_t	spa_scrub_maxtxg;	/* max txg we'll scrub */
+	txg_t		spa_scrub_restart_txg;	/* need to restart */
+	txg_t		spa_scrub_mintxg;	/* min txg we'll scrub */
+	txg_t		spa_scrub_maxtxg;	/* max txg we'll scrub */
 	uint64_t	spa_scrub_inflight;	/* in-flight scrub I/Os */
 	uint64_t	spa_scrub_maxinflight;	/* max in-flight scrub I/Os */
 	uint64_t	spa_scrub_errors;	/* scrub I/O error count */
@@ -139,17 +145,17 @@ struct spa {
 	uint64_t	spa_ena;		/* spa-wide ereport ENA */
 	boolean_t	spa_last_open_failed;	/* true if last open faled */
 	kmutex_t	spa_errlog_lock;	/* error log lock */
-	uint64_t	spa_errlog_last;	/* last error log object */
-	uint64_t	spa_errlog_scrub;	/* scrub error log object */
+	objid_t		spa_errlog_last;	/* last error log object */
+	objid_t		spa_errlog_scrub;	/* scrub error log object */
 	kmutex_t	spa_errlist_lock;	/* error list/ereport lock */
 	avl_tree_t	spa_errlist_last;	/* last error list */
 	avl_tree_t	spa_errlist_scrub;	/* scrub error list */
 	uint64_t	spa_deflate;		/* should we deflate? */
-	uint64_t	spa_history;		/* history object */
+	objid_t		spa_history;		/* history object */
 	kmutex_t	spa_history_lock;	/* history lock */
 	vdev_t		*spa_pending_vdev;	/* pending vdev additions */
 	kmutex_t	spa_props_lock;		/* property lock */
-	uint64_t	spa_pool_props_object;	/* object for properties */
+	objid_t		spa_pool_props_object;	/* object for properties */
 	uint64_t	spa_bootfs;		/* default boot filesystem */
 	boolean_t	spa_delegation;		/* delegation on/off */
 	char		*spa_config_dir;	/* cache file directory */

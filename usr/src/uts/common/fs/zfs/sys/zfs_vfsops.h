@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_ZFS_VFSOPS_H
 #define	_SYS_FS_ZFS_VFSOPS_H
 
@@ -35,6 +39,7 @@
 #include <sys/zil.h>
 #include <sys/rrwlock.h>
 #include <sys/zfs_ioctl.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -46,11 +51,11 @@ struct zfsvfs {
 	vfs_t		*z_vfs;		/* generic fs struct */
 	zfsvfs_t	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
-	uint64_t	z_root;		/* id of root znode */
-	uint64_t	z_unlinkedobj;	/* id of unlinked zapobj */
+	objid_t		z_root;		/* id of root znode */
+	objid_t		z_unlinkedobj;	/* id of unlinked zapobj */
 	uint64_t	z_max_blksz;	/* maximum block size for files */
-	uint64_t	z_assign;	/* TXG_NOWAIT or set by zil_replay() */
-	uint64_t	z_fuid_obj;	/* fuid table object number */
+	txg_t		z_assign;	/* TXG_NOWAIT or set by zil_replay() */
+	objid_t		z_fuid_obj;	/* fuid table object number */
 	uint64_t	z_fuid_size;	/* fuid table size */
 	avl_tree_t	z_fuid_idx;	/* fuid tree keyed by index */
 	avl_tree_t	z_fuid_domain;	/* fuid tree keyed by domain */
@@ -58,8 +63,10 @@ struct zfsvfs {
 	boolean_t	z_fuid_loaded;	/* fuid tables are loaded */
 	struct zfs_fuid_info	*z_fuid_replay; /* fuid info for replay */
 	zilog_t		*z_log;		/* intent log pointer */
+#ifndef ZFS_COMPACT
 	uint_t		z_acl_mode;	/* acl chmod/mode behavior */
 	uint_t		z_acl_inherit;	/* acl inheritance behavior */
+#endif	/* ZFS_COMPACT */
 	zfs_case_t	z_case;		/* case-sense */
 	boolean_t	z_utf8;		/* utf8-only */
 	int		z_norm;		/* normalization flags */
@@ -76,7 +83,9 @@ struct zfsvfs {
 	boolean_t	z_use_fuids;	/* version allows fuids */
 	kmutex_t	z_online_recv_lock; /* recv in prog grabs as WRITER */
 	uint64_t	z_version;	/* ZPL version */
+#ifndef ZFS_OBJ_MTX_SZ
 #define	ZFS_OBJ_MTX_SZ	64
+#endif	/* ZFS_OBJ_MTX_SZ */
 	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
 };
 
@@ -99,7 +108,12 @@ struct zfsvfs {
  */
 typedef struct zfid_short {
 	uint16_t	zf_len;
+#ifndef ZFS_COMPACT
 	uint8_t		zf_object[6];		/* obj[i] = obj >> (8 * i) */
+#else
+	uint8_t		zf_object[3];		/* obj[i] = obj >> (8 * i) */
+	uint8_t		zf_pad[1];
+#endif	/* ZFS_COMPACT */
 	uint8_t		zf_gen[4];		/* gen[i] = gen >> (8 * i) */
 } zfid_short_t;
 
@@ -121,7 +135,12 @@ typedef struct zfid_short {
  */
 typedef struct zfid_long {
 	zfid_short_t	z_fid;
+#ifndef ZFS_COMPACT
 	uint8_t		zf_setid[6];		/* obj[i] = obj >> (8 * i) */
+#else
+	uint8_t		zf_setid[3];		/* obj[i] = obj >> (8 * i) */
+	uint8_t		zf_pad[1];
+#endif	/* ZFS_COMPACT */
 	uint8_t		zf_setgen[4];		/* gen[i] = gen >> (8 * i) */
 } zfid_long_t;
 

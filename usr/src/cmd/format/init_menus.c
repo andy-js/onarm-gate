@@ -30,6 +30,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -144,7 +148,7 @@ struct	menu_item menu_partition[] = {
 		p_hpart, disp_expert_change_expert_efi },
 	{ "8      - change '8' partition",
 		p_ipart, disp_all_change_expert_efi },
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 	{ "9      - change `9' partition",
 		p_jpart, expert },
 #endif

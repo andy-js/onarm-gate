@@ -25,6 +25,11 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 # This Makefile defines all file modules for the directory uts/common
 # and its children. These are the source files which may be considered
 # common to all SunOS systems.
@@ -32,32 +37,51 @@
 i386_CORE_OBJS += \
 		atomic.o	\
 		avintr.o	\
-		pic.o
-
-sparc_CORE_OBJS +=
-
-COMMON_CORE_OBJS +=		\
 		beep.o		\
 		bitset.o	\
-		bp_map.o	\
 		brand.o		\
-		cpucaps.o	\
 		cmt.o		\
-		cpu.o		\
-		cpu_intr.o	\
-		cpupart.o	\
-		disp.o		\
 		group.o		\
 		kstat_fr.o	\
 		lgrp.o		\
 		lgrp_topo.o	\
-		mutex.o		\
-		page_lock.o	\
 		page_retire.o	\
-		panic.o		\
-		param.o		\
 		pg.o		\
 		pghw.o		\
+		pic.o		\
+		zlib_obj.o
+
+sparc_CORE_OBJS += \
+		beep.o		\
+		bitset.o	\
+		brand.o		\
+		cmt.o		\
+		group.o		\
+		kstat_fr.o	\
+		lgrp.o		\
+		lgrp_topo.o	\
+		page_retire.o	\
+		pg.o		\
+		pghw.o		\
+		zlib_obj.o
+
+arm_CORE_OBJS	+=		\
+		atomic.o	\
+		avintr.o	\
+		modstatic.o
+
+COMMON_CORE_OBJS +=		\
+		bp_map.o	\
+		cpucaps.o	\
+		cpu.o		\
+		cpu_intr.o	\
+		cpu_intr_thread.o	\
+		cpupart.o	\
+		disp.o		\
+		mutex.o		\
+		page_lock.o	\
+		panic.o		\
+		param.o		\
 		putnext.o	\
 		rctl_proc.o	\
 		rwlock.o	\
@@ -67,7 +91,6 @@ COMMON_CORE_OBJS +=		\
 		thread_intr.o	\
 		vm_page.o	\
 		vm_pagelist.o	\
-		zlib_obj.o	\
 		clock_tick.o
 
 CORE_OBJS +=	$(COMMON_CORE_OBJS) $($(MACH)_CORE_OBJS)
@@ -106,7 +129,6 @@ GENUNIX_OBJS +=	\
 		condvar.o	\
 		conf.o		\
 		console.o	\
-		contract.o	\
 		copyops.o	\
 		core.o		\
 		corectl.o	\
@@ -116,7 +138,6 @@ GENUNIX_OBJS +=	\
 		dacf_clnt.o	\
 		cyclic.o	\
 		ddi.o		\
-		ddifm.o		\
 		ddi_intr.o	\
 		ddi_intr_impl.o	\
 		ddi_nodeid.o	\
@@ -124,7 +145,6 @@ GENUNIX_OBJS +=	\
 		ddi_timer.o	\
 		devcfg.o	\
 		devcache.o	\
-		device.o	\
 		devid.o		\
 		devid_cache.o	\
 		devid_scsi.o	\
@@ -135,7 +155,6 @@ GENUNIX_OBJS +=	\
 		dumpsubr.o	\
 		driver_lyr.o	\
 		dtrace_subr.o	\
-		errorq.o	\
 		etheraddr.o	\
 		evchannels.o	\
 		exacct.o	\
@@ -146,11 +165,9 @@ GENUNIX_OBJS +=	\
 		fcntl.o		\
 		fdbuffer.o	\
 		fdsync.o	\
-		fem.o		\
 		ffs.o		\
 		fio.o		\
 		flock.o		\
-		fm.o		\
 		fork.o		\
 		vpm.o		\
 		fsat.o		\
@@ -176,9 +193,7 @@ GENUNIX_OBJS +=	\
 		ioctl.o		\
 		issetugid.o	\
 		ippconf.o	\
-		kcpc.o		\
 		kdi.o		\
-		kiconv.o	\
 		klpd.o		\
 		kmem.o		\
 		ksyms_snapshot.o	\
@@ -209,7 +224,6 @@ GENUNIX_OBJS +=	\
 		msacct.o	\
 		multidata.o	\
 		nbmlock.o	\
-		ndifm.o		\
 		nice.o		\
 		netstack.o	\
 		ntptime.o	\
@@ -225,14 +239,11 @@ GENUNIX_OBJS +=	\
 		serializer.o	\
 		pci_intr_lib.o	\
 		pci_cap.o	\
-		pcifm.o		\
 		pgrp.o		\
 		pgrpsys.o	\
 		pid.o		\
 		policy.o	\
 		poll.o		\
-		pool.o		\
-		pool_pset.o	\
 		port_subr.o	\
 		ppriv.o		\
 		printf.o	\
@@ -253,7 +264,7 @@ GENUNIX_OBJS +=	\
 		rename.o	\
 		resolvepath.o	\
 		retire_store.o	\
-		process.o	\
+		pspawn.o	\
 		rlimit.o	\
 		rmap.o		\
 		rmdir.o		\
@@ -287,7 +298,6 @@ GENUNIX_OBJS +=	\
 		sigtimedwait.o	\
 		sleepq.o	\
 		space.o		\
-		sscanf.o	\
 		ssig.o		\
 		stat.o		\
 		statfs.o	\
@@ -328,9 +338,7 @@ GENUNIX_OBJS +=	\
 		tnf_res.o	\
 		turnstile.o	\
 		tty_common.o	\
-		u8_textprep.o	\
 		uadmin.o	\
-		uconv.o		\
 		ucredsys.o	\
 		uid.o		\
 		umask.o		\
@@ -362,8 +370,6 @@ GENUNIX_OBJS +=	\
 		watchpoint.o	\
 		yield.o		\
 		scsi_confdata.o	\
-		xattr.o		\
-		xattr_common.o	\
 		xdr_mblk.o	\
 		xdr_mem.o	\
 		xdr.o		\
@@ -372,6 +378,50 @@ GENUNIX_OBJS +=	\
 		xhat.o		\
 		zone.o
 
+i386_GENUNIX_OBJS +=		\
+		contract.o	\
+		ddifm.o		\
+		device.o	\
+		errorq.o	\
+		fem.o		\
+		fm.o		\
+		kcpc.o		\
+		kiconv.o	\
+		ndifm.o		\
+		pcifm.o		\
+		pool.o		\
+		pool_pset.o	\
+		process.o	\
+		sscanf.o	\
+		u8_textprep.o	\
+		uconv.o		\
+		xattr.o		\
+		xattr_common.o
+
+sparc_GENUNIX_OBJS +=		\
+		contract.o	\
+		ddifm.o		\
+		device.o	\
+		errorq.o	\
+		fem.o		\
+		fm.o		\
+		kcpc.o		\
+		kiconv.o	\
+		ndifm.o		\
+		pcifm.o		\
+		pool.o		\
+		pool_pset.o	\
+		process.o	\
+		sscanf.o	\
+		u8_textprep.o	\
+		uconv.o		\
+		xattr.o		\
+		xattr_common.o
+
+arm_GENUNIX_OBJS +=
+
+GENUNIX_OBJS +=	$($(MACH)_GENUNIX_OBJS)
+
 #
 #	Stubs for the stand-alone linker/loader
 #
@@ -379,6 +429,8 @@ sparc_GENSTUBS_OBJS =	\
 	kobj_stubs.o
 
 i386_GENSTUBS_OBJS =
+
+arm_GENSTUBS_OBJS =
 
 COMMON_GENSTUBS_OBJS =
 
@@ -1049,6 +1101,9 @@ SMBFS_OBJS +=	smbfs_vfsops.o	smbfs_vnops.o	smbfs_node.o \
 		smbfs_client.o	smbfs_io.o	smbfs_smb.o \
 		smbfs_subr.o	smbfs_subr2.o	smbfs_rwlock.o
 
+XRAMFS_OBJS +=	xram_dir.o	xram_subr.o	xram_vfsops.o	xram_vnops.o \
+		xram_xnode.o
+
 #
 #			LVM modules
 #
@@ -1089,11 +1144,8 @@ ZFS_COMMON_OBJS +=		\
 	dsl_dataset.o		\
 	dsl_pool.o		\
 	dsl_synctask.o		\
-	dmu_zfetch.o		\
-	dsl_deleg.o		\
 	dsl_prop.o		\
 	fletcher.o		\
-	gzip.o			\
 	lzjb.o			\
 	metaslab.o		\
 	refcount.o		\
@@ -1108,26 +1160,31 @@ ZFS_COMMON_OBJS +=		\
 	uberblock.o		\
 	unique.o		\
 	vdev.o			\
-	vdev_cache.o		\
-	vdev_file.o		\
 	vdev_label.o		\
 	vdev_mirror.o		\
 	vdev_missing.o		\
 	vdev_queue.o		\
-	vdev_raidz.o		\
 	vdev_root.o		\
 	zap.o			\
 	zap_leaf.o		\
 	zap_micro.o		\
-	zfs_byteswap.o		\
 	zfs_fm.o		\
-	zfs_fuid.o		\
 	zfs_znode.o		\
 	zil.o			\
 	zio.o			\
 	zio_checksum.o		\
 	zio_compress.o		\
 	zio_inject.o
+
+ZFS_COMMON_SELECT_OBJS	+=	\
+	dmu_zfetch.o		\
+	dsl_deleg.o		\
+	gzip.o			\
+	vdev_cache.o		\
+	vdev_file.o		\
+	vdev_raidz.o		\
+	zfs_byteswap.o		\
+	zfs_fuid.o
 
 ZFS_SHARED_OBJS +=		\
 	zfs_namecheck.o		\
@@ -1139,6 +1196,7 @@ ZFS_SHARED_OBJS +=		\
 
 ZFS_OBJS +=			\
 	$(ZFS_COMMON_OBJS)	\
+	$(ZFS_COMMON_SELECT_OBJS)	\
 	$(ZFS_SHARED_OBJS)	\
 	vdev_disk.o		\
 	zfs_acl.o		\
@@ -1151,7 +1209,31 @@ ZFS_OBJS +=			\
 	rrwlock.o		\
 	zfs_vfsops.o		\
 	zfs_vnops.o		\
+	$(ZFS_SELECT_OBJS)
+
+ZFS_SELECT_OBJS	+=		\
 	zvol.o
+
+CZFS_COMMON_OBJS +=		\
+	$(ZFS_COMMON_OBJS)
+
+CZFS_SHARED_OBJS +=		\
+	$(ZFS_SHARED_OBJS)	\
+	zfs_subr.o
+
+CZFS_OBJS +=			\
+	$(CZFS_COMMON_OBJS)	\
+	$(CZFS_SHARED_OBJS)	\
+	vdev_disk.o		\
+	zfs_acl.o		\
+	zfs_dir.o		\
+	zfs_ioctl.o		\
+	zfs_log.o		\
+	zfs_replay.o		\
+	zfs_rlock.o		\
+	rrwlock.o		\
+	zfs_vfsops.o		\
+	zfs_vnops.o
 
 #
 #			streams modules
@@ -1607,3 +1689,6 @@ KICONV_TC_OBJS += kiconv_cck_common.o kiconv_tc.o
 #	AAC module
 #
 AAC_OBJS = aac.o aac_ioctl.o
+
+XRAMDISK_OBJS +=	xramdisk.o
+XRAMDEV_OBJS +=		xramdev.o

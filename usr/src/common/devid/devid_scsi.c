@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -132,6 +136,7 @@ static char ctoi(char c);
  *		occur and then this inquiry data should be re-acquired and
  *		this function should be called again.
  */
+#if	defined(_KERNEL) || !defined(__arm)
 int
 #ifdef _KERNEL
 ddi_devid_scsi_encode(
@@ -1125,6 +1130,7 @@ devid_scsi_init(
 	*ret_devid = (ddi_devid_t)i_devid;
 	return (DEVID_SUCCESS);
 }
+#endif	/* _KERNEL || !__arm */
 
 
 /*
@@ -1203,6 +1209,7 @@ devid_free_guid(char *guid)
 	}
 }
 
+#if	defined(_KERNEL) || !defined(__arm)
 static char
 ctoi(char c)
 {
@@ -1252,3 +1259,4 @@ devid_str_to_wwn(const char *string, uint64_t *wwn)
 	}
 	return (DDI_SUCCESS);
 }
+#endif	/* _KERNEL || !__arm */

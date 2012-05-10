@@ -34,6 +34,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <unistd.h>
@@ -497,6 +501,7 @@ static void initarg(char *argv[], char *file);
 static char *nextarg();
 #endif
 static blkcnt_t kcheck(char *kstr);
+static off_t lookup(char *s);
 static off_t bsrch(char *s, int n, off_t l, off_t h);
 static void onintr(int sig);
 static void onquit(int sig);
@@ -4687,7 +4692,6 @@ checkupdate(char *arg)
 	time_t	mtime;
 	long nsecs;
 	off_t seekp;
-	static off_t	lookup(char *);
 
 	rewind(tfile);
 	if ((seekp = lookup(arg)) < 0)

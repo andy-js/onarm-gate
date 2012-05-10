@@ -23,6 +23,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -314,6 +319,13 @@ conv_ehdr_flags(Half mach, Word flags, Conv_fmt_flags_t fmt_flags,
 		return (conv_arg.buf);
 	}
 
+	if (mach == EM_ARM) {
+		extern const char	*conv_ehdr_ARM_flags
+			(Word flags, Conv_fmt_flags_t fmt_flags,
+			 Conv_ehdr_flags_buf_t *flags_buf);
+
+		return conv_ehdr_ARM_flags(flags, fmt_flags, flags_buf);
+	}
 	return (conv_invalid_val(&flags_buf->inv_buf, flags, CONV_FMT_DECIMAL));
 }
 

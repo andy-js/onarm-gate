@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "synonyms.h"
@@ -36,7 +40,7 @@
 
 static int _aio_hash_insert(aio_result_t *, aio_req_t *);
 static aio_req_t *_aio_req_get(aio_worker_t *);
-static void _aio_req_add(aio_req_t *, aio_worker_t **, int);
+static int _aio_req_add(aio_req_t *, aio_worker_t **, int);
 static void _aio_req_del(aio_worker_t *, aio_req_t *, int);
 static void _aio_work_done(aio_worker_t *);
 static void _aio_enq_doneq(aio_req_t *);
@@ -51,6 +55,25 @@ static int _aio_fsync_del(aio_worker_t *, aio_req_t *);
 static void _aiodone(aio_req_t *, ssize_t, int);
 static void _aio_cancel_work(aio_worker_t *, int, int *, int *);
 static void _aio_finish_request(aio_worker_t *, ssize_t, int);
+
+/*
+ * File descripter table for async write
+ */
+typedef struct aio_worker_fd {
+	int		fd;			/* file descriptor */
+	int		openarg;		/* open() option */
+	int		qcnt;			/* queue count */
+	volatile int	stat;			/* fd table status */
+	aio_worker_t	*workp;			/* worker pointer */
+	struct aio_worker_fd	*nextp;		/* next pointer */
+} aio_worker_fd_t;
+
+static aio_worker_fd_t *_aio_worker_search_fd(int);
+static aio_worker_fd_t *_aio_worker_add_fd(int);
+static void _aio_worker_del_fd(int);
+
+static aio_worker_fd_t *worker_fdtbl = NULL;
+#define FDTBL_SEARCHWK	1	/* searching worker */
 
 /*
  * switch for kernel async I/O
@@ -122,6 +145,75 @@ int _aio_flags = 0;			/* see asyncio.h defines for */
 aio_worker_t *_kaiowp = NULL;		/* points to kaio cleanup thread */
 
 int hz;					/* clock ticks per second */
+
+/*
+ * Search fd in table
+ */
+static aio_worker_fd_t *
+_aio_worker_search_fd(int fd)
+{
+	aio_worker_fd_t *wp;
+
+	/* search fd */
+	for(wp = worker_fdtbl; wp != NULL; wp = wp->nextp) {
+		if (wp->fd == fd) {
+			return (wp);
+		}
+	}
+	return (NULL);
+}
+
+/*
+ * Add new fd table
+ */
+static aio_worker_fd_t *
+_aio_worker_add_fd(int fd)
+{
+	aio_worker_fd_t *wp, *nwp;
+
+	nwp = (aio_worker_fd_t *)malloc(sizeof(aio_worker_fd_t));
+	if (nwp == NULL) {
+		return (NULL);
+	}
+	memset(nwp, 0, sizeof(aio_worker_fd_t));
+	nwp->fd = fd;
+	if (worker_fdtbl != NULL) {
+		nwp->nextp = worker_fdtbl;
+	}
+	worker_fdtbl = nwp;
+	return (nwp);
+}
+
+/*
+ * Delete fd table
+ */
+static void
+_aio_worker_del_fd(int fd)
+{
+	aio_worker_fd_t *wp, *twp = NULL, *pwp;
+
+	if (worker_fdtbl == NULL) {
+		return;
+	}
+	if (worker_fdtbl->fd == fd){
+		twp = worker_fdtbl;
+		worker_fdtbl = twp->nextp;
+	} else {
+		pwp = worker_fdtbl;
+		for(wp = worker_fdtbl->nextp; wp != NULL; pwp = wp,
+		    wp = wp->nextp) {
+			if (wp->fd == fd) {
+				twp = wp;
+				pwp->nextp = wp->nextp;
+				break;
+			}
+		}
+	}
+	if (twp != NULL) {
+		free(twp);
+	}
+	return;
+}
 
 static int
 _kaio_supported_init(void)
@@ -246,6 +338,12 @@ _aio_close(int fd)
 	if (__uaio_ok)
 		(void) aiocancel_all(fd);
 	/*
+	 * Free worker fd.
+	 */
+	sig_mutex_lock(&__aio_mutex);
+	_aio_worker_del_fd(fd);
+	sig_mutex_unlock(&__aio_mutex);
+	/*
 	 * If we have allocated the bit array, clear the bit for this file.
 	 * The next open may re-use this file descriptor and the new file
 	 * may have different kaio() behaviour.
@@ -355,6 +453,7 @@ _aiorw(int fd, caddr_t buf, int bufsz, offset_t offset, int whence,
 	int error = 0;
 	int kerr;
 	int umode;
+	int ret;
 
 	switch (whence) {
 
@@ -448,7 +547,11 @@ _aiorw(int fd, caddr_t buf, int bufsz, offset_t offset, int whence,
 	 * _aio_req_add() only needs the difference between READ and
 	 * WRITE to choose the right worker queue.
 	 */
-	_aio_req_add(reqp, &__nextworker_rw, umode);
+	if ((ret = _aio_req_add(reqp, &__nextworker_rw, umode)) != 0) {
+		_aio_req_free(reqp);
+		errno = ret;
+		return (-1);
+	}
 	return (0);
 }
 
@@ -689,7 +792,7 @@ int
 aiocancel_all(int fd)
 {
 	aio_req_t *reqp;
-	aio_req_t **reqpp;
+	aio_req_t **reqpp, *last;
 	aio_worker_t *first;
 	aio_worker_t *next;
 	int canceled = 0;
@@ -719,14 +822,25 @@ aiocancel_all(int fd)
 	if (fd < 0)
 		cancelall = 1;
 	reqpp = &_aio_done_tail;
+	last = _aio_done_tail;
 	while ((reqp = *reqpp) != NULL) {
 		if (cancelall || reqp->req_args.fd == fd) {
 			*reqpp = reqp->req_next;
+			if (last == reqp) {
+				last = reqp->req_next;
+			}
+			if (_aio_done_head == reqp) {
+				/* this should be the last req in list */
+				_aio_done_head = last;
+			}
 			_aio_donecnt--;
+			_aio_set_result(reqp, -1, ECANCELED);
 			(void) _aio_hash_del(reqp->req_resultp);
 			_aio_req_free(reqp);
-		} else
+		} else {
 			reqpp = &reqp->req_next;
+			last = reqp;
+		}
 	}
 	if (cancelall) {
 		ASSERT(_aio_donecnt == 0);
@@ -796,6 +910,23 @@ _aio_cancel_req(aio_worker_t *aiowp, aio_req_t *reqp, int *canceled, int *done)
 	ASSERT(MUTEX_HELD(&aiowp->work_qlock1));
 	if (ostate == AIO_REQ_CANCELED)
 		return (0);
+	if (ostate == AIO_REQ_DONE && !POSIX_AIO(reqp) &&
+	    aiowp->work_prev1 == reqp) {
+		ASSERT(aiowp->work_done1 != 0);
+		/*
+		 * If not on the done queue yet, just mark it CANCELED,
+		 * _aio_work_done() will do the necessary clean up.
+		 * This is required to ensure that aiocancel_all() cancels
+		 * all the outstanding requests, including this one which
+		 * is not yet on done queue but has been marked done.
+		 */
+		_aio_set_result(reqp, -1, ECANCELED);
+		(void) _aio_hash_del(reqp->req_resultp);
+		reqp->req_state = AIO_REQ_CANCELED;
+		(*canceled)++;
+		return (0);
+	}
+
 	if (ostate == AIO_REQ_DONE || ostate == AIO_REQ_DONEQ) {
 		(*done)++;
 		return (0);
@@ -830,6 +961,7 @@ _aio_cancel_req(aio_worker_t *aiowp, aio_req_t *reqp, int *canceled, int *done)
 	if (!POSIX_AIO(reqp)) {
 		_aio_outstand_cnt--;
 		_aio_set_result(reqp, -1, ECANCELED);
+		_aio_req_free(reqp);
 		return (0);
 	}
 	sig_mutex_unlock(&aiowp->work_qlock1);
@@ -1189,10 +1321,12 @@ _aio_finish_request(aio_worker_t *aiowp, ssize_t retval, int error)
 		}
 		if (!POSIX_AIO(reqp)) {
 			int notify;
+			if (reqp->req_state == AIO_REQ_INPROGRESS) {
+				reqp->req_state = AIO_REQ_DONE;
+				_aio_set_result(reqp, retval, error);
+			}
 			sig_mutex_unlock(&aiowp->work_qlock1);
 			sig_mutex_lock(&__aio_mutex);
-			if (reqp->req_state == AIO_REQ_INPROGRESS)
-				reqp->req_state = AIO_REQ_DONE;
 			/*
 			 * If it was canceled, this request will not be
 			 * added to done list. Just free it.
@@ -1201,7 +1335,6 @@ _aio_finish_request(aio_worker_t *aiowp, ssize_t retval, int error)
 				_aio_outstand_cnt--;
 				_aio_req_free(reqp);
 			} else {
-				_aio_set_result(reqp, retval, error);
 				_aio_req_done_cnt++;
 			}
 			/*
@@ -1459,7 +1592,7 @@ _aiodone(aio_req_t *reqp, ssize_t retval, int error)
 			 */
 			reqp->req_notify = np;
 			reqp->req_op = AIONOTIFY;
-			_aio_req_add(reqp, &__workers_no, AIONOTIFY);
+			(void) _aio_req_add(reqp, &__workers_no, AIONOTIFY);
 			reqp = NULL;
 		} else {
 			/*
@@ -1470,6 +1603,23 @@ _aiodone(aio_req_t *reqp, ssize_t retval, int error)
 			send_notification(&np);
 		}
 	}
+
+	/*
+	 * decriment qcnt in fd table
+	 */
+	sig_mutex_lock(&__aio_mutex);
+	if (reqp != NULL &&
+	    (reqp->req_op == AIOWRITE || reqp->req_op == AIOAWRITE ||
+	    reqp->req_op == AIOAWRITE64)) {
+		aio_worker_fd_t *wp = _aio_worker_search_fd(reqp->req_args.fd);
+		if (wp != NULL && (wp->openarg & O_APPEND)) {
+			wp->qcnt--;
+			if (wp->qcnt == 0) {
+				wp->workp = NULL;
+			}
+		}
+	}
+	sig_mutex_unlock(&__aio_mutex);
 
 	if (reqp != NULL)
 		_aio_req_free(reqp);
@@ -1562,6 +1712,7 @@ _aio_work_done(aio_worker_t *aiowp)
 {
 	aio_req_t *reqp;
 
+	sig_mutex_lock(&__aio_mutex);
 	sig_mutex_lock(&aiowp->work_qlock1);
 	reqp = aiowp->work_prev1;
 	reqp->req_next = NULL;
@@ -1570,11 +1721,27 @@ _aio_work_done(aio_worker_t *aiowp)
 	if (aiowp->work_tail1 == NULL)
 		aiowp->work_head1 = NULL;
 	aiowp->work_prev1 = NULL;
-	sig_mutex_unlock(&aiowp->work_qlock1);
-	sig_mutex_lock(&__aio_mutex);
-	_aio_donecnt++;
 	_aio_outstand_cnt--;
 	_aio_req_done_cnt--;
+	if (reqp->req_state == AIO_REQ_CANCELED) {
+		/*
+		 * Request got cancelled after it was marked done. This can
+		 * happen because _aio_finish_request() marks it AIO_REQ_DONE
+		 * and drops all locks. Don't add the request to the done
+		 * queue and just discard it.
+		 */
+		sig_mutex_unlock(&aiowp->work_qlock1);
+		_aio_req_free(reqp);
+		if (_aio_outstand_cnt == 0 && _aiowait_flag) {
+			sig_mutex_unlock(&__aio_mutex);
+			(void) _kaio(AIONOTIFY);
+		} else {
+			sig_mutex_unlock(&__aio_mutex);
+		}
+		return;
+	}
+	sig_mutex_unlock(&aiowp->work_qlock1);
+	_aio_donecnt++;
 	ASSERT(_aio_donecnt > 0 &&
 	    _aio_outstand_cnt >= 0 &&
 	    _aio_req_done_cnt >= 0);
@@ -1661,14 +1828,17 @@ _aio_set_result(aio_req_t *reqp, ssize_t retval, int error)
  * Add an AIO request onto the next work queue.
  * A circular list of workers is used to choose the next worker.
  */
-void
+int
 _aio_req_add(aio_req_t *reqp, aio_worker_t **nextworker, int mode)
 {
 	ulwp_t *self = curthread;
 	aio_worker_t *aiowp;
 	aio_worker_t *first;
+	aio_worker_fd_t *wkfdp = NULL;
 	int load_bal_flg = 1;
-	int found;
+	int found = 0;
+	int fd;
+	int ret;
 
 	ASSERT(reqp->req_state != AIO_REQ_DONEQ);
 	reqp->req_next = NULL;
@@ -1685,6 +1855,56 @@ _aio_req_add(aio_req_t *reqp, aio_worker_t **nextworker, int mode)
 		_aio_outstand_cnt++;
 	sig_mutex_unlock(&__aio_mutex);
 
+	/*
+	 * When O_APPEND and aiowrite
+	 */
+	switch (mode) {
+	case AIOWRITE:
+	case AIOAWRITE:
+#if !defined(_LP64)
+	case AIOAWRITE64:
+#endif
+		sig_mutex_lock(&__aio_mutex);
+		fd = reqp->req_args.fd;
+		wkfdp = _aio_worker_search_fd(fd);
+		if (wkfdp == NULL) {
+			wkfdp = _aio_worker_add_fd(fd);
+			if (wkfdp == NULL) {
+				sig_mutex_unlock(&__aio_mutex);
+				sigon(self);
+				return EAGAIN;
+			}
+		}
+
+		wkfdp->openarg = fcntl(fd, F_GETFL);
+		if (wkfdp->openarg == -1) {
+			ret = errno;
+			sig_mutex_unlock(&__aio_mutex);
+			sigon(self);
+			return ret;
+		}
+		if (wkfdp->openarg & O_APPEND) {
+			wkfdp->qcnt++;
+			while(wkfdp->stat & FDTBL_SEARCHWK) {
+				sig_mutex_unlock(&__aio_mutex);
+				_aio_delay(1);
+				sig_mutex_lock(&__aio_mutex);
+			}
+			if (wkfdp->workp != NULL) {
+				aiowp = wkfdp->workp;
+				found = 1;
+			} else {
+				wkfdp->stat |= FDTBL_SEARCHWK;
+			}
+		}
+		sig_mutex_unlock(&__aio_mutex);
+		break;
+	}
+	if (found) {
+		sig_mutex_lock(&aiowp->work_qlock1);
+		aiowp->work_minload1++;
+	}
+
 	switch (mode) {
 	case AIOREAD:
 	case AIOWRITE:
@@ -1694,8 +1914,11 @@ _aio_req_add(aio_req_t *reqp, aio_worker_t **nextworker, int mode)
 	case AIOAREAD64:
 	case AIOAWRITE64:
 #endif
+		if (found) {
+			break;
+		}
+
 		/* try to find an idle worker */
-		found = 0;
 		do {
 			if (sig_mutex_trylock(&aiowp->work_qlock1) == 0) {
 				if (aiowp->work_idleflg) {
@@ -1728,8 +1951,12 @@ _aio_req_add(aio_req_t *reqp, aio_worker_t **nextworker, int mode)
 			if (_aio_worker_cnt < _max_workers) {
 				if (_aio_create_worker(reqp, mode))
 					aio_panic("_aio_req_add: add worker");
+				if (wkfdp != NULL && wkfdp->workp == NULL) {
+					wkfdp->workp = reqp->req_worker;
+					wkfdp->stat &= ~FDTBL_SEARCHWK;
+				}
 				sigon(self);	/* reenable SIGIO */
-				return;
+				return (0);
 			}
 
 			/*
@@ -1755,8 +1982,12 @@ _aio_req_add(aio_req_t *reqp, aio_worker_t **nextworker, int mode)
 			sig_mutex_unlock(&__aio_mutex);
 			if (_aio_create_worker(reqp, mode))
 				aio_panic("aio_req_add: add worker");
+			if (wkfdp != NULL && wkfdp->workp == NULL) {
+				wkfdp->workp = reqp->req_worker;
+				wkfdp->stat &= ~FDTBL_SEARCHWK;
+			}
 			sigon(self);	/* reenable SIGIO */
-			return;
+			return (0);
 		}
 		aiowp->work_minload1++;
 		break;
@@ -1793,12 +2024,20 @@ _aio_req_add(aio_req_t *reqp, aio_worker_t **nextworker, int mode)
 	}
 	sig_mutex_unlock(&aiowp->work_qlock1);
 
+	sig_mutex_lock(&__aio_mutex);
+	if (wkfdp != NULL && wkfdp->workp == NULL) {
+		wkfdp->workp = aiowp;
+		wkfdp->stat &= ~FDTBL_SEARCHWK;
+	}
+	sig_mutex_unlock(&__aio_mutex);
+
 	if (load_bal_flg) {
 		sig_mutex_lock(&__aio_mutex);
 		*nextworker = aiowp->work_forw;
 		sig_mutex_unlock(&__aio_mutex);
 	}
 	sigon(self);	/* reenable SIGIO */
+	return (0);
 }
 
 /*
@@ -1885,17 +2124,36 @@ _aio_req_del(aio_worker_t *aiowp, aio_req_t *reqp, int ostate)
 			if (aiowp->work_next1 == next)
 				aiowp->work_next1 = next->req_next;
 
-			if ((next->req_next != NULL) ||
-			    (aiowp->work_done1 == 0)) {
-				if (aiowp->work_head1 == next)
-					aiowp->work_head1 = next->req_next;
-				if (aiowp->work_prev1 == next)
-					aiowp->work_prev1 = next->req_next;
-			} else {
-				if (aiowp->work_head1 == next)
-					aiowp->work_head1 = lastrp;
-				if (aiowp->work_prev1 == next)
-					aiowp->work_prev1 = lastrp;
+			/*
+			 * if this is the first request on the queue, move
+			 * the lastrp pointer forward.
+			 */
+			if (lastrp == next)
+				lastrp = next->req_next;
+
+			/*
+			 * if this request is pointed by work_head1, then
+			 * make work_head1 point to the last request that is
+			 * present on the queue.
+			 */
+			if (aiowp->work_head1 == next)
+				aiowp->work_head1 = lastrp;
+
+			/*
+			 * work_prev1 is used only in non posix case and it
+			 * points to the current AIO_REQ_INPROGRESS request.
+			 * If work_prev1 points to this request which is being
+			 * deleted, make work_prev1 NULL and set  work_done1
+			 * to 0.
+			 *
+			 * A worker thread can be processing only one request
+			 * at a time.
+			 */
+			if (aiowp->work_prev1 == next) {
+				ASSERT(ostate == AIO_REQ_INPROGRESS &&
+				    !POSIX_AIO(reqp) && aiowp->work_done1 > 0);
+					aiowp->work_prev1 = NULL;
+					aiowp->work_done1--;
 			}
 
 			if (ostate == AIO_REQ_QUEUED) {
@@ -1903,10 +2161,6 @@ _aio_req_del(aio_worker_t *aiowp, aio_req_t *reqp, int ostate)
 				aiowp->work_count1--;
 				ASSERT(aiowp->work_minload1 >= 1);
 				aiowp->work_minload1--;
-			} else {
-				ASSERT(ostate == AIO_REQ_INPROGRESS &&
-				    !POSIX_AIO(reqp));
-				aiowp->work_done1--;
 			}
 			return;
 		}
@@ -2059,6 +2313,7 @@ _aio_rw(aiocb_t *aiocbp, aio_lio_t *lio_head, aio_worker_t **nextworker,
 	aio_req_t *reqp;
 	aio_args_t *ap;
 	int kerr;
+	int ret;
 
 	if (aiocbp == NULL) {
 		errno = EINVAL;
@@ -2165,7 +2420,11 @@ _aio_rw(aiocb_t *aiocbp, aio_lio_t *lio_head, aio_worker_t **nextworker,
 		errno = EINVAL;
 		return (-1);
 	}
-	_aio_req_add(reqp, nextworker, mode);
+	if ((ret = _aio_req_add(reqp, nextworker, mode)) != 0) {
+		_aio_req_free(reqp);
+		errno = ret;
+		return (-1);
+	}
 	return (0);
 }
 

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -84,7 +88,11 @@
 
 static int kobj_kdi_mod_state = KOBJ_KDI_MOD_IDLE;
 
+#ifdef	STATIC_UNIX
+#define	standalone	0		/* krtld is already linked to kernel */
+#else	/* !STATIC_UNIX */
 extern int standalone;
+#endif	/* STATIC_UNIX */
 
 cons_polledio_t *
 kobj_kdi_get_polled_io(void)

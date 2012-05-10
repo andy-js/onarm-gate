@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -61,6 +64,7 @@ static int	_Statop;
 char Sgrade[NAMESIZE];
 void cleanup();
 static void usage();
+static void onintr();
 
 /*
  *	uux
@@ -73,7 +77,6 @@ char *envp[];
 {
 	char *jid();
 	FILE *fprx = NULL, *fpc = NULL, *fpd = NULL, *fp = NULL;
-	static void onintr();
 	int cfileUsed = 0;	/*  >0 if commands put in C. file flag  */
 	int cflag = 0;		/* if > 0 make local copy of files to be sent */
 	int nflag = 0;		/* if != 0, do not request error notification */

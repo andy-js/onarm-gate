@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -173,7 +177,7 @@ typedef struct zc_state {
 static void *zc_soft_state;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int err;
 
@@ -189,8 +193,9 @@ _init(void)
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int err;
 
@@ -201,9 +206,10 @@ _fini(void)
 	ddi_soft_state_fini(&zc_soft_state);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

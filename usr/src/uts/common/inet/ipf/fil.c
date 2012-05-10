@@ -7,6 +7,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #if defined(KERNEL) || defined(_KERNEL)
@@ -4116,7 +4120,12 @@ int set, makecopy;
 caddr_t data;
 ipf_stack_t *ifs;
 {
+#if defined(_NETWORK_EXTENSION)
+#define	KFREE_RT(a,b)	{KFREE(a); return(b);}
+	frentry_t *frdp, *fp, *f, **fprev, **ftail;
+#else
 	frentry_t frd, *fp, *f, **fprev, **ftail;
+#endif /* _NETWORK_EXTENSION */
 	int error = 0, in, v;
 	void *ptr, *uptr;
 	u_int *p, *pp;
@@ -4124,25 +4133,48 @@ ipf_stack_t *ifs;
 	char *group;
 
 	fg = NULL;
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(frdp, frentry_t *);
+	if (!frdp)
+		return ENOMEM;
+	fp = frdp;
+#else
 	fp = &frd;
+#endif /* _NETWORK_EXTENSION */
 	if (makecopy != 0) {
 		error = fr_inobj(data, fp, IPFOBJ_FRENTRY);
 		if (error)
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, EFAULT);
+#else
 			return EFAULT;
+#endif /* _NETWORK_EXTENSION */
 		if ((fp->fr_flags & FR_T_BUILTIN) != 0)
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, EINVAL);
+#else
 			return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 		fp->fr_ref = 0;
 		fp->fr_flags |= FR_COPIED;
 	} else {
 		fp = (frentry_t *)data;
 		if ((fp->fr_type & FR_T_BUILTIN) == 0)
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, EINVAL);
+#else
 			return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 		fp->fr_flags &= ~FR_COPIED;
 	}
 
 	if (((fp->fr_dsize == 0) && (fp->fr_data != NULL)) ||
 	    ((fp->fr_dsize != 0) && (fp->fr_data == NULL)))
+#if defined(_NETWORK_EXTENSION)
+		KFREE_RT(frdp, EINVAL);
+#else
 		return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 
 	v = fp->fr_v;
 	uptr = fp->fr_data;
@@ -4157,7 +4189,11 @@ ipf_stack_t *ifs;
 		/*EMPTY*/;
 #endif
 	else {
+#if defined(_NETWORK_EXTENSION)
+		KFREE_RT(frdp, EINVAL);
+#else
 		return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 	}
 
 	/*
@@ -4167,10 +4203,18 @@ ipf_stack_t *ifs;
 	 */
 	if ((makecopy == 1) && (fp->fr_func != NULL)) {
 		if (fr_findfunc(fp->fr_func) == NULL)
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, ESRCH);
+#else
 			return ESRCH;
+#endif /* _NETWORK_EXTENSION */
 		error = fr_funcinit(fp, ifs);
 		if (error != 0)
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, error);
+#else
 			return error;
+#endif /* _NETWORK_EXTENSION */
 	}
 
 	ptr = NULL;
@@ -4190,11 +4234,19 @@ ipf_stack_t *ifs;
 	if ((req != (int)SIOCZRLST) && (*group != '\0')) {
 		fg = fr_findgroup(group, unit, set, NULL, ifs);
 		if (fg == NULL)
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, ESRCH);
+#else
 			return ESRCH;
+#endif /* _NETWORK_EXTENSION */
 		if (fg->fg_flags == 0)
 			fg->fg_flags = fp->fr_flags & FR_INOUT;
 		else if (fg->fg_flags != (fp->fr_flags & FR_INOUT))
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, ESRCH);
+#else
 			return ESRCH;
+#endif /* _NETWORK_EXTENSION */
 	}
 
 	in = (fp->fr_flags & FR_INQUE) ? 0 : 1;
@@ -4218,11 +4270,19 @@ ipf_stack_t *ifs;
 			fprev = &ifs->ifs_ipfilter6[in][set];
 	}
 	if (fprev == NULL)
+#if defined(_NETWORK_EXTENSION)
+		KFREE_RT(frdp, ESRCH);
+#else
 		return ESRCH;
+#endif /* _NETWORK_EXTENSION */
 
 	if (*group != '\0') {
 	    if (!fg && !(fg = fr_findgroup(group, unit, set, NULL, ifs)))
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, ESRCH);
+#else
 			return ESRCH;
+#endif /* _NETWORK_EXTENSION */
 		fprev = &fg->fg_start;
 	}
 
@@ -4243,7 +4303,11 @@ ipf_stack_t *ifs;
 		if (makecopy != 0) {
 			KMALLOCS(ptr, void *, fp->fr_dsize);
 			if (!ptr)
+#if defined(_NETWORK_EXTENSION)
+				KFREE_RT(frdp, ENOMEM);
+#else
 				return ENOMEM;
+#endif /* _NETWORK_EXTENSION */
 			error = COPYIN(uptr, ptr, fp->fr_dsize);
 		} else {
 			ptr = uptr;
@@ -4251,7 +4315,11 @@ ipf_stack_t *ifs;
 		}
 		if (error != 0) {
 			KFREES(ptr, fp->fr_dsize);
-			return ENOMEM;
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, ENOMEM);
+#else
+                        return ENOMEM;
+#endif /* _NETWORK_EXTENSION */
 		}
 		fp->fr_data = ptr;
 	} else
@@ -4265,18 +4333,30 @@ ipf_stack_t *ifs;
 #if defined(IPFILTER_BPF)
 	case FR_T_BPFOPC :
 		if (fp->fr_dsize == 0)
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, EINVAL);
+#else
 			return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 		if (!bpf_validate(ptr, fp->fr_dsize/sizeof(struct bpf_insn))) {
 			if (makecopy && fp->fr_data != NULL) {
 				KFREES(fp->fr_data, fp->fr_dsize);
 			}
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, EINVAL);
+#else
 			return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 		}
 		break;
 #endif
 	case FR_T_IPF :
 		if (fp->fr_dsize != sizeof(fripf_t))
+#if defined(_NETWORK_EXTENSION)
+			KFREE_RT(frdp, EINVAL);
+#else
 			return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 
 		/*
 		 * Allowing a rule with both "keep state" and "with oow" is
@@ -4284,7 +4364,12 @@ ipf_stack_t *ifs;
 		 * fail with the out of window (oow) flag set.
 		 */
 		if ((fp->fr_flags & FR_KEEPSTATE) && (fp->fr_flx & FI_OOW))
+#if defined(_NETWORK_EXTENSION)
+
+			KFREE_RT(frdp, EINVAL);
+#else
 			return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 
 		switch (fp->fr_satype)
 		{
@@ -4297,7 +4382,11 @@ ipf_stack_t *ifs;
 				if (makecopy && fp->fr_data != NULL) {
 					KFREES(fp->fr_data, fp->fr_dsize);
 				}
+#if defined(_NETWORK_EXTENSION)
+				KFREE_RT(frdp, EINVAL);
+#else
 				return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 			}
 			break;
 #ifdef	IPFILTER_LOOKUP
@@ -4322,7 +4411,11 @@ ipf_stack_t *ifs;
 				if (makecopy && fp->fr_data != NULL) {
 					KFREES(fp->fr_data, fp->fr_dsize);
 				}
+#if defined(_NETWORK_EXTENSION)
+				KFREE_RT(frdp, EINVAL);
+#else
 				return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 			}
 			break;
 #ifdef	IPFILTER_LOOKUP
@@ -4346,7 +4439,11 @@ ipf_stack_t *ifs;
 		if (makecopy && fp->fr_data != NULL) {
 			KFREES(fp->fr_data, fp->fr_dsize);
 		}
+#if defined(_NETWORK_EXTENSION)
+		KFREE_RT(frdp, EINVAL);
+#else
 		return EINVAL;
+#endif /* _NETWORK_EXTENSION */
 	}
 
 	/*
@@ -4424,7 +4521,12 @@ ipf_stack_t *ifs;
 			KFREES(ptr, fp->fr_dsize);
 		}
 		RWLOCK_EXIT(&ifs->ifs_ipf_mutex);
+#if defined(_NETWORK_EXTENSION)
+
+		KFREE_RT(frdp, error);
+#else
 		return error;
+#endif /* _NETWORK_EXTENSION */
 	}
 
 	if (!f) {
@@ -4560,7 +4662,11 @@ done:
 	if ((ptr != NULL) && (error != 0) && (makecopy != 0)) {
 		KFREES(ptr, fp->fr_dsize);
 	}
+#if defined(_NETWORK_EXTENSION)
+	KFREE_RT(frdp, error);
+#else
 	return (error);
+#endif /* _NETWORK_EXTENSION */
 }
 
 

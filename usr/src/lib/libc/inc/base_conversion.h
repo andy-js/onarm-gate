@@ -25,6 +25,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	BASE_CONVERSION_H
 #define	BASE_CONVERSION_H
 
@@ -102,6 +106,16 @@ typedef struct {
 	single_msw	msw;
 } single_formatted;
 
+#if defined(__arm)
+#if defined(__VFP_FP__)
+#define	HIWORD		1
+#define	LOWORD		0
+#else
+#define	HIWORD		0
+#define	LOWORD		1
+#endif
+
+#if (HIWORD)
 typedef struct {
 	unsigned	significand2;
 	double_msw	msw;
@@ -119,6 +133,44 @@ typedef struct {
 	unsigned	significand2;
 	quadruple_msw	msw;
 } quadruple_formatted;
+#else
+typedef struct {
+	double_msw	msw;
+	unsigned	significand2;
+} double_formatted;
+
+typedef struct {
+	extended_msw	msw;
+	unsigned	significand;
+	unsigned	significand2;
+} extended_formatted;
+
+typedef struct {
+	quadruple_msw   msw;
+	unsigned	significand2;
+	unsigned	significand3;
+	unsigned	significand4;
+} quadruple_formatted;
+#endif
+#else
+typedef struct {
+	unsigned	significand2;
+	double_msw	msw;
+} double_formatted;
+
+typedef struct {
+	unsigned	significand2;
+	unsigned	significand;
+	extended_msw	msw;
+} extended_formatted;
+
+typedef struct {
+	unsigned	significand4;
+	unsigned	significand3;
+	unsigned	significand2;
+	quadruple_msw	msw;
+} quadruple_formatted;
+#endif
 
 #else
 

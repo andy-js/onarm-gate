@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -76,6 +80,7 @@ int di_devname_action_on_key(nvlist_t *, uint8_t, char *, void *);
 /*
  * Returns 0 and the valid maplist, otherwise errno.
  */
+#ifndef	__arm
 int
 di_devname_get_mapinfo_files(char *mapname, nvlist_t **maplist)
 {
@@ -550,6 +555,7 @@ di_devname_get_mapinfo(char *mapname, nvlist_t **maps)
 
 	return (di_devname_get_mapinfo_files(mapname, maps));
 }
+#endif	/* !__arm */
 
 static void
 debug_print(debug_level_t msglevel, const char *fmt, va_list ap)
@@ -671,6 +677,7 @@ di_prof_add_exclude(di_prof_t prof, const char *dev)
 /*
  * Add a symlink to profile.
  */
+#ifndef	__arm
 int
 di_prof_add_symlink(di_prof_t prof, const char *linkname, const char *target)
 {
@@ -699,3 +706,4 @@ di_prof_add_map(di_prof_t prof, const char *source, const char *target)
 		return (-1);
 	return (0);
 }
+#endif	/* !__arm */

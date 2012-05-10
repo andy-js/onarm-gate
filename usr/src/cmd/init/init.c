@@ -37,6 +37,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -100,6 +104,9 @@
 #include <sys/tty.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#if defined(__ARM_INIT)
+#include <sys/sysarm.h>
+#endif
 
 #include <bsm/adt_event.h>
 #include <bsm/libbsm.h>
@@ -484,7 +491,11 @@ static char *SYSTTY	 = "/dev/systty";	/* System Console */
 static char *SYSCON	 = "/dev/syscon";	/* Virtual System console */
 static char *IOCTLSYSCON = "/etc/ioctl.syscon";	/* Last syscon modes */
 static char *ENVFILE	 = "/etc/default/init";	/* Default env. */
+#if defined(__ARM_INIT)
+static char *SU	= "/sbin/sulogin";	/* Super-user program for single user */
+#else
 static char *SU	= "/etc/sulogin";	/* Super-user program for single user */
+#endif
 static char *SH	= "/sbin/sh";		/* Standard shell */
 
 /*
@@ -554,6 +565,9 @@ static uint_t	startd_failure_index;
 
 static char	*prog_name(char *);
 static int	state_to_mask(int);
+#if defined(__WITHOUT_SMF)
+static int	mask_to_state(int);
+#endif
 static int	lvlname_to_mask(char, int *);
 static void	lscf_set_runlevel(char);
 static int	state_to_flags(int);
@@ -606,6 +620,9 @@ main(int argc, char *argv[])
 	int	chg_lvl_flag = FALSE, print_banner = FALSE;
 	int	may_need_audit = 1;
 	int	c;
+#if defined(__ARM_INIT)
+	int	sysarm_sysinit_done = 0;
+#endif
 	char	*msg;
 
 	/* Get a timestamp for use as boot time, if needed. */
@@ -721,7 +738,9 @@ main(int argc, char *argv[])
 	/* Load glob_envp from ENVFILE. */
 	init_env();
 
+#if !defined(__WITHOUT_CONTRACTS)
 	contracts_init();
+#endif
 
 	if (!booting) {
 		/* cur_state should have been read in. */
@@ -745,6 +764,15 @@ main(int argc, char *argv[])
 	prev_state = prior_state = cur_state;
 
 	setup_pipe();
+
+#if defined(__WITHOUT_SMF)
+	/*
+	 * Make sure that cur_state != prev_state so that
+	 * ONCE and WAIT types work.
+	 * (making "initdefault" availavle.)
+	 */
+	prev_state = 0;
+#endif
 
 	/*
 	 * Here is the beginning of the main process loop.
@@ -777,12 +805,14 @@ main(int argc, char *argv[])
 		if (chg_lvl_flag) {
 			chg_lvl_flag = FALSE;
 
+#if !defined(__WITHOUT_SMF)
 			if (state_to_flags(cur_state) & LSEL_RUNLEVEL) {
 				char rl = state_to_name(cur_state);
 
 				if (rl != -1)
 					lscf_set_runlevel(rl);
 			}
+#endif
 
 			may_need_audit = 1;
 		}
@@ -802,6 +832,16 @@ main(int argc, char *argv[])
 			rsflag = 0;
 			spawncnt++;
 		}
+
+#if defined(__ARM_INIT)
+		if (sysarm_sysinit_done == 0) {
+			if (sysarm(SARM_SYSINIT_DONE, NULL, NULL, NULL) != 0) {
+				console(B_TRUE,
+				    "sysarm() failed. errno: %d\n", errno);
+			}
+			sysarm_sysinit_done = 1;
+		}
+#endif
 
 		/*
 		 * If a powerfail signal was received during the last
@@ -853,6 +893,7 @@ main(int argc, char *argv[])
 			if (wakeup.w_mask == 0) {
 				int ret;
 
+#if !defined(__WITHOUT_AUDIT)
 				if (may_need_audit && (cur_state == LVL3)) {
 					msg = audit_boot_msg();
 
@@ -861,11 +902,16 @@ main(int argc, char *argv[])
 					    ADT_SUCCESS, msg);
 					free(msg);
 				}
+#endif  /* __WITHOUT_AUDIT */
 
 				/*
 				 * "init" is finished with all actions for
 				 * the current wakeup.
 				 */
+#if defined(__WITHOUT_CONTRACTS)
+				(void) poll(0, 0, SLEEPTIME * MILLISEC);
+				pausecnt++;
+#else	/* !__WITHOUT_CONTRACTS */
 				ret = poll(poll_fds, poll_nfds,
 				    SLEEPTIME * MILLISEC);
 				pausecnt++;
@@ -874,6 +920,7 @@ main(int argc, char *argv[])
 				else if (ret < 0 && errno != EINTR)
 					console(B_TRUE, "poll() error: %s\n",
 					    strerror(errno));
+#endif	/* __WITHOUT_CONTRACTS */
 			}
 
 			if (wakeup.w_flags.w_usersignal) {
@@ -924,7 +971,9 @@ update_boot_archive(int new_state)
 	if (getzoneid() != GLOBAL_ZONEID)
 		return;
 
+#ifndef	__NO_BOOTADM
 	(void) system("/sbin/bootadm -a update_all");
+#endif	/* __NO_BOOTADM */
 }
 
 /*
@@ -1851,6 +1900,22 @@ state_to_mask(int state)
 	return (0);	/* return 0, since that represents an empty mask */
 }
 
+#if defined(__WITHOUT_SMF)
+/*
+ * mask_to_state(): return the minimum number corresponding of the state mask.
+ */
+static int
+mask_to_state(int mask)
+{
+	int i;
+	for (i = 0; i < LVL_NELEMS; i++) {
+		if (lvls[i].lvl_mask & mask)
+			return (lvls[i].lvl_state);
+	}
+	return SINGLE_USER;	/* return SINGLE_USER as a default state */
+}
+#endif
+
 /*
  * lvlname_to_mask(): return the mask corresponding to a levels character name
  */
@@ -2065,6 +2130,9 @@ boot_init()
 			(void) snprintf(startd_svc_aux, SVC_AUX_SIZE,
 			    INITTAB_ENTRY_ID_STR_FORMAT, cmd.c_id);
 		} else if (cmd.c_action == M_INITDEFAULT) {
+#if defined(__WITHOUT_SMF)
+			cur_state = mask_to_state(cmd.c_levels);
+#else
 			/*
 			 * initdefault is no longer meaningful, as the SMF
 			 * milestone controls what (legacy) run level we
@@ -2072,6 +2140,7 @@ boot_init()
 			 */
 			console(B_TRUE,
 			    "Ignoring legacy \"initdefault\" entry.\n");
+#endif
 		} else if (cmd.c_action == M_SYSINIT) {
 			/*
 			 * Execute the "sysinit" entry and wait for it to
@@ -2081,6 +2150,7 @@ boot_init()
 			 */
 			if (process = findpslot(&cmd)) {
 				(void) sigset(SIGCLD, SIG_DFL);
+#if !defined(__WITHOUT_CONTRACTS)
 				(void) snprintf(svc_aux, SVC_AUX_SIZE,
 				    INITTAB_ENTRY_ID_STR_FORMAT, cmd.c_id);
 				(void) snprintf(init_svc_fmri, SVC_FMRI_SIZE,
@@ -2092,6 +2162,7 @@ boot_init()
 					(void) ct_pr_tmpl_set_svc_aux(
 					    legacy_tmpl, svc_aux);
 				}
+#endif	/* __WITHOUT_CONTRACTS */
 
 				for (oprocess = process;
 				    (process = efork(M_OFF, oprocess,
@@ -2136,6 +2207,7 @@ boot_init()
 	if (write_ioctl)
 		write_ioctl_syscon();
 
+#if !defined(__WITHOUT_SMF)
 	/*
 	 * Start svc.startd(1M), which does most of the work.
 	 */
@@ -2148,6 +2220,7 @@ boot_init()
 		    "contract template.  Not starting svc.startd.\n");
 		enter_maintenance();
 	}
+#endif
 }
 
 /*
@@ -3066,6 +3139,7 @@ setimer(int timelimit)
 	time_up = (timelimit ? FALSE : TRUE);
 }
 
+#if !defined(__WITHOUT_SMF)
 /*
  * Fails with
  *   ENOMEM - out of memory
@@ -3520,6 +3594,7 @@ bail:
 	(void) scf_handle_unbind(h);
 	scf_handle_destroy(h);
 }
+#endif  /* __WITHOUT_SMF */
 
 /*
  * Function to handle requests from users to main init running as process 1.
@@ -4079,6 +4154,8 @@ err:
 	}
 }
 
+#if !defined(__WITHOUT_CONTRACTS)
+
 /*
  * Create a contract with these parameters.
  */
@@ -4533,10 +4610,13 @@ startd_failure_rate_critical()
 	return (avg_ns < STARTD_FAILURE_RATE_NS);
 }
 
+#endif /* __WITHOUT_CONTRACTS */
+
 /*
  * returns string that must be free'd
  */
 
+#if !defined(__WITHOUT_AUDIT)
 static char
 *audit_boot_msg()
 {
@@ -4556,6 +4636,7 @@ static char
 	}
 	return (b);
 }
+#endif  /* __WITHOUT_AUDIT */
 
 /*
  * Generate AUE_init_solaris audit record.  Return 1 if
@@ -4572,6 +4653,9 @@ static char
 static int
 audit_put_record(int pass_fail, int status, char *msg)
 {
+#if defined(__WITHOUT_AUDIT)
+	return (0);
+#else
 	adt_session_data_t	*ah;
 	adt_event_data_t	*event;
 
@@ -4604,4 +4688,5 @@ audit_put_record(int pass_fail, int status, char *msg)
 	(void) adt_end_session(ah);
 
 	return (1);
+#endif  /* __WITHOUT_AUDIT */
 }

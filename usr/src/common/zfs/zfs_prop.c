@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zio.h>
@@ -31,8 +35,9 @@
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
+#include <zfs_types.h>
+#include <zfs_prop.h>
 
-#include "zfs_prop.h"
 #include "zfs_deleg.h"
 
 #if defined(_KERNEL)
@@ -67,6 +72,7 @@ zfs_prop_init(void)
 		{ "on",		ZIO_COMPRESS_ON },
 		{ "off",	ZIO_COMPRESS_OFF },
 		{ "lzjb",	ZIO_COMPRESS_LZJB },
+#ifndef ZFS_COMPACT
 		{ "gzip",	ZIO_COMPRESS_GZIP_6 },	/* gzip default */
 		{ "gzip-1",	ZIO_COMPRESS_GZIP_1 },
 		{ "gzip-2",	ZIO_COMPRESS_GZIP_2 },
@@ -77,9 +83,11 @@ zfs_prop_init(void)
 		{ "gzip-7",	ZIO_COMPRESS_GZIP_7 },
 		{ "gzip-8",	ZIO_COMPRESS_GZIP_8 },
 		{ "gzip-9",	ZIO_COMPRESS_GZIP_9 },
+#endif	/* ZFS_COMPACT */
 		{ NULL }
 	};
 
+#ifndef ZFS_COMPACT
 	static zprop_index_t snapdir_table[] = {
 		{ "hidden",	ZFS_SNAPDIR_HIDDEN },
 		{ "visible",	ZFS_SNAPDIR_VISIBLE },
@@ -100,21 +108,18 @@ zfs_prop_init(void)
 		{ "passthrough", ZFS_ACL_PASSTHROUGH },
 		{ NULL }
 	};
-
-	static zprop_index_t case_table[] = {
-		{ "sensitive",		ZFS_CASE_SENSITIVE },
-		{ "insensitive",	ZFS_CASE_INSENSITIVE },
-		{ "mixed",		ZFS_CASE_MIXED },
-		{ NULL }
-	};
+#endif	/* ZFS_COMPACT */
 
 	static zprop_index_t copies_table[] = {
 		{ "1",		1 },
 		{ "2",		2 },
+#ifndef ZFS_COMPACT
 		{ "3",		3 },
+#endif	/* ZFS_COMPACT */
 		{ NULL }
 	};
 
+#ifndef ZFS_COMPACT
 	/*
 	 * Use the unique flags we have to send to u8_strcmp() and/or
 	 * u8_textprep() to represent the various normalization property
@@ -128,6 +133,14 @@ zfs_prop_init(void)
 		{ "formKD",	U8_TEXTPREP_NFKD },
 		{ NULL }
 	};
+
+	static zprop_index_t case_table[] = {
+		{ "sensitive",		ZFS_CASE_SENSITIVE },
+		{ "insensitive",	ZFS_CASE_INSENSITIVE },
+		{ "mixed",		ZFS_CASE_MIXED },
+		{ NULL }
+	};
+#endif	/* ZFS_COMPACT */
 
 	static zprop_index_t version_table[] = {
 		{ "1",		1 },
@@ -158,6 +171,7 @@ zfs_prop_init(void)
 	register_index(ZFS_PROP_COMPRESSION, "compression",
 	    ZIO_COMPRESS_DEFAULT, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+#ifndef ZFS_COMPACT
 	    "on | off | lzjb | gzip | gzip-[1-9]", "COMPRESS", compress_table);
 	register_index(ZFS_PROP_SNAPDIR, "snapdir", ZFS_SNAPDIR_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
@@ -169,9 +183,23 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | noallow | secure | passthrough", "ACLINHERIT",
 	    acl_inherit_table);
+	register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN",
+	    boolean_table);
+#else
+	    "on | off | lzjb", "COMPRESS", compress_table);
+	register_hidden(ZFS_PROP_SNAPDIR,  "snapdir", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM, "SNAPDIR");
+	register_hidden(ZFS_PROP_ACLMODE,  "aclmode", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM, "ACLMODE");
+	register_hidden(ZFS_PROP_ACLINHERIT,  "aclinherit", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM, "ACLINHERIT");
+	register_hidden(ZFS_PROP_VSCAN, "vscan", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM, "VSCAN");
+#endif	/* ZFS_COMPACT */
 	register_index(ZFS_PROP_COPIES, "copies", 1,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "1 | 2 | 3", "COPIES", copies_table);
+	    COPIES_STR, "COPIES", copies_table);
 
 	/* inherit index (boolean) properties */
 	register_index(ZFS_PROP_ATIME, "atime", 1, PROP_INHERIT,
@@ -193,9 +221,6 @@ zfs_prop_init(void)
 	register_index(ZFS_PROP_XATTR, "xattr", 1, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "XATTR",
 	    boolean_table);
-	register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN",
-	    boolean_table);
 	register_index(ZFS_PROP_NBMAND, "nbmand", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "NBMAND",
 	    boolean_table);
@@ -212,6 +237,7 @@ zfs_prop_init(void)
 	register_index(ZFS_PROP_MOUNTED, "mounted", 0, PROP_READONLY,
 	    ZFS_TYPE_FILESYSTEM, "yes | no", "MOUNTED", boolean_table);
 
+#ifndef ZFS_COMPACT
 	/* set once index properties */
 	register_index(ZFS_PROP_NORMALIZE, "normalization", 0,
 	    PROP_ONETIME, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
@@ -225,6 +251,15 @@ zfs_prop_init(void)
 	register_index(ZFS_PROP_UTF8ONLY, "utf8only", 0, PROP_ONETIME,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "on | off", "UTF8ONLY", boolean_table);
+#else
+	register_hidden(ZFS_PROP_NORMALIZE,  "normalization", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "NORMALIZATION");
+	register_hidden(ZFS_PROP_CASE,  "casesensitivity", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "CASE");
+	register_hidden(ZFS_PROP_UTF8ONLY,  "utf8only", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "UTF8ONLY");
+#endif	/* ZFS_COMPACT */
 
 	/* string properties */
 	register_string(ZFS_PROP_ORIGIN, "origin", NULL, PROP_READONLY,
@@ -251,8 +286,8 @@ zfs_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_DATASET,
 	    "<1.00x or higher if compressed>", "RATIO");
 	register_number(ZFS_PROP_VOLBLOCKSIZE, "volblocksize", 8192,
-	    PROP_ONETIME,
-	    ZFS_TYPE_VOLUME, "512 to 128k, power of 2",	"VOLBLOCK");
+	    PROP_ONETIME, ZFS_TYPE_VOLUME, "512 to " MAXBLOCKSIZE_STR
+	    ", power of 2", "VOLBLOCK");
 
 	/* default number properties */
 	register_number(ZFS_PROP_QUOTA, "quota", 0, PROP_DEFAULT,
@@ -269,8 +304,8 @@ zfs_prop_init(void)
 
 	/* inherit number properties */
 	register_number(ZFS_PROP_RECORDSIZE, "recordsize", SPA_MAXBLOCKSIZE,
-	    PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM, "512 to 128k, power of 2", "RECSIZE");
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "512 to " MAXBLOCKSIZE_STR
+	    ", power of 2", "RECSIZE");
 
 	/* hidden properties */
 	register_hidden(ZFS_PROP_CREATETXG, "createtxg", PROP_TYPE_NUMBER,

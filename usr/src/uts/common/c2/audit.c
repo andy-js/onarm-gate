@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 /*
  * This file contains the audit hook support code for auditing.
@@ -1009,7 +1012,7 @@ audit_closef(struct file *fp)
 	struct vattr attr;
 	short evmod = 0;
 	const auditinfo_addr_t *ainfo;
-	int getattr_ret;
+	int getattr_ret = 0;
 	cred_t *cr;
 	au_kcontext_t	*kctx = GET_KCTX_PZ;
 

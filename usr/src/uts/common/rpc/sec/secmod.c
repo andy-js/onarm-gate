@@ -24,13 +24,17 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.7	*/
 
 #include <sys/types.h>
 #include <sys/modctl.h>
 #include <sys/errno.h>
 
-char _depends_on[] = "strmod/rpcmod misc/tlimod";
+MODDRV_DEPENDS_ON("strmod/rpcmod misc/tlimod");
 
 /*
  * Module linkage information for the kernel.
@@ -52,7 +56,7 @@ extern void svcauthdes_init();
 extern void svcauthdes_fini();
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	int retval = 0;
 
@@ -71,14 +75,16 @@ _init()
 	return (retval);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

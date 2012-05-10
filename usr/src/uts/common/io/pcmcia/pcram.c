@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #if defined(DEBUG)
@@ -265,7 +269,7 @@ char *pcram_name = PCRAM_NAME;
  *	3.  _fini() routine
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 
@@ -291,7 +295,7 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 
 #ifdef	PCRAM_DEBUG
@@ -302,8 +306,9 @@ _info(struct modinfo *modinfop)
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	error;
 
@@ -319,6 +324,7 @@ _fini(void)
 
 	return (error);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 /*

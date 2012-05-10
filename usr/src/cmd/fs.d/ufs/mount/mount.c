@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -422,6 +426,9 @@ mountfs(struct mnttab *mnt)
 	struct ufs_args		 args;
 	int			 need_separator = 0;
 	int			mount_attempts = 5;
+#ifdef MNTFS_DISABLE
+	struct stat64		msb;
+#endif	/* MNTFS_DISABLE */
 
 	(void) bzero((char *)&args, sizeof (args));
 	(void) strcpy(opts, mnt->mnt_mntopts);
@@ -584,6 +591,19 @@ again:	if (mount(mnt->mnt_special, mnt->mnt_mountp, flags, fstype,
 		    mnt->mnt_special, mnt->mnt_mountp);
 	}
 
+#ifdef MNTFS_DISABLE
+	/*
+	 * Enable this function even if mntfs isn't mounted.
+	 * Confirm the filesystem type to judge whether mntfs
+	 * is mounted or not.
+	 */
+	if (stat64(MNTTAB, &msb) != 0) {
+		exit(32);
+	}
+	if (strcmp(msb.st_fstype, "mntfs") != 0) {
+		exit (0);
+	}
+#endif	/* MNTFS_DISABLE */
 	if (checkislog(mnt->mnt_mountp)) {
 		/* update mnttab file if necessary */
 		if (!mflg) {

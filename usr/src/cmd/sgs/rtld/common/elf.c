@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -100,6 +105,10 @@ static int	elf_needed(Lm_list *, Aliste, Rt_map *);
 static void	elf_unmap_so(Rt_map *);
 static int	elf_verify_vers(const char *, Rt_map *, Rt_map *);
 
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+static int	elf_rtld_needed(Lm_list *lml, Rt_map *clmp, ulong_t LazyDepId);
+#endif
+
 /*
  * Functions and data accessed through indirect pointers.
  */
@@ -160,6 +169,19 @@ elf_fix_name(const char *name, Rt_map *clmp, uint_t orig)
 }
 
 /*
+ * If RTLD_MALLOC_NO_PROTEXEC macro was enabled, preloading and dlopen()ing
+ * feature against relocatable objects, i.e., on-the-fly link-editing and
+ * mapping them as a dynamic shared object, is disabled.
+ */
+#ifdef	RTLD_MALLOC_NO_PROTEXEC
+#define	VALID_ELF_TYPE(type) \
+	(((type) == ET_EXEC) || ((type) == ET_DYN))
+#else
+#define	VALID_ELF_TYPE(type) \
+	(((type) == ET_EXEC) || ((type) == ET_DYN) || ((type) == ET_REL))
+#endif
+
+/*
  * Determine if we have been given an ELF file and if so determine if the file
  * is compatible.  Returns 1 if true, else 0 and sets the reject descriptor
  * with associated error information.
@@ -197,8 +219,7 @@ elf_are_u(Rej_desc *rej)
 		rej->rej_info = (uint_t)ehdr->e_ident[EI_DATA];
 		return (0);
 	}
-	if ((ehdr->e_type != ET_REL) && (ehdr->e_type != ET_EXEC) &&
-	    (ehdr->e_type != ET_DYN)) {
+	if (!VALID_ELF_TYPE(ehdr->e_type)) {
 		rej->rej_type = SGS_REJ_TYPE;
 		rej->rej_info = (uint_t)ehdr->e_type;
 		return (0);
@@ -253,9 +274,10 @@ elf_rtld_load()
 	if (elf_needed(lml, ALIST_OFF_DATA, lmp) == 0)
 		return (0);
 
-#if	defined(__i386)
+#if	defined(__i386) || defined(__arm)
 	/*
-	 * This is a kludge to give ld.so.1 a performance benefit on i386.
+	 * This is a kludge to give ld.so.1 a performance benefit on i386 and
+	 * ARM.
 	 * It's based around two factors.
 	 *
 	 *  o	JMPSLOT relocations (PLT's) actually need a relative relocation
@@ -273,6 +295,47 @@ elf_rtld_load()
 	lml->lm_flags |= LML_FLG_PLTREL;
 	return (1);
 }
+
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+/*
+ * rtld load routine specific to arm
+ * This routine initialises the dyninfo array, performs the plt initialisations if it
+ * is the first call. It then lazy loads the dependency whose dynamic table index is
+ * returned by 'elf_rtld_needed' call. The value passed in LazyDepId is one of dependency
+ * identifiers (LIBLD, LIBLDDBG or LIBRTLD)
+ */
+int
+elf_arm_rtld_load(ulong_t LazyDepId)
+{
+	Lm_list	*lml = &lml_rtld;
+	Rt_map	*clmp = lml->lm_head;
+	Rt_map	*nlmp;
+	int	ndx;
+	Slookup	sl;
+
+	/*
+	 * As we need to refer to the DYNINFO() information, insure that it has
+	 * been initialized.
+	 */
+
+	if ((ndx = elf_rtld_needed(lml, clmp, LazyDepId)) == -1)
+		return (0);
+
+	if (!(lml->lm_flags & LML_FLG_PLTREL)) {
+
+		(void) elf_reloc_relacount((ulong_t)JMPREL(clmp),
+		    (ulong_t)(PLTRELSZ(clmp) / RELENT(clmp)),
+		    (ulong_t)RELENT(clmp), (ulong_t)ADDR(clmp));
+
+		lml->lm_flags |= LML_FLG_PLTREL;
+	}
+
+	SLOOKUP_INIT(sl, 0, 0, 0, ld_entry_cnt, 0, 0, 0, 0, 0);
+	nlmp = elf_lazy_load(clmp, &sl, ndx, "rtld_lazy_load_sym");
+
+	return (1);
+}
+#endif
 
 /*
  * Lazy load an object.
@@ -742,6 +805,76 @@ elf_needed(Lm_list *lml, Aliste lmco, Rt_map *clmp)
 
 	return (1);
 }
+
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+/*
+ * elf_needed routine specific to arm rtld lazy dependencies loading
+ * This routine browses through the needed dynamic entries of ld.so.1 and
+ * identifies the dynamic table index corresponding to 'LazyDepId'
+ */
+static int
+elf_rtld_needed(Lm_list *lml, Rt_map *clmp, ulong_t LazyDepId)
+{
+	Dyn		*dyn;
+	ulong_t		ndx = 0;
+	int		retidx = -1;
+
+	/*
+	 * Process each shared object on needed list.
+	 */
+	if (DYN(clmp) == 0)
+		return (-1);
+
+	for (dyn = (Dyn *)DYN(clmp); dyn->d_tag != DT_NULL; dyn++, ndx++) {
+		Dyninfo	*dip = &DYNINFO(clmp)[ndx];
+		char	*name;
+
+		switch (dyn->d_tag) {
+		case DT_NEEDED:
+		case DT_USED:
+			dip->di_flags |= FLG_DI_NEEDED;
+			name = (char *)STRTAB(clmp) + dyn->d_un.d_val;
+
+			switch (LazyDepId) {
+			case LIBLD:
+				if ((strcmp(name, MSG_ORIG(MSG_FIL_LIBLD_V)) == 0) ||
+				    (strcmp(name, MSG_ORIG(MSG_FIL_LIBLD)) == 0))
+					retidx = ndx;
+				break;
+			case LIBLDDBG:
+				if ((strcmp(name, MSG_ORIG(MSG_FIL_LIBLDDBG_V)) == 0) ||
+				    (strcmp(name, MSG_ORIG(MSG_FIL_LIBLDDBG)) == 0))
+					retidx = ndx;
+				break;
+			case LIBRTLD:
+				if ((strcmp(name, MSG_ORIG(MSG_FIL_LIBRTLD_V)) == 0) ||
+				    (strcmp(name, MSG_ORIG(MSG_FIL_LIBRTLD)) == 0))
+					retidx = ndx;
+				break;
+			default:
+				break;
+			}
+			if (!(lml->lm_flags & LML_FLG_PLTREL))
+				LAZY(clmp)++;
+			continue;
+		case DT_FILTER:
+			dip->di_flags |= FLG_DI_STDFLTR;
+			continue;
+		case DT_AUXILIARY:
+			dip->di_flags |= FLG_DI_AUXFLTR;
+			continue;
+		default:
+			continue;
+		}
+	}
+
+	if (!(lml->lm_flags & LML_FLG_PLTREL)) {
+		if (LAZY(clmp))
+			lml->lm_lazy++;
+	}
+	return (retidx);
+}
+#endif
 
 static int
 elf_map_check(Lm_list *lml, const char *name, caddr_t vaddr, Off size)
@@ -1368,6 +1501,75 @@ elf_disable_filtee(Rt_map *lmp, Dyninfo *dip)
 	dip->di_flags &= ~MSK_DI_FILTER;
 }
 
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+/*
+ * Special filter symbol processing function for ARM and GCC environment.
+ * This function is an alternative solution for the inability of GCC Toolchain
+ * to handle filter symbols in map-files (of Sun linker environment)
+ */
+static Sym *
+_special_symbol_proc(Slookup *slp, Rt_map **dlmp, uint_t *binfo)
+{
+	const char	*name = slp->sl_name;
+	Rt_map		*clmp = slp->sl_cmap;
+	Rt_map		*ilmp = slp->sl_imap;
+	Rt_map		*nlmp = 0;
+	static	Grp_hdl	*ghp = 0;
+
+	/*
+	 * Create an association between ld.so.1 and the calling link-map
+	 * and get the ld.so group handle
+	 */
+
+	if (ghp == 0) {
+		nlmp = lml_rtld.lm_head;
+		if ((ghp = hdl_create(&lml_rtld, nlmp, ilmp,
+				      (GPH_LDSO | GPH_FIRST),
+				      (GPD_DLSYM | GPD_RELOC), 0)) == 0)
+			nlmp = 0;
+	}
+
+	/*
+	 * perform the symbol lookup in ld.so.1 and its dependencies
+	 */
+	if ((name) && (ghp)) {
+		Grp_desc	*gdp;
+		Sym		*sym = 0;
+		Aliste		off;
+		Slookup		sl = *slp;
+
+		sl.sl_flags |= LKUP_FIRST;
+
+		/*
+		 * Look for the symbol in the handles dependencies.
+		 */
+		for (ALIST_TRAVERSE(ghp->gh_depends, off, gdp)) {
+			if ((gdp->gd_flags & GPD_DLSYM) == 0)
+				continue;
+
+			/*
+			 * If our parent is a dependency don't look at
+			 * it (otherwise we are in a recursive loop).
+			 */
+			if ((sl.sl_imap = gdp->gd_depend) == ilmp)
+				continue;
+
+			if (((sym = SYMINTP(sl.sl_imap)(&sl, dlmp,
+				binfo)) != 0) ||
+				(ghp->gh_flags & GPH_FIRST))
+				break;
+		}
+
+		if (sym) {
+			/* *binfo |= DBG_BINFO_FILTEE; */
+			return (sym);
+		}
+	}
+
+	return ((Sym *)0);
+}
+#endif
+
 /*
  * Find symbol interpreter - filters.
  * This function is called when the symbols from a shared object should
@@ -1473,6 +1675,7 @@ _elf_lookup_filtee(Slookup *slp, Rt_map **dlmp, uint_t *binfo, uint_t ndx)
 		if (dip->di_flags & FLG_DI_AUXFLTR)
 			mode |= RTLD_PARENT;
 
+#if	!defined(__arm)
 		/*
 		 * Process any hardware capability directory.  Establish a new
 		 * link-map control list from which to analyze any newly added
@@ -1503,6 +1706,7 @@ _elf_lookup_filtee(Slookup *slp, Rt_map **dlmp, uint_t *binfo, uint_t ndx)
 			if (lmc)
 				remove_cntl(lml, lmco);
 		}
+#endif	/* !defined(__arm) */
 
 		if (pnp->p_len == 0)
 			continue;
@@ -2016,8 +2220,23 @@ elf_find_sym(Slookup *slp, Rt_map **dlmp, uint_t *binfo)
 	/*
 	 * Determine whether this object is acting as a filter.
 	 */
-	if (((flags1 = FLAGS1(ilmp)) & MSK_RT_FILTER) == 0)
+	if (((flags1 = FLAGS1(ilmp)) & MSK_RT_FILTER) == 0) {
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+		/*
+		 * special processing for pseudo filter symbols generated
+		 * by GNU ld.
+		 */
+		if ((sym->st_shndx == SHN_ABS) &&
+		    (ELF_ST_BIND(sym->st_info) == STB_GLOBAL) &&
+		    (sym->st_value == 0) &&
+		    ((ELF_ST_TYPE(sym->st_info) == STT_FUNC) ||
+		     (ELF_ST_TYPE(sym->st_info) == STT_OBJECT))) {
+			return (_special_symbol_proc(slp, dlmp, binfo));
+		}
+#endif
+
 		return (sym);
+	}
 
 	/*
 	 * Determine if this object offers per-symbol filtering, and if so,
@@ -3470,6 +3689,12 @@ elf_reloc_bad(Rt_map *lmp, void *rel, uchar_t rtype, ulong_t roffset,
 	Dbg_reloc_error(lml, ELF_DBG_RTLD, M_MACH, M_REL_SHT_TYPE, rel, name);
 }
 
+#ifdef	__arm
+#define	TLS_TP_OFFSET(lmp, value)	(TLSSTATOFF(lmp) + (value))
+#else	/* !__arm */
+#define	TLS_TP_OFFSET(lmp, value)	(-(TLSSTATOFF(lmp) - (value)))
+#endif	/* __arm */
+
 /*
  * Resolve a static TLS relocation.
  */
@@ -3529,7 +3754,7 @@ elf_static_tls(Rt_map *lmp, Sym *sym, void *rel, uchar_t rtype, char *name,
 			value = sym->st_value;
 		}
 	}
-	return (-(TLSSTATOFF(lmp) - value));
+	return (TLS_TP_OFFSET(lmp, value));
 }
 
 /*

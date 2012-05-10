@@ -37,6 +37,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -3305,6 +3309,7 @@ devmap_setup(dev_t dev, offset_t off, struct as *as, caddr_t *addrp,
 	return (0);
 }
 
+#ifndef NO_USEDDI
 int
 ddi_devmap_segmap(dev_t dev, off_t off, ddi_as_handle_t as, caddr_t *addrp,
     off_t len, uint_t prot, uint_t maxprot, uint_t flags, struct cred *cred)
@@ -3314,6 +3319,7 @@ ddi_devmap_segmap(dev_t dev, off_t off, ddi_as_handle_t as, caddr_t *addrp,
 	return (devmap_setup(dev, (offset_t)off, (struct as *)as, addrp,
 	    (size_t)len, prot, maxprot, flags, cred));
 }
+#endif /* NO_USEDDI */
 
 /*
  * Called from devmap_devmem_setup/remap to see if can use large pages for

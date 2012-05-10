@@ -23,6 +23,11 @@
 # Copyright (c) 2000 by Sun Microsystems, Inc.
 # All rights reserved.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
 # lib/libdhcpsvc/modules/Makefile.targ
@@ -39,6 +44,6 @@ lint:	lintcheck
 #
 # Rule to build the utility functions
 #
-pics/%.o:	$(UTILDIR)/%.c
+objs/%.o pics/%.o:	$(UTILDIR)/%.c
 		$(COMPILE.c) -o $@ $<
 		$(POST_PROCESS_O)

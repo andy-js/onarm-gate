@@ -22,6 +22,11 @@
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -50,7 +55,7 @@ include ../../Makefile.lib
 
 SRCS=	$(SSOBJS:%.o=../%.c)
 
-LIBS=		$(DYNLIB)
+LIBS=	$(ARLIB) $(DYNLIB)
 
 include $(SRC)/lib/gss_mechs/mech_krb5/Makefile.mech_krb5
 

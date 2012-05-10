@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_ZIL_IMPL_H
 #define	_SYS_ZIL_IMPL_H
 
@@ -30,6 +34,7 @@
 
 #include <sys/zil.h>
 #include <sys/dmu_objset.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -45,7 +50,7 @@ typedef struct lwb {
 	int		lwb_sz;		/* size of block and buffer */
 	char		*lwb_buf;	/* log write buffer */
 	zio_t		*lwb_zio;	/* zio for this buffer */
-	uint64_t	lwb_max_txg;	/* highest txg in this lwb */
+	txg_t		lwb_max_txg;	/* highest txg in this lwb */
 	txg_handle_t	lwb_txgh;	/* txg handle for txg_exit() */
 	list_node_t	lwb_node;	/* zilog->zl_lwb_list linkage */
 } lwb_t;
@@ -73,7 +78,7 @@ struct zilog {
 	uint64_t	zl_itx_seq;	/* next itx sequence number */
 	uint64_t	zl_commit_seq;	/* committed upto this number */
 	uint64_t	zl_lr_seq;	/* log record sequence number */
-	uint64_t	zl_destroy_txg;	/* txg of last zil_destroy() */
+	txg_t		zl_destroy_txg;	/* txg of last zil_destroy() */
 	uint64_t	zl_replay_seq[TXG_SIZE]; /* seq of last replayed rec */
 	uint32_t	zl_suspend;	/* log suspend count */
 	kcondvar_t	zl_cv_writer;	/* log writer thread completion */

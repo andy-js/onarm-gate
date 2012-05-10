@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved	*/
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
 
 #ifndef _SYS_USER_H
 #define	_SYS_USER_H
@@ -187,6 +190,8 @@ typedef struct {		/* kernel syscall set type */
 #define	__KERN_NAUXV_IMPL 19
 #elif defined(__i386) || defined(__amd64)
 #define	__KERN_NAUXV_IMPL 21
+#elif defined(__arm)
+#define	__KERN_NAUXV_IMPL 19
 #endif
 
 struct execsw;

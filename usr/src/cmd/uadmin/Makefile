@@ -22,6 +22,9 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2008 NEC Corporation
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -30,12 +33,21 @@ ROOTFS_PROG= $(PROG)
 
 include ../Makefile.cmd
 
+LDLIBS2			= -lbsm -lscf
+LINT_PROG		= lint_PROG
+$(ARM_BLD)LDLIBS2	=
+$(ARM_BLD)LINT_PROG	=
+
 OWNER = root
 GROUP = sys
-LDLIBS += -lbsm -lscf
+LDLIBS += $(LDLIBS2)
 LINTFLAGS = -ux
 
 .KEEP_STATE:
+
+$(ARM_BLD)$(ROOTFS_PROG): $(PROG)_$(MACH).c
+$(ARM_BLD)	$(LINK.c) -o $@ $(PROG)_$(MACH).c $(LDLIBS)
+$(ARM_BLD)	$(POST_PROCESS)
 
 all: $(ROOTFS_PROG)
 
@@ -47,6 +59,7 @@ install: all $(ROOTSBINPROG)
 
 clean:
 
-lint:	lint_PROG
+lint:	$(LINT_PROG)
+$(ARM_BLD)	$(LINT.c) $(PROG)_$(MACH).c $(LDLIBS)
 
 include ../Makefile.targ

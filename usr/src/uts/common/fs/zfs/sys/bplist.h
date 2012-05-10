@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_BPLIST_H
 #define	_SYS_BPLIST_H
 
@@ -32,6 +36,7 @@
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -59,7 +64,7 @@ typedef struct bplist_q {
 typedef struct bplist {
 	kmutex_t	bpl_lock;
 	objset_t	*bpl_mos;
-	uint64_t	bpl_object;
+	objid_t		bpl_object;
 	uint8_t		bpl_blockshift;
 	uint8_t		bpl_bpshift;
 	uint8_t		bpl_havecomp;
@@ -69,9 +74,9 @@ typedef struct bplist {
 	dmu_buf_t	*bpl_cached_dbuf;
 } bplist_t;
 
-extern uint64_t bplist_create(objset_t *mos, int blocksize, dmu_tx_t *tx);
-extern void bplist_destroy(objset_t *mos, uint64_t object, dmu_tx_t *tx);
-extern int bplist_open(bplist_t *bpl, objset_t *mos, uint64_t object);
+extern objid_t bplist_create(objset_t *mos, int blocksize, dmu_tx_t *tx);
+extern void bplist_destroy(objset_t *mos, objid_t object, dmu_tx_t *tx);
+extern int bplist_open(bplist_t *bpl, objset_t *mos, objid_t object);
 extern void bplist_close(bplist_t *bpl);
 extern boolean_t bplist_empty(bplist_t *bpl);
 extern int bplist_iterate(bplist_t *bpl, uint64_t *itorp, blkptr_t *bp);

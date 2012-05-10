@@ -23,6 +23,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -284,6 +287,8 @@ meminfo(int addr_count, struct meminfo *mip)
 	return (ret);
 }
 
+
+#ifndef	LGROUP_SINGLE
 
 /*
  * Initialize lgroup affinities for thread
@@ -2052,10 +2057,18 @@ lgrp_snapshot_copy32(caddr32_t buf, size32_t bufsize)
 }
 #endif	/* _SYSCALL32_IMPL */
 
+#endif	/* !LGROUP_SINGLE */
+
 
 int
 lgrpsys(int subcode, long ia, void *ap)
 {
+#ifdef	LGROUP_SINGLE
+	if (subcode == LGRP_SYS_MEMINFO) {
+		return (meminfo(ia, (struct meminfo *)ap));
+	}
+	return (set_errno(ENOSYS));
+#else	/* LGROUP_SINGLE */
 	size_t	bufsize;
 	int	latency;
 
@@ -2106,4 +2119,5 @@ lgrpsys(int subcode, long ia, void *ap)
 	}
 
 	return (set_errno(EINVAL));
+#endif	/* !LGROUP_SINGLE */
 }

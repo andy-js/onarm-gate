@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_ZAP_IMPL_H
 #define	_SYS_ZAP_IMPL_H
 
@@ -31,6 +35,7 @@
 #include <sys/zap.h>
 #include <sys/zfs_context.h>
 #include <sys/avl.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -52,7 +57,12 @@ extern int fzap_default_block_shift;
 typedef struct mzap_ent_phys {
 	uint64_t mze_value;
 	uint32_t mze_cd;
+#ifndef ZFS_COMPACT
 	uint16_t mze_pad;	/* in case we want to chain them someday */
+#else
+	uint8_t mze_size;
+	uint8_t mze_pad;	/* in case we want to chain them someday */
+#endif	/* ZFS_COMPACT */
 	char mze_name[MZAP_NAME_LEN];
 } mzap_ent_phys_t;
 
@@ -141,7 +151,7 @@ typedef struct zap_table_phys zap_table_phys_t;
 
 typedef struct zap {
 	objset_t *zap_objset;
-	uint64_t zap_object;
+	objid_t zap_object;
 	struct dmu_buf *zap_dbuf;
 	krwlock_t zap_rwlock;
 	boolean_t zap_ismicro;
@@ -181,7 +191,7 @@ typedef struct zap_name {
 #define	zap_m	zap_u.zap_micro
 
 boolean_t zap_match(zap_name_t *zn, const char *matchname);
-int zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
+int zap_lockdir(objset_t *os, objid_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp);
 void zap_unlockdir(zap_t *zap);
 void zap_evict(dmu_buf_t *db, void *vmzap);

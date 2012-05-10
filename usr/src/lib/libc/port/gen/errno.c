@@ -28,12 +28,19 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
 #include "thr_uberdata.h"
 
 #pragma weak _private___errno = ___errno
+#if defined(__ARM_EABI__)
+#pragma weak __aeabi_errno_addr = ___errno
+#endif
 int *
 ___errno()
 {

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -64,6 +68,7 @@
 #include <sys/id32.h>
 #include <sys/zone.h>
 #include <sys/netstack.h>
+#include <sys/lpg_config.h>
 
 extern void streams_msg_init(void);
 extern int segkp_fromheap;
@@ -96,6 +101,9 @@ struct kmem_cache_kstat {
 	kstat_named_t	kmc_full_magazines;
 	kstat_named_t	kmc_empty_magazines;
 	kstat_named_t	kmc_magazine_size;
+#if defined(KMEM_COOKIE)
+	kstat_named_t	kmc_cookie;
+#endif
 } kmem_cache_kstat = {
 	{ "buf_size",		KSTAT_DATA_UINT64 },
 	{ "align",		KSTAT_DATA_UINT64 },
@@ -123,6 +131,9 @@ struct kmem_cache_kstat {
 	{ "full_magazines",	KSTAT_DATA_UINT64 },
 	{ "empty_magazines",	KSTAT_DATA_UINT64 },
 	{ "magazine_size",	KSTAT_DATA_UINT64 },
+#if defined(KMEM_COOKIE)
+	{ "cookie_flag",	KSTAT_DATA_UINT64 },
+#endif
 };
 
 static kmutex_t kmem_cache_kstat_lock;
@@ -159,9 +170,7 @@ static const int kmem_alloc_sizes[] = {
 	8192 * 4,
 };
 
-#define	KMEM_MAXBUF	32768
-
-static kmem_cache_t *kmem_alloc_table[KMEM_MAXBUF >> KMEM_ALIGN_SHIFT];
+_KMSTATIC kmem_cache_t *kmem_alloc_table[KMEM_ATBL_MAX];
 
 static kmem_magtype_t kmem_magtype[] = {
 	{ 1,	8,	3200,	65536	},
@@ -187,10 +196,12 @@ pgcnt_t kmem_reapahead = 0;	/* start reaping N pages before pageout */
 int kmem_panic = 1;		/* whether to panic on error */
 int kmem_logging = 1;		/* kmem_log_enter() override */
 uint32_t kmem_mtbf = 0;		/* mean time between failures [default: off] */
+#ifndef	KMEM_LOG_DISABLE
 size_t kmem_transaction_log_size; /* transaction log size [2% of memory] */
 size_t kmem_content_log_size;	/* content log size [2% of memory] */
 size_t kmem_failure_log_size;	/* failure log [4 pages per CPU] */
 size_t kmem_slab_log_size;	/* slab create log [4 pages per CPU] */
+#endif	/* KMEM_LOG_DISABLE */
 size_t kmem_content_maxsave = 256; /* KMF_CONTENTS max bytes to log */
 size_t kmem_lite_minsize = 0;	/* minimum buffer size for KMF_LITE */
 size_t kmem_lite_maxalign = 1024; /* maximum buffer alignment for KMF_LITE */
@@ -218,17 +229,21 @@ static vmem_t		*kmem_metadata_arena;
 static vmem_t		*kmem_msb_arena;	/* arena for metadata caches */
 static vmem_t		*kmem_cache_arena;
 static vmem_t		*kmem_hash_arena;
+#ifndef	KMEM_LOG_DISABLE
 static vmem_t		*kmem_log_arena;
+#endif	/* KMEM_LOG_DISABLE */
 static vmem_t		*kmem_oversize_arena;
 static vmem_t		*kmem_va_arena;
 static vmem_t		*kmem_default_arena;
 static vmem_t		*kmem_firewall_va_arena;
 static vmem_t		*kmem_firewall_arena;
 
+#ifndef	KMEM_LOG_DISABLE
 kmem_log_header_t	*kmem_transaction_log;
 kmem_log_header_t	*kmem_content_log;
 kmem_log_header_t	*kmem_failure_log;
 kmem_log_header_t	*kmem_slab_log;
+#endif	/* KMEM_LOG_DISABLE */
 
 static int		kmem_lite_count; /* # of PCs in kmem_buftag_lite_t */
 
@@ -263,6 +278,8 @@ struct {
 	kmem_bufctl_t	*kmp_bufctl;	/* bufctl */
 } kmem_panic_info;
 
+/* Internal prototypes */
+static void kmem_update(void *);
 
 static void
 copy_pattern(uint64_t pattern, void *buf_arg, size_t size)
@@ -504,6 +521,7 @@ kmem_error(int error, kmem_cache_t *cparg, void *bufarg)
 	kmem_logging = 1;	/* resume logging */
 }
 
+#ifndef	KMEM_LOG_DISABLE
 static kmem_log_header_t *
 kmem_log_init(size_t logsize)
 {
@@ -577,6 +595,9 @@ kmem_log_enter(kmem_log_header_t *lhp, void *data, size_t size)
 	mutex_exit(&clhp->clh_lock);
 	return (logspace);
 }
+#else	/* KMEM_LOG_DISABLE */
+#define	kmem_log_enter(lhp, data, size)		(NULL)
+#endif	/* !KMEM_LOG_DISABLE */
 
 #define	KMEM_AUDIT(lp, cp, bcp)						\
 {									\
@@ -587,6 +608,7 @@ kmem_log_enter(kmem_log_header_t *lhp, void *data, size_t size)
 	_bcp->bc_lastlog = kmem_log_enter((lp), _bcp, sizeof (*_bcp));	\
 }
 
+#ifndef	KMEM_LOG_DISABLE
 static void
 kmem_log_event(kmem_log_header_t *lp, kmem_cache_t *cp,
 	kmem_slab_t *sp, void *addr)
@@ -599,6 +621,9 @@ kmem_log_event(kmem_log_header_t *lp, kmem_cache_t *cp,
 	bca.bc_cache = cp;
 	KMEM_AUDIT(lp, cp, &bca);
 }
+#else	/* KMEM_LOG_DISABLE */
+#define	kmem_log_event(lp, cp, sp, addr)	/* nop */
+#endif	/* !KMEM_LOG_DISABLE */
 
 /*
  * Create a new slab for cache cp.
@@ -1140,6 +1165,9 @@ kmem_cache_alloc(kmem_cache_t *cp, int kmflag)
 	kmem_cpu_cache_t *ccp = KMEM_CPU_CACHE(cp);
 	kmem_magazine_t *fmp;
 	void *buf;
+	void *cookie;
+
+	KMEM_CKPT_CACHE_ALLOC_ENTER(cp, kmflag, cookie);
 
 	mutex_enter(&ccp->cc_lock);
 	for (;;) {
@@ -1154,11 +1182,14 @@ kmem_cache_alloc(kmem_cache_t *cp, int kmflag)
 			if ((ccp->cc_flags & KMF_BUFTAG) &&
 			    kmem_cache_alloc_debug(cp, buf, kmflag, 0,
 			    caller()) == -1) {
-				if (kmflag & KM_NOSLEEP)
+				if (kmflag & KM_NOSLEEP) {
+					KMEM_CKPT_CACHE_ALLOC_FAIL(cp, cookie);
 					return (NULL);
+				}
 				mutex_enter(&ccp->cc_lock);
 				continue;
 			}
+			KMEM_CKPT_CACHE_ALLOC_DONE(cp, cookie);
 			return (buf);
 		}
 
@@ -1203,8 +1234,10 @@ kmem_cache_alloc(kmem_cache_t *cp, int kmflag)
 	 */
 	buf = kmem_slab_alloc(cp, kmflag);
 
-	if (buf == NULL)
+	if (buf == NULL) {
+		KMEM_CKPT_CACHE_ALLOC_FAIL(cp, cookie);
 		return (NULL);
+	}
 
 	if (cp->cache_flags & KMF_BUFTAG) {
 		/*
@@ -1212,14 +1245,18 @@ kmem_cache_alloc(kmem_cache_t *cp, int kmflag)
 		 */
 		if (kmem_cache_alloc_debug(cp, buf, kmflag, 1,
 		    caller()) == -1) {
-			if (kmflag & KM_NOSLEEP)
+			if (kmflag & KM_NOSLEEP) {
+				KMEM_CKPT_CACHE_ALLOC_FAIL(cp, cookie);
 				return (NULL);
+			}
 			/*
 			 * kmem_cache_alloc_debug() detected corruption
 			 * but didn't panic (kmem_panic <= 0).  Try again.
 			 */
+			KMEM_CKPT_CACHE_ALLOC_FAIL(cp, cookie);
 			return (kmem_cache_alloc(cp, kmflag));
 		}
+		KMEM_CKPT_CACHE_ALLOC_DONE(cp, cookie);
 		return (buf);
 	}
 
@@ -1227,9 +1264,10 @@ kmem_cache_alloc(kmem_cache_t *cp, int kmflag)
 	    cp->cache_constructor(buf, cp->cache_private, kmflag) != 0) {
 		atomic_add_64(&cp->cache_alloc_fail, 1);
 		kmem_slab_free(cp, buf);
+		KMEM_CKPT_CACHE_ALLOC_FAIL(cp, cookie);
 		return (NULL);
 	}
-
+	KMEM_CKPT_CACHE_ALLOC_DONE(cp, cookie);
 	return (buf);
 }
 
@@ -1242,6 +1280,9 @@ kmem_cache_free(kmem_cache_t *cp, void *buf)
 	kmem_cpu_cache_t *ccp = KMEM_CPU_CACHE(cp);
 	kmem_magazine_t *emp;
 	kmem_magtype_t *mtp;
+	void *cookie;
+
+	KMEM_CKPT_CACHE_FREE_ENTER(cp, cookie);
 
 	if (ccp->cc_flags & KMF_BUFTAG)
 		if (kmem_cache_free_debug(cp, buf, caller()) == -1)
@@ -1257,6 +1298,7 @@ kmem_cache_free(kmem_cache_t *cp, void *buf)
 			ccp->cc_loaded->mag_round[ccp->cc_rounds++] = buf;
 			ccp->cc_free++;
 			mutex_exit(&ccp->cc_lock);
+			KMEM_CKPT_CACHE_FREE_DONE(cp, cookie);
 			return;
 		}
 
@@ -1347,15 +1389,19 @@ kmem_cache_free(kmem_cache_t *cp, void *buf)
 	}
 
 	kmem_slab_free(cp, buf);
+
+	KMEM_CKPT_CACHE_FREE_DONE(cp, cookie);
 }
 
 void *
 kmem_zalloc(size_t size, int kmflag)
 {
-	size_t index = (size - 1) >> KMEM_ALIGN_SHIFT;
+	size_t index = KMEM_ATBL_INDEX(size);
 	void *buf;
 
-	if (index < KMEM_MAXBUF >> KMEM_ALIGN_SHIFT) {
+	KMEM_CKPT_ALLOC_ENTER(size);
+
+	if (index < KMEM_ATBL_MAX) {
 		kmem_cache_t *cp = kmem_alloc_table[index];
 		buf = kmem_cache_alloc(cp, kmflag);
 		if (buf != NULL) {
@@ -1369,6 +1415,7 @@ kmem_zalloc(size_t size, int kmflag)
 					    kmem_lite_count, caller());
 				}
 			}
+			KMEM_CKPT_ALLOC_DONE(buf);
 			bzero(buf, size);
 		}
 	} else {
@@ -1382,10 +1429,12 @@ kmem_zalloc(size_t size, int kmflag)
 void *
 kmem_alloc(size_t size, int kmflag)
 {
-	size_t index = (size - 1) >> KMEM_ALIGN_SHIFT;
+	size_t index = KMEM_ATBL_INDEX(size);
 	void *buf;
 
-	if (index < KMEM_MAXBUF >> KMEM_ALIGN_SHIFT) {
+	KMEM_CKPT_ALLOC_ENTER(size);
+
+	if (index < KMEM_ATBL_MAX) {
 		kmem_cache_t *cp = kmem_alloc_table[index];
 		buf = kmem_cache_alloc(cp, kmflag);
 		if ((cp->cache_flags & KMF_BUFTAG) && buf != NULL) {
@@ -1398,6 +1447,7 @@ kmem_alloc(size_t size, int kmflag)
 				    caller());
 			}
 		}
+		KMEM_CKPT_ALLOC_DONE(buf);
 		return (buf);
 	}
 	if (size == 0)
@@ -1405,15 +1455,19 @@ kmem_alloc(size_t size, int kmflag)
 	buf = vmem_alloc(kmem_oversize_arena, size, kmflag & KM_VMFLAGS);
 	if (buf == NULL)
 		kmem_log_event(kmem_failure_log, NULL, NULL, (void *)size);
+
+	KMEM_CKPT_ALLOC_DONE(buf);
 	return (buf);
 }
 
 void
 kmem_free(void *buf, size_t size)
 {
-	size_t index = (size - 1) >> KMEM_ALIGN_SHIFT;
+	size_t index = KMEM_ATBL_INDEX(size);
 
-	if (index < KMEM_MAXBUF >> KMEM_ALIGN_SHIFT) {
+	KMEM_CKPT_FREE_ENTER(buf, size);
+
+	if (index < KMEM_ATBL_MAX) {
 		kmem_cache_t *cp = kmem_alloc_table[index];
 		if (cp->cache_flags & KMF_BUFTAG) {
 			kmem_buftag_t *btp = KMEM_BUFTAG(cp, buf);
@@ -1441,10 +1495,12 @@ kmem_free(void *buf, size_t size)
 				    caller());
 			}
 		}
+		KMEM_CKPT_FREE_DONE(buf, size);
 		kmem_cache_free(cp, buf);
 	} else {
 		if (buf == NULL && size == 0)
 			return;
+		KMEM_CKPT_FREE_DONE(buf, size);
 		vmem_free(kmem_oversize_arena, buf, size);
 	}
 }
@@ -1836,8 +1892,6 @@ kmem_cache_update(kmem_cache_t *cp)
 static void
 kmem_update_timeout(void *dummy)
 {
-	static void kmem_update(void *);
-
 	(void) timeout(kmem_update, dummy, kmem_reap_interval);
 }
 
@@ -1932,7 +1986,8 @@ kmem_cache_kstat_update(kstat_t *ksp, int rw)
 	kmcp->kmc_hash_lookup_depth.value.ui64	= cp->cache_lookup_depth;
 	kmcp->kmc_hash_rescale.value.ui64	= cp->cache_rescale;
 	kmcp->kmc_vmem_source.value.ui64	= cp->cache_arena->vm_id;
-
+	KMEM_CKPT_KSTAT(kmcp, cp);
+	
 	mutex_exit(&cp->cache_lock);
 	return (0);
 }
@@ -2395,7 +2450,7 @@ kmem_cache_init(int pass, int use_large_pages)
 		    vmem_alloc, vmem_free, heap_arena,
 		    8 * PAGESIZE, VM_SLEEP);
 
-		if (use_large_pages) {
+		if (LPG_EVAL(use_large_pages)) {
 			kmem_default_arena = vmem_xcreate("kmem_default",
 			    NULL, 0, PAGESIZE,
 			    segkmem_alloc_lp, segkmem_free_lp, kmem_va_arena,
@@ -2433,7 +2488,7 @@ kmem_cache_init(int pass, int use_large_pages)
 		cp = kmem_cache_create(name, cache_size, align,
 		    NULL, NULL, NULL, NULL, NULL, KMC_KMEM_ALLOC);
 		while (size <= cache_size) {
-			kmem_alloc_table[(size - 1) >> KMEM_ALIGN_SHIFT] = cp;
+			kmem_alloc_table[KMEM_ATBL_INDEX(size)] = cp;
 			size += KMEM_ALIGN;
 		}
 	}
@@ -2444,7 +2499,9 @@ kmem_init(void)
 {
 	kmem_cache_t *cp;
 	int old_kmem_flags = kmem_flags;
+#ifndef	LPG_DISABLE
 	int use_large_pages = 0;
+#endif	/* !LPG_DISABLE */
 	size_t maxverify, minfirewall;
 
 	kstat_init();
@@ -2487,8 +2544,10 @@ kmem_init(void)
 	kmem_hash_arena = vmem_create("kmem_hash", NULL, 0, KMEM_ALIGN,
 	    segkmem_alloc, segkmem_free, kmem_metadata_arena, 0, VM_SLEEP);
 
+#ifndef	KMEM_LOG_DISABLE
 	kmem_log_arena = vmem_create("kmem_log", NULL, 0, KMEM_ALIGN,
 	    segkmem_alloc, segkmem_free, heap_arena, 0, VM_SLEEP);
+#endif	/* KMEM_LOG_DISABLE */
 
 	kmem_firewall_va_arena = vmem_create("kmem_firewall_va",
 	    NULL, 0, PAGESIZE,
@@ -2536,11 +2595,13 @@ kmem_init(void)
 	if (kmem_minfirewall == 0)
 		kmem_minfirewall = minfirewall;
 
+#ifndef	LPG_DISABLE
 	/*
 	 * give segkmem a chance to figure out if we are using large pages
 	 * for the kernel heap
 	 */
 	use_large_pages = segkmem_lpsetup();
+#endif	/* !LPG_DISABLE */
 
 	/*
 	 * To protect against corruption, we keep the actual number of callers
@@ -2560,7 +2621,7 @@ kmem_init(void)
 	 * any non-LITE debugging flags set, we want to allocate oversized
 	 * buffers from large pages, and so skip the firewalling.
 	 */
-	if (use_large_pages &&
+	if (LPG_EVAL(use_large_pages) &&
 	    ((kmem_flags & KMF_LITE) || !(kmem_flags & KMF_DEBUG))) {
 		kmem_oversize_arena = vmem_xcreate("kmem_oversize", NULL, 0,
 		    PAGESIZE, segkmem_alloc_lp, segkmem_free_lp, heap_arena,
@@ -2572,8 +2633,9 @@ kmem_init(void)
 		    kmem_firewall_va_arena : heap_arena, 0, VM_SLEEP);
 	}
 
-	kmem_cache_init(2, use_large_pages);
+	kmem_cache_init(2, LPG_EVAL(use_large_pages));
 
+#ifndef	KMEM_LOG_DISABLE
 	if (kmem_flags & (KMF_AUDIT | KMF_RANDOMIZE)) {
 		if (kmem_transaction_log_size == 0)
 			kmem_transaction_log_size = kmem_maxavail() / 50;
@@ -2589,6 +2651,7 @@ kmem_init(void)
 	kmem_failure_log = kmem_log_init(kmem_failure_log_size);
 
 	kmem_slab_log = kmem_log_init(kmem_slab_log_size);
+#endif	/* KMEM_LOG_DISABLE */
 
 	/*
 	 * Initialize STREAMS message caches so allocb() is available.
@@ -2655,6 +2718,8 @@ kmem_init(void)
 	 * register their callbacks.
 	 */
 	netstack_init();
+
+	KMEM_CKPT_INIT();
 }
 
 void

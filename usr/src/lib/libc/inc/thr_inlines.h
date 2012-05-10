@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _THR_INLINES_H
 #define	_THR_INLINES_H
 
@@ -44,6 +48,10 @@ _curthread(void)
 	__asm__ __volatile__("movl %%gs:0, %0" : "=r" (__value));
 #elif defined(__sparc)
 	register ulwp_t *__value __asm__("g7");
+#elif defined(__arm)
+	ulwp_t *__value;
+	__asm__ __volatile__("mrc %%p15, $0, %0, %%c13, %%c0, $2"
+			: "=r"(__value));
 #else
 #error	"port me"
 #endif
@@ -65,12 +73,20 @@ __curthread(void)
 #elif defined(__sparc)
 		".register %%g7, #scratch\n\t"
 		"ld [%%g7 + 80], %0\n\t"
+#elif defined(__arm)
+		"mrc %%p15, $0, %0, %%c13, %%c0, $2\n\t"
+		"cmp %0, $0\n\t"
+		"ldrne %0, [%0]"
+		: "=r" (__value)
+		: : "cc");
 #else
 #error	"port me"
 #endif
+#if !defined(__arm)
 		"1:"
 		: "=r" (__value)
 		: : "cc");
+#endif /* !__arm */
 	return (__value);
 }
 
@@ -82,6 +98,8 @@ stkptr(void)
 #elif defined(__i386)
 	register greg_t __value __asm__("esp");
 #elif defined(__sparc)
+	register greg_t __value __asm__("sp");
+#elif defined(__arm)
 	register greg_t __value __asm__("sp");
 #else
 #error	"port me"
@@ -120,6 +138,14 @@ gethrtime(void)		/* note: caller-saved registers are trashed */
 		"ta 0x24"
 		: "=r" (__value)
 		: : "o2", "o3", "o4", "o5", "cc");
+#elif defined(__arm)
+	register hrtime_t __value __asm__("r0");
+	__asm__ __volatile__(
+		"mov %%ip, $3\n\t"		/* 3 is T_GETHRTIME. */
+		"orr %%ip, %%ip, $0x010000\n\t"	/* fast system call */
+		"swi $3"			/* 3 is T_GETHRTIME. */
+		: "=r" (__value)
+		: : "r2", "r3", "ip", "cc");
 #else
 #error	"port me"
 #endif
@@ -140,6 +166,18 @@ set_lock_byte(volatile uint8_t *__lockp)
 		"ldstub %1, %0\n\t"
 		"membar #LoadLoad"
 		: "=r" (__value), "+m" (*__lockp));
+#elif defined(__arm)
+	int __tmp1, __tmp2;
+	__asm__ __volatile__(
+		"mov %3, #0x1\n\t"
+		"1:\n\t"
+		"ldrexb %0, [%1]\n\t"
+		"strexb %2, %3, [%1]\n\t"
+		"cmp %2, $0\n\t"
+		"bne 1b\n\t"
+		"mcr %%p15, $0, %2, %%c7, %%c10, $5"
+		: "+r"(__value), "+r"(__lockp),
+		  "=r"(__tmp1), "=r"(__tmp2));
 #else
 #error	"port me"
 #endif
@@ -168,6 +206,18 @@ atomic_swap_32(volatile uint32_t *__memory, uint32_t __value)
 		: "r" (__memory), "r" (__value)
 		: "cc");
 	return (__tmp2);
+#elif defined(__arm)
+	uint32_t __tmp1, __tmp2;
+	__asm__ __volatile__(
+		"1:\n\t"
+		"ldrex	%0, [%3]\n\t"
+		"strex	%1, %4, [%3]\n\t"
+		"teq	%1, #0\n\t"
+		"bne	1b"
+		: "=&r"(__tmp1), "=&r"(__tmp2), "=m"(*__memory)
+		: "r"(__memory), "r"(__value)
+		: "cc");
+	return (__tmp1);
 #else
 #error	"port me"
 #endif
@@ -187,6 +237,20 @@ atomic_cas_32(volatile uint32_t *__memory, uint32_t __cmp, uint32_t __newvalue)
 		"cas [%2], %3, %1"
 		: "=m" (*__memory), "=&r" (__oldvalue)
 		: "r" (__memory), "r" (__cmp), "1" (__newvalue));
+#elif defined(__arm)
+	uint32_t	__tmp1;
+	__asm__ __volatile__(
+		"1:\n\t"
+		"ldrex	%1, [%3]\n\t"
+		"teq	%1, %4\n\t"
+		"bne	2f\n\t"
+		"strex	%2, %5, [%3]\n\t"
+		"teq	%2, #0\n\t"
+		"bne	1b\n\t"
+		"2:"
+		: "=m" (*__memory), "=&r" (__oldvalue), "=&r" (__tmp1)
+		: "r" (__memory), "r" (__cmp), "r" (__newvalue)
+		: "cc");
 #else
 #error	"port me"
 #endif
@@ -213,6 +277,18 @@ atomic_inc_32(volatile uint32_t *__memory)
 		: "=&r" (__tmp1), "=&r" (__tmp2), "=m" (*__memory)
 		: "r" (__memory)
 		: "cc");
+#elif defined(__arm)
+	uint32_t __tmp1, __tmp2;
+	__asm__ __volatile__(
+		"1:\n\t"
+		"ldrex	%0, [%3]\n\t"
+		"add	%0, %0, #1\n\t"
+		"strex	%1, %0, [%3]\n\t"
+		"teq	%1, #0\n\t"
+		"bne	1b"
+		: "=&r" (__tmp1), "=&r" (__tmp2), "=m" (*__memory)
+		: "r" (__memory)
+		: "cc");
 #else
 #error	"port me"
 #endif
@@ -235,6 +311,18 @@ atomic_dec_32(volatile uint32_t *__memory)
 		"cmp %0, %1\n\t"
 		"bne,a,pn %%icc, 1b\n\t"
 		"  mov %1, %0"
+		: "=&r" (__tmp1), "=&r" (__tmp2), "=m" (*__memory)
+		: "r" (__memory)
+		: "cc");
+#elif defined(__arm)
+	uint32_t __tmp1, __tmp2;
+	__asm__ __volatile__(
+		"1:\n\t"
+		"ldrex	%0, [%3]\n\t"
+		"sub	%0, %0, #1\n\t"
+		"strex	%1, %0, [%3]\n\t"
+		"teq	%1, #0\n\t"
+		"bne	1b"
 		: "=&r" (__tmp1), "=&r" (__tmp2), "=m" (*__memory)
 		: "r" (__memory)
 		: "cc");
@@ -264,6 +352,18 @@ atomic_and_32(volatile uint32_t *__memory, uint32_t __bits)
 		: "=&r" (__tmp1), "=&r" (__tmp2), "=m" (*__memory)
 		: "r" (__memory), "r" (__bits)
 		: "cc");
+#elif defined(__arm)
+	uint32_t	__tmp1, __tmp2;
+	__asm__ __volatile__(
+		"1:\n\t"
+		"ldrex	%0, [%3]\n\t"
+		"and	%0, %0, %4\n\t"
+		"strex	%1, %0, [%3]\n\t"
+		"teq	%1, #0\n\t"
+		"bne	1b"
+		: "=&r"(__tmp1), "=&r"(__tmp2), "=m"(*__memory)
+		: "r"(__memory), "r"(__bits)
+		: "cc");
 #else
 #error	"port me"
 #endif
@@ -290,6 +390,18 @@ atomic_or_32(volatile uint32_t *__memory, uint32_t __bits)
 		: "=&r" (__tmp1), "=&r" (__tmp2), "=m" (*__memory)
 		: "r" (__memory), "r" (__bits)
 		: "cc");
+#elif defined(__arm)
+	uint32_t	__tmp1, __tmp2;
+	__asm__ __volatile__(
+		"1:\n\t"
+		"ldrex	%0, [%3]\n\t"
+		"orr	%0, %0, %4\n\t"
+		"strex	%1, %0, [%3]\n\t"
+		"teq	%1, #0\n\t"
+		"bne	1b"
+		: "=&r"(__tmp1), "=&r"(__tmp2), "=m"(*__memory)
+		: "r"(__memory), "r"(__bits)
+		: "cc");
 #else
 #error	"port me"
 #endif
@@ -314,15 +426,13 @@ getfp(void)
 #endif	/* __sparc */
 
 #if defined(__x86)	/* only needed on x86 */
-
 extern __inline__ void
 ht_pause(void)
 {
 	__asm__ __volatile__("rep; nop");
 }
-
+#else
 #endif	/* __x86 */
-
 #endif	/* !__lint && __GNUC__ */
 
 #endif	/* _THR_INLINES_H */

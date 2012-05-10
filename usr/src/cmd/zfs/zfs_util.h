@@ -34,6 +34,8 @@
 extern "C" {
 #endif
 
+#define	ZPOOL_CMD_NAME		"zpool"
+
 void * safe_malloc(size_t size);
 libzfs_handle_t *g_zfs;
 

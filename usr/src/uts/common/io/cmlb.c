@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -43,14 +47,8 @@
 #include <sys/cmlb_impl.h>
 
 /*
- * Driver minor node structure and data table
+ * Driver minor node data table
  */
-struct driver_minor_data {
-	char	*name;
-	minor_t	minor;
-	int	type;
-};
-
 static struct driver_minor_data dk_minor_data[] = {
 	{"a", 0, S_IFBLK},
 	{"b", 1, S_IFBLK},
@@ -139,7 +137,11 @@ static struct driver_minor_data dk_minor_data_efi[] = {
 	{0}
 };
 
-
+#ifdef	__arm
+#define	ARM_EXTERN
+#else	/* !__arm */
+#define	ARM_EXTERN	static
+#endif	/* __arm */
 
 extern struct mod_ops mod_miscops;
 
@@ -188,13 +190,13 @@ static int cmlb_set_vtoc(struct cmlb_lun *cl, struct dk_label *dkl,
     void *tg_cookie);
 static void cmlb_clear_efi(struct cmlb_lun *cl, void *tg_cookie);
 static void cmlb_clear_vtoc(struct cmlb_lun *cl, void *tg_cookie);
-static void cmlb_setup_default_geometry(struct cmlb_lun *cl, void *tg_cookie);
+ARM_EXTERN void cmlb_setup_default_geometry(struct cmlb_lun *cl, void *tg_cookie);
 static int cmlb_create_minor_nodes(struct cmlb_lun *cl);
 static int cmlb_check_update_blockcount(struct cmlb_lun *cl, void *tg_cookie);
 static int cmlb_check_efi_mbr(uchar_t *buf);
 
-#if defined(__i386) || defined(__amd64)
-static int cmlb_update_fdisk_and_vtoc(struct cmlb_lun *cl, void *tg_cookie);
+#if defined(__i386) || defined(__amd64) || defined(__arm)
+ARM_EXTERN int cmlb_update_fdisk_and_vtoc(struct cmlb_lun *cl, void *tg_cookie);
 #endif
 
 #if defined(_FIRMWARE_NEEDS_FDISK)
@@ -226,34 +228,36 @@ static int cmlb_dkio_set_mboot(struct cmlb_lun *cl, caddr_t arg, int flag,
 static int cmlb_dkio_partition(struct cmlb_lun *cl, caddr_t arg, int flag,
     void *tg_cookie);
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 static int cmlb_dkio_get_virtgeom(struct cmlb_lun *cl, caddr_t arg, int flag);
 static int cmlb_dkio_get_phygeom(struct cmlb_lun *cl, caddr_t  arg, int flag);
 static int cmlb_dkio_partinfo(struct cmlb_lun *cl, dev_t dev, caddr_t arg,
     int flag);
 #endif
 
-static void cmlb_dbg(uint_t comp, struct cmlb_lun *cl, const char *fmt, ...);
+ARM_EXTERN void cmlb_dbg(uint_t comp, struct cmlb_lun *cl, const char *fmt,
+			 ...);
 static void cmlb_v_log(dev_info_t *dev, char *label, uint_t level,
     const char *fmt, va_list ap);
 static void cmlb_log(dev_info_t *dev, char *label, uint_t level,
     const char *fmt, ...);
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	mutex_init(&cmlb_log_mutex, NULL, MUTEX_DRIVER, NULL);
 	return (mod_install(&modlinkage));
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int err;
 
@@ -264,12 +268,13 @@ _fini(void)
 	mutex_destroy(&cmlb_log_mutex);
 	return (err);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * cmlb_dbg is used for debugging to log additional info
  * Level of output is controlled via cmlb_level_mask setting.
  */
-static void
+ARM_EXTERN void
 cmlb_dbg(uint_t comp, struct cmlb_lun *cl, const char *fmt, ...)
 {
 	va_list		ap;
@@ -984,7 +989,10 @@ cmlb_ioctl(cmlb_handle_t cmlbhandle, dev_t dev, int cmd, intptr_t arg,
 				case DKIOCSAPART:
 				case DKIOCG_PHYGEOM:
 				case DKIOCG_VIRTGEOM:
-
+#ifdef CMLB_EXTPART
+				case DKIOCSEBR:
+				case DKIOCGEBR:
+#endif
 					mutex_exit(CMLB_MUTEX(cl));
 					return (ENOTSUP);
 				}
@@ -1070,9 +1078,22 @@ cmlb_ioctl(cmlb_handle_t cmlbhandle, dev_t dev, int cmd, intptr_t arg,
 		cmlb_dbg(CMLB_TRACE, cl, "DKIOCSMBOOT\n");
 		err = cmlb_dkio_set_mboot(cl, (caddr_t)arg, flag, tg_cookie);
 		break;
+
+#ifdef CMLB_EXTPART
+	case DKIOCGEBR:
+		cmlb_dbg(CMLB_TRACE, cl, "DKIOCGEBR\n");
+		err = cmlb_dkio_get_ebr(cl, (caddr_t)arg, flag, tg_cookie);
+		break;
+		
+	case DKIOCSEBR:
+		cmlb_dbg(CMLB_TRACE, cl, "DKIOCSEBR\n");
+		err = cmlb_dkio_set_ebr(cl, (caddr_t)arg, flag, tg_cookie);
+		break;
+#endif
+
 	case DKIOCG_PHYGEOM:
 		cmlb_dbg(CMLB_TRACE, cl, "DKIOCG_PHYGEOM\n");
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		err = cmlb_dkio_get_phygeom(cl, (caddr_t)arg, flag);
 #else
 		err = ENOTTY;
@@ -1080,7 +1101,7 @@ cmlb_ioctl(cmlb_handle_t cmlbhandle, dev_t dev, int cmd, intptr_t arg,
 		break;
 	case DKIOCG_VIRTGEOM:
 		cmlb_dbg(CMLB_TRACE, cl, "DKIOCG_VIRTGEOM\n");
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		err = cmlb_dkio_get_virtgeom(cl, (caddr_t)arg, flag);
 #else
 		err = ENOTTY;
@@ -1088,7 +1109,7 @@ cmlb_ioctl(cmlb_handle_t cmlbhandle, dev_t dev, int cmd, intptr_t arg,
 		break;
 	case DKIOCPARTINFO:
 		cmlb_dbg(CMLB_TRACE, cl, "DKIOCPARTINFO");
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		err = cmlb_dkio_partinfo(cl, dev, (caddr_t)arg, flag);
 #else
 		err = ENOTTY;
@@ -1181,6 +1202,12 @@ cmlb_create_minor_nodes(struct cmlb_lun *cl)
 	/* check the most common case */
 	if (cl->cl_cur_labeltype != CMLB_LABEL_UNDEF &&
 	    cl->cl_last_labeltype == cl->cl_cur_labeltype) {
+#ifdef DISK_ACCESS_CTRL
+		dmdp = (newlabeltype == CMLB_LABEL_EFI) ? dk_minor_data_efi :
+				    dk_minor_data;
+		cmlb_access_ctrl_invalidate_extpartition(cl,
+		     &dmdp[17], &dmdp[38]);
+#endif
 		/* do nothing */
 		return (0);
 	}
@@ -1217,6 +1244,18 @@ cmlb_create_minor_nodes(struct cmlb_lun *cl)
 			}
 			dmdp++;
 		}
+#ifdef CMLB_EXTPART
+		if(cmlb_create_logical_partition_nodes(cl, instance)
+		    == ENXIO) {
+			return (ENXIO);
+		}
+#endif /* CMLB_EXTPART */
+
+#ifdef DISK_ACCESS_CTRL
+		dmdp = (newlabeltype == CMLB_LABEL_EFI) ? dk_minor_data_efi :
+				    dk_minor_data;
+		cmlb_access_ctrl_invalidate_nodes(cl, instance, dmdp);
+#endif
 		cl->cl_last_labeltype = newlabeltype;
 		return (0);
 	}
@@ -1313,7 +1352,7 @@ cmlb_validate_geometry(struct cmlb_lun *cl, int forcerevalid, int flags,
 	int		label_error = 0;
 	diskaddr_t	capacity;
 	int		count;
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	int forced_under_1t = 0;
 #endif
 
@@ -1381,13 +1420,13 @@ cmlb_validate_geometry(struct cmlb_lun *cl, int forcerevalid, int flags,
 				cmlb_log(CMLB_DEVINFO(cl), CMLB_LABEL(cl),
 				    CE_NOTE, "size to be < 1TB or relabel the "
 				    "disk with an EFI label");
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 				forced_under_1t = 1;
 #endif
 			}
 		} else {
 			/* unlabeled disk over 1TB */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 
 			/*
 			 * Refer to comments on off-by-1 at the head of the file
@@ -1433,7 +1472,7 @@ cmlb_validate_geometry(struct cmlb_lun *cl, int forcerevalid, int flags,
 
 		if (cl->cl_solaris_size <= DK_LABEL_LOC) {
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 			/*
 			 * Refer to comments on off-by-1 at the head of the file
 			 * This is for 1TB disk only. Since that there is no
@@ -1455,7 +1494,7 @@ cmlb_validate_geometry(struct cmlb_lun *cl, int forcerevalid, int flags,
 
 		label_addr = (daddr_t)(cl->cl_solaris_offset + DK_LABEL_LOC);
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		/*
 		 * Refer to comments on off-by-1 at the head of the file
 		 * Now, this 1TB disk has valid solaris partition. It
@@ -1550,6 +1589,9 @@ no_solaris_partition:
 		cl->cl_offset[FDISK_P1 + count] =
 		    cl->cl_fmap[count].fmap_start;
 	}
+#ifdef CMLB_EXTPART
+	cmlb_setup_logical_partition(cl);
+#endif /* CMLB_EXTPART */
 #endif
 
 	for (count = 0; count < NDKMAP; count++) {
@@ -1936,6 +1978,12 @@ cmlb_read_fdisk(struct cmlb_lun *cl, diskaddr_t capacity, void *tg_cookie)
 		}
 	}
 
+#ifdef CMLB_EXTPART
+	/* Get Logical Partition information */
+	(void) cmlb_read_logical_partition(cl, fdisk, bufp, &uidx,
+	    &solaris_offset, &solaris_size, blocksize, tg_cookie);
+#endif /* CMLB_EXTPART */
+
 	cmlb_dbg(CMLB_INFO,  cl, "fdisk 0x%x 0x%lx",
 	    cl->cl_solaris_offset, cl->cl_solaris_size);
 done:
@@ -2313,7 +2361,7 @@ cmlb_uselabel(struct cmlb_lun *cl, struct dk_label *labp, int flags)
 	cl->cl_dkg_skew = labp->dkl_skew;
 #endif
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	cl->cl_g.dkg_apc = labp->dkl_apc;
 #endif
 
@@ -2376,7 +2424,7 @@ cmlb_uselabel(struct cmlb_lun *cl, struct dk_label *labp, int flags)
 	label_capacity	= (cl->cl_g.dkg_ncyl  * track_capacity);
 
 	if (cl->cl_g.dkg_acyl) {
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		/* we may have > 1 alts cylinder */
 		label_capacity += (track_capacity * cl->cl_g.dkg_acyl);
 #else
@@ -2864,7 +2912,7 @@ cmlb_dkio_get_geometry(struct cmlb_lun *cl, caddr_t arg, int flag,
 		return (rval);
 	}
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	if (cl->cl_solaris_size == 0) {
 		mutex_exit(CMLB_MUTEX(cl));
 		return (EIO);
@@ -2929,7 +2977,7 @@ cmlb_dkio_set_geometry(struct cmlb_lun *cl, caddr_t arg, int flag)
 	int		i;
 
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	if (cl->cl_solaris_size == 0) {
 		return (EIO);
 	}
@@ -2953,7 +3001,7 @@ cmlb_dkio_set_geometry(struct cmlb_lun *cl, caddr_t arg, int flag)
 		lp  = &cl->cl_map[i];
 		cl->cl_offset[i] =
 		    cl->cl_g.dkg_nhead * cl->cl_g.dkg_nsect * lp->dkl_cylno;
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		cl->cl_offset[i] += cl->cl_solaris_offset;
 #endif
 	}
@@ -3003,7 +3051,7 @@ cmlb_dkio_get_partition(struct cmlb_lun *cl, caddr_t arg, int flag,
 	}
 	mutex_exit(CMLB_MUTEX(cl));
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	if (cl->cl_solaris_size == 0) {
 		return (EIO);
 	}
@@ -3139,7 +3187,7 @@ cmlb_dkio_set_partition(struct cmlb_lun *cl, caddr_t arg, int flag)
 		vp->p_size = lp->dkl_nblk;
 		vp++;
 #endif	/* defined(_SUNOS_VTOC_16) */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		cl->cl_offset[i] += cl->cl_solaris_offset;
 #endif
 	}
@@ -3473,6 +3521,13 @@ cmlb_dkio_set_vtoc(struct cmlb_lun *cl, dev_t dev, caddr_t arg, int flag,
 	struct vtoc	user_vtoc;
 	int		rval = 0;
 
+#ifdef DISK_ACCESS_CTRL
+	if ((strcmp(ddi_driver_name(CMLB_DEVINFO(cl)), "sd") == 0) &&
+	    (ddi_get_instance(CMLB_DEVINFO(cl)) == cmlb_acc_ctrl_instance)) {
+		return (ENOTTY);
+	}
+#endif
+
 #ifdef _MULTI_DATAMODEL
 	switch (ddi_model_convert_from(flag & FMODELS)) {
 	case DDI_MODEL_ILP32: {
@@ -3506,7 +3561,7 @@ cmlb_dkio_set_vtoc(struct cmlb_lun *cl, dev_t dev, caddr_t arg, int flag,
 		return (ENOTSUP);
 	}
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	if (cl->cl_tgt_blocksize != cl->cl_sys_blocksize) {
 		mutex_exit(CMLB_MUTEX(cl));
 		return (EINVAL);
@@ -3809,7 +3864,7 @@ cmlb_set_vtoc(struct cmlb_lun *cl, struct dk_label *dkl, void *tg_cookie)
 	int	cyl;
 	int	rval;
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	label_addr = cl->cl_solaris_offset + DK_LABEL_LOC;
 #else
 	/* Write the primary label at block 0 of the solaris partition. */
@@ -3844,7 +3899,7 @@ cmlb_set_vtoc(struct cmlb_lun *cl, struct dk_label *dkl, void *tg_cookie)
 		blk = (daddr_t)(
 		    (cyl * ((dkl->dkl_nhead * dkl->dkl_nsect) - dkl->dkl_apc)) +
 		    (head * dkl->dkl_nsect) + sec);
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 		blk += cl->cl_solaris_offset;
 #endif
 		rval = DK_TG_WRITE(cl, dkl, blk, cl->cl_sys_blocksize,
@@ -3984,6 +4039,13 @@ cmlb_dkio_set_efi(struct cmlb_lun *cl, dev_t dev, caddr_t arg, int flag,
 	int		rval = 0;
 	void		*buffer;
 	diskaddr_t	tgt_lba;
+
+#ifdef DISK_ACCESS_CTRL
+	if ((strcmp(ddi_driver_name(CMLB_DEVINFO(cl)), "sd") == 0) &&
+	    (ddi_get_instance(CMLB_DEVINFO(cl)) == cmlb_acc_ctrl_instance)) {
+		return (ENOTTY);
+	}
+#endif
 
 	if (ddi_copyin(arg, &user_efi, sizeof (dk_efi_t), flag))
 		return (EFAULT);
@@ -4132,6 +4194,12 @@ cmlb_dkio_set_mboot(struct cmlb_lun *cl, caddr_t arg, int flag, void *tg_cookie)
 	int		rval;
 	ushort_t	magic;
 
+#ifdef DISK_ACCESS_CTRL
+	if ((strcmp(ddi_driver_name(CMLB_DEVINFO(cl)), "sd") == 0) &&
+	    (ddi_get_instance(CMLB_DEVINFO(cl)) == cmlb_acc_ctrl_instance)) {
+		return (ENOTTY);
+	}
+#endif
 
 	ASSERT(!mutex_owned(CMLB_MUTEX(cl)));
 
@@ -4163,7 +4231,7 @@ cmlb_dkio_set_mboot(struct cmlb_lun *cl, caddr_t arg, int flag, void *tg_cookie)
 	rval = DK_TG_WRITE(cl, mboot, 0, cl->cl_sys_blocksize, tg_cookie);
 
 	mutex_enter(CMLB_MUTEX(cl));
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 	if (rval == 0) {
 		/*
 		 * mboot has been written successfully.
@@ -4212,7 +4280,7 @@ cmlb_dkio_set_mboot(struct cmlb_lun *cl, caddr_t arg, int flag, void *tg_cookie)
  *
  * Note: This may be redundant with cmlb_build_default_label.
  */
-static void
+ARM_EXTERN void
 cmlb_setup_default_geometry(struct cmlb_lun *cl, void *tg_cookie)
 {
 	struct cmlb_geom	pgeom;
@@ -4330,7 +4398,7 @@ cmlb_setup_default_geometry(struct cmlb_lun *cl, void *tg_cookie)
 }
 
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 /*
  *    Function: cmlb_update_fdisk_and_vtoc
  *
@@ -4349,7 +4417,7 @@ cmlb_setup_default_geometry(struct cmlb_lun *cl, void *tg_cookie)
  *    Note:x86: This looks like a duplicate of cmlb_validate_geometry(), but
  *		these did exist separately in x86 sd.c.
  */
-static int
+ARM_EXTERN int
 cmlb_update_fdisk_and_vtoc(struct cmlb_lun *cl, void *tg_cookie)
 {
 	int		count;
@@ -4442,6 +4510,9 @@ no_solaris_partition:
 		cl->cl_offset[FDISK_P1 + count] =
 		    cl->cl_fmap[count].fmap_start;
 	}
+#ifdef CMLB_EXTPART
+	cmlb_setup_logical_partition(cl);
+#endif /* CMLB_EXTPART */
 #endif
 
 	for (count = 0; count < NDKMAP; count++) {
@@ -4462,7 +4533,7 @@ no_solaris_partition:
 }
 #endif
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 static int
 cmlb_dkio_get_virtgeom(struct cmlb_lun *cl, caddr_t arg, int flag)
 {
@@ -4503,7 +4574,7 @@ cmlb_dkio_get_virtgeom(struct cmlb_lun *cl, caddr_t arg, int flag)
 }
 #endif
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 static int
 cmlb_dkio_get_phygeom(struct cmlb_lun *cl, caddr_t  arg, int flag)
 {
@@ -4583,7 +4654,7 @@ cmlb_dkio_get_phygeom(struct cmlb_lun *cl, caddr_t  arg, int flag)
 }
 #endif
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 static int
 cmlb_dkio_partinfo(struct cmlb_lun *cl, dev_t dev, caddr_t  arg, int flag)
 {

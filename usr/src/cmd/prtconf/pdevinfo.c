@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -1475,7 +1479,7 @@ print_one(nvpair_t *nvp, int level)
 	}
 
 	(void) printf(" ");
-#ifdef	__x86
+#if defined(__x86) || defined(__arm)
 	/*
 	 * Due to backwards compatibility constraints x86 int
 	 * properties are not in big-endian (ieee 1275) byte order.
@@ -1485,7 +1489,7 @@ print_one(nvpair_t *nvp, int level)
 	 * the user.
 	 */
 	endswap = (valsize % 4) == 0;
-#endif	/* __x86 */
+#endif	/* defined(__x86) || defined(__arm) */
 	for (i = 0; i < valsize; i++) {
 		int out;
 		if (i && (i % 4 == 0))
@@ -1748,9 +1752,9 @@ dump_prodinfo(di_prom_handle_t promh, di_node_t node, const char **propstr,
 			}
 
 			(void) printf(" ");
-#ifdef  __x86
+#if defined(__x86) || defined(__arm)
 			endswap = (len % 4) == 0;
-#endif  /* __x86 */
+#endif	/* defined(__x86) || defined(__arm) */
 			for (index = 0; index < len; index++) {
 				if (index && (index % 4 == 0))
 					(void) putchar('.');

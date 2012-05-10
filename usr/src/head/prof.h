@@ -28,6 +28,10 @@
  * All rights reserved.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef	_PROF_H
 #define	_PROF_H
 
@@ -43,6 +47,11 @@ extern "C" {
 #undef	MARK
 
 #if defined(__STDC__)
+
+#if defined(__arm__)
+/* REVISIT */
+#define	MARK(K)	{}
+#endif
 
 #if defined(__i386)
 #define	MARK(K)	{\
@@ -68,6 +77,11 @@ extern "C" {
 #endif
 
 #else	/* __STDC__ */
+
+#if defined(__arm__)
+/* REVISIT */
+#define	MARK(K)	{}
+#endif
 
 #if defined(__i386)
 #define	MARK(K)	{\

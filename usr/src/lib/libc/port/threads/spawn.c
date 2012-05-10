@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
@@ -37,6 +41,7 @@
 #include <sys/ts.h>
 #include <alloca.h>
 #include <spawn.h>
+#include "spawn_attr.h"
 #include "rtsched.h"
 
 #define	ALL_POSIX_SPAWN_FLAGS			\
@@ -48,27 +53,6 @@
 		POSIX_SPAWN_SETSCHEDULER |	\
 		POSIX_SPAWN_NOSIGCHLD_NP |	\
 		POSIX_SPAWN_WAITPID_NP)
-
-typedef struct {
-	short		sa_psflags;	/* POSIX_SPAWN_* flags */
-	pri_t		sa_priority;
-	int		sa_schedpolicy;
-	pid_t		sa_pgroup;
-	sigset_t	sa_sigdefault;
-	sigset_t	sa_sigmask;
-} spawn_attr_t;
-
-typedef struct file_attr {
-	struct file_attr *fa_next;	/* circular list of file actions */
-	struct file_attr *fa_prev;
-	enum {FA_OPEN, FA_CLOSE, FA_DUP2} fa_type;
-	uint_t		fa_pathsize;	/* size of fa_path[] array */
-	char		*fa_path;	/* copied pathname for open() */
-	int		fa_oflag;	/* oflag for open() */
-	mode_t		fa_mode;	/* mode for open() */
-	int		fa_filedes;	/* file descriptor for open()/close() */
-	int		fa_newfiledes;	/* new file descriptor for dup2() */
-} file_attr_t;
 
 extern struct pcclass ts_class, rt_class;
 
@@ -308,7 +292,6 @@ get_error(int *errp)
  * as global symbols.  To do so would risk invoking the dynamic linker.
  */
 
-#pragma weak posix_spawn = _posix_spawn
 int
 _posix_spawn(
 	pid_t *pidp,
@@ -386,7 +369,6 @@ execat(const char *s1, const char *s2, char *si)
 	return (*s1? ++s1: NULL);
 }
 
-#pragma weak posix_spawnp = _posix_spawnp
 /* ARGSUSED */
 int
 _posix_spawnp(
@@ -451,28 +433,7 @@ _posix_spawnp(
 			_private_exit(_EVAPORATE);
 
 	if (pathstr == NULL) {
-		/*
-		 * XPG4:  pathstr is equivalent to _CS_PATH, except that
-		 * :/usr/sbin is appended when root, and pathstr must end
-		 * with a colon when not root.  Keep these paths in sync
-		 * with _CS_PATH in confstr.c.  Note that pathstr must end
-		 * with a colon when not root so that when file doesn't
-		 * contain '/', the last call to execat() will result in an
-		 * attempt to execv file from the current directory.
-		 */
-		if (_private_geteuid() == 0 || _private_getuid() == 0) {
-			if (!xpg4)
-				pathstr = "/usr/sbin:/usr/ccs/bin:/usr/bin";
-			else
-				pathstr = "/usr/xpg4/bin:/usr/ccs/bin:"
-				    "/usr/bin:/opt/SUNWspro/bin:/usr/sbin";
-		} else {
-			if (!xpg4)
-				pathstr = "/usr/ccs/bin:/usr/bin:";
-			else
-				pathstr = "/usr/xpg4/bin:/usr/ccs/bin:"
-				    "/usr/bin:/opt/SUNWspro/bin:";
-		}
+		GET_DEFAULT_PATHENV(pathstr, xpg4);
 	}
 
 	cp = pathstr;
@@ -501,7 +462,7 @@ _posix_spawnp(
 			for (i = 1; i <= argc; i++)
 				newargs[i + 1] = argv[i];
 			(void) set_error(&error, 0);
-			(void) _private_execve(xpg4? xpg4_path : sun_path,
+			(void) _private_execve(GET_DEFAULT_SHELLPATH(xpg4),
 			    newargs, envp);
 			(void) set_error(&error, errno);
 			_private_exit(_EVAPORATE);

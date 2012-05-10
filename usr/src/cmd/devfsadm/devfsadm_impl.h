@@ -21,6 +21,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #ifndef _DEVFSADM_IMPL_H
 #define	_DEVFSADM_IMPL_H
@@ -366,6 +369,7 @@ typedef struct syseventq_s {
 	nvlist_t *nvl;
 } syseventq_t;
 
+#ifndef _DEVFSPOLICY
 static int devfsadm_enumerate_int_start(char *devfs_path,
 	int index, char **buf, devfsadm_enumerate_t rules[],
 	int nrules, char *start);
@@ -383,8 +387,10 @@ static int s_rmdir(char *path);
 static void rm_parent_dir_if_empty(char *path);
 static void free_link_list(link_list_t *head);
 static void free_selector_list(selector_list_t *head);
+#endif /*_DEVFSPOLICY*/
 void devfsadm_err_print(char *message, ...);
 void defvsadm_print(int level, char *message, ...);
+#ifndef _DEVFSPOLICY
 static int call_minor_init(module_t *module);
 static void load_module(char *module, char *cdir);
 static void invalidate_enumerate_cache(void);
@@ -399,7 +405,9 @@ static void flush_path_to_inst(void);
 static void detachfromtty(void);
 static void minor_process(di_node_t node, di_minor_t minor,
     struct mlist *dep);
+#endif /*_DEVFSPOLICY*/
 static void read_minor_perm_file(void);
+#ifndef _DEVFSPOLICY
 static void read_driver_aliases_file(void);
 static void load_modules(void);
 static void unload_modules(void);
@@ -485,6 +493,7 @@ static void lock_dev(void);
 static void unlock_dev(int flag);
 static int devlink_cb(di_devlink_t dl, void *arg);
 static void free_dev_names(struct devlink_cb_arg *x);
+#endif /*_DEVFSPOLICY*/
 
 int load_devpolicy(void);
 static void load_dev_acl(void);
@@ -494,6 +503,7 @@ static int (*librcm_alloc_handle)(char *, uint_t, void *, rcm_handle_t **);
 static void (*librcm_free_handle)(rcm_handle_t *);
 static int (*librcm_notify_event)(rcm_handle_t *, char *, uint_t, nvlist_t *,
     rcm_info_t *);
+#ifndef _DEVFSPOLICY
 static nvlist_t *build_event_attributes(char *, char *, char *,
     di_node_t, char *, int, char *);
 static void log_event(char *, char *, nvlist_t *);
@@ -522,6 +532,7 @@ static void read_enumerate_file(void);
 static int enumerate_parse(char *rsvstr, char *path_left, numeral_set_t *setp,
     devfsadm_enumerate_t rules[], int index);
 static void create_reserved_numeral(numeral_set_t *setp, char *numeral_id);
+#endif /*_DEVFSPOLICY*/
 
 /* convenient short hands */
 #define	vprint		devfsadm_print

@@ -31,6 +31,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -475,6 +479,50 @@ out:
 
 #if defined(_ILP32)
 
+#if	!defined(__arm) || !defined(__ARM_EABI__)
+#undef	ARM_OABI_USER
+#endif	/* !defined(__arm) || !defined(__ARM_EABI__) */
+
+#ifdef	ARM_OABI_USER
+
+struct  stat64_oabi {
+	dev_t		st_dev;
+	long		st_pad1[3];	/* reserve for dev expansion, */
+				/* sysid definition */
+	ino64_t		st_ino;
+	mode_t		st_mode;
+	nlink_t		st_nlink;
+	uid_t		st_uid;
+	gid_t		st_gid;
+	dev_t		st_rdev;
+	long		st_pad2[2];
+	uint32_t	st_size_lo;
+	uint32_t	st_size_hi;
+	timestruc_t	st_atim;
+	timestruc_t	st_mtim;
+	timestruc_t	st_ctim;
+	blksize_t	st_blksize;
+	uint32_t	st_blocks_lo;
+	uint32_t	st_blocks_hi;
+	char		st_fstype[_ST_FSTYPSZ];
+	long		st_pad4[8];	/* expansion area */
+};
+
+#define	STAT64_SET64(sbp, member, size)					\
+	do {								\
+		(sbp)->member##_lo = (uint32_t)((size) & 0xffffffff);	\
+		(sbp)->member##_hi = (uint32_t)(((size) >> 32) & 0xffffffff); \
+	} while (0)
+
+#else	/* !ARM_OABI_USER */
+
+#define	STAT64_SET64(sbp, member, size)					\
+	do {								\
+		(sbp)->member = (size);					\
+	} while (0)
+
+#endif	/* ARM_OABI_USER */
+
 /*
  * 32-bit kernel, 32-bit applications, 64-bit file offsets.
  *
@@ -513,7 +561,11 @@ static int
 cstat64(vnode_t *vp, struct stat64 *ubp, int flag, cred_t *cr)
 {
 	struct vfssw *vswp;
+#ifdef	ARM_OABI_USER
+	struct stat64_oabi	lsb;
+#else	/* !ARM_OABI_USER */
 	struct stat64 lsb;
+#endif	/* ARM_OABI_USER */
 	vattr_t vattr;
 	int error;
 
@@ -529,12 +581,12 @@ cstat64(vnode_t *vp, struct stat64 *ubp, int flag, cred_t *cr)
 	lsb.st_uid = vattr.va_uid;
 	lsb.st_gid = vattr.va_gid;
 	lsb.st_rdev = vattr.va_rdev;
-	lsb.st_size = vattr.va_size;
+	STAT64_SET64(&lsb, st_size, vattr.va_size);
 	lsb.st_atim = vattr.va_atime;
 	lsb.st_mtim = vattr.va_mtime;
 	lsb.st_ctim = vattr.va_ctime;
 	lsb.st_blksize = vattr.va_blksize;
-	lsb.st_blocks = vattr.va_nblocks;
+	STAT64_SET64(&lsb, st_blocks, vattr.va_nblocks);
 	if (vp->v_vfsp != NULL) {
 		vswp = &vfssw[vp->v_vfsp->vfs_fstype];
 		if (vswp->vsw_name && *vswp->vsw_name)

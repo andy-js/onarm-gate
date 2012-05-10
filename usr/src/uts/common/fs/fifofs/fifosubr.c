@@ -25,6 +25,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -98,13 +102,13 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	return (mod_install(&modlinkage));
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -114,7 +118,12 @@ _info(struct modinfo *modinfop)
  * XXX should the hash size be configurable ?
  */
 #define	FIFOSHFT	5
+
+#ifdef FIFOFS_HASH_SIZE
+#define	FIFO_HASHSZ	FIFOFS_HASH_SIZE
+#else
 #define	FIFO_HASHSZ	63
+#endif
 
 #if ((FIFO_HASHSZ & (FIFO_HASHSZ - 1)) == 0)
 #define	FIFOHASH(vp) (((uintptr_t)(vp) >> FIFOSHFT) & (FIFO_HASHSZ - 1))

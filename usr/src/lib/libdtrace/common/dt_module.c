@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -32,6 +35,7 @@
 #include <sys/sysmacros.h>
 #include <sys/elf.h>
 #include <sys/task.h>
+#include <sys/modctl.h>
 
 #include <unistd.h>
 #include <project.h>
@@ -48,6 +52,11 @@
 #include <dt_impl.h>
 
 static const char *dt_module_strtab; /* active strtab for qsort callbacks */
+
+#ifdef	STATIC_UNIX
+static caddr_t		unix_loadbase;	/* load address of unix */
+static dt_module_t	*unix_dtmodule;	/* pointer to dt_module of "unix" */
+#endif	/* STATIC_UNIX */
 
 static void
 dt_module_symhash_insert(dt_module_t *dmp, const char *name, uint_t id)
@@ -597,8 +606,26 @@ dt_module_getctf(dtrace_hdl_t *dtp, dt_module_t *dmp)
 	ctf_file_t *pfp;
 	int model;
 
-	if (dmp->dm_ctfp != NULL || dt_module_load(dtp, dmp) != 0)
+	if (dmp->dm_ctfp != NULL) {
 		return (dmp->dm_ctfp);
+	}
+
+#ifdef	STATIC_UNIX
+	/* 
+	 * If a module is a static linked one, its CTF data is unused 
+	 * anywhere, because its CTF data is same as "unix"'s one, 
+	 * and "unix" is searched to find any symbols at first.
+	 */
+	if (dmp->dm_flags & DT_DM_STATIC) {
+		dmp->dm_ctfp = unix_dtmodule->dm_ctfp;
+		dmp->dm_flags |= DT_DM_LOADED;
+		return (dmp->dm_ctfp);
+	}
+#endif	/* STATIC_UNIX */
+
+	if (dt_module_load(dtp, dmp) != 0) {
+		return (dmp->dm_ctfp);
+	}
 
 	if (dmp->dm_ops == &dt_modops_64)
 		model = CTF_MODEL_LP64;
@@ -662,7 +689,9 @@ err:
 void
 dt_module_unload(dtrace_hdl_t *dtp, dt_module_t *dmp)
 {
-	ctf_close(dmp->dm_ctfp);
+	if ((dmp->dm_flags & DT_DM_STATIC) == 0) {
+		ctf_close(dmp->dm_ctfp);
+	}
 	dmp->dm_ctfp = NULL;
 
 	bzero(&dmp->dm_ctdata, sizeof (ctf_sect_t));
@@ -702,8 +731,16 @@ dt_module_unload(dtrace_hdl_t *dtp, dt_module_t *dmp)
 		dmp->dm_extern = NULL;
 	}
 
-	(void) elf_end(dmp->dm_elf);
+	if ((dmp->dm_flags & DT_DM_STATIC) == 0) {
+		(void) elf_end(dmp->dm_elf);
+	}
 	dmp->dm_elf = NULL;
+
+#ifdef	STATIC_UNIX
+	if (strcmp(dmp->dm_name, STATIC_UNIX_MODNAME) == 0) {
+		unix_dtmodule = NULL;
+	}
+#endif	/* STATIC_UNIX */
 
 	dmp->dm_flags &= ~DT_DM_LOADED;
 }
@@ -711,10 +748,23 @@ dt_module_unload(dtrace_hdl_t *dtp, dt_module_t *dmp)
 void
 dt_module_destroy(dtrace_hdl_t *dtp, dt_module_t *dmp)
 {
+	uint_t h = dt_strtab_hash(dmp->dm_name, NULL) % dtp->dt_modbuckets;
+	dt_module_t **dt_work;
+
 	dt_list_delete(&dtp->dt_modlist, dmp);
 	assert(dtp->dt_nmods != 0);
 	dtp->dt_nmods--;
-
+	
+	/* Remove the pointer to the specified module from the hash table. */
+	for (dt_work = &dtp->dt_mods[h]; *dt_work != NULL;
+	     dt_work = &((*dt_work)->dm_next)) {
+		dt_module_t *mlt = *dt_work;
+		if (mlt == dmp) {
+			*dt_work = mlt->dm_next;
+			break;
+		}
+	}
+	
 	dt_module_unload(dtp, dmp);
 	free(dmp);
 }
@@ -795,6 +845,10 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 	GElf_Shdr sh;
 	Elf_Data *dp;
 	Elf_Scn *sp;
+#ifdef	STATIC_UNIX
+	dt_module_t *udmp = unix_dtmodule;
+	struct modinfo modinfo;
+#endif	/* STATIC_UNIX */
 
 	(void) snprintf(fname, sizeof (fname),
 	    "%s/%s/object", OBJFS_ROOT, name);
@@ -805,6 +859,53 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 		(void) close(fd);
 		return;
 	}
+
+#ifdef	STATIC_UNIX
+	/* 
+	 * Get the modinfo of the module.
+	 */
+	modinfo.mi_id = modinfo.mi_nextid = 0;
+	modinfo.mi_info = MI_INFO_ONE;
+	if (modctl(MODINFO, (int)OBJFS_MODID(st.st_ino), &modinfo) == -1) {
+		dt_dprintf("can't get modinfo %s\n", name);
+		(void) close(fd);
+		return;
+	}
+
+	/*
+	 * When loaded address of a module is same as unix's one,
+	 * the module is a static linked object. So its dm_elf is same as
+	 * unix's one.
+	 */
+	if (modinfo.mi_base == unix_loadbase && udmp != NULL) {
+		dmp->dm_elf = udmp->dm_elf;
+		dmp->dm_flags |= DT_DM_STATIC;
+
+		dmp->dm_ops = udmp->dm_ops;
+		bits = (dmp->dm_ops == &dt_modops_32) ? 32 : 64;
+
+		dmp->dm_text_size = udmp->dm_text_size;
+		dmp->dm_text_va = udmp->dm_text_va;
+		dmp->dm_data_size = udmp->dm_data_size;
+		dmp->dm_data_va = udmp->dm_data_va;
+		dmp->dm_bss_size = udmp->dm_bss_size;
+		dmp->dm_bss_va = udmp->dm_bss_va;
+		bcopy(&udmp->dm_info, &dmp->dm_info, sizeof(dmp->dm_info));
+		(void) strlcpy(dmp->dm_file, udmp->dm_file, 
+			       sizeof(dmp->dm_file));
+
+		(void) close(fd);
+		goto end;
+	}
+
+	/* 
+	 * Save the load address and the dt_module's pointer of unix.
+	 */
+	if (strcmp(name, STATIC_UNIX_MODNAME) == 0) {
+		unix_loadbase = modinfo.mi_base;
+		unix_dtmodule = dmp;
+	}
+#endif	/* STATIC_UNIX */
 
 	/*
 	 * Since the module can unload out from under us (and /system/object
@@ -867,7 +968,7 @@ dt_module_update(dtrace_hdl_t *dtp, const char *name)
 			    dp->d_buf, sizeof (dmp->dm_file));
 		}
 	}
-
+end:
 	dmp->dm_flags |= DT_DM_KERNEL;
 	dmp->dm_modid = (int)OBJFS_MODID(st.st_ino);
 
@@ -900,10 +1001,22 @@ dtrace_update(dtrace_hdl_t *dtp)
 	    (dirp = opendir(OBJFS_ROOT)) != NULL) {
 		struct dirent *dp;
 
+#ifdef	STATIC_UNIX
+		/* Static unix module must be loaded at first. */
+		dt_module_update(dtp, STATIC_UNIX_MODNAME);
+
+		while ((dp = readdir(dirp)) != NULL) {
+			if (dp->d_name[0] != '.' &&
+			    strcmp(dp->d_name, STATIC_UNIX_MODNAME) != 0) {
+				dt_module_update(dtp, dp->d_name);
+			}
+		}
+#else	/* !STATIC_UNIX */
 		while ((dp = readdir(dirp)) != NULL) {
 			if (dp->d_name[0] != '.')
 				dt_module_update(dtp, dp->d_name);
 		}
+#endif	/* STATIC_UNIX */
 
 		(void) closedir(dirp);
 	}
@@ -930,10 +1043,15 @@ dtrace_update(dtrace_hdl_t *dtp)
 	 * x86 krtld is folded into unix, so if we don't find it, use unix
 	 * instead.
 	 */
+#ifdef	STATIC_UNIX
+	dtp->dt_exec = dtp->dt_rtld =
+		dt_module_lookup_by_name(dtp, STATIC_UNIX_MODNAME);
+#else	/* !STATIC_UNIX */
 	dtp->dt_exec = dt_module_lookup_by_name(dtp, "genunix");
 	dtp->dt_rtld = dt_module_lookup_by_name(dtp, "krtld");
 	if (dtp->dt_rtld == NULL)
 		dtp->dt_rtld = dt_module_lookup_by_name(dtp, "unix");
+#endif	/* STATIC_UNIX */
 
 	/*
 	 * If this is the first time we are initializing the module list,

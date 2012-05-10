@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -166,8 +170,9 @@ getflabel_cipso(vfs_t *vfsp)
 
 	nfspath = (char *)refstr_value(resource_ref);
 	respath = strchr(nfspath, ':');		/* skip server name */
-	if (respath)
-		respath++;			/* skip over ":" */
+	if (!respath)
+		return (NULL);
+	respath++;			/* skip over ":" */
 	if (*respath != '/') {
 		/* treat path as absolute but it doesn't have leading '/' */
 		treat_abs = B_TRUE;

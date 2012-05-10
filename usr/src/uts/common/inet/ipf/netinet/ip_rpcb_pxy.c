@@ -6,6 +6,11 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 /*
  * Overview:
  *   This is an in-kernel application proxy for Sun's RPCBIND (nee portmap)
@@ -237,7 +242,11 @@ ippr_rpcb_in(fin, aps, nat, private)
 	nat_t *nat;
 	void *private;
 {
+#if defined(_NETWORK_EXTENSION)
+	rpc_msg_t *rpcmsgp, *rm;
+#else
 	rpc_msg_t rpcmsg, *rm;
+#endif /* _NETWORK_EXTENSION */
 	rpcb_session_t *rs;
 	u_int off, dlen;
 	mb_t *m;
@@ -260,7 +269,14 @@ ippr_rpcb_in(fin, aps, nat, private)
 		return(APR_ERR(1));
 
 	/* Copy packet over to convenience buffer. */
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(rpcmsgp, rpc_msg_t *);
+	if(!rpcmsgp)
+		return(APR_ERR(1));
+	rm = rpcmsgp;
+#else
 	rm = &rpcmsg;
+#endif /* _NETWORK_EXTENSION */
 	bzero((char *)rm, sizeof(*rm));
 	COPYDATA(m, off, dlen, (caddr_t)&rm->rm_msgbuf);
 	rm->rm_buflen = dlen;
@@ -271,6 +287,9 @@ ippr_rpcb_in(fin, aps, nat, private)
 	switch(rv)
 	{
 	case -1:
+#if defined(_NETWORK_EXTENSION)
+		KFREE(rpcmsgp);
+#endif /* _NETWORK_EXTENSION */
 		return(APR_ERR(1));
 	case 0:
 		break;
@@ -282,6 +301,9 @@ ippr_rpcb_in(fin, aps, nat, private)
 		IPF_PANIC(1, ("illegal rv %d (ippr_rpcb_req)", rv));
 	}
 
+#if defined(_NETWORK_EXTENSION)
+	KFREE(rpcmsgp);
+#endif /* _NETWORK_EXTENSION */
 	return(rv);
 }
 
@@ -307,7 +329,11 @@ ippr_rpcb_out(fin, aps, nat, private)
 	nat_t *nat;
 	void *private;
 {
+#if defined(_NETWORK_EXTENSION)
+	rpc_msg_t *rpcmsgp, *rm;
+#else
 	rpc_msg_t rpcmsg, *rm;
+#endif /* _NETWORK_EXTENSION */
 	rpcb_session_t *rs;
 	rpcb_xact_t *rx;
 	u_int off, dlen;
@@ -333,7 +359,14 @@ ippr_rpcb_out(fin, aps, nat, private)
 		return(APR_ERR(1));
 
 	/* Copy packet over to convenience buffer. */
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(rpcmsgp, rpc_msg_t *);
+	if(!rpcmsgp)
+		return(APR_ERR(1));
+	rm = rpcmsgp;
+#else
 	rm = &rpcmsg;
+#endif /* _NETWORK_EXTENSION */
 	bzero((char *)rm, sizeof(*rm));
 	COPYDATA(m, off, dlen, (caddr_t)&rm->rm_msgbuf);
 	rm->rm_buflen = dlen;
@@ -349,6 +382,9 @@ ippr_rpcb_out(fin, aps, nat, private)
                         ippr_rpcb_deref(rs, rx, ifsrpcb);
                         MUTEX_EXIT(&rs->rs_rxlock);
                 }
+#if defined(_NETWORK_EXTENSION)
+		KFREE(rpcmsgp);
+#endif /* _NETWORK_EXTENSION */
 		return(APR_ERR(1));
 	case  0: /* Negative reply / request rejected */
 		break;
@@ -385,6 +421,9 @@ ippr_rpcb_out(fin, aps, nat, private)
                 MUTEX_EXIT(&rs->rs_rxlock);
 	}
 
+#if defined(_NETWORK_EXTENSION)
+	KFREE(rpcmsgp);
+#endif /* _NETWORK_EXTENSION */
 	return(diff);
 }
 
@@ -1178,13 +1217,23 @@ ippr_rpcb_getnat(fin, nat, proto, port, ifsrpcb)
 	u_int port;
 	ifs_rpcbpxy_t *ifsrpcb;
 {
+#if defined(_NETWORK_EXTENSION)
+	ipnat_t *ipn, *ipnatp;
+#else
 	ipnat_t *ipn, ipnat;
+#endif /* _NETWORK_EXTENSION */
 	tcphdr_t tcp;
 	ipstate_t *is;
 	fr_info_t fi;
 	nat_t *natl;
 	int nflags;
 	ipf_stack_t *ifs = fin->fin_ifs;
+
+#if defined(_NETWORK_EXTENSION)
+	KMALLOC(ipnatp, ipnat_t *);
+	if(!ipnatp)
+		return(-1);	
+#endif /* _NETWORK_EXTENSION */
 
 	ipn = nat->nat_ptr;
 
@@ -1235,6 +1284,9 @@ ippr_rpcb_getnat(fin, nat, proto, port, ifsrpcb)
 
 	if ((natl != NULL) && (is != NULL)) {
 		MUTEX_DOWNGRADE(&ifs->ifs_ipf_nat);
+#if defined(_NETWORK_EXTENSION)
+		KFREE(ipnatp);
+#endif /* _NETWORK_EXTENSION */
 		return(0);
 	}
 
@@ -1253,7 +1305,11 @@ ippr_rpcb_getnat(fin, nat, proto, port, ifsrpcb)
 		 * the 'temp' copy off to nat_new instead?
 		 */
 		/* Generate template/bogus NAT rule. */
+#if defined(_NETWORK_EXTENSION)
+		bcopy((char *)ipn, (char *)ipnatp, sizeof(*ipnatp));
+#else
 		bcopy((char *)ipn, (char *)&ipnat, sizeof(ipnat));
+#endif /* _NETWORK_EXTENSION */
 		ipn->in_flags = nflags & IPN_TCPUDP;
 		ipn->in_apr = NULL;
 		ipn->in_p = proto;
@@ -1272,10 +1328,17 @@ ippr_rpcb_getnat(fin, nat, proto, port, ifsrpcb)
 		natl = nat_new(&fi, ipn, NULL, nflags|SI_CLONE|NAT_SLAVE,
 			       NAT_INBOUND);
 
+#if defined(_NETWORK_EXTENSION)
+		bcopy((char *)ipnatp, (char *)ipn, sizeof(*ipnatp));
+#else
 		bcopy((char *)&ipnat, (char *)ipn, sizeof(ipnat));
+#endif /* _NETWORK_EXTENSION */
 
 		if (natl == NULL) {
 			MUTEX_DOWNGRADE(&ifs->ifs_ipf_nat);
+#if defined(_NETWORK_EXTENSION)
+			KFREE(ipnatp);
+#endif /* _NETWORK_EXTENSION */
 			return(-1);
 		}
 
@@ -1302,12 +1365,18 @@ ippr_rpcb_getnat(fin, nat, proto, port, ifsrpcb)
 			 *
 			 * nat_delete(natl, NL_EXPIRE, ifs);
 			 */
+#if defined(_NETWORK_EXTENSION)
+			KFREE(ipnatp);
+#endif /* _NETWORK_EXTENSION */
 			return(-1);
 		}
 		if (fi.fin_state != NULL)
 			fr_statederef((ipstate_t **)&fi.fin_state, ifs);
 	}
 
+#if defined(_NETWORK_EXTENSION)
+	KFREE(ipnatp);
+#endif /* _NETWORK_EXTENSION */
 	return(0);
 }
 

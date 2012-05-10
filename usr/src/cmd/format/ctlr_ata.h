@@ -25,6 +25,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_CTLR_ATA_H
 #define	_CTLR_ATA_H
 
@@ -48,20 +52,20 @@ extern "C" {
  */
 #define	TRIPLET(u, m, l)	((int)((((u))&0xff<<16) + \
 				(((m)&0xff)<<8) + (l&0xff)))
-#if	defined(i386)
+#if	defined(i386) || defined(__arm)
 daddr_t	altsec_offset;		/* Alternate sector offset */
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 #ifdef	__STDC__
 /*
  *	Local prototypes for ANSI C compilers
  */
 
-#if	defined(i386)
+#if	defined(i386) || defined(__arm)
 int	ata_rdwr(int, int, diskaddr_t, int, caddr_t, int, int *);
-#else	/* defined(i386) */
+#else	/* defined(i386) || defined(__arm) */
 static int	ata_rdwr(int, int, diskaddr_t, int, caddr_t, int, int *);
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 int	ata_ex_man(struct defect_list *);
 int	ata_ex_grown(struct defect_list *);
@@ -70,13 +74,13 @@ int	apply_chg_list(int, int, uchar_t *, uchar_t *, struct chg_list *);
 
 #else /* ! _STDC_ */
 
-#if	defined(i386)
+#if	defined(i386) || defined(__arm)
 int	ata_rdwr();
 int	ata_ex_cur();
-#else	/* defined(i386) */
+#else	/* defined(i386) || defined(__arm) */
 static int	ata_rdwr();
 static int	ata_ex_cur();
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 int	ata_ck_format();
 int	ata_ex_man();

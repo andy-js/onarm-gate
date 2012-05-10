@@ -27,6 +27,10 @@
  * All rights reserved.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ident	"%Z%%M%	%I%	%E% SMI"	/* from SVR4 bnu:grades.c 1.7 */
 
 #include "uucp.h"
@@ -51,6 +55,8 @@ extern int rdfulline(), jsize(), gdirf(), gnamef();
 extern void wfcommit();
 
 static void	mailAdmin();		/* Send mail to administrator. */
+
+static void	lcase();
 
 /*
  * chkgrp - checks to see the group has permission
@@ -336,7 +342,6 @@ long *nlimit;
 #define ONE_K (1024)
 #define ONE_MEG ((1024)*(1024))
 
-	static void lcase();
 	char rest[SMBUF];
 	char msg[BUFSIZ], *p;
 
@@ -552,8 +557,6 @@ int na;
 #define G_NUSR "non-user"
 #define G_GRP "group"
 #define G_NGRP "non-group"
-
-	static void lcase();
 	char actn[SMBUF];
 	char ufld[SMBUF];
 	char msg[BUFSIZ];

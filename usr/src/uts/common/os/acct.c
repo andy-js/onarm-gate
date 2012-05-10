@@ -26,6 +26,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -153,7 +156,7 @@ acct_fini(zoneid_t zoneid, void *arg)
 }
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int error;
 
@@ -174,11 +177,12 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 /*
  * acct() is a "weak stub" routine called from exit().
  * Once this module has been loaded, we refuse to allow
@@ -187,10 +191,11 @@ _info(struct modinfo *modinfop)
  * unloadable but it's substantially safer not to bother.
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * See if vp is in use by the accounting system on any zone.  This does a deep

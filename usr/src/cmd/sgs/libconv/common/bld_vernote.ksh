@@ -27,6 +27,11 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+#
+
 usage()
 {
 	echo "usage: bld_vernote [-D] -R <SUNWonld-README> -r <release> -o <outfile.s>"
@@ -106,6 +111,37 @@ link_ver_string:
 EOF
 }
 
+build_armnote()
+{
+	notestring="\tSolaris Link Editors: $release-$readmerev\n"
+	#
+	# The 'adjustment' is for the '\t\n' and the
+	# fact that the x86/amd64 assembler automatically
+	# append a '\0' at the end of a string.
+	#
+	pad_notestring -1
+cat > $notefile <<EOF
+	.section	.note
+
+#include <sgs.h>
+
+	.align	4
+	.long	.endname - .startname	/* note name size */
+	.long	0			/* note desc size */
+	.long	0			/* note type */
+.startname:
+	.string	"$notestring"
+.endname:
+
+	.section	.rodata, "a"
+	.global		link_ver_string
+link_ver_string:
+	.type	link_ver_string,%object
+	.string	"${release}-${readmerev}\0"
+	.size	link_ver_string, .-link_ver_string
+EOF
+}
+
 
 notefile=""
 release=""
@@ -176,6 +212,8 @@ if [[ $MACH = "sparc" ]]; then
 	build_sparcnote
 elif [[ $MACH = "i386" ]]; then
 	build_i386note
+elif [[ $MACH = "arm" ]]; then
+	build_armnote
 else
 	echo "I don't know how to build a vernote.s for ${MACH}, so sorry"
 	exit 1

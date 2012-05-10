@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -93,7 +97,8 @@ static mntopt_t tmpfs_options[] = {
 	/* Option name		Cancel Opt	Arg	Flags		Data */
 	{ MNTOPT_XATTR,		xattr_cancel,	NULL,	MO_DEFAULT,	NULL},
 	{ MNTOPT_NOXATTR,	noxattr_cancel,	NULL,	NULL,		NULL},
-	{ "size",		NULL,		"0",	MO_HASVALUE,	NULL}
+	{ "size",		NULL,		"0",	MO_HASVALUE,	NULL},
+	{ "inum",		NULL,		"0",	MO_HASVALUE,	NULL}
 };
 
 
@@ -114,13 +119,14 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini()
+MODDRV_ENTRY_FINI()
 {
 	int error;
 
@@ -134,9 +140,10 @@ _fini()
 	vn_freevnodeops(tmp_vnodeops);
 	return (0);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -218,7 +225,11 @@ tmpfsinit(int fstype, char *name)
 	 * TMPMAXPROCKMEM percent of kernel memory
 	 */
 	if (tmpfs_maxkmem == 0)
+#if TMPFS_MAXKMEM
+		tmpfs_maxkmem = TMPFS_MAXKMEM * 1024;
+#else
 		tmpfs_maxkmem = MAX(PAGESIZE, kmem_maxavail() / TMPMAXFRACKMEM);
+#endif
 
 	if ((tmpfs_major = getudev()) == (major_t)-1) {
 		cmn_err(CE_WARN, "tmpfsinit: Can't get unique device number.");
@@ -242,8 +253,10 @@ tmp_mount(
 	pgcnt_t anonmax;
 	struct vattr rattr;
 	int got_attrs;
+	uint_t inummax;
 
 	char *sizestr;
+	char *inumstr;
 
 	if ((error = secpolicy_fs_mount(cr, mvp, vfsp)) != 0)
 		return (error);
@@ -285,6 +298,20 @@ tmp_mount(
 		anonmax = ULONG_MAX;
 	}
 
+	/*
+	 * tm_tnummax is set according to the mount arguments
+	 * if any. Otherwise, it is set to value zero.
+	 */
+	if (vfs_optionisset(vfsp, "inum", &inumstr)) {
+		if ((error = tmp_convfig(inumstr, &inummax)) != 0) {
+			goto out;
+		}
+		inummax = MIN(inummax, tmpfs_maxkmem /
+		    (sizeof (struct tmpnode) + sizeof (struct tdirent)));
+	} else {
+		inummax = 0;
+	}
+
 	if (error = pn_get(uap->dir,
 	    (uap->flags & MS_SYSSPACE) ? UIO_SYSSPACE : UIO_USERSPACE, &dpn))
 		goto out;
@@ -314,6 +341,7 @@ tmp_mount(
 
 	tm->tm_vfsp = vfsp;
 	tm->tm_anonmax = anonmax;
+	tm->tm_inummax = inummax;
 
 	vfsp->vfs_data = (caddr_t)tm;
 	vfsp->vfs_fstype = tmpfsfstype;
@@ -585,6 +613,16 @@ tmp_statvfs(struct vfs *vfsp, struct statvfs64 *sbp)
 	sbp->f_files = tmpfs_maxkmem /
 	    (sizeof (struct tmpnode) + sizeof (struct tdirent));
 	sbp->f_favail = (fsfilcnt64_t)(sbp->f_ffree);
+
+	mutex_enter(&tm->tm_contents);
+	if (tm->tm_inummax != 0) {
+		sbp->f_files = tm->tm_inummax;
+		sbp->f_ffree = MIN(sbp->f_ffree ,tm->tm_inummax -
+		    tm->tm_inumcur);
+		sbp->f_favail = (fsfilcnt64_t)(sbp->f_ffree);
+	}
+	mutex_exit(&tm->tm_contents);
+
 	(void) cmpldev(&d32, vfsp->vfs_dev);
 	sbp->f_fsid = d32;
 	(void) strcpy(sbp->f_basetype, vfssw[tmpfsfstype].vsw_name);

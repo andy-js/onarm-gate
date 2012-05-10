@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -270,7 +274,7 @@ krwlock_t e1000g_dma_type_lock;
  * _init - module initialization
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int status;
 
@@ -286,11 +290,12 @@ _init(void)
 	return (status);
 }
 
+#ifndef	STATIC_DRIVER
 /*
  * _fini - module finalization
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int status;
 
@@ -328,12 +333,13 @@ _fini(void)
 
 	return (status);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * _info - module information
  */
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

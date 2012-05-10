@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/note.h>
@@ -501,6 +505,7 @@ ddi_intr_get_cap(ddi_intr_handle_t h, int *flagsp)
 	return (ret);
 }
 
+#ifndef NO_USEDDI
 int
 ddi_intr_set_cap(ddi_intr_handle_t h, int flags)
 {
@@ -542,6 +547,7 @@ ddi_intr_set_cap(ddi_intr_handle_t h, int flags)
 	rw_exit(&hdlp->ih_rwlock);
 	return (ret);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Priority related functions
@@ -590,6 +596,7 @@ ddi_intr_get_pri(ddi_intr_handle_t h, uint_t *prip)
 	return (ret);
 }
 
+#ifndef NO_USEDDI
 int
 ddi_intr_set_pri(ddi_intr_handle_t h, uint_t pri)
 {
@@ -629,6 +636,7 @@ ddi_intr_set_pri(ddi_intr_handle_t h, uint_t pri)
 	rw_exit(&hdlp->ih_rwlock);
 	return (ret);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Interrupt add/duplicate/remove handlers
@@ -670,6 +678,7 @@ ddi_intr_add_handler(ddi_intr_handle_t h, ddi_intr_handler_t inthandler,
 	return (ret);
 }
 
+#ifndef NO_USEDDI
 int
 ddi_intr_dup_handler(ddi_intr_handle_t org, int dup_inum,
     ddi_intr_handle_t *dup)
@@ -725,6 +734,7 @@ ddi_intr_dup_handler(ddi_intr_handle_t org, int dup_inum,
 	rw_exit(&hdlp->ih_rwlock);
 	return (ret);
 }
+#endif /* NO_USEDDI */
 
 int
 ddi_intr_remove_handler(ddi_intr_handle_t h)
@@ -929,6 +939,7 @@ ddi_intr_block_disable(ddi_intr_handle_t *h_array, int count)
 	return (ret);
 }
 
+#ifndef NO_USEDDI
 /*
  * Interrupt set/clr mask handlers
  */
@@ -957,7 +968,9 @@ ddi_intr_set_mask(ddi_intr_handle_t h)
 	rw_exit(&hdlp->ih_rwlock);
 	return (ret);
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_intr_clr_mask(ddi_intr_handle_t h)
 {
@@ -983,7 +996,9 @@ ddi_intr_clr_mask(ddi_intr_handle_t h)
 	rw_exit(&hdlp->ih_rwlock);
 	return (ret);
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 /*
  * Interrupt get_pending handler
  */
@@ -1011,6 +1026,7 @@ ddi_intr_get_pending(ddi_intr_handle_t h, int *pendingp)
 	rw_exit(&hdlp->ih_rwlock);
 	return (ret);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Soft interrupt handlers
@@ -1137,6 +1153,7 @@ ddi_intr_get_softint_pri(ddi_softint_handle_t h, uint_t *soft_prip)
 	return (DDI_SUCCESS);
 }
 
+#ifndef NO_USEDDI
 /*
  * Set the soft interrupt priority
  */
@@ -1174,6 +1191,7 @@ ddi_intr_set_softint_pri(ddi_softint_handle_t h, uint_t soft_pri)
 	rw_exit(&hdlp->ih_rwlock);
 	return (ret);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Old DDI interrupt framework
@@ -1230,6 +1248,7 @@ ddi_intr_hilevel(dev_info_t *dip, uint_t inumber)
 	return (pri >= high_pri);
 }
 
+#ifndef NO_USEDDI
 int
 ddi_dev_nintrs(dev_info_t *dip, int *result)
 {
@@ -1245,6 +1264,7 @@ ddi_dev_nintrs(dev_info_t *dip, int *result)
 
 	return (DDI_SUCCESS);
 }
+#endif /* NO_USEDDI */
 
 int
 ddi_get_iblock_cookie(dev_info_t *dip, uint_t inumber,

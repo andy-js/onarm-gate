@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "synonyms.h"
@@ -179,7 +183,7 @@ __hex_to_quadruple(decimal_record *pd, enum fp_direction_type rd, quadruple *px,
 	}
 }
 
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 
 void
 __hex_to_extended(decimal_record *pd, enum fp_direction_type rd, extended *px,
@@ -187,6 +191,13 @@ __hex_to_extended(decimal_record *pd, enum fp_direction_type rd, extended *px,
 {
 	extended_equivalence	kluge;
 	unpacked		u;
+
+#if defined(__arm)
+	if (sizeof (long double)  == sizeof (double)) {
+		__hex_to_double(pd, rd, (double *)px, ps);
+		return;
+	}
+#endif
 
 	*ps = 0;
 	if (pd->fpclass == fp_zero) {

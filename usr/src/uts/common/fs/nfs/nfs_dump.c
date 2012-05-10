@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -447,6 +451,23 @@ nd_get_reply(TIUSER *tiptr, XDR *xdrp, uint32_t call_xid, int *badmsg)
 	return (0);
 }
 
+#ifdef	__arm
+/*
+ * On ARM architecture, we should some dummy spin after enabling interrupts
+ * or NFS dump may be extremely slow.
+ */
+#define	ND_INTR_WAIT()						\
+	do {							\
+		if (panicstr) {					\
+			volatile int	__i;			\
+								\
+			for (__i = 0; __i < 0x1000; __i++);	\
+		}						\
+	} while (0)
+#else	/* __arm */
+#define	ND_INTR_WAIT()
+#endif	/* __arm */
+
 static int
 nd_poll(TIUSER *tiptr, int retry, int *eventp)
 {
@@ -464,6 +485,7 @@ nd_poll(TIUSER *tiptr, int retry, int *eventp)
 		 * the network transports do not yet support do_polled_io.
 		 */
 		int s = spl0();
+		ND_INTR_WAIT();
 		splx(s);
 
 		if (error = t_kspoll(tiptr, 0, READWAIT, eventp)) {

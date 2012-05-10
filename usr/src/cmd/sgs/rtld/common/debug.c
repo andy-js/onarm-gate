@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	"_synonyms.h"
@@ -78,7 +82,12 @@ dbg_setup(const char *options, Dbg_desc *dbp)
 	 * As Dbg_setup() will effectively lazy load the necessary support
 	 * libraries, make sure ld.so.1 is initialized for plt relocations.
 	 */
+#if	defined(__arm) && defined(RTLD_USE_GNULD)
+	/* modified to support special processing for rtld load */
+	if (elf_arm_rtld_load(LIBLDDBG) == 0)
+#else
 	if (elf_rtld_load() == 0)
+#endif
 		return (0);
 
 	/*

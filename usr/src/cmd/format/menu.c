@@ -23,6 +23,9 @@
  * Copyright 1991-2003 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -336,7 +339,7 @@ scsi_expert()
 	return (SCSI && expert_mode);
 }
 
-#if	defined(i386)
+#if	defined(i386) || defined(__arm)
 /*
  * Return true for menu items enabled if expert mode is enabled
  */
@@ -345,7 +348,7 @@ expert()
 {
 	return (expert_mode);
 }
-#endif	/* defined(i386) */
+#endif	/* defined(i386) || defined(__arm) */
 
 /*
  * Return true for menu items enabled if developer mode is enabled
@@ -377,7 +380,7 @@ support_fdisk_on_sparc()
 	} else {
 		return (0);
 	}
-#elif defined(i386)
+#elif defined(i386) || defined(__arm)
 	return (1);
 #else
 #error  No Platform defined

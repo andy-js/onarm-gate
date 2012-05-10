@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -45,8 +49,10 @@
 static boolean_t e1000g_send(struct e1000g *, mblk_t *);
 static int e1000g_tx_copy(e1000g_tx_ring_t *,
     p_tx_sw_packet_t, mblk_t *, uint32_t);
+#ifndef	E1000G_TX_FORCE_BCOPY
 static int e1000g_tx_bind(e1000g_tx_ring_t *,
     p_tx_sw_packet_t, mblk_t *);
+#endif	/* !E1000G_TX_FORCE_BCOPY */
 static boolean_t check_cksum_context(e1000g_tx_ring_t *, cksum_data_t *);
 static int e1000g_fill_tx_ring(e1000g_tx_ring_t *, LIST_DESCRIBER *,
     cksum_data_t *);
@@ -64,7 +70,9 @@ static void e1000g_82547_tx_move_tail_work(e1000g_tx_ring_t *);
 
 #ifndef E1000G_DEBUG
 #pragma inline(e1000g_tx_copy)
+#ifndef	E1000G_TX_FORCE_BCOPY
 #pragma inline(e1000g_tx_bind)
+#endif	/* !E1000G_TX_FORCE_BCOPY */
 #pragma inline(check_cksum_context)
 #pragma inline(e1000g_fill_tx_ring)
 #pragma inline(e1000g_fill_context_descriptor)
@@ -88,6 +96,7 @@ e1000g_free_tx_swpkt(register p_tx_sw_packet_t packet)
 	case USE_BCOPY:
 		packet->tx_buf->len = 0;
 		break;
+#ifndef	E1000G_TX_FORCE_BCOPY
 #ifdef __sparc
 	case USE_DVMA:
 		dvma_unload(packet->tx_dma_handle, 0, -1);
@@ -96,6 +105,7 @@ e1000g_free_tx_swpkt(register p_tx_sw_packet_t packet)
 	case USE_DMA:
 		ddi_dma_unbind_handle(packet->tx_dma_handle);
 		break;
+#endif	/* !E1000G_TX_FORCE_BCOPY */
 	default:
 		break;
 	}
@@ -286,6 +296,10 @@ e1000g_send(struct e1000g *Adapter, mblk_t *mp)
 		}
 
 		ASSERT(packet);
+#ifdef	E1000G_TX_FORCE_BCOPY
+		desc_count = e1000g_tx_copy(tx_ring, packet, nmp, force_bcopy);
+		E1000G_DEBUG_STAT(tx_ring->stat_copy);
+#else	/* !E1000G_TX_FORCE_BCOPY */
 		/*
 		 * If the size of the fragment is less than the tx_bcopy_thresh
 		 * we'll use bcopy; Otherwise, we'll use DMA binding.
@@ -299,6 +313,7 @@ e1000g_send(struct e1000g *Adapter, mblk_t *mp)
 			    e1000g_tx_bind(tx_ring, packet, nmp);
 			E1000G_DEBUG_STAT(tx_ring->stat_bind);
 		}
+#endif	/* E1000G_TX_FORCE_BCOPY */
 
 		if (desc_count > 0)
 			desc_total += desc_count;
@@ -967,7 +982,7 @@ e1000g_tx_copy(e1000g_tx_ring_t *tx_ring, p_tx_sw_packet_t packet,
 	ASSERT((tx_buf->len + len) <= tx_buf->size);
 
 	if (len > 0) {
-		bcopy(mp->b_rptr,
+		E1000G_BCOPY(mp->b_rptr,
 		    tx_buf->address + tx_buf->len,
 		    len);
 		tx_buf->len += len;
@@ -1033,6 +1048,7 @@ e1000g_tx_copy(e1000g_tx_ring_t *tx_ring, p_tx_sw_packet_t packet,
 	return (desc_count);
 }
 
+#ifndef	E1000G_TX_FORCE_BCOPY
 static int
 e1000g_tx_bind(e1000g_tx_ring_t *tx_ring, p_tx_sw_packet_t packet, mblk_t *mp)
 {
@@ -1153,6 +1169,7 @@ e1000g_tx_bind(e1000g_tx_ring_t *tx_ring, p_tx_sw_packet_t packet, mblk_t *mp)
 
 	return (desc_total);
 }
+#endif	/* !E1000G_TX_FORCE_BCOPY */
 
 static void
 e1000g_fill_context_descriptor(cksum_data_t *cksum,

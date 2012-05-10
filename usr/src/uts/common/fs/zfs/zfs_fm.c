@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/spa.h>
@@ -35,6 +39,7 @@
 #include <sys/fm/protocol.h>
 #include <sys/fm/util.h>
 #include <sys/sysevent.h>
+#include <zfs_types.h>
 
 /*
  * This general routine is responsible for generating all the different ZFS
@@ -264,7 +269,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 		if (zio->io_logical != NULL)
 			fm_payload_set(ereport,
 			    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJECT,
-			    DATA_TYPE_UINT64,
+			    DATA_TYPE_OBJID,
 			    zio->io_logical->io_bookmark.zb_object,
 			    FM_EREPORT_PAYLOAD_ZFS_ZIO_LEVEL,
 			    DATA_TYPE_INT64,

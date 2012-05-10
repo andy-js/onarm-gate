@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -412,7 +416,7 @@ static am_ad_entry_t audio810_entry = {
  *	mod_install() status, see mod_install(9f)
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	error;
 
@@ -435,6 +439,7 @@ _init(void)
 
 }	/* _init() */
 
+#ifndef	STATIC_DRIVER
 /*
  * _fini()
  *
@@ -448,7 +453,7 @@ _init(void)
  *	mod_remove() status, see mod_remove(9f)
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int		error;
 
@@ -465,6 +470,7 @@ _fini(void)
 	return (0);
 
 }	/* _fini() */
+#endif	/* !STATIC_DRIVER */
 
 /*
  * _info()
@@ -479,7 +485,7 @@ _fini(void)
  *	mod_info() status, see mod_info(9f)
  */
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	int	error;
 
@@ -2402,7 +2408,7 @@ audio810_chip_init(audio810_state_t *statep, int restore)
 		 * an output pin that manages an optional external audio
 		 * amplifier. AC'97 compliance requires the implementation of
 		 * a dedicated output pin for external audio amplifier control.
-		 * The pin is controlled via the ¡°EAPD¡±(External Amplifier
+		 * The pin is controlled via the ??EAPD??(External Amplifier
 		 * Powerdown) bit in Powerdown Ctrl/Stat Register, bit 15
 		 * (formerly PR7). EAPD = 0 places a 0 on the output pin,
 		 * enabling an external audio amplifier, EAPD = 1 shuts it

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _PARTITION_H
 #define	_PARTITION_H
 
@@ -49,6 +53,11 @@ nvlist_t	*partition_get_stats(descriptor_t *desc, int stat_type,
 		    int *errp);
 int		partition_has_fdisk(disk_t *dp, int fd);
 int		partition_make_descriptors();
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+extern	char	*getfullrawname();
+extern	char	*getfullblkname();
+int is_extended_partition(char *dev_name, char **msg, int *errp);
+#endif
 
 #ifdef __cplusplus
 }

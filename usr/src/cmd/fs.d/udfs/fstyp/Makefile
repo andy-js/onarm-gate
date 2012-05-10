@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 FSTYP_VERS=1
 FSTYPE=		udfs
 LIBPROG=	fstyp.so.${FSTYP_VERS} 
@@ -55,8 +59,9 @@ SRCS= $(OBJS:%.o=%.c)
 CPPFLAGS += 	-DFSTYP_VERS=${FSTYP_VERS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 
 $(LIBPROG): $(OBJS)
-	$(LINK.c) $(CPPFLAGS) $(CFLAGS) $(DYNFLAGS) $(GSHARED) -o $@ $(OBJS) \
-	    $(LDLIBS)
+	$(ARM_BLD) $(CC) $(CPPFLAGS) $(CFLAGS) $(DYNFLAGS) $(GSHARED) -o $@ $(OBJS) $(LDLIBS)
+	$(INTEL_BLD) $(LINK.c) $(CPPFLAGS) $(CFLAGS) $(DYNFLAGS) $(GSHARED) -o $@ $(OBJS) $(LDLIBS)
+	$(SPARC_BLD) $(LINK.c) $(CPPFLAGS) $(CFLAGS) $(DYNFLAGS) $(GSHARED) -o $@ $(OBJS) $(LDLIBS)
 	$(POST_PROCESS_SO)
 
 %.o: %.c

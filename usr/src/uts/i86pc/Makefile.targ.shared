@@ -25,6 +25,12 @@
 # Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
+#
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 #
 #	This Makefile defines the set of all required, target containing
@@ -35,6 +41,11 @@
 #	Targets for all implementations:
 #
 include $(UTSBASE)/Makefile.targ
+
+#
+# Special rules to support build-time tunable parameter.
+#
+$(USE_UTSTUNE)include $(UTSTREE)/i86pc/Makefile.targ.tune
 
 #
 #	Target set for i86pc (order is not important, as it is with the

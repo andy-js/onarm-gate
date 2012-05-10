@@ -25,6 +25,11 @@
 # Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # cmd/modload/Makefile
 #
 # makefile for loadable module utilities
@@ -64,7 +69,7 @@ $(SUBDIRS):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)
 
 $(ROOTUSRSBINLINKS): FRC
-	-$(RM) $@; $(LN) $(ISAEXEC) $@
+	-$(USE_ISAEXEC)$(RM) $@; $(LN) $(ISAEXEC) $@
 
 FRC:
 

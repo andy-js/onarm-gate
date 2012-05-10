@@ -23,6 +23,11 @@
 #
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
+
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 #
 #ident	"%Z%%M%	%I%	%E% SMI"
 #
@@ -97,7 +102,11 @@ install:	$(INSTALL_DEPS)
 # ioc_check.ref to ensure 32/64-bit invariance.
 #
 $(OBJECTS) : $(IOC_CHECK_H)
-$(IOC_CHECK_H): $(OFFSETS_SRC)
+
+IOC_CHECK_H_DEP			= $(OFFSETS_SRC)
+$(USE_UTSTUNE)IOC_CHECK_H_DEP	+= $(MODTUNE_H)
+
+$(IOC_CHECK_H):	$(IOC_CHECK_H_DEP)
 	$(OFFSETS_CREATE) <$(OFFSETS_SRC) >$@.tmp
 	cmp -s ioc_check.ref $@.tmp && \
 	mv -f $@.tmp $@

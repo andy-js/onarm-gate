@@ -22,6 +22,10 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+#
+# Copyright (c) 2006-2007 NEC Corporation
+#
+#
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -38,7 +42,7 @@ include ../../Makefile.rootfs
 
 SRCDIR =	../common
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 LINTSRC=	$(LINTLIB:%.ln=%)
 
@@ -53,11 +57,11 @@ lint: lintcheck
 # include library targets
 include ../../Makefile.targ
 
-pics/%.o: ../common/%.c
+objs/%.o pics/%.o: ../common/%.c
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
-pics/kstat.o: ../kstat.h
+objs/kstat.o pics/kstat.o: ../kstat.h
 
 # install rule for lint library target
 $(ROOTLINTDIR)/%:	../common/%

@@ -27,6 +27,9 @@
 #
 
 #
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # The list is built of owner-group combinations.  ROOT.SYS occurs twice
 # because some directories owned by root and in group sys are subdirectories
 # of directories having other owner-group attributes.
@@ -82,11 +85,13 @@ ROOT.SYS= \
 	/etc/crypto \
 	/etc/crypto/certs \
 	/etc/crypto/crls \
+	/etc/czfs  \
 	/etc/default \
 	/etc/devices  \
 	/etc/dev  \
 	/etc/dfs  \
 	/etc/fs  \
+	/etc/fs/czfs  \
 	/etc/fs/nfs  \
 	/etc/fs/zfs \
 	/etc/ftpd  \
@@ -369,6 +374,7 @@ ROOT.BIN64= \
 
 ROOT.SYS2= \
 	/usr/lib/fs \
+	/usr/lib/fs/czfs \
 	/usr/lib/fs/nfs \
 	/usr/lib/fs/proc \
 	/usr/lib/fs/smb \
@@ -868,6 +874,8 @@ $(ROOT)/usr/lib/libctf.so.1:=		REALPATH=../../lib/libctf.so.1
 $(ROOT)/usr/lib/libctf.so:=		REALPATH=../../lib/libctf.so.1
 $(ROOT)/usr/lib/libcurses.so.1:=	REALPATH=../../lib/libcurses.so.1
 $(ROOT)/usr/lib/libcurses.so:=		REALPATH=../../lib/libcurses.so.1
+$(ROOT)/usr/lib/libczfs.so.1:=		REALPATH=../../lib/libczfs.so.1
+$(ROOT)/usr/lib/libczfs.so:=		REALPATH=../../lib/libczfs.so.1
 $(ROOT)/usr/lib/libdevice.so.1:=	REALPATH=../../lib/libdevice.so.1
 $(ROOT)/usr/lib/libdevice.so:=		REALPATH=../../lib/libdevice.so.1
 $(ROOT)/usr/lib/libdevid.so.1:=		REALPATH=../../lib/libdevid.so.1
@@ -901,6 +909,8 @@ $(ROOT)/usr/lib/libiscsitgt.so:=	REALPATH=../../lib/libiscsitgt.so.1
 $(ROOT)/usr/lib/libkstat.so.1:=		REALPATH=../../lib/libkstat.so.1
 $(ROOT)/usr/lib/libkstat.so:=		REALPATH=../../lib/libkstat.so.1
 $(ROOT)/usr/lib/liblddbg.so.4:=		REALPATH=../../lib/liblddbg.so.4
+$(ROOT)/usr/lib/libm.so.2:=		REALPATH=../../lib/libm.so.2
+$(ROOT)/usr/lib/libm.so:=		REALPATH=../../lib/libm.so.2
 $(ROOT)/usr/lib/libmd.so.1:=		REALPATH=../../lib/libmd.so.1
 $(ROOT)/usr/lib/libmd.so:=		REALPATH=../../lib/libmd.so.1
 $(ROOT)/usr/lib/libmd5.so.1:=		REALPATH=../../lib/libmd5.so.1
@@ -1131,6 +1141,10 @@ $(ROOT)/usr/lib/$(MACH64)/libcurses.so.1:= \
 	REALPATH=../../../lib/$(MACH64)/libcurses.so.1
 $(ROOT)/usr/lib/$(MACH64)/libcurses.so:= \
 	REALPATH=../../../lib/$(MACH64)/libcurses.so.1
+$(ROOT)/usr/lib/$(MACH64)/libczfs.so:= \
+	REALPATH=../../../lib/$(MACH64)/libczfs.so.1
+$(ROOT)/usr/lib/$(MACH64)/libczfs.so.1:= \
+	REALPATH=../../../lib/$(MACH64)/libczfs.so.1
 $(ROOT)/usr/lib/$(MACH64)/libdevice.so.1:= \
 	REALPATH=../../../lib/$(MACH64)/libdevice.so.1
 $(ROOT)/usr/lib/$(MACH64)/libdevice.so:= \
@@ -1458,6 +1472,8 @@ SYM.USRLIB= \
 	/usr/lib/libctf.so.1 \
 	/usr/lib/libcurses.so \
 	/usr/lib/libcurses.so.1 \
+	/usr/lib/libczfs.so \
+	/usr/lib/libczfs.so.1 \
 	/usr/lib/libdevice.so \
 	/usr/lib/libdevice.so.1 \
 	/usr/lib/libdevid.so \
@@ -1491,6 +1507,8 @@ SYM.USRLIB= \
 	/usr/lib/libkstat.so \
 	/usr/lib/libkstat.so.1 \
 	/usr/lib/liblddbg.so.4 \
+	/usr/lib/libm.so \
+	/usr/lib/libm.so.2 \
 	/usr/lib/libmd.so \
 	/usr/lib/libmd.so.1 \
 	/usr/lib/libmd5.so \
@@ -1701,6 +1719,8 @@ SYM.USRLIB64= \
 	/usr/lib/$(MACH64)/libctf.so.1 \
 	/usr/lib/$(MACH64)/libcurses.so \
 	/usr/lib/$(MACH64)/libcurses.so.1 \
+	/usr/lib/$(MACH64)/libczfs.so \
+	/usr/lib/$(MACH64)/libczfs.so.1 \
 	/usr/lib/$(MACH64)/libdevice.so \
 	/usr/lib/$(MACH64)/libdevice.so.1 \
 	/usr/lib/$(MACH64)/libdevid.so \

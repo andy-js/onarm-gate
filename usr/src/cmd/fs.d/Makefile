@@ -26,6 +26,10 @@
 #
 # cmd/fs.d/Makefile
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # The filesystem independent utilities clri, fsdb, dcopy, labelit, and mkfs
 # are all built from the source file switchout.c. They are all then links
 # to the same object. This is accomplished by:
@@ -44,11 +48,17 @@ DEFAULTFILES=	fs.dfl
 
 include ../Makefile.cmd
 
-SUBDIR1= lofs zfs
+SUBDIR1= lofs zfs xramfs czfs
 SUBDIR2= dev fd pcfs nfs hsfs proc ctfs udfs ufs tmpfs cachefs \
 		autofs mntfs objfs sharefs smbclnt
 SUBDIRS= $(SUBDIR1) $(SUBDIR2)
+ALL_SUBDIRS= $(SUBDIR1) $(SUBDIR2)
 I18NDIRS= $(SUBDIR2)
+
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(SUBDIR1) $(SUBDIR2)
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
 
 CLOBBERFILES += $(POFILES_XPG4)
 
@@ -91,6 +101,8 @@ $(SPPROG) :=	LDLIBS += -lkstat
 $(ROOTETCMNTTAB) := FILEMODE = 444
 $(ROOTETCMNTTAB) := OWNER = root
 $(ROOTETCMNTTAB) := GROUP = root
+
+$(ARM_BLD)CPPFLAGS      += -DMNTFS_DISABLE
 
 # for messaging catalog
 #
@@ -205,7 +217,7 @@ clobber_local:	clean_local
 
 lint:
 
-$(SUBDIRS): FRC
+$(ALL_SUBDIRS): FRC
 	@cd $@; pwd; $(MAKE) $(MFLAGS) $(TARGET)
 
 FRC:

@@ -26,6 +26,10 @@
 #
 
 #
+# Copyright (c) 2008 NEC Corporation
+#
+
+#
 # Common prologue for Makefiles for all sysevent loadable .so modules
 #
 
@@ -51,6 +55,8 @@ MAPFILES =
 # sysevent loadable modules require sysevent header files
 #
 CPPFLAGS += -I ../../daemons/syseventd
+
+$(__GNULD)ZDEFS =
 
 POFILES =	$(SRCS:.c=.po)
 POFILE =	$(LIBRARY).po

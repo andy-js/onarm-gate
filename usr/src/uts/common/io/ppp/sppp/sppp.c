@@ -45,6 +45,10 @@
  * for improved performance and scalability.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 #define	RCSID	"$Id: sppp.c,v 1.0 2000/05/08 01:10:12 masputra Exp $"
 
@@ -254,17 +258,34 @@ sppp_create_ppa(uint32_t ppa_id)
 	 */
 	ppa = (sppa_t *)kmem_zalloc(sizeof (sppa_t),
 	    KM_NOSLEEP);
+	if (ppa == NULL) {
+		return (NULL);
+	}
+
 	ksp = kstat_create(PPP_DRV_NAME, ppa_id, unit, "net", KSTAT_TYPE_NAMED,
 	    sizeof (sppp_kstats_t) / sizeof (kstat_named_t), 0);
 
-	if (ppa == NULL || ksp == NULL) {
-		if (ppa != NULL) {
-			kmem_free(ppa, sizeof (sppa_t));
+	/*
+	 * Prepare and install kstat counters.  Note that for netstat
+	 * -i to work, there needs to be "ipackets", "opackets",
+	 * "ierrors", and "oerrors" kstat named variables.
+	 */
+	if (ksp != NULL) {
+		knt = (kstat_named_t *)ksp->ks_data;
+		for (cpp = kstats_names; cpp < kstats_names + Dim(kstats_names);
+		     cpp++) {
+			kstat_named_init(knt, *cpp, KSTAT_DATA_UINT32);
+			knt++;
 		}
-		if (ksp != NULL) {
-			kstat_delete(ksp);
+		for (cpp = kstats64_names;
+		     cpp < kstats64_names + Dim(kstats64_names);
+		     cpp++) {
+			kstat_named_init(knt, *cpp, KSTAT_DATA_UINT64);
+			knt++;
 		}
-		return (NULL);
+		ksp->ks_update = sppp_kstat_update;
+		ksp->ks_private = (void *)ppa;
+		kstat_install(ksp);
 	}
 	ppa->ppa_kstats = ksp;		/* chain kstat structure */
 	ppa->ppa_ppa_id = ppa_id;	/* record ppa id */
@@ -274,26 +295,6 @@ sppp_create_ppa(uint32_t ppa_id)
 	mutex_init(&ppa->ppa_sta_lock, NULL, MUTEX_DRIVER, NULL);
 	mutex_init(&ppa->ppa_npmutex, NULL, MUTEX_DRIVER, NULL);
 	rw_init(&ppa->ppa_sib_lock, NULL, RW_DRIVER, NULL);
-
-	/*
-	 * Prepare and install kstat counters.  Note that for netstat
-	 * -i to work, there needs to be "ipackets", "opackets",
-	 * "ierrors", and "oerrors" kstat named variables.
-	 */
-	knt = (kstat_named_t *)ksp->ks_data;
-	for (cpp = kstats_names; cpp < kstats_names + Dim(kstats_names);
-	    cpp++) {
-		kstat_named_init(knt, *cpp, KSTAT_DATA_UINT32);
-		knt++;
-	}
-	for (cpp = kstats64_names; cpp < kstats64_names + Dim(kstats64_names);
-	    cpp++) {
-		kstat_named_init(knt, *cpp, KSTAT_DATA_UINT64);
-		knt++;
-	}
-	ksp->ks_update = sppp_kstat_update;
-	ksp->ks_private = (void *)ppa;
-	kstat_install(ksp);
 
 	/* link to the next ppa and insert into global list */
 	availppa = &ppa_list;

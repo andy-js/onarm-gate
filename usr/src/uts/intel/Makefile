@@ -22,6 +22,11 @@
 #
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
@@ -185,6 +190,11 @@ globallint:
 	@-$(LINT) $(LINTFLAGS) $(LINT_LIBS) 2>&1 | $(LGREP.intel) | $(LGREP.2)
 
 lint:	modlintlib .WAIT $(LINT_DEPS)
+
+#
+# Special rules to support tunable parameters.
+#
+$(USE_UTSTUNE)include	Makefile.tune
 
 # EXPORT DELETE START
 

@@ -31,6 +31,10 @@
 #
 
 #
+# Copyright (c) 2008 NEC Corporation
+#
+
+#
 #	Core (unix) objects
 #
 CORE_OBJS +=		\
@@ -53,7 +57,8 @@ CORE_OBJS +=		\
 	sseblk.o	\
 	sundep.o	\
 	swtch.o		\
-	sysi86.o
+	sysi86.o	\
+	xramdev_subr.o
 
 #
 # 64-bit multiply/divide compiler helper routines
@@ -106,6 +111,10 @@ LX_PROC_OBJS +=	\
 
 LX_AUTOFS_OBJS +=	\
 	lx_autofs.o
+
+CZFS_OBJS +=		\
+ 	spa_config_arch.o \
+ 	zfs_vfsops_arch.o
 
 #
 #	Decompression code
@@ -267,6 +276,12 @@ MODSTUB_OBJ +=	 	\
 
 BOOTDEV_OBJS +=		\
 	bootdev.o
+
+#
+#	XRAMDISK for XRAMFS (MD part)
+#
+XRAMDISK_OBJS +=	\
+	xramdisk_arch.o
 
 INC_PATH	+= -I$(UTSBASE)/intel
 

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
@@ -45,11 +49,12 @@
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #endif
+#include <zfs_types.h>
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	byteswap_uint8_array,	TRUE,	"unallocated"		},
 	{	zap_byteswap,		TRUE,	"object directory"	},
-	{	byteswap_uint64_array,	TRUE,	"object array"		},
+	{	byteswap_objid_array,	TRUE,	"object array"		},
 	{	byteswap_uint8_array,	TRUE,	"packed nvlist"		},
 	{	byteswap_uint64_array,	TRUE,	"packed nvlist size"	},
 	{	byteswap_uint64_array,	TRUE,	"bplist"		},
@@ -87,7 +92,7 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 };
 
 int
-dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
+dmu_buf_hold(objset_t *os, objid_t object, uint64_t offset,
     void *tag, dmu_buf_t **dbp)
 {
 	dnode_t *dn;
@@ -113,7 +118,9 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 	}
 
 	dnode_rele(dn, FTAG);
-	*dbp = &db->db;
+	if (db != NULL) {
+		*dbp = &db->db;
+	}
 	return (err);
 }
 
@@ -140,7 +147,7 @@ dmu_set_bonus(dmu_buf_t *db, int newsize, dmu_tx_t *tx)
  * returns ENOENT, EIO, or 0.
  */
 int
-dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
+dmu_bonus_hold(objset_t *os, objid_t object, void *tag, dmu_buf_t **dbp)
 {
 	dnode_t *dn;
 	dmu_buf_impl_t *db;
@@ -191,8 +198,10 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
 	ASSERT(length <= DMU_MAX_ACCESS);
 
 	flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT;
+#ifndef ZFS_NO_PREFETCH
 	if (length > zfetch_array_rd_sz)
 		flags |= DB_RF_NOPREFETCH;
+#endif	/* ZFS_NO_PREFETCH */
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	if (dn->dn_datablkshift) {
@@ -264,7 +273,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
 }
 
 static int
-dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
+dmu_buf_hold_array(objset_t *os, objid_t object, uint64_t offset,
     uint64_t length, int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp)
 {
 	dnode_t *dn;
@@ -312,8 +321,9 @@ dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, void *tag)
 	kmem_free(dbp, sizeof (dmu_buf_t *) * numbufs);
 }
 
+#ifndef ZFS_NO_PREFETCH
 void
-dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
+dmu_prefetch(objset_t *os, objid_t object, uint64_t offset, uint64_t len)
 {
 	dnode_t *dn;
 	uint64_t blkid;
@@ -363,9 +373,10 @@ dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 
 	dnode_rele(dn, FTAG);
 }
+#endif	/* ZFS_NO_PREFETCH */
 
 int
-dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
+dmu_free_range(objset_t *os, objid_t object, uint64_t offset,
     uint64_t size, dmu_tx_t *tx)
 {
 	dnode_t *dn;
@@ -380,7 +391,7 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 }
 
 int
-dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+dmu_read(objset_t *os, objid_t object, uint64_t offset, uint64_t size,
     void *buf)
 {
 	dnode_t *dn;
@@ -438,7 +449,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 }
 
 void
-dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+dmu_write(objset_t *os, objid_t object, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx)
 {
 	dmu_buf_t **dbp;
@@ -481,7 +492,7 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 
 #ifdef _KERNEL
 int
-dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
+dmu_read_uio(objset_t *os, objid_t object, uio_t *uio, uint64_t size)
 {
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
@@ -518,7 +529,7 @@ dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 }
 
 int
-dmu_write_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size,
+dmu_write_uio(objset_t *os, objid_t object, uio_t *uio, uint64_t size,
     dmu_tx_t *tx)
 {
 	dmu_buf_t **dbp;
@@ -572,7 +583,7 @@ dmu_write_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size,
 }
 
 int
-dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+dmu_write_pages(objset_t *os, objid_t object, uint64_t offset, uint64_t size,
     page_t *pp, dmu_tx_t *tx)
 {
 	dmu_buf_t **dbp;
@@ -638,18 +649,27 @@ typedef struct {
 
 /* ARGSUSED */
 static void
-dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
+dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 {
 	dmu_sync_arg_t *in = varg;
 	dbuf_dirty_record_t *dr = in->dr;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
-	dmu_sync_cb_t *done = in->done;
 
 	if (!BP_IS_HOLE(zio->io_bp)) {
 		zio->io_bp->blk_fill = 1;
 		BP_SET_TYPE(zio->io_bp, db->db_dnode->dn_type);
 		BP_SET_LEVEL(zio->io_bp, 0);
 	}
+}
+
+/* ARGSUSED */
+static void
+dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
+{
+	dmu_sync_arg_t *in = varg;
+	dbuf_dirty_record_t *dr = in->dr;
+	dmu_buf_impl_t *db = dr->dr_dbuf;
+	dmu_sync_cb_t *done = in->done;
 
 	mutex_enter(&db->db_mtx);
 	ASSERT(dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC);
@@ -688,7 +708,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
  */
 int
 dmu_sync(zio_t *pio, dmu_buf_t *db_fake,
-    blkptr_t *bp, uint64_t txg, dmu_sync_cb_t *done, void *arg)
+    blkptr_t *bp, txg_t txg, dmu_sync_cb_t *done, void *arg)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	objset_impl_t *os = db->db_objset;
@@ -705,7 +725,8 @@ dmu_sync(zio_t *pio, dmu_buf_t *db_fake,
 	ASSERT(txg != 0);
 
 
-	dprintf("dmu_sync txg=%llu, s,o,q %llu %llu %llu\n",
+	dprintf("dmu_sync txg=%" PRIuTXG ", s,o,q %"
+	    PRIuTXG " %" PRIuTXG " %" PRIuTXG "\n",
 	    txg, tx->tx_synced_txg, tx->tx_open_txg, tx->tx_quiesced_txg);
 
 	/*
@@ -816,7 +837,7 @@ dmu_sync(zio_t *pio, dmu_buf_t *db_fake,
 	    zio_checksum_select(db->db_dnode->dn_checksum, os->os_checksum),
 	    zio_compress_select(db->db_dnode->dn_compress, os->os_compress),
 	    dmu_get_replication_level(os, &zb, db->db_dnode->dn_type),
-	    txg, bp, dr->dt.dl.dr_data, NULL, dmu_sync_done, in,
+	    txg, bp, dr->dt.dl.dr_data, dmu_sync_ready, dmu_sync_done, in,
 	    ZIO_PRIORITY_SYNC_WRITE, zio_flags, &zb);
 
 	if (pio) {
@@ -830,7 +851,7 @@ dmu_sync(zio_t *pio, dmu_buf_t *db_fake,
 }
 
 int
-dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
+dmu_object_set_blocksize(objset_t *os, objid_t object, uint64_t size, int ibs,
 	dmu_tx_t *tx)
 {
 	dnode_t *dn;
@@ -845,7 +866,7 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
 }
 
 void
-dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
+dmu_object_set_checksum(objset_t *os, objid_t object, uint8_t checksum,
 	dmu_tx_t *tx)
 {
 	dnode_t *dn;
@@ -859,7 +880,7 @@ dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 }
 
 void
-dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
+dmu_object_set_compress(objset_t *os, objid_t object, uint8_t compress,
 	dmu_tx_t *tx)
 {
 	dnode_t *dn;
@@ -888,7 +909,7 @@ dmu_get_replication_level(objset_impl_t *os,
 }
 
 int
-dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
+dmu_offset_next(objset_t *os, objid_t object, boolean_t hole, uint64_t *off)
 {
 	dnode_t *dn;
 	int i, err;
@@ -906,8 +927,9 @@ dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 	}
 	if (i != TXG_SIZE) {
 		dnode_rele(dn, FTAG);
-		txg_wait_synced(dmu_objset_pool(os), 0);
-		err = dnode_hold(os->os, object, FTAG, &dn);
+		err = txg_wait_synced(dmu_objset_pool(os), 0);
+		if (err == 0)
+			err = dnode_hold(os->os, object, FTAG, &dn);
 		if (err)
 			return (err);
 	}
@@ -946,7 +968,7 @@ dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
  * If doi is NULL, just indicates whether the object exists.
  */
 int
-dmu_object_info(objset_t *os, uint64_t object, dmu_object_info_t *doi)
+dmu_object_info(objset_t *os, objid_t object, dmu_object_info_t *doi)
 {
 	dnode_t *dn;
 	int err = dnode_hold(os->os, object, FTAG, &dn);
@@ -985,6 +1007,7 @@ dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize, u_longlong_t *nblk512)
 	    SPA_MINBLOCKSHIFT) + 1;
 }
 
+#ifndef ZFS_COMPACT
 void
 byteswap_uint64_array(void *vbuf, size_t size)
 {
@@ -1029,6 +1052,14 @@ void
 byteswap_uint8_array(void *vbuf, size_t size)
 {
 }
+
+#else
+/* ARGSUSED */
+void
+byteswap_none(void *buf, size_t size)
+{
+}
+#endif	/* ZFS_COMPACT */
 
 void
 dmu_init(void)

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -182,6 +186,8 @@
 #include <string.h>
 #include <errno.h>
 #include <alloca.h>
+#include <dlfcn.h>
+#include <link.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -226,6 +232,28 @@ usage(void)
 	    progname, progname);
 }
 
+static int
+my_getpagesizes(size_t pagesize[], int nelem)
+{
+	static int	(*getpgszs)(size_t pagesize[], int nelem);
+
+	if (getpgszs == NULL) {
+		void	*addr;
+
+		/*
+		 * First try to use getpagesizes2(), which is new front end
+		 * of getpagesizes(3C).
+		 */
+		if ((addr = dlsym(RTLD_DEFAULT, "getpagesizes2")) == NULL &&
+		    (addr = dlsym(RTLD_DEFAULT, "getpagesizes")) == NULL) {
+			return -1;
+		}
+		getpgszs = (int (*)(size_t[], int))addr;
+	}
+
+	return (*getpgszs)(pagesize, nelem);
+}
+
 static void
 bigheap(void)
 {
@@ -236,13 +264,13 @@ bigheap(void)
 	/*
 	 * First, get the available pagesizes.
 	 */
-	if ((sizes = getpagesizes(NULL, 0)) == -1)
+	if ((sizes = my_getpagesizes(NULL, 0)) == -1)
 		return;
 
 	if (sizes == 1 || (size = alloca(sizeof (size_t) * sizes)) == NULL)
 		return;
 
-	if (getpagesizes(size, sizes) == -1)
+	if (my_getpagesizes(size, sizes) == -1)
 		return;
 
 	while (size[sizes - 1] > maxpgsize)
@@ -721,6 +749,7 @@ main(int argc, char **argv)
 	char *withfile = NULL;
 	char *label = NULL;
 	char **ifiles, **tifiles;
+	char *parname = NULL;
 	int verbose = 0, docopy = 0;
 	int write_fuzzy_match = 0;
 	int keep_stabs = 0;
@@ -734,7 +763,7 @@ main(int argc, char **argv)
 		debug_level = atoi(getenv("CTFMERGE_DEBUG_LEVEL"));
 
 	err = 0;
-	while ((c = getopt(argc, argv, ":cd:D:fgl:L:o:tvw:s")) != EOF) {
+	while ((c = getopt(argc, argv, ":cd:D:fgl:L:o:tvw:sP:")) != EOF) {
 		switch (c) {
 		case 'c':
 			docopy = 1;
@@ -781,6 +810,10 @@ main(int argc, char **argv)
 		case 's':
 			/* use the dynsym rather than the symtab */
 			dynsym = CTF_USE_DYNSYM;
+			break;
+		case 'P':
+			/* Specify parent name explicitly. */
+			parname = optarg;
 			break;
 		default:
 			usage();
@@ -955,6 +988,7 @@ main(int argc, char **argv)
 			savetd = withtd;
 		} else {
 			char uniqname[MAXPATHLEN];
+			char *pname;
 			labelent_t *parle;
 
 			parle = tdata_label_top(reftd);
@@ -963,7 +997,8 @@ main(int argc, char **argv)
 
 			strncpy(uniqname, reffile, sizeof (uniqname));
 			uniqname[MAXPATHLEN - 1] = '\0';
-			savetd->td_parname = xstrdup(basename(uniqname));
+			pname = (parname) ? parname : basename(uniqname);
+			savetd->td_parname = xstrdup(pname);
 		}
 
 	} else {

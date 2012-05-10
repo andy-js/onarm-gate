@@ -24,12 +24,15 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+# Copyright (c) 2007-2009 NEC Corporation
+#
 # lib/nsswitch/Makefile
 
 
 include $(SRC)/Makefile.master
 
 SUBDIRS= files nis nisplus compat dns ldap user mdns
+$(ARM_BLD)SUBDIRS= files dns
 
 all:=		TARGET= all
 clean:=		TARGET= clean

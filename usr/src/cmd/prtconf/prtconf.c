@@ -27,6 +27,9 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved	*/
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -46,11 +49,11 @@ static char	new_path[MAXPATHLEN];
 
 #define	INDENT_LENGTH	4
 
-#ifdef	__x86
+#if defined(__x86) || defined(__arm)
 static const char *usage = "%s [ -V | -x | -abcvpPD ] [ <device_path > ]\n";
 #else
 static const char *usage = "%s [ -F | -V | -x | -abcvpPD ][ <device_path > ]\n";
-#endif	/* __x86 */
+#endif	/* defined(__x86) || defined(__arm) */
 
 static void
 setprogname(const char *name)

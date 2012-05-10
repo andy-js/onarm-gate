@@ -32,6 +32,10 @@
  * California.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -875,7 +879,7 @@ clnt_vc_abort(void)
 static bool_t
 clnt_vc_control(CLIENT *cl, int request, char *info)
 {
-	bool_t ret;
+	bool_t ret = FALSE;
 /* LINTED pointer alignment */
 	struct ct_data *ct = (struct ct_data *)cl->cl_private;
 

@@ -26,6 +26,10 @@
  * Copyright (c) 1990 Mentat Inc.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -890,6 +894,7 @@ icmp_inbound_error_fanout_v6(queue_t *q, mblk_t *mp, ip6_t *ip6h,
 		return;
 
 	}
+#ifndef SCTP_SHRINK
 	case IPPROTO_SCTP:
 		/*
 		 * Verify we have at least ICMP_MIN_TP_HDR_LEN bytes of
@@ -906,6 +911,7 @@ icmp_inbound_error_fanout_v6(queue_t *q, mblk_t *mp, ip6_t *ip6h,
 		ip_fanout_sctp(first_mp, ill, (ipha_t *)ip6h, ports, 0,
 		    mctl_present, IP6_NO_IPPOLICY, zoneid);
 		return;
+#endif
 	case IPPROTO_ESP:
 	case IPPROTO_AH: {
 		int ipsec_rc;
@@ -7728,6 +7734,7 @@ tcp_fanout:
 			    IP_FF_IPINFO), hdr_len, mctl_present, zoneid);
 			return;
 		}
+#ifndef SCTP_SHRINK
 		case IPPROTO_SCTP:
 		{
 			sctp_hdr_t *sctph;
@@ -7779,6 +7786,7 @@ tcp_fanout:
 			    B_FALSE, mctl_present);
 			return;
 		}
+#endif
 		case IPPROTO_UDP: {
 			uint16_t	*up;
 			uint32_t	sum;
@@ -10587,6 +10595,7 @@ ip_wput_local_v6(queue_t *q, ill_t *ill, ip6_t *ip6h, mblk_t *first_mp,
 			    IP6_NO_IPPOLICY, mctl_present, ire->ire_zoneid);
 			return;
 
+#ifndef SCTP_SHRINK
 		case IPPROTO_SCTP:
 		{
 			ports = *(uint32_t *)(mp->b_rptr + hdr_length);
@@ -10595,6 +10604,7 @@ ip_wput_local_v6(queue_t *q, ill_t *ill, ip6_t *ip6h, mblk_t *first_mp,
 			    mctl_present, IP6_NO_IPPOLICY, ire->ire_zoneid);
 			return;
 		}
+#endif
 		case IPPROTO_ICMPV6: {
 			icmp6_t *icmp6;
 
@@ -11236,6 +11246,7 @@ ip_wput_ire_v6(queue_t *q, mblk_t *mp, ire_t *ire, int unspec_src,
 			/* Update output mib stats */
 			icmp_update_out_mib_v6(ill, icmp6);
 		} else if (nexthdr == IPPROTO_SCTP) {
+#ifndef SCTP_SHRINK
 			sctp_hdr_t *sctph;
 
 			if (MBLKL(mp) < (hdr_length + sizeof (*sctph))) {
@@ -11253,6 +11264,7 @@ ip_wput_ire_v6(queue_t *q, mblk_t *mp, ire_t *ire, int unspec_src,
 			sctph = (sctp_hdr_t *)(mp->b_rptr + hdr_length);
 			sctph->sh_chksum = 0;
 			sctph->sh_chksum = sctp_cksum(mp, hdr_length);
+#endif
 		}
 
 	cksum_done:
@@ -12931,8 +12943,7 @@ void
 *ip6_kstat_init(netstackid_t stackid, ip6_stat_t *ip6_statisticsp)
 {
 	kstat_t *ksp;
-
-	ip6_stat_t template = {
+	static ip6_stat_t template = {
 		{ "ip6_udp_fast_path", 	KSTAT_DATA_UINT64 },
 		{ "ip6_udp_slow_path", 	KSTAT_DATA_UINT64 },
 		{ "ip6_udp_fannorm", 	KSTAT_DATA_UINT64 },

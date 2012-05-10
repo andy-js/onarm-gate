@@ -28,6 +28,10 @@
  */
 
 /*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
+/*
  * Local include file for ld library.
  */
 
@@ -202,6 +206,24 @@ extern const Msg	reject[];
 extern int		Verbose;
 extern const int	ldynsym_symtype[STT_NUM];
 extern const int	dynsymsort_symtype[STT_NUM];
+
+#ifdef	CROSS_BUILD
+extern char		*sysroot_path;
+extern size_t		sysroot_pathlen;
+
+typedef enum {
+	SRORDER_FIRST,		/* search sysroot at first */
+	SRORDER_LAST,		/* search sysroot at last */
+	SRORDER_NONE		/* never search sysroot */
+} sysroot_order_t;
+
+extern sysroot_order_t	sysroot_order;
+
+#ifndef	DEFAULT_SYSROOT_PATH
+#define	DEFAULT_SYSROOT_PATH	""
+#endif	/* !DEFAULT_SYSROOT_PATH */
+
+#endif	/* CROSS_BUILD */
 
 /*
  * Given a symbol of a type that is allowed within a .SUNW_dynsymsort or
@@ -418,6 +440,17 @@ extern Sdf_desc		*sdf_find(const char *, List *);
 #define	ld_vers_promote		ld64_vers_promote
 #define	ld_vers_sym_process	ld64_vers_sym_process
 #define	ld_vers_verify		ld64_vers_verify
+#ifdef	__arm
+#define	ld_reassign_got_ndx	ld64_reassign_got_ndx
+#define	ld_merge_attribute	ld64_merge_attribute
+#define	ld_parse_eabi		ld64_parse_eabi
+#define	ld_mach_ofl_init	ld64_mach_ofl_init
+#define	ld_mach_ifl_verify	ld64_mach_ifl_verify
+#define	ld_mach_update_oehdr	ld64_mach_update_oehdr
+#define	ld_parse_force_plt	ld64_parse_force_plt
+#define	ld_mach_reloc_func	ld64_mach_reloc_func
+#define	ld_mach_rename_section	ld64_mach_rename_section
+#endif	/* __arm */
 
 #else
 
@@ -520,6 +553,17 @@ extern Sdf_desc		*sdf_find(const char *, List *);
 #define	ld_vers_promote		ld32_vers_promote
 #define	ld_vers_sym_process	ld32_vers_sym_process
 #define	ld_vers_verify		ld32_vers_verify
+#ifdef	__arm
+#define	ld_reassign_got_ndx	ld32_reassign_got_ndx
+#define	ld_merge_attribute	ld32_merge_attribute
+#define	ld_parse_eabi		ld32_parse_eabi
+#define	ld_mach_ofl_init	ld32_mach_ofl_init
+#define	ld_mach_ifl_verify	ld32_mach_ifl_verify
+#define	ld_mach_update_oehdr	ld32_mach_update_oehdr
+#define	ld_parse_force_plt	ld32_parse_force_plt
+#define	ld_mach_reloc_func	ld32_mach_reloc_func
+#define	ld_mach_rename_section	ld32_mach_rename_section
+#endif	/* __arm */
 
 #endif
 
@@ -661,6 +705,26 @@ extern void		ld_vers_promote(Sym_desc *, Word, Ifl_desc *,
 			    Ofl_desc *);
 extern int		ld_vers_sym_process(Lm_list *, Is_desc *, Ifl_desc *);
 extern int		ld_vers_verify(Ofl_desc *);
+#ifdef	__arm
+extern uintptr_t	ld_reassign_got_ndx(Ofl_desc *ofl);
+extern uintptr_t	ld_merge_attribute(Ofl_desc *ofl, Os_desc *osp);
+extern uintptr_t	ld_parse_eabi(char *arg, Ofl_desc *ofl);
+extern void		ld_mach_ofl_init(Ofl_desc *ofl);
+extern int		ld_mach_ifl_verify(Ehdr *ehdr, Ofl_desc * ofl,
+					   Rej_desc *rej);
+extern uintptr_t	ld_mach_update_oehdr(Ofl_desc *ofl);
+extern uintptr_t	ld_parse_force_plt(char *flag, Ofl_desc *ofl);
+extern uintptr_t	ld_mach_reloc_func(Rel_desc *rsp, Ofl_desc *ofl);
+extern uintptr_t	ld_mach_rename_section(Ofl_desc *ofl, Is_desc *isp);
+
+#else	/* !__arm */
+#define	ld_mach_ofl_init(ofl)			((void)0)
+#define	ld_mach_ifl_verify(ehdr, ofl, rej)	(1)
+#define	ld_mach_update_oehdr(ofl)		(1)
+#define	ld_parse_force_plt(flag)		(1)
+#define	ld_mach_reloc_func(rsp, ofl)		(0)
+#define	ld_mach_rename_section(ofl, isp)	(1)
+#endif	/* __arm */
 
 extern uintptr_t	add_regsym(Sym_desc *, Ofl_desc *);
 extern Word		hashbkts(Word);

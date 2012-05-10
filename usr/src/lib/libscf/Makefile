@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -54,7 +59,9 @@ XGETFLAGS +=	-a
 
 .KEEP_STATE:
 
-all clean clobber install: native $(SUBDIRS)
+$(SPARC_BLD)all clean clobber install: native $(SUBDIRS)
+$(INTEL_BLD)all clean clobber install: native $(SUBDIRS)
+$(ARM_BLD)all clean clobber install: $(SUBDIRS)
 
 lint: $(SUBDIRS)
 

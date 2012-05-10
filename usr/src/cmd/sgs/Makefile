@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 include		$(SRC)/cmd/Makefile.cmd
 
 SUBDIRS-common= libconv		\
@@ -77,6 +81,11 @@ SUBDIRS-sparc=	rtld.4.x
 
 SUBDIRS=	$(SUBDIRS-common) $(SUBDIRS-$(MACH))
 
+# On ARM build, some sub directories should not be built.
+$(ARM_BLD)SUBDIRFIX_SKIP	= SUBDIRS-skip.arm
+$(ARM_BLD)SUBDIRFIX_DIRS	= $(SUBDIRS-common) $(SUBDIRS-$(MACH))
+$(ARM_BLD)SUBDIRS		= $(SUBDIR_FIXUP:sh)
+
 # Messaging support
 #
 POSUBDIRS=	ar		m4		nm \
@@ -104,12 +113,14 @@ _msg_gettext :=	TARGET= catalog
 _msg_sgsmsg :=	TARGET= catalog
 chkmsg :=	TARGET= chkmsg
 
+NATIVE_ADD		= native-add
+$(ARM_BLD)NATIVE_ADD	=
 
 .KEEP_STATE:
 
 .PARALLEL:	$(SUBDIRS)
 
-all install:	native-add .WAIT $(SUBDIRS)
+all install:	$(NATIVE_ADD) .WAIT $(SUBDIRS)
 
 include		$(SRC)/cmd/Makefile.targ
 
@@ -141,7 +152,7 @@ install_lib:	FRC
 lint:		$(SUBDIRS)
 
 delete \
-clean clobber:	native-clobber .WAIT $(SUBDIRS) $(MSGDIR)
+clean clobber:	native-clobber cross-clobber .WAIT $(SUBDIRS) $(MSGDIR)
 
 $(SUBDIRS):	FRC
 		@ cd $@; pwd; $(MAKE) $(TARGET)
@@ -191,8 +202,28 @@ XRDIRS=		. \
 		../../uts/sparc/sys \
 		../../uts/sparc/krtld \
 		../../uts/intel/ia32/krtld \
-		../../uts/intel/amd64/krtld
+		../../uts/intel/amd64/krtld \
+		../../uts/arm/sys \
+		../../uts/arm/krtld
 
 xref:		FRC
 		@ $(RM) cscope.*
 		xref -p -x cscope
+
+# Rules to build ld for cross build environment.
+cross:	cross-proto FRC
+	@cd tools/$(MACH); pwd; $(MAKE) cross
+	@cd libconv/$(MACH); pwd; $(MAKE) cross
+	@cd libelf/$(MACH); pwd; $(MAKE) cross
+	@cd liblddbg/$(MACH); pwd; $(MAKE) cross
+	@cd libldstab/$(MACH); pwd; $(MAKE) cross
+	@cd libld/$(MACH); pwd; $(MAKE) cross
+	@cd ld/$(MACH); pwd; $(MAKE) cross
+
+cross-proto:
+	-@mkdir -p proto/cross/$(MACH)/bin
+	-@mkdir -p proto/cross/$(MACH)/lib
+
+cross-clobber:
+	@ cd tools; pwd; $(MAKE) $(TARGET)
+	$(RM) -r proto/cross/$(MACH)

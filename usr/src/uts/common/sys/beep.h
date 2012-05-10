@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef _SYS_BEEP_H
 #define	_SYS_BEEP_H
 
@@ -107,6 +111,21 @@ typedef struct beep_params {
 } beep_params_t;
 
 
+#ifdef	__arm
+/*
+ * ARM architecture doesn't support beeper module.
+ */
+#define	beep_init(arg, beep_on_func, beep_off_func, beep_freq_func)
+#define	beep_fini()				(0)
+#define	beeper_off()				(0)
+#define	beeper_freq(type, freq)			(0)
+#define	beep(type)				(0)
+#define	beep_polled(type)			(0)
+#define	beeper_on(type)				(0)
+#define	beep_mktone(frequency, duration)	(0)
+#define	beep_timeout(arg)
+#define	beep_busy()				(0)
+#else	/* !__arm */
 extern int beep_init(void *arg,
     beep_on_func_t beep_on_func,
     beep_off_func_t beep_off_func,
@@ -129,6 +148,7 @@ extern int beep_mktone(int frequency, int duration);
 extern void beep_timeout(void *arg);
 
 extern int beep_busy(void);
+#endif	/* __arm */
 
 #endif	/* _KERNEL */
 

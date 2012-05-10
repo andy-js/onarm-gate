@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_CMLB_H
 #define	_SYS_CMLB_H
 
@@ -81,6 +85,9 @@ typedef struct tg_attribute {
 #define	TG_GETBLOCKSIZE		4
 #define	TG_GETATTR		5
 
+#ifdef DISK_ACCESS_CTRL
+extern int cmlb_acc_ctrl_instance;
+#endif
 
 /*
  * Ops vector including utility functions into target driver that cmlb uses.

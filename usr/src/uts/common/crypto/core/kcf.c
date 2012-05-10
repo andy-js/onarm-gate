@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -76,7 +80,7 @@ static int rngtimer_started;
 
 
 int
-_init()
+MODDRV_ENTRY_INIT()
 {
 	/* initialize the mechanisms tables supported out-of-the-box */
 	kcf_init_mech_tabs();
@@ -104,19 +108,21 @@ _init()
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 /*
  * We do not allow kcf to unload.
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 /*
  * Return a pointer to the modctl structure of the

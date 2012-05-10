@@ -22,22 +22,30 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+
+include ../../../Makefile.master
 
 LIBRARY=	libdevinfo.a
 VERS=		.1
 
+DEVINFO_RETIRE_OBJ =	devinfo_retire.o
+$(ARM_BLD)DEVINFO_RETIRE_OBJ =
 OBJECTS=	devfsinfo.o devinfo.o devinfo_prop_decode.o devinfo_devlink.o \
 		devinfo_devperm.o devfsmap.o devinfo_devname.o \
 		devinfo_finddev.o devinfo_dli.o devinfo_dim.o \
-		devinfo_realpath.o devinfo_retire.o
-		
+		devinfo_realpath.o $(DEVINFO_RETIRE_OBJ)
 
 include ../../Makefile.lib
 include ../../Makefile.rootfs
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 LDLIBS +=	-lnvpair -lsec -lc -lgen
 $(LINTLIB) :=	SRCS = $(SRCDIR)/$(LINTSRC)
 

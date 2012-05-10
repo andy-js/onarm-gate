@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -36,8 +41,10 @@ VALUES = values-Xa.o values-Xc.o values-Xs.o values-Xt.o \
 include ../../Makefile.lib
 
 POST_PROCESS_O = $(PROCESS_COMMENT) $@ ; $(STRIP) -x $@
+$(ARM_BLD)$(__GNULD)POST_PROCESS_O = :
 
 OBJECTS = $(VALUES) $(CRTI) $(CRTN)
+$(ARM_BLD)OBJECTS += $(CRT1)
 $(INTEL_BLD)OBJECTS += $(CRT1) $(GCRT1)
 
 ROOTLIB=	$(ROOT)/usr/lib
@@ -45,7 +52,9 @@ ROOTLIB64=	$(ROOTLIB)/$(MACH64)
 ROOTOBJECTS=	$(OBJECTS:%=$(ROOTLIB)/%)
 ROOTOBJECTS64=	$(OBJECTS:%=$(ROOTLIB64)/%)
 
-ASFLAGS +=	-P -D__STDC__ -D_ASM -DPIC
+STDC_FLAG =	-D__STDC__
+$(ARM_BLD)STDC_FLAG =
+ASFLAGS +=	-P $(STDC_FLAG) -D_ASM -DPIC
 
 values-xpg6.o := CPPFLAGS += -I$(SRC)/lib/libc/inc
 $(VALUES) := CFLAGS += $(C_PICFLAGS)

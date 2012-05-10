@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -76,10 +80,11 @@
 #include <sys/dmu.h>
 #include <sys/dsl_deleg.h>
 #include <sys/mount.h>
+#include <zfs_types.h>
 
 typedef struct zfsctl_node {
 	gfs_dir_t	zc_gfs_private;
-	uint64_t	zc_id;
+	objid_t		zc_id;
 	timestruc_t	zc_cmtime;	/* ctime and mtime, always the same */
 } zfsctl_node_t;
 
@@ -119,7 +124,7 @@ static const fs_operation_def_t zfsctl_tops_snapdir[];
 static const fs_operation_def_t zfsctl_tops_snapshot[];
 
 static vnode_t *zfsctl_mknode_snapdir(vnode_t *);
-static vnode_t *zfsctl_snapshot_mknode(vnode_t *, uint64_t objset);
+static vnode_t *zfsctl_snapshot_mknode(vnode_t *, objid_t objset);
 static int zfsctl_unmount_snap(zfs_snapentry_t *, int, cred_t *);
 
 static gfs_opsvec_t zfsctl_opsvec[] = {
@@ -315,7 +320,7 @@ zfsctl_common_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 {
 	zfsvfs_t	*zfsvfs = vp->v_vfsp->vfs_data;
 	zfsctl_node_t	*zcp = vp->v_data;
-	uint64_t	object = zcp->zc_id;
+	objid_t		object = zcp->zc_id;
 	zfid_short_t	*zfid;
 	int		i;
 
@@ -917,7 +922,7 @@ static const fs_operation_def_t zfsctl_tops_snapdir[] = {
  * vfs_t's ontop of.
  */
 static vnode_t *
-zfsctl_snapshot_mknode(vnode_t *pvp, uint64_t objset)
+zfsctl_snapshot_mknode(vnode_t *pvp, objid_t objset)
 {
 	vnode_t *vp;
 	zfsctl_node_t *zcp;
@@ -988,7 +993,7 @@ static const fs_operation_def_t zfsctl_tops_snapshot[] = {
 };
 
 int
-zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp)
+zfsctl_lookup_objset(vfs_t *vfsp, objid_t objsetid, zfsvfs_t **zfsvfsp)
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 	vnode_t *dvp, *vp;

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -445,7 +449,7 @@ static struct cb_ops scsa2usb_cbops = {
 	nodev,			/* dump */
 	scsa2usb_ugen_read,	/* read */
 	scsa2usb_ugen_write,	/* write */
-	NULL,			/* ioctl */
+	nodev,			/* ioctl */
 	nodev,			/* devmap */
 	nodev,			/* mmap */
 	nodev,			/* segmap */
@@ -491,7 +495,7 @@ static usb_event_t scsa2usb_events = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int rval;
 
@@ -518,8 +522,9 @@ _init(void)
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	rval;
 
@@ -530,10 +535,11 @@ _fini(void)
 
 	return (rval);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -1022,6 +1028,7 @@ scsa2usb_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 /*
  * ugen support
  */
+#ifndef USB_UGEN_DISABLE
 /*
  * scsa2usb_ugen_open()
  * (all ugen opens and pipe opens are by definition exclusive so it is OK
@@ -1196,6 +1203,58 @@ scsa2usb_ugen_poll(dev_t dev, short events,
 	return (usb_ugen_poll(scsa2usbp->scsa2usb_ugen_hdl, dev, events,
 	    anyyet, reventsp, phpp));
 }
+#else	/* USB_UGEN_DISABLE */
+/*
+ * scsa2usb_ugen_open()
+ * (all ugen opens and pipe opens are by definition exclusive so it is OK
+ * to count opens)
+ */
+static int
+scsa2usb_ugen_open(dev_t *devp, int flag, int sflag, cred_t *cr)
+{
+	return (EINVAL);
+}
+
+
+/*
+ * scsa2usb_ugen_close()
+ */
+static int
+scsa2usb_ugen_close(dev_t dev, int flag, int otype, cred_t *cr)
+{
+	return (EINVAL);
+}
+
+
+/*
+ * scsa2usb_ugen_read/write()
+ */
+/*ARGSUSED*/
+static int
+scsa2usb_ugen_read(dev_t dev, struct uio *uiop, cred_t *credp)
+{
+	return (EINVAL);
+}
+
+
+/*ARGSUSED*/
+static int
+scsa2usb_ugen_write(dev_t dev, struct uio *uiop, cred_t *credp)
+{
+	return (EINVAL);
+}
+
+
+/*
+ * scsa2usb_ugen_poll
+ */
+static int
+scsa2usb_ugen_poll(dev_t dev, short events,
+    int anyyet,  short *reventsp, struct pollhead **phpp)
+{
+	return (EINVAL);
+}
+#endif	/* USB_UGEN_DISABLE */
 
 
 /*
@@ -2713,6 +2772,17 @@ scsa2usb_scsi_getcap(struct scsi_address *ap, char *cap, int whom)
 	cidx =	scsi_hba_lookup_capstr(cap);
 	switch (cidx) {
 	case SCSI_CAP_GEOMETRY:
+		/* Just check and fail immediately if zero, rarely happens */
+		if (scsa2usbp->scsa2usb_secsz[ap->a_lun] == 0) {
+			USB_DPRINTF_L2(DPRINT_MASK_SCSA,
+			    scsa2usbp->scsa2usb_log_handle,
+			    "scsa2usb_scsi_getcap failed:"
+			    "scsa2usbp->scsa2usb_secsz[ap->a_lun] == 0");
+			mutex_exit(&scsa2usbp->scsa2usb_mutex);
+
+			return (rval);
+		}
+
 		dev_bsize_cap = scsa2usbp->scsa2usb_totalsec[ap->a_lun];
 
 		if (scsa2usbp->scsa2usb_secsz[ap->a_lun] > DEV_BSIZE) {
@@ -4613,19 +4683,6 @@ scsa2usb_read_cd_blk_size(uchar_t expected_sector_type)
 }
 
 
-/* needed for esballoc_wait() */
-/*ARGSUSED*/
-static void
-scsa2usb_null_free(char *arg)
-{
-}
-
-static frtn_t fr = {
-	scsa2usb_null_free,
-	NULL
-};
-
-
 /*
  * scsa2usb_bp_to_mblk:
  *	Convert a bp to mblk_t. USBA framework understands mblk_t.
@@ -4655,7 +4712,7 @@ scsa2usb_bp_to_mblk(scsa2usb_state_t *scsa2usbp)
 	}
 
 	mp = esballoc_wait((uchar_t *)bp->b_un.b_addr + cmd->cmd_offset,
-	    size, BPRI_LO, &fr);
+	    size, BPRI_LO, &frnop);
 
 	USB_DPRINTF_L3(DPRINT_MASK_SCSA, scsa2usbp->scsa2usb_log_handle,
 	    "scsa2usb_bp_to_mblk: "
@@ -4786,7 +4843,7 @@ scsa2usb_handle_data_start(scsa2usb_state_t *scsa2usbp,
 		req->bulk_data = esballoc_wait(
 		    (uchar_t *)cmd->cmd_bp->b_un.b_addr +
 		    cmd->cmd_offset,
-		    req->bulk_len, BPRI_LO, &fr);
+		    req->bulk_len, BPRI_LO, &frnop);
 
 		ASSERT(req->bulk_timeout);
 		rval = usb_pipe_bulk_xfer(scsa2usbp->scsa2usb_bulkin_pipe,

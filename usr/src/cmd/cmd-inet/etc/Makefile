@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 SYMPROG= hosts inetd.conf networks protocols services netmasks sock2path
 
 # New /etc/inet files shouldn't have /etc entries.
@@ -49,6 +53,19 @@ ETCINETPROG=	$(ETCPROG:%=$(INETETCDIR)/%)
 SYMETCPROG=	$(SYMPROG:%=sym_%)
 SYMIPNODES=	$(INETETCDIR)/ipnodes
 
+# Rules to modify sock2path.
+S2P_SCRIPT		= -e 's,^\(.*ip6.*\),\#\1,'
+S2P_SCRIPT		+= -e 's,^\(.*udp6.*\),\#\1,'
+S2P_SCRIPT		+= -e 's,^\(.*tcp6.*\),\#\1,'
+S2P_SCRIPT		+= -e 's,^\(.*sctp6.*\),\#\1,'
+$(USE_INET6)S2P_SCRIPT	= -e ''
+$(ARM_BLD)S2P_SCRIPT	+= -e 's,^\([^\#].*sctp.*\),\#\1,'
+$(ARM_BLD)S2P_SCRIPT	+= -e 's,^\(.*/dev/keysock\),\#\1,'
+$(ARM_BLD)S2P_SCRIPT	+= -e 's,^\(.*/dev/nca\),\#\1,'
+$(ARM_BLD)S2P_SCRIPT	+= -e 's,^\(.*/dev/spdsock\),\#\1,'
+
+S2P_INST	= sock2path.inst
+
 FILEMODE= 0444
 OWNER= root
 GROUP= sys
@@ -63,12 +80,20 @@ $(SYMIPNODES) :
 	$(RM) $@
 	$(SYMLINK) ./hosts $@
 
+$(INETETCDIR)/% : %.inst
+	$(INS.rename)
+
 $(INETETCDIR)/% : %
 	$(INS.file)
 
 sym_% : %
 	$(RM) $(ROOTETC)/$<
 	$(SYMLINK) $(SYMDIR)/$< $(ROOTETC)/$<
+
+$(S2P_INST):	sock2path
+	$(SED) $(S2P_SCRIPT) sock2path > $@
+
+$(INETETCDIR)/sock2path:	$(S2P_INST)
 
 $(DIRS):
 	$(INS.dir)
@@ -88,6 +113,6 @@ datemsk.ndpd: datemsk.template
 	@while read i; do echo $$i; done < datemsk.template > $@
 
 clean clobber:
-	$(RM) datemsk.ndpd
+	$(RM) datemsk.ndpd $(S2P_INST)
 
 lint:

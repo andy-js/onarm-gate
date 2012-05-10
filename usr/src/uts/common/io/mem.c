@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -280,7 +284,7 @@ mmpagelock(struct as *as, caddr_t va)
 
 #define	NEED_LOCK_KVADDR(kva)	mmpagelock(&kas, kva)
 
-#else	/* __i386, __amd64 */
+#else	/* __i386, __amd64, __arm */
 
 #define	NEED_LOCK_KVADDR(va)	0
 
@@ -976,22 +980,24 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 static int
 mm_kstat_update(kstat_t *ksp, int rw)
@@ -1135,6 +1141,8 @@ mm_get_paddr(nvlist_t *nvl, uint64_t *paddr)
 	char *unum;
 	char **serids;
 	uint_t nserids;
+#elif defined(__arm)
+	uint64_t offset;
 #endif
 
 	/* Verify FMRI scheme name and version number */
@@ -1176,6 +1184,11 @@ mm_get_paddr(nvlist_t *nvl, uint64_t *paddr)
 			} else
 				return (err);
 		}
+	}
+#elif defined(__arm)
+	if ( (nvlist_lookup_uint64(nvl, FM_FMRI_MEM_OFFSET, &offset) == 0) ||
+	     (nvlist_lookup_uint64(nvl, FM_FMRI_MEM_PHYSADDR, &pa) != 0)) {
+		return (EINVAL);
 	}
 #elif defined(__x86)
 	if ((err = cmi_mc_unumtopa(NULL, nvl, &pa)) != CMI_SUCCESS &&

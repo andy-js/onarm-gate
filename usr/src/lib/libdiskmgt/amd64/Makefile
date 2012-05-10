@@ -24,9 +24,14 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+#
+# Copyright (c) 2007 NEC Corporation
+#
 
 include ../Makefile.com
 include ../../Makefile.lib.64
+
+LDLIBS += -lefi
 
 .KEEP_STATE:
 

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -35,6 +39,9 @@
 #include <sys/types.h>
 #include <sys/isa_defs.h>
 #include "base_conversion.h"
+#if defined(__arm)
+#include <ieeefp.h>
+#endif
 
 /*
  * Powers of ten rounded up.  If i is the largest index such that
@@ -135,7 +142,14 @@ __double_to_digits(double x, char *s, int n)
 	double		y;
 	int		d[5], i, j;
 	char		*ss, tmp[4];
+#if defined(__arm)
+	fp_rnd		save_rnd;
+#endif
 
+#if defined(__arm)
+	/* round mode FP_RZ set and old round mode is saved */
+	save_rnd = fpsetround(FP_RZ);
+#endif
 	/* decompose x into four-digit chunks */
 	y = (int)(x * tenm12);
 	x -= y * ten12;
@@ -177,6 +191,10 @@ __double_to_digits(double x, char *s, int n)
 		i++;
 	}
 
+#if defined(__arm)
+	/* old round mode is set. return value is ignored */
+	save_rnd = fpsetround(save_rnd);
+#endif
 	*ss = '\0';
 	return (ss - s);
 }
@@ -197,10 +215,24 @@ static union {
 	double		d;
 } C[] = {
 #ifdef _LITTLE_ENDIAN
+#if defined(__arm)
+#if (HIWORD)
 	{ 0x00000000, 0x43300000 },
 	{ 0x00000000, 0x3ca00000 },
 	{ 0x00000000, 0x3fe00000 },
 	{ 0xffffffff, 0x3fdfffff },
+#else
+	{ 0x43300000, 0x00000000 },
+	{ 0x3ca00000, 0x00000000 },
+	{ 0x3fe00000, 0x00000000 },
+	{ 0x3fdfffff, 0xffffffff },	/* nextafter(1/2, 0) */
+#endif
+#else
+	{ 0x00000000, 0x43300000 },
+	{ 0x00000000, 0x3ca00000 },
+	{ 0x00000000, 0x3fe00000 },
+	{ 0xffffffff, 0x3fdfffff },
+#endif
 #else
 	{ 0x43300000, 0x00000000 },
 	{ 0x3ca00000, 0x00000000 },
@@ -221,7 +253,11 @@ __arint_set_n(double *x, int nrx, int *pe)
 	double	rx, rmx;
 
 #ifdef _LITTLE_ENDIAN
+#if defined(__arm)
+	hx = *((int *)x+HIWORD);
+#else
 	hx = *(1+(int *)x);
+#endif
 #else
 	hx = *(int *)x;
 #endif
@@ -319,7 +355,11 @@ __fast_double_to_decimal(double *dd, decimal_mode *pm, decimal_record *pd,
 		dds = __dabs(dd);
 		/* find the decade containing dds */
 #ifdef _LITTLE_ENDIAN
+#if defined(__arm)
+		hd = *((int *)dd+HIWORD);
+#else
 		hd = *(1+(int *)dd);
+#endif
 #else
 		hd = *(int *)dd;
 #endif

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -65,6 +69,14 @@ struct aelist {
 		char *ae_arg;
 	} *ael_head, *ael_tail;
 };
+
+#ifndef	DEFAULT_AS_NAME
+#define	DEFAULT_AS_NAME		"gas"
+#endif	/* !DEFAULT_AS_NAME */
+
+#ifndef	DEFAULT_CPP_NAME
+#define	DEFAULT_CPP_NAME	"cpp"
+#endif	/* !DEFAULT_CPP_NAME */
 
 static struct aelist *
 newael(void)
@@ -271,6 +283,7 @@ invoke(char **argv, int pipein, int pipeout)
 	if (verbose) {
 		char **dargv = argv;
 
+		(void)fprintf(stderr, "+ ");
 		while (*dargv)
 			(void) fprintf(stderr, "%s ", *dargv++);
 	}
@@ -373,6 +386,7 @@ main(int argc, char *argv[])
 	char *as_pgm, *as64_pgm, *m4_pgm, *m4_cmdefs, *cpp_pgm;
 	int as64 = 0;
 	int code;
+	const char	*as_name, *cpp_name;
 
 	if ((progname = strrchr(argv[0], '/')) == NULL)
 		progname = argv[0];
@@ -384,8 +398,11 @@ main(int argc, char *argv[])
 	 */
 	if ((as_dir = getenv("AW_AS_DIR")) == NULL)
 		as_dir = DEFAULT_AS_DIR;	/* /usr/sfw/bin */
-	as_pgm = malloc(strlen(as_dir) + strlen("/gas") + 1);
-	(void) sprintf(as_pgm, "%s/gas", as_dir);
+	if ((as_name = getenv("AW_AS_NAME")) == NULL) {
+		as_name = DEFAULT_AS_NAME;
+	}
+	as_pgm = malloc(strlen(as_dir) + strlen(as_name) + 2);
+	(void) sprintf(as_pgm, "%s/%s", as_dir, as_name);
 
 	if ((as64_dir = getenv("AW_AS64_DIR")) == NULL)
 		as64_dir = DEFAULT_AS64_DIR;	/* /usr/sfw/bin */
@@ -402,22 +419,36 @@ main(int argc, char *argv[])
 	m4_cmdefs = malloc(strlen(m4_lib_dir) + strlen("/cmdefs") + 1);
 	(void) sprintf(m4_cmdefs, "%s/cmdefs", m4_lib_dir);
 
-	if ((cpp_dir = getenv("AW_CPP_DIR")) == NULL)
-		cpp_dir = DEFAULT_CPP_DIR;	/* /usr/ccs/lib */
-	cpp_pgm = malloc(strlen(cpp_dir) + strlen("/cpp") + 1);
-	(void) sprintf(cpp_pgm, "%s/cpp", cpp_dir);
+	if (argc > 1 && strncmp(*(argv + 1), "-cpp=", 5) == 0) {
+		/* Use specified path as cpp. */
+		cpp_name = *(argv + 1) + 5;
+		cpp_pgm = strdup(cpp_name);
+		argc--;
+		argv++;
+	}
+	else {
+		if ((cpp_dir = getenv("AW_CPP_DIR")) == NULL)
+			cpp_dir = DEFAULT_CPP_DIR;	/* /usr/ccs/lib */
+		if ((cpp_name = getenv("AW_CPP_NAME")) == NULL) {
+			cpp_name = DEFAULT_CPP_NAME;
+		}
+		cpp_pgm = malloc(strlen(cpp_dir) + strlen(cpp_name) + 2);
+		(void) sprintf(cpp_pgm, "%s/%s", cpp_dir, cpp_name);
+	}
 
 	newae(as, as_pgm);
 	newae(as, "--warn");
 	newae(as, "--fatal-warnings");
 	newae(as, "--traditional-format");
 
+#ifndef	WORKING_DOT_WORD
 	/*
 	 * This is a support hack to rewrite code for the compiler
 	 * which should probably cause an assembler programmer to recode
 	 * - so, generate a warning in this case.
 	 */
 	newae(as, "-K");
+#endif	/* !WORKING_DOT_WORD */
 
 	/*
 	 * Walk the argument list, translating as we go ..
@@ -534,6 +565,19 @@ main(int argc, char *argv[])
 			if (strcmp(arg, "-xmodel=kernel") == 0)
 				break;
 
+			if (strcmp(arg, "-xarch=arm") == 0) {
+				newae(as, "-mcpu=arm1136jf-s");
+				break;
+			}
+			else if (strcmp(arg, "-xarch=mpcore") == 0) {
+				newae(as, "-mcpu=mpcore");
+				break;
+			}
+			else if (strcmp(arg, "-xarch=mpcorenovfp") == 0) {
+				newae(as, "-mcpu=mpcorenovfp");
+				break;
+			}
+
 			/*
 			 * -xF	Generates performance analysis data
 			 *	no equivalent
@@ -596,15 +640,32 @@ main(int argc, char *argv[])
 		case '-':	/* a gas-specific option */
 			newae(as, arg);
 			break;
+		case '_':
+			if (strncmp(arg, "-_cpp=", 6) == 0 && cpp) {
+				/* cpp-specific option */
+				newae(cpp, arg + 6);
+			}
+			else if (strncmp(arg, "-_m4=", 5) == 0 && m4) {
+				/* m4-specific option */
+				newae(m4, arg + 5);
+			}
+			else if (strncmp(arg, "-_gas=", 6) == 0) {
+				/* gas-specific option*/
+				newae(as, arg + 6);
+			}
+			else {
+				return error(arg);
+			}
+			break;
 		}
 	}
 
-#if defined(__i386)
+#if	defined(__i386) && !defined(TARGET_arm)
 	if (as64)
 		newae(as, "--64");
 	else
 		newae(as, "--32");
-#endif
+#endif	/* defined(__i386) && !defined(TARGET_arm) */
 
 	if (srcfile == NULL)
 		return (usage("no source file(s) specified"));
@@ -622,6 +683,9 @@ main(int argc, char *argv[])
 			newae(cpp, "-D__sparcv9");
 		else
 			newae(cpp, "-D__sparcv8");
+#elif defined(__arm) || defined(TARGET_arm)
+		newae(cpp, "-D__arm");
+		newae(cpp, "-Darm");
 #elif defined(__i386) || defined(__x86)
 		if (as64) {
 			newae(cpp, "-D__x86_64");

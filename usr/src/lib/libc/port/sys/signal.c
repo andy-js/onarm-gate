@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #pragma weak signal = _signal
@@ -158,7 +162,7 @@ sigignore(int sig)
 }
 
 int
-__sigpause(int sig)
+__sigpause_svid(int sig)
 {
 	sigset_t set;
 	int rval;
@@ -176,6 +180,27 @@ __sigpause(int sig)
 		return (-1);
 	rval = sigsuspend(&set);
 	(void) sigrelse(sig);
+	return (rval);
+}
+
+int
+__sigpause(int sig)
+{
+	sigset_t set;
+	int rval;
+
+	CHECK_SIG(sig, -1);
+
+	/*
+	 * POSIX sigpause() is defined to restore the process' signal
+	 * mask to its original state before returning.
+	 * sigsuspend() restores the original signal set,
+	 * so we should not unblock sig.
+	 */
+	(void) sigprocmask(0, (sigset_t *)0, &set);
+	if (sigdelset(&set, sig) < 0)
+		return (-1);
+	rval = sigsuspend(&set);
 	return (rval);
 }
 

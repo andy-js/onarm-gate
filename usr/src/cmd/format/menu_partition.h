@@ -23,6 +23,9 @@
  * Copyright 1991-2003 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
 
 #ifndef	_MENU_PARTITION_H
 #define	_MENU_PARTITION_H
@@ -47,9 +50,9 @@ int	p_gpart(void);
 int	p_hpart(void);
 int	p_ipart(void);
 
-#if defined(i386)
+#if defined(i386) || defined(__arm)
 int	p_jpart(void);
-#endif			/* defined(i386) */
+#endif /* defined(i386) || defined(__arm) */
 
 int	p_select(void);
 int	p_modify(void);

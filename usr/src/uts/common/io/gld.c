@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -404,7 +408,7 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int e;
 
@@ -421,8 +425,9 @@ _init(void)
 	return (e);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int e;
 
@@ -437,9 +442,10 @@ _fini(void)
 
 	return (e);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -897,8 +903,8 @@ gld_unregister(gld_mac_info_t *macinfo)
 	ifp = ((gld_mac_pvt_t *)macinfo->gldm_mac_pvt)->interfacep;
 	(*ifp->uninit)(macinfo);
 
-	ASSERT(mac_pvt->kstatp);
-	kstat_delete(mac_pvt->kstatp);
+	if (mac_pvt->kstatp != NULL)
+		kstat_delete(mac_pvt->kstatp);
 
 	ASSERT(GLDM_LOCK_INITED(macinfo));
 	kmem_free(mac_pvt->curr_macaddr, macinfo->gldm_addrlen);
@@ -959,10 +965,8 @@ gld_initstats(gld_mac_info_t *macinfo)
 	if ((ksp = kstat_create(glddev->gld_name, macinfo->gldm_ppa,
 	    NULL, "net", KSTAT_TYPE_NAMED,
 	    sizeof (struct gldkstats) / sizeof (kstat_named_t), 0)) == NULL) {
-		cmn_err(CE_WARN,
-		    "GLD: failed to create kstat structure for %s%d",
-		    glddev->gld_name, macinfo->gldm_ppa);
-		return (GLD_FAILURE);
+		mac_pvt->kstatp = NULL; 
+		return (GLD_SUCCESS); 
 	}
 	mac_pvt->kstatp = ksp;
 
@@ -1185,10 +1189,8 @@ gld_init_vlan_stats(gld_vlan_t *vlan)
 	if ((ksp = kstat_create(name, instance,
 	    NULL, "net", KSTAT_TYPE_NAMED,
 	    sizeof (struct gldkstats) / sizeof (kstat_named_t), 0)) == NULL) {
-		cmn_err(CE_WARN,
-		    "GLD: failed to create kstat structure for %s%d",
-		    name, instance);
-		return (GLD_FAILURE);
+		vlan->gldv_kstatp = NULL; 
+		return (GLD_SUCCESS); 
 	}
 
 	vlan->gldv_kstatp = ksp;
@@ -5431,6 +5433,7 @@ gld_get_statistics(queue_t *q, mblk_t *mp)
 	gld_t  *gld = (gld_t *)q->q_ptr;
 	gld_mac_info_t *macinfo = gld->gld_mac_info;
 	gld_mac_pvt_t *mac_pvt;
+	size_t size;
 
 	if (gld->gld_state == DL_UNATTACHED)
 		return (DL_OUTSTATE);
@@ -5438,24 +5441,34 @@ gld_get_statistics(queue_t *q, mblk_t *mp)
 	ASSERT(macinfo != NULL);
 
 	mac_pvt = (gld_mac_pvt_t *)macinfo->gldm_mac_pvt;
-	(void) gld_update_kstat(mac_pvt->kstatp, KSTAT_READ);
+	if (mac_pvt->kstatp != NULL) {
+		(void) gld_update_kstat(mac_pvt->kstatp, KSTAT_READ);
+	}
+
+	if (mac_pvt->kstatp != NULL) {
+		size = sizeof(struct gldkstats);
+	} else {
+		size = 0;
+	}
 
 	mp = mexchange(q, mp, DL_GET_STATISTICS_ACK_SIZE +
-	    sizeof (struct gldkstats), M_PCPROTO, DL_GET_STATISTICS_ACK);
+	    size, M_PCPROTO, DL_GET_STATISTICS_ACK);
 
 	if (mp == NULL)
 		return (GLDE_OK);	/* mexchange already sent merror */
 
 	dlsp = (dl_get_statistics_ack_t *)mp->b_rptr;
 	dlsp->dl_primitive = DL_GET_STATISTICS_ACK;
-	dlsp->dl_stat_length = sizeof (struct gldkstats);
+	dlsp->dl_stat_length = size;
 	dlsp->dl_stat_offset = DL_GET_STATISTICS_ACK_SIZE;
 
-	GLDM_LOCK(macinfo, RW_WRITER);
-	bcopy(mac_pvt->kstatp->ks_data,
-	    (mp->b_rptr + DL_GET_STATISTICS_ACK_SIZE),
-	    sizeof (struct gldkstats));
-	GLDM_UNLOCK(macinfo);
+	if (mac_pvt->kstatp != NULL) {
+		GLDM_LOCK(macinfo, RW_WRITER);
+		bcopy(mac_pvt->kstatp->ks_data,
+		    (mp->b_rptr + DL_GET_STATISTICS_ACK_SIZE),
+		    sizeof (struct gldkstats));
+		GLDM_UNLOCK(macinfo);
+	} 
 
 	qreply(q, mp);
 	return (GLDE_OK);
@@ -5783,8 +5796,8 @@ gld_rem_vlan(gld_vlan_t *vlan)
 	*pp = p->gldv_next;
 	mac_pvt->nvlan--;
 	if (p->gldv_id != VLAN_VID_NONE) {
-		ASSERT(p->gldv_kstatp != NULL);
-		kstat_delete(p->gldv_kstatp);
+		if (p->gldv_kstatp != NULL)
+			kstat_delete(p->gldv_kstatp);
 		kmem_free(p->gldv_stats, sizeof (struct gld_stats));
 	}
 	kmem_free(p, sizeof (gld_vlan_t));

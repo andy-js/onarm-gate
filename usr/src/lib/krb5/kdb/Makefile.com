@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -62,7 +67,7 @@ SRCS=		$(KDBOBJS:%.o=../%.c)
 SRCS+=		$(DERIVED_OBJS:%.o=../%.c)
 SRCS+=		$(KADM5SRCS)
 
-LIBS=		$(DYNLIB)
+LIBS=		$(ARLIB) $(DYNLIB)
 
 include $(SRC)/lib/gss_mechs/mech_krb5/Makefile.mech_krb5
 

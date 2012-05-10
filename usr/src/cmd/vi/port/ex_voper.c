@@ -32,6 +32,10 @@
  * Copyright (c) 1981 Regents of the University of California
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "ex.h"
@@ -55,6 +59,8 @@
 #define	forbid(a)	if (a) goto errlab;
 
 unsigned char	vscandir[2] =	{ '/', 0 };
+
+static int get_addr();
 
 /*
  * Decode an operator/operand type command.
@@ -84,7 +90,6 @@ operate(int c, int cnt)
 	int mouse_x;
 	int mouse_y;
 	int oline;
-	static int get_addr();
 /* #endif PTR_ADDRESSES */
 
 	moveop = vmove, deleteop = (int (*)())vdelete;

@@ -24,18 +24,27 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 MANIFEST = ssh.xml
 SVCMETHOD = sshd
 
 include ../../Makefile.cmd
 include ../Makefile.ssh-common
 
+IPV6DISABLE=
+$(USE_INET6)IPV6DISABLE=$(POUND_SIGN)
+
 ETCSSHDIR=	$(ROOTETC)/ssh
 DIRS=		$(ETCSSHDIR)
 
-FILES= sshd_config ssh_config moduli
+FILES= ssh_config moduli
+FILE1= sshd_config
 
 ETCSSHFILES=	$(FILES:%=$(ETCSSHDIR)/%)
+ETCSSHFILES1=    $(FILE1:%=$(ETCSSHDIR)/%)
 
 $(ETCSSHFILES) := FILEMODE=	644
 $(ETCSSHFILES) := OWNER=		root
@@ -53,7 +62,17 @@ $(POFILE):
 
 all lint clean clobber _msg:
 
-install: all $(DIRS) $(ETCSSHFILES) $(ROOTMANIFEST) $(ROOTSVCMETHOD)
+install: all $(DIRS) $(ETCSSHFILES) $(ETCSSHFILES1) $(ROOTMANIFEST) \
+		$(ROOTSVCMETHOD)
+	$(IPV6DISABLE) $(CHMOD) 600 $(ETCSSHFILES1);
+	$(IPV6DISABLE) $(MV) $(ETCSSHFILES1) $(ETCSSHFILES1).bak;
+	$(IPV6DISABLE) $(SED) \
+	$(IPV6DISABLE) -e 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/g' \
+	$(IPV6DISABLE) -e 's/ListenAddress ::/#ListenAddress ::/g' \
+	$(IPV6DISABLE) -e 's/PermitRootLogin no/PermitRootLogin yes/g' \
+	$(IPV6DISABLE) $(ETCSSHFILES1).bak > $(ETCSSHFILES1); 
+	$(IPV6DISABLE) $(RM) $(ETCSSHFILES1).bak; 
+	$(IPV6DISABLE) $(CHMOD) 644 $(ETCSSHFILES1);
 
 check: $(CHKMANIFEST)
 

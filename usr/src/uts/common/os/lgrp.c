@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -112,6 +116,7 @@ int	lgrp_alloc_max = 0;	/* max lgroup ID allocated so far */
  */
 extern struct lgrp_stats lgrp_stats[];	/* table of per-lgrp stats */
 
+#ifndef KSTAT_DISABLE
 /*
  * Declare kstat names statically for enums as defined in the header file.
  */
@@ -123,6 +128,11 @@ static void	lgrp_kstat_reset(lgrp_id_t);
 
 static struct kstat_named lgrp_kstat_data[LGRP_NUM_STATS];
 static kmutex_t lgrp_kstat_mutex;
+#else /* !KSTAT_DISABLE */
+#define lgrp_kstat_init()
+#define lgrp_kstat_create(cp)
+#define lgrp_kstat_reset(lgrpid)
+#endif /* KSTAT_DISABLE */
 
 
 /*
@@ -370,8 +380,8 @@ lgrp_setup(void)
 	/*
 	 * Add cpu0 to an lgroup
 	 */
-	lgrp_config(LGRP_CONFIG_CPU_ADD, (uintptr_t)CPU, 0);
-	lgrp_config(LGRP_CONFIG_CPU_ONLINE, (uintptr_t)CPU, 0);
+	lgrp_config(LGRP_CONFIG_CPU_ADD, (uintptr_t)CPU_GLOBAL, 0);
+	lgrp_config(LGRP_CONFIG_CPU_ONLINE, (uintptr_t)CPU_GLOBAL, 0);
 }
 
 /*
@@ -401,10 +411,9 @@ int	lgrp_topo_initialized = 0;
 void
 lgrp_main_init(void)
 {
-	cpu_t		*cp = CPU;
+	cpu_t		*cp = CPU_GLOBAL;
 	lgrp_id_t	lgrpid;
 	int		i;
-	extern void	pg_cpu0_reinit();
 
 	/*
 	 * Enforce a valid lgrp_mem_default_policy
@@ -926,6 +935,7 @@ lgrp_destroy(lgrp_t *lgrp)
 	nlgrps--;
 }
 
+#ifndef KSTAT_DISABLE
 /*
  * Initialize kstat data. Called from lgrp intialization code.
  */
@@ -987,6 +997,7 @@ lgrp_kstat_destroy(cpu_t *cp)
 {
 	ASSERT(MUTEX_HELD(&cpu_lock));
 }
+#endif /* !KSTAT_DISABLE */
 
 /*
  * Called when a CPU is off-lined.
@@ -1670,6 +1681,7 @@ lgrp_stat_read(lgrp_id_t lgrpid, lgrp_stat_t stat)
 	return (val);
 }
 
+#ifndef KSTAT_DISABLE
 /*
  * Reset all kstats for lgrp specified by its lgrpid.
  */
@@ -1747,6 +1759,7 @@ lgrp_kstat_extract(kstat_t *ksp, int rw)
 
 	return (0);
 }
+#endif /* !KSTAT_DISABLE */
 
 int
 lgrp_query_cpu(processorid_t id, lgrp_id_t *lp)
@@ -2870,7 +2883,7 @@ lpl_topo_bootstrap(lpl_t *target, int size)
 		/*
 		 * Substitute CPU0 lpl pointer with one relative to target.
 		 */
-		if (lpl->lpl_cpus == CPU) {
+		if (lpl->lpl_cpus == CPU_GLOBAL) {
 			ASSERT(CPU->cpu_lpl == lpl);
 			CPU->cpu_lpl = target_lpl;
 		}

@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -84,7 +89,7 @@ SRCS=		$(XCURSES:%.o=../src/libc/xcurses/%.c) \
 		$(MKS:%.o=../src/libc/mks/%.c) \
 		$(WIDE:%.o=../src/libc/wide/%.c)
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
 
 # definitions for install target
 ROOTLIBDIR=	$(ROOT)/usr/xpg4/lib

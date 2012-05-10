@@ -27,10 +27,14 @@
 # Copyright (c) 1999 by Sun Microsystems, Inc.
 # All rights reserved.
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SVr4.0 1.2	*/
 
 case "$MACH" in
-  "u3b2"|"sparc"|"ppc"|i386 )
+  "u3b2"|"sparc"|"ppc"|i386|"arm" )
 	echo "# VERSION=1
 ttya:u:root:reserved:reserved:reserved:/dev/term/a:I::/usr/bin/login::9600:ldterm,ttcompat:ttya login\: ::tvi925:y:# 
 ttyb:u:root:reserved:reserved:reserved:/dev/term/b:I::/usr/bin/login::9600:ldterm,ttcompat:ttyb login\: ::tvi925:y:# " > _pmtab

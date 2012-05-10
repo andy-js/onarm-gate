@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -239,65 +243,67 @@ next_sctp:
 	return (0);
 }
 
+static sctp_named_kstat_t sctp_mib_template = {
+	{ "sctpRtoAlgorithm",		KSTAT_DATA_INT32, 0 },
+	{ "sctpRtoMin",			KSTAT_DATA_UINT32, 0 },
+	{ "sctpRtoMax",			KSTAT_DATA_UINT32, 0 },
+	{ "sctpRtoInitial",		KSTAT_DATA_UINT32, 0 },
+	{ "sctpMaxAssocs",		KSTAT_DATA_INT32, 0 },
+	{ "sctpValCookieLife",		KSTAT_DATA_UINT32, 0 },
+	{ "sctpMaxInitRetr",		KSTAT_DATA_UINT32, 0 },
+	{ "sctpCurrEstab",		KSTAT_DATA_INT32, 0 },
+	{ "sctpActiveEstab",		KSTAT_DATA_INT32, 0 },
+	{ "sctpPassiveEstab",		KSTAT_DATA_INT32, 0 },
+	{ "sctpAborted",		KSTAT_DATA_INT32, 0 },
+	{ "sctpShutdowns",		KSTAT_DATA_INT32, 0 },
+	{ "sctpOutOfBlue",		KSTAT_DATA_INT32, 0 },
+	{ "sctpChecksumError",		KSTAT_DATA_INT32, 0 },
+	{ "sctpOutCtrlChunks",		KSTAT_DATA_INT64, 0 },
+	{ "sctpOutOrderChunks",		KSTAT_DATA_INT64, 0 },
+	{ "sctpOutUnorderChunks",	KSTAT_DATA_INT64, 0 },
+	{ "sctpRetransChunks",		KSTAT_DATA_INT64, 0 },
+	{ "sctpOutAck",			KSTAT_DATA_INT32, 0 },
+	{ "sctpOutAckDelayed",		KSTAT_DATA_INT32, 0 },
+	{ "sctpOutWinUpdate",		KSTAT_DATA_INT32, 0 },
+	{ "sctpOutFastRetrans",		KSTAT_DATA_INT32, 0 },
+	{ "sctpOutWinProbe",		KSTAT_DATA_INT32, 0 },
+	{ "sctpInCtrlChunks",		KSTAT_DATA_INT64, 0 },
+	{ "sctpInOrderChunks",		KSTAT_DATA_INT64, 0 },
+	{ "sctpInUnorderChunks",	KSTAT_DATA_INT64, 0 },
+	{ "sctpInAck",			KSTAT_DATA_INT32, 0 },
+	{ "sctpInDupAck",		KSTAT_DATA_INT32, 0 },
+	{ "sctpInAckUnsent",		KSTAT_DATA_INT32, 0 },
+	{ "sctpFragUsrMsgs",		KSTAT_DATA_INT64, 0 },
+	{ "sctpReasmUsrMsgs",		KSTAT_DATA_INT64, 0 },
+	{ "sctpOutSCTPPkts",		KSTAT_DATA_INT64, 0 },
+	{ "sctpInSCTPPkts",		KSTAT_DATA_INT64, 0 },
+	{ "sctpInInvalidCookie",	KSTAT_DATA_INT32, 0 },
+	{ "sctpTimRetrans",		KSTAT_DATA_INT32, 0 },
+	{ "sctpTimRetransDrop",		KSTAT_DATA_INT32, 0 },
+	{ "sctpTimHearBeatProbe",	KSTAT_DATA_INT32, 0 },
+	{ "sctpTimHearBeatDrop",	KSTAT_DATA_INT32, 0 },
+	{ "sctpListenDrop",		KSTAT_DATA_INT32, 0 },
+	{ "sctpInClosed",		KSTAT_DATA_INT32, 0 }
+};
+
 void *
 sctp_kstat_init(netstackid_t stackid)
 {
 	kstat_t	*ksp;
-
-	sctp_named_kstat_t template = {
-		{ "sctpRtoAlgorithm",		KSTAT_DATA_INT32, 0 },
-		{ "sctpRtoMin",			KSTAT_DATA_UINT32, 0 },
-		{ "sctpRtoMax",			KSTAT_DATA_UINT32, 0 },
-		{ "sctpRtoInitial",		KSTAT_DATA_UINT32, 0 },
-		{ "sctpMaxAssocs",		KSTAT_DATA_INT32, 0 },
-		{ "sctpValCookieLife",		KSTAT_DATA_UINT32, 0 },
-		{ "sctpMaxInitRetr",		KSTAT_DATA_UINT32, 0 },
-		{ "sctpCurrEstab",		KSTAT_DATA_INT32, 0 },
-		{ "sctpActiveEstab",		KSTAT_DATA_INT32, 0 },
-		{ "sctpPassiveEstab",		KSTAT_DATA_INT32, 0 },
-		{ "sctpAborted",		KSTAT_DATA_INT32, 0 },
-		{ "sctpShutdowns",		KSTAT_DATA_INT32, 0 },
-		{ "sctpOutOfBlue",		KSTAT_DATA_INT32, 0 },
-		{ "sctpChecksumError",		KSTAT_DATA_INT32, 0 },
-		{ "sctpOutCtrlChunks",		KSTAT_DATA_INT64, 0 },
-		{ "sctpOutOrderChunks",		KSTAT_DATA_INT64, 0 },
-		{ "sctpOutUnorderChunks",	KSTAT_DATA_INT64, 0 },
-		{ "sctpRetransChunks",		KSTAT_DATA_INT64, 0 },
-		{ "sctpOutAck",			KSTAT_DATA_INT32, 0 },
-		{ "sctpOutAckDelayed",		KSTAT_DATA_INT32, 0 },
-		{ "sctpOutWinUpdate",		KSTAT_DATA_INT32, 0 },
-		{ "sctpOutFastRetrans",		KSTAT_DATA_INT32, 0 },
-		{ "sctpOutWinProbe",		KSTAT_DATA_INT32, 0 },
-		{ "sctpInCtrlChunks",		KSTAT_DATA_INT64, 0 },
-		{ "sctpInOrderChunks",		KSTAT_DATA_INT64, 0 },
-		{ "sctpInUnorderChunks",	KSTAT_DATA_INT64, 0 },
-		{ "sctpInAck",			KSTAT_DATA_INT32, 0 },
-		{ "sctpInDupAck",		KSTAT_DATA_INT32, 0 },
-		{ "sctpInAckUnsent",		KSTAT_DATA_INT32, 0 },
-		{ "sctpFragUsrMsgs",		KSTAT_DATA_INT64, 0 },
-		{ "sctpReasmUsrMsgs",		KSTAT_DATA_INT64, 0 },
-		{ "sctpOutSCTPPkts",		KSTAT_DATA_INT64, 0 },
-		{ "sctpInSCTPPkts",		KSTAT_DATA_INT64, 0 },
-		{ "sctpInInvalidCookie",	KSTAT_DATA_INT32, 0 },
-		{ "sctpTimRetrans",		KSTAT_DATA_INT32, 0 },
-		{ "sctpTimRetransDrop",		KSTAT_DATA_INT32, 0 },
-		{ "sctpTimHearBeatProbe",	KSTAT_DATA_INT32, 0 },
-		{ "sctpTimHearBeatDrop",	KSTAT_DATA_INT32, 0 },
-		{ "sctpListenDrop",		KSTAT_DATA_INT32, 0 },
-		{ "sctpInClosed",		KSTAT_DATA_INT32, 0 }
-	};
+	sctp_named_kstat_t *template = &sctp_mib_template;
 
 	ksp = kstat_create_netstack(SCTP_MOD_NAME, 0, "sctp", "mib2",
-	    KSTAT_TYPE_NAMED, NUM_OF_FIELDS(sctp_named_kstat_t), 0, stackid);
+	    KSTAT_TYPE_NAMED, NUM_OF_FIELDS(sctp_named_kstat_t),
+	    KSTAT_FLAG_VIRTUAL, stackid);
 
 	if (ksp == NULL || ksp->ks_data == NULL)
 		return (NULL);
 
 	/* These won't change. */
-	template.sctpRtoAlgorithm.value.i32 = MIB2_SCTP_RTOALGO_VANJ;
-	template.sctpMaxAssocs.value.i32 = -1;
+	template->sctpRtoAlgorithm.value.i32 = MIB2_SCTP_RTOALGO_VANJ;
+	template->sctpMaxAssocs.value.i32 = -1;
 
-	bcopy(&template, ksp->ks_data, sizeof (template));
+	ksp->ks_data = template;
 	ksp->ks_update = sctp_kstat_update;
 	ksp->ks_private = (void *)(uintptr_t)stackid;
 
@@ -317,7 +323,7 @@ sctp_kstat2_init(netstackid_t stackid, sctp_kstat_t *sctps_statisticsp)
 {
 	kstat_t *ksp;
 
-	sctp_kstat_t template = {
+	static sctp_kstat_t template = {
 		{ "sctp_add_faddr",			KSTAT_DATA_UINT64 },
 		{ "sctp_add_timer",			KSTAT_DATA_UINT64 },
 		{ "sctp_conn_create",			KSTAT_DATA_UINT64 },
@@ -365,8 +371,51 @@ void
 sctp_kstat_fini(netstackid_t stackid, kstat_t *ksp)
 {
 	if (ksp != NULL) {
+		sctp_named_kstat_t *template = &sctp_mib_template;
+
 		ASSERT(stackid == (netstackid_t)(uintptr_t)ksp->ks_private);
 		kstat_delete_netstack(ksp, stackid);
+
+		template->sctpRtoAlgorithm.value.i32 = 0;
+		template->sctpRtoMin.value.i32 = 0;
+		template->sctpRtoMax.value.ui32 = 0;
+		template->sctpRtoInitial.value.ui32 = 0;
+		template->sctpMaxAssocs.value.ui32 = 0;
+		template->sctpValCookieLife.value.ui32 = 0;
+		template->sctpMaxInitRetr.value.ui32 = 0;
+		template->sctpCurrEstab.value.i32 = 0;
+		template->sctpActiveEstab.value.i32 = 0;
+		template->sctpPassiveEstab.value.i32 = 0;
+		template->sctpAborted.value.i32 = 0;
+		template->sctpShutdowns.value.i32 = 0;
+		template->sctpOutOfBlue.value.i32 = 0;
+		template->sctpChecksumError.value.i32 = 0;
+		template->sctpOutCtrlChunks.value.i64 = 0;
+		template->sctpOutOrderChunks.value.i64 = 0;
+		template->sctpOutUnorderChunks.value.i64 = 0;
+		template->sctpRetransChunks.value.i64 = 0;
+		template->sctpOutAck.value.i32 = 0;
+		template->sctpOutAckDelayed.value.i32 = 0;
+		template->sctpOutWinUpdate.value.i32 = 0;
+		template->sctpOutFastRetrans.value.i32 = 0;
+		template->sctpOutWinProbe.value.i32 = 0;
+		template->sctpInCtrlChunks.value.i64 = 0;
+		template->sctpInOrderChunks.value.i64 = 0;
+		template->sctpInUnorderChunks.value.i64 = 0;
+		template->sctpInAck.value.i32 = 0;
+		template->sctpInDupAck.value.i32 = 0;
+		template->sctpInAckUnsent.value.i32 = 0;
+		template->sctpFragUsrMsgs.value.i64 = 0;
+		template->sctpReasmUsrMsgs.value.i64 = 0;
+		template->sctpOutSCTPPkts.value.i64 = 0;
+		template->sctpInSCTPPkts.value.i64 = 0;
+		template->sctpInInvalidCookie.value.i32 = 0;
+		template->sctpTimRetrans.value.i32 = 0;
+		template->sctpTimRetransDrop.value.i32 = 0;
+		template->sctpTimHeartBeatProbe.value.i32 = 0;
+		template->sctpTimHeartBeatDrop.value.i32 = 0;
+		template->sctpListenDrop.value.i32 = 0;
+		template->sctpInClosed.value.i32 = 0;
 	}
 }
 

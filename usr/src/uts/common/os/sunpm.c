@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -563,6 +567,23 @@ static lock_loan_t lock_loan_head;	/* list head is a dummy element */
 #define	PMD_FUNC(func, name)
 #endif	/* DEBUG */
 
+/* Internal prototypes */
+static int	pm_reset_timestamps(dev_info_t *, void *);
+static void	pm_dep_thread(void);
+static int	pm_start(dev_info_t *dip);
+static int	cur_threshold(dev_info_t *, int);
+static int	pm_next_lower_power(pm_component_t *, int);
+static int	pm_phc_impl(dev_info_t *, int, int, int);
+static void	bring_pmdep_up(dev_info_t *, int);
+static void	pm_enqueue_pscc(pscc_t *, pscc_t **);
+static psce_t	*pm_psc_find_clone(int, pscc_t **, krwlock_t *);
+static major_t	i_path_to_major(char *, char *);
+extern major_t	 path_to_major(char *pathname);
+static void	i_pm_driver_removed(major_t major);
+static void	adjust_ancestors(char *, int);
+static int	pm_is_noinvol_ancestor(pm_noinvol_t *);
+static void	pm_noinvol_process_ancestors(char *);
+static int	pm_reset_timestamps(dev_info_t *, void *);
 
 /*
  * Must be called before first device (including pseudo) attach
@@ -587,7 +608,6 @@ pm_cpr_callb(void *arg, int code)
 	_NOTE(ARGUNUSED(arg))
 	static int auto_save;
 	static pm_cpupm_t cpupm_save;
-	static int pm_reset_timestamps(dev_info_t *, void *);
 
 	switch (code) {
 	case CB_CODE_CPR_CHKPT:
@@ -664,7 +684,6 @@ pm_init(void)
 	PMD_FUNC(pmf, "pm_init")
 	char **mod;
 	extern pri_t minclsyspri;
-	static void pm_dep_thread(void);
 
 	pm_comps_notlowest = 0;
 	pm_system_idle_threshold = pm_default_idle_threshold;
@@ -844,7 +863,6 @@ int
 e_pm_valid_info(dev_info_t *dip, pm_info_t **infop)
 {
 	pm_info_t *info;
-	static int pm_start(dev_info_t *dip);
 
 	/*
 	 * Check if the device is power managed if not.
@@ -1183,8 +1201,6 @@ pm_scan_dev(dev_info_t *dip)
 	pm_component_t	 *cp;
 	dev_info_t	*pdip = ddi_get_parent(dip);
 	int		circ;
-	static int	cur_threshold(dev_info_t *, int);
-	static int	pm_next_lower_power(pm_component_t *, int);
 
 	/*
 	 * skip attaching device
@@ -2455,7 +2471,6 @@ pm_power(dev_info_t *dip, int comp, int level)
 	struct pm_component *cp = PM_CP(dip, comp);
 	int retval;
 	pm_info_t *info = PM_GET_PM_INFO(dip);
-	static int pm_phc_impl(dev_info_t *, int, int, int);
 
 	PMD(PMD_KIDSUP, ("%s: %s@%s(%s#%d), comp=%d, level=%d\n", pmf,
 	    PM_DEVICE(dip), comp, level))
@@ -2922,7 +2937,6 @@ pm_power_has_changed(dev_info_t *dip, int comp, int level)
 	dev_info_t *pdip = ddi_get_parent(dip);
 	struct pm_component *cp;
 	int blocked, circ, pcirc, old_level;
-	static int pm_phc_impl(dev_info_t *, int, int, int);
 
 	if (level < 0) {
 		PMD(PMD_FAIL, ("%s: %s@%s(%s#%d): bad level=%d\n", pmf,
@@ -3752,7 +3766,6 @@ bring_wekeeps_up(char *keeper)
 	pm_info_t *wku_info;
 	char *kept_path;
 	dev_info_t *kept;
-	static void bring_pmdep_up(dev_info_t *, int);
 
 	if (panicstr) {
 		return;
@@ -4450,6 +4463,7 @@ ddi_power(dev_info_t *dip, int pm_cmpt, int pm_level)
 	return (ddi_ctlops(dip, dip, DDI_CTLOPS_POWER, &request, NULL));
 }
 
+#ifndef NO_USEDDI
 /*
  * A driver can invoke this from its detach routine when DDI_SUSPEND is
  * passed.  Returns true if subsequent processing could result in power being
@@ -4462,6 +4476,7 @@ ddi_removing_power(dev_info_t *dip)
 	_NOTE(ARGUNUSED(dip))
 	return (pm_powering_down);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Returns true if a device indicates that its parent handles suspend/resume
@@ -5557,7 +5572,6 @@ pm_register_watcher(int clone, dev_info_t *dip)
 {
 	pscc_t	*p;
 	psce_t	*psce;
-	static void pm_enqueue_pscc(pscc_t *, pscc_t **);
 
 	/*
 	 * We definitely need a control struct, then we have to search to see
@@ -5775,7 +5789,6 @@ pm_psc_find_clone(int clone, pscc_t **list, krwlock_t *lock)
 psce_t *
 pm_psc_clone_to_direct(int clone)
 {
-	static psce_t *pm_psc_find_clone(int, pscc_t **, krwlock_t *);
 	return (pm_psc_find_clone(clone, &pm_pscc_direct,
 	    &pm_pscc_direct_rwlock));
 }
@@ -5786,7 +5799,6 @@ pm_psc_clone_to_direct(int clone)
 psce_t *
 pm_psc_clone_to_interest(int clone)
 {
-	static psce_t *pm_psc_find_clone(int, pscc_t **, krwlock_t *);
 	return (pm_psc_find_clone(clone, &pm_pscc_interest,
 	    &pm_pscc_interest_rwlock));
 }
@@ -7855,7 +7867,6 @@ pm_path_to_major(char *path)
 	char *np, *ap, *bp;
 	major_t ret;
 	size_t len;
-	static major_t i_path_to_major(char *, char *);
 
 	PMD(PMD_NOINVOL, ("%s: %s\n", pmf, path))
 
@@ -8066,7 +8077,6 @@ pm_restore_direct_lvl_walk(dev_info_t *dip, void *arg)
 static major_t
 i_path_to_major(char *path, char *leaf_name)
 {
-	extern major_t path_to_major(char *pathname);
 	major_t maj;
 
 	if ((maj = path_to_major(path)) == (major_t)-1) {
@@ -8085,8 +8095,6 @@ i_path_to_major(char *path, char *leaf_name)
 void
 pm_driver_removed(major_t major)
 {
-	static void i_pm_driver_removed(major_t major);
-
 	/*
 	 * Serialize removal of drivers. This is to keep ancestors of
 	 * a node that is being deleted from getting deleted and added back
@@ -8104,9 +8112,6 @@ static void
 i_pm_driver_removed(major_t major)
 {
 	PMD_FUNC(pmf, "driver_removed")
-	static void adjust_ancestors(char *, int);
-	static int pm_is_noinvol_ancestor(pm_noinvol_t *);
-	static void pm_noinvol_process_ancestors(char *);
 	pm_noinvol_t *ip, *pp = NULL;
 	int wasvolpmd;
 	ASSERT(major != (major_t)-1);

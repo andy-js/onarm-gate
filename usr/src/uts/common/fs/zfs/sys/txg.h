@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_TXG_H
 #define	_SYS_TXG_H
 
@@ -31,6 +35,7 @@
 
 #include <sys/spa.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -42,14 +47,16 @@ extern "C" {
 #define	TXG_INITIAL		TXG_SIZE	/* initial txg 		*/
 #define	TXG_IDX			(txg & TXG_MASK)
 
-#define	TXG_WAIT		1ULL
-#define	TXG_NOWAIT		2ULL
+#define	TXG_WAIT		(txg_t)1
+#define	TXG_NOWAIT		(txg_t)2
+
+#define	TXG_INVAL		0
 
 typedef struct tx_cpu tx_cpu_t;
 
 typedef struct txg_handle {
 	tx_cpu_t	*th_cpu;
-	uint64_t	th_txg;
+	txg_t		th_txg;
 } txg_handle_t;
 
 typedef struct txg_node {
@@ -65,11 +72,11 @@ typedef struct txg_list {
 
 struct dsl_pool;
 
-extern void txg_init(struct dsl_pool *dp, uint64_t txg);
+extern void txg_init(struct dsl_pool *dp, txg_t txg);
 extern void txg_fini(struct dsl_pool *dp);
 extern void txg_sync_start(struct dsl_pool *dp);
-extern void txg_sync_stop(struct dsl_pool *dp);
-extern uint64_t txg_hold_open(struct dsl_pool *dp, txg_handle_t *txghp);
+extern int txg_sync_stop(struct dsl_pool *dp);
+extern txg_t txg_hold_open(struct dsl_pool *dp, txg_handle_t *txghp);
 extern void txg_rele_to_quiesce(txg_handle_t *txghp);
 extern void txg_rele_to_sync(txg_handle_t *txghp);
 extern void txg_suspend(struct dsl_pool *dp);
@@ -81,7 +88,7 @@ extern void txg_resume(struct dsl_pool *dp);
  * necessary syncs immediately).  If txg==0, wait for the currently open
  * txg to finish syncing.
  */
-extern void txg_wait_synced(struct dsl_pool *dp, uint64_t txg);
+extern int txg_wait_synced(struct dsl_pool *dp, txg_t txg);
 
 /*
  * Wait until the given transaction group, or one after it, is
@@ -89,7 +96,14 @@ extern void txg_wait_synced(struct dsl_pool *dp, uint64_t txg);
  * as possible (eg. kick off any necessary syncs immediately).
  * If txg == 0, wait for the next open txg.
  */
-extern void txg_wait_open(struct dsl_pool *dp, uint64_t txg);
+extern int txg_wait_open(struct dsl_pool *dp, txg_t txg);
+
+/*
+ * Implement Broadcast to abort
+ * the processing waiting at txg_wait_synced() and txg_wait_open().
+ * (see zio_vdev_suspend_io() for details)
+ */
+extern void txg_wait_abort(struct dsl_pool *dp);
 
 /*
  * Returns TRUE if we are "backed up" waiting for the syncing
@@ -105,13 +119,13 @@ extern int txg_stalled(struct dsl_pool *dp);
 
 extern void txg_list_create(txg_list_t *tl, size_t offset);
 extern void txg_list_destroy(txg_list_t *tl);
-extern int txg_list_empty(txg_list_t *tl, uint64_t txg);
-extern int txg_list_add(txg_list_t *tl, void *p, uint64_t txg);
-extern void *txg_list_remove(txg_list_t *tl, uint64_t txg);
-extern void *txg_list_remove_this(txg_list_t *tl, void *p, uint64_t txg);
-extern int txg_list_member(txg_list_t *tl, void *p, uint64_t txg);
-extern void *txg_list_head(txg_list_t *tl, uint64_t txg);
-extern void *txg_list_next(txg_list_t *tl, void *p, uint64_t txg);
+extern int txg_list_empty(txg_list_t *tl, txg_t txg);
+extern int txg_list_add(txg_list_t *tl, void *p, txg_t txg);
+extern void *txg_list_remove(txg_list_t *tl, txg_t txg);
+extern void *txg_list_remove_this(txg_list_t *tl, void *p, txg_t txg);
+extern int txg_list_member(txg_list_t *tl, void *p, txg_t txg);
+extern void *txg_list_head(txg_list_t *tl, txg_t txg);
+extern void *txg_list_next(txg_list_t *tl, void *p, txg_t txg);
 
 #ifdef	__cplusplus
 }

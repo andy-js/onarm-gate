@@ -26,6 +26,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -53,6 +57,10 @@
 
 #define	DRERR	2
 #define	OPENERR	2
+
+#ifdef	NO_SUPPORT_EFI
+#define	efi_alloc_and_read(fd, efi)	(-1)
+#endif	/* NO_SUPPORT_EFI */
 
 /*
  * Standard I/O file descriptors.

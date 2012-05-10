@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -70,11 +74,12 @@
 #include <sys/refcount.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_rlock.h>
+#include <zfs_types.h>
 
 #include "zfs_namecheck.h"
 
-#define	ZVOL_OBJ		1ULL
-#define	ZVOL_ZAP_OBJ		2ULL
+#define	ZVOL_OBJ		(objid_t)1
+#define	ZVOL_ZAP_OBJ		(objid_t)2
 
 static void *zvol_state;
 
@@ -102,7 +107,7 @@ typedef struct zvol_state {
 	uint32_t	zv_open_count[OTYPCNT];	/* open counts */
 	uint32_t	zv_total_opens;	/* total open count */
 	zilog_t		*zv_zilog;	/* ZIL handle */
-	uint64_t	zv_txg_assign;	/* txg to assign during ZIL replay */
+	txg_t		zv_txg_assign;	/* txg to assign during ZIL replay */
 	znode_t		zv_znode;	/* for range locking */
 } zvol_state_t;
 
@@ -874,8 +879,10 @@ zvol_strategy(buf_t *bp)
 	if ((bp->b_resid = resid) == bp->b_bcount)
 		bioerror(bp, off > volsize ? EINVAL : error);
 
-	if (!(bp->b_flags & B_ASYNC) && !reading && !zil_disable)
-		zil_commit(zv->zv_zilog, UINT64_MAX, ZVOL_OBJ);
+	if (!(bp->b_flags & B_ASYNC) && !reading && !zil_disable) {
+		if (error = zil_commit(zv->zv_zilog, UINT64_MAX, ZVOL_OBJ))
+			bioerror(bp, error);
+	}
 
 	biodone(bp);
 
@@ -1090,7 +1097,7 @@ zvol_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 
 	case DKIOCFLUSHWRITECACHE:
 		dkc = (struct dk_callback *)arg;
-		zil_commit(zv->zv_zilog, UINT64_MAX, ZVOL_OBJ);
+		error = zil_commit(zv->zv_zilog, UINT64_MAX, ZVOL_OBJ);
 		if ((flag & FKIOCTL) && dkc != NULL && dkc->dkc_callback) {
 			(*dkc->dkc_callback)(dkc->dkc_cookie, error);
 			error = 0;

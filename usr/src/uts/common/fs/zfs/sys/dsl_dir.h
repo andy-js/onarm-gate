@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef	_SYS_DSL_DIR_H
 #define	_SYS_DSL_DIR_H
 
@@ -33,6 +37,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/refcount.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -40,12 +45,16 @@ extern "C" {
 
 struct dsl_dataset;
 
+#ifndef ZFS_COMPACT
+#define	DDPADLEN	20
+#endif	/* ZFS_COMPACT */
+
 typedef struct dsl_dir_phys {
 	uint64_t dd_creation_time; /* not actually used */
-	uint64_t dd_head_dataset_obj;
-	uint64_t dd_parent_obj;
-	uint64_t dd_origin_obj;
-	uint64_t dd_child_dir_zapobj;
+	objid_t dd_head_dataset_obj;
+	objid_t dd_parent_obj;
+	objid_t dd_origin_obj;
+	objid_t dd_child_dir_zapobj;
 	/*
 	 * how much space our children are accounting for; for leaf
 	 * datasets, == physical space used by fs + snaps
@@ -57,14 +66,14 @@ typedef struct dsl_dir_phys {
 	uint64_t dd_quota;
 	/* Administrative reservation setting */
 	uint64_t dd_reserved;
-	uint64_t dd_props_zapobj;
-	uint64_t dd_deleg_zapobj; /* dataset delegation permissions */
-	uint64_t dd_pad[20]; /* pad out to 256 bytes for good measure */
+	objid_t dd_props_zapobj;
+	objid_t dd_deleg_zapobj; /* dataset delegation permissions */
+	uint64_t dd_pad[DDPADLEN]; /* pad out to 256 bytes for good measure */
 } dsl_dir_phys_t;
 
 struct dsl_dir {
 	/* These are immutable; no lock needed: */
-	uint64_t dd_object;
+	objid_t dd_object;
 	dsl_dir_phys_t *dd_phys;
 	dmu_buf_t *dd_dbuf;
 	dsl_pool_t *dd_pool;
@@ -95,13 +104,13 @@ void dsl_dir_close(dsl_dir_t *dd, void *tag);
 int dsl_dir_open(const char *name, void *tag, dsl_dir_t **, const char **tail);
 int dsl_dir_open_spa(spa_t *spa, const char *name, void *tag, dsl_dir_t **,
     const char **tailp);
-int dsl_dir_open_obj(dsl_pool_t *dp, uint64_t ddobj,
+int dsl_dir_open_obj(dsl_pool_t *dp, objid_t ddobj,
     const char *tail, void *tag, dsl_dir_t **);
 void dsl_dir_name(dsl_dir_t *dd, char *buf);
 int dsl_dir_namelen(dsl_dir_t *dd);
 int dsl_dir_is_private(dsl_dir_t *dd);
-uint64_t dsl_dir_create_sync(dsl_dir_t *pds, const char *name, dmu_tx_t *tx);
-void dsl_dir_create_root(objset_t *mos, uint64_t *ddobjp, dmu_tx_t *tx);
+objid_t dsl_dir_create_sync(dsl_dir_t *pds, const char *name, dmu_tx_t *tx);
+void dsl_dir_create_root(objset_t *mos, objid_t *ddobjp, dmu_tx_t *tx);
 dsl_checkfunc_t dsl_dir_destroy_check;
 dsl_syncfunc_t dsl_dir_destroy_sync;
 void dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv);

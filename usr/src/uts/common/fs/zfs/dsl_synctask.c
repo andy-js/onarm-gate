@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
@@ -31,6 +35,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/dsl_synctask.h>
 #include <sys/cred.h>
+#include <zfs_types.h>
 
 #define	DST_AVG_BLKSHIFT 14
 
@@ -78,12 +83,17 @@ int
 dsl_sync_task_group_wait(dsl_sync_task_group_t *dstg)
 {
 	dmu_tx_t *tx;
-	uint64_t txg;
+	txg_t txg;
 	dsl_sync_task_t *dst;
+	int error;
 
 top:
 	tx = dmu_tx_create_dd(dstg->dstg_pool->dp_mos_dir);
-	VERIFY(0 == dmu_tx_assign(tx, TXG_WAIT));
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		return (error);
+	}
 
 	txg = dmu_tx_get_txg(tx);
 
@@ -116,7 +126,7 @@ top:
 
 	dmu_tx_commit(tx);
 
-	txg_wait_synced(dstg->dstg_pool, txg);
+	(void) txg_wait_synced(dstg->dstg_pool, txg);
 
 	if (dstg->dstg_err == EAGAIN)
 		goto top;
@@ -127,7 +137,7 @@ top:
 void
 dsl_sync_task_group_nowait(dsl_sync_task_group_t *dstg, dmu_tx_t *tx)
 {
-	uint64_t txg;
+	txg_t txg;
 
 	dstg->dstg_nowaiter = B_TRUE;
 	txg = dmu_tx_get_txg(tx);

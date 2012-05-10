@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -42,6 +46,7 @@
 #include <unistd.h>
 #include <libintl.h>
 #include <libuutil.h>
+#include <zfs_types.h>
 
 #include "libzfs_impl.h"
 
@@ -276,11 +281,11 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 	zhp->zpool_config_size = zc.zc_nvlist_dst_size;
 
 	if (zhp->zpool_config != NULL) {
-		uint64_t oldtxg, newtxg;
+		txg_t oldtxg, newtxg;
 
-		verify(nvlist_lookup_uint64(zhp->zpool_config,
+		verify(nvlist_lookup_txg(zhp->zpool_config,
 		    ZPOOL_CONFIG_POOL_TXG, &oldtxg) == 0);
-		verify(nvlist_lookup_uint64(config,
+		verify(nvlist_lookup_txg(config,
 		    ZPOOL_CONFIG_POOL_TXG, &newtxg) == 0);
 
 		if (zhp->zpool_old_config != NULL)

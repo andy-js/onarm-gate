@@ -32,6 +32,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_PATHNAME_H
 #define	_SYS_PATHNAME_H
 
@@ -69,6 +73,7 @@ typedef struct pathname {
 
 #define	pn_pathleft(pnp)	((pnp)->pn_pathlen)
 
+#ifdef	_KERNEL
 extern void	pn_alloc(struct pathname *);
 extern int	pn_get(char *, enum uio_seg, struct pathname *);
 extern int	pn_get_buf(char *, enum uio_seg, struct pathname *,
@@ -100,6 +105,7 @@ extern int vnodetopath(vnode_t *, vnode_t *, char *, size_t, cred_t *);
 extern int dogetcwd(char *, size_t);
 extern int dirfindvp(vnode_t *, vnode_t *, vnode_t *, cred_t *, char *,
 		size_t, dirent64_t **);
+#endif	/* _KERNEL */
 
 #ifdef	__cplusplus
 }

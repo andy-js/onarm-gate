@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #pragma weak econvert = _econvert
@@ -66,7 +70,7 @@ econvert(double arg, int ndigits, int *decpt, int *sign, char *buf)
 
 #if defined(__sparc)
 	dm.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64)  || defined(__arm)
 	dm.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -111,7 +115,7 @@ seconvert(single *arg, int ndigits, int *decpt, int *sign, char *buf)
 
 #if defined(__sparc)
 	dm.rd = _QgetRD();
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 	dm.rd = __xgetRD();
 #else
 #error Unknown architecture
@@ -145,6 +149,8 @@ seconvert(single *arg, int ndigits, int *decpt, int *sign, char *buf)
 	}
 	return (buf);
 }
+
+#if defined(__sparc) || defined(__i386) || defined(__amd64)
 
 char *
 qeconvert(quadruple *arg, int ndigits, int *decpt, int *sign, char *buf)
@@ -196,3 +202,15 @@ qeconvert(quadruple *arg, int ndigits, int *decpt, int *sign, char *buf)
 	}
 	return (buf);
 }
+
+#elif defined(__arm)
+
+char *
+qeconvert(quadruple *arg, int ndigits, int *decpt, int *sign, char *buf)
+{
+	return (econvert((double)*arg, ndigits, decpt, sign, buf));
+}
+
+#else
+#error Unknown architecture
+#endif

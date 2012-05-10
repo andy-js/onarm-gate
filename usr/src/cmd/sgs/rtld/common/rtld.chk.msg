@@ -22,6 +22,11 @@
 #
 # CDDL HEADER END
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 @ _START_
@@ -45,6 +50,7 @@
 @ MSG_SYM_LAV9PLTENTER		"la_sparcv9_pltenter"
 @ MSG_SYM_LAX86PLTENTER		"la_i86_pltenter"
 @ MSG_SYM_LAAMD64PLTENTER	"la_amd64_pltenter"
+@ MSG_SYM_LAARMPLTENTER		"la_arm_pltenter"
 
 @ MSG_SYM_LAPLTEXIT	"la_pltexit"
 @ MSG_SYM_LAPLTEXIT_64	"la_pltexit64"

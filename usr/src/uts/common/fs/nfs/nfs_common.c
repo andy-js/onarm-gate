@@ -28,6 +28,10 @@
  *		All rights reserved.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/errno.h>
@@ -201,7 +205,7 @@ static struct modlinkage_big modlinkage = {
  * specfs - for getfsname only??
  * rpcmod - too many symbols to build stubs for them all
  */
-char _depends_on[] = "fs/specfs strmod/rpcmod misc/rpcsec";
+MODDRV_DEPENDS_ON("fs/specfs strmod/rpcmod misc/rpcsec");
 
 /*
  * This routine is invoked automatically when the kernel module
@@ -209,7 +213,7 @@ char _depends_on[] = "fs/specfs strmod/rpcmod misc/rpcsec";
  * initialization to be done when the module is loaded.
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int status;
 
@@ -255,15 +259,17 @@ _init(void)
 	return (status);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	/* Don't allow module to be unloaded */
 	return (EBUSY);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info((struct modlinkage *)&modlinkage, modinfop));
 }

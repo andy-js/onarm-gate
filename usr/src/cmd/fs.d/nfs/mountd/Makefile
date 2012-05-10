@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 FSTYPE	  =	nfs
 TYPEPROG  =	mountd
 ATTMK	  =	$(TYPEPROG)
@@ -36,8 +40,11 @@ LOCAL	  =	mountd.o netgroup.o rmtab.o nfsauth.o \
 		nfsauth_xdr.o exportlist.o hashset.o
 OBJS	  = 	$(LOCAL) $(COMMON)
 SRCS	  =	$(LOCAL:%.o=%.c) $(FSLIBSRC) ../lib/nfs_sec.c ../lib/sharetab.c
-LDLIBS	 +=	-lrpcsvc -lnsl -lbsm -lsocket -ldoor -ltsnet -ltsol
+LIBDOOR	  =	-ldoor
+LDLIBS	 +=	-lrpcsvc -lnsl -lbsm -lsocket $(LIBDOOR) -ltsnet -ltsol
 CPPFLAGS +=	-D_REENTRANT
+
+$(__GNULD)LIBDOOR	=
 
 $(TYPEPROG):	$(OBJS)
 		$(LINK.c) -o $@ $(OBJS) $(LDLIBS)

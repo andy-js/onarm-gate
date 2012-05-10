@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -147,7 +151,7 @@ extern	struct vfs door_vfs;
 extern	struct vnodeops *door_vnodeops;
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	static const fs_operation_def_t door_vfsops_template[] = {
 		NULL, NULL
@@ -183,7 +187,7 @@ _init(void)
 }
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -1089,7 +1093,11 @@ door_layout(kthread_t *tp, size_t data_size, uint_t ndesc, int info_needed)
 	size_t ssize = st->d_ssize;
 	size_t descsz;
 	uintptr_t descp, datap, infop, resultsp, finalsp;
+#ifdef	__arm
+	size_t align = STACK_ENTRY_ALIGN;
+#else	/* !__arm */
 	size_t align = STACK_ALIGN;
+#endif	/* __arm */
 	size_t results_sz = sizeof (struct door_results);
 	model_t datamodel = lwp_getdatamodel(ttolwp(tp));
 

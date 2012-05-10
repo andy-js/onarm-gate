@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -126,7 +129,7 @@ setdevaccess(char *dev, uid_t uid, gid_t gid, mode_t mode,
 		 * there were no ACLs to remove in the first place.
 		 */
 		err = 0;
-		if (errno != ENOSYS) {
+		if ((errno != ENOSYS) && (errno != EOPNOTSUPP)) {
 			err = -1;
 
 			if (errmsg) {

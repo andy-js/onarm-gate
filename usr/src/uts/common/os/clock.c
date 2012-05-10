@@ -27,6 +27,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/param.h>
@@ -58,6 +62,7 @@
 #include <sys/disp.h>
 #include <sys/msacct.h>
 #include <sys/mem_cage.h>
+#include <sys/uctx_ops.h>
 
 #include <vm/page.h>
 #include <vm/anon.h>
@@ -240,7 +245,10 @@ int32_t pps_stbcnt = 0;		/* stability limit exceeded */
 
 /* The following variables require no explicit locking */
 volatile clock_t lbolt;		/* time in Hz since last boot */
-volatile int64_t lbolt64;	/* lbolt64 won't wrap for 2.9 billion yrs */
+volatile clock_t lbolt_fast;	/* more correctly than lbolt */
+
+/* lbolt64 won't wrap for 2.9 billion yrs */
+volatile int64_t lbolt64;
 
 kcondvar_t lbolt_cv;
 int one_sec = 1; /* turned on once every second */
@@ -250,6 +258,7 @@ int	tod_needsync = 0;	/* need to sync tod chip with software time */
 static int tod_broken = 0;	/* clock chip doesn't work */
 time_t	boot_time = 0;		/* Boot time in seconds since 1970 */
 cyclic_id_t clock_cyclic;	/* clock()'s cyclic_id */
+cyclic_id_t clock_fast_cyclic;	/* clock_fast()'s cyclic_id */
 cyclic_id_t deadman_cyclic;	/* deadman()'s cyclic_id */
 cyclic_id_t ddi_timer_cyclic;	/* cyclic_timer()'s cyclic_id */
 
@@ -316,6 +325,12 @@ void (*cmm_clock_callout)() = NULL;
 void (*cpucaps_clock_callout)() = NULL;
 
 extern clock_t clock_tick_proc_max;
+
+static void
+clock_fast(void)
+{
+	lbolt_fast++;
+}
 
 static void
 clock(void)
@@ -498,7 +513,7 @@ clock(void)
 			 * average
 			 */
 			t = cp->cpu_thread;
-			if (CPU == cp)
+			if (CPU_GLOBAL == cp)
 				t = t->t_intr;
 
 			/*
@@ -507,8 +522,8 @@ clock(void)
 			 * stack and not the current CPU handling the clock
 			 * interrupt
 			 */
-			if ((t && t != cp->cpu_idle_thread) || (CPU != cp &&
-			    CPU_ON_INTR(cp))) {
+			if ((t && t != cp->cpu_idle_thread) ||
+			    (CPU_GLOBAL != cp && CPU_ON_INTR(cp))) {
 				if (t->t_lpl == cp->cpu_lpl) {
 					/* local thread */
 					cpu_nrunnable++;
@@ -784,9 +799,9 @@ clock(void)
 			/* number of reserved and allocated pages */
 #ifdef	DEBUG
 			if (maxswap < free)
-				cmn_err(CE_WARN, "clock: maxswap < free");
+				cmn_err(CE_WARN, "!clock: maxswap < free");
 			if (maxswap < resv)
-				cmn_err(CE_WARN, "clock: maxswap < resv");
+				cmn_err(CE_WARN, "!clock: maxswap < resv");
 #endif
 			vminfo.swap_alloc += maxswap - free;
 			vminfo.swap_avail += maxswap - resv;
@@ -840,8 +855,11 @@ clock(void)
 		/*
 		 * Wake up the swapper thread if necessary.
 		 */
-		if (runin ||
+		if (runin || DESPERATE_FREEMEM() ||
 		    (runout && (avefree < desfree || wake_sched_sec))) {
+			if (!runin) {
+				UCTX_OPS_MEMSCHED();
+			}
 			t = &t0;
 			thread_lock(t);
 			if (t->t_state == TS_STOPPED) {
@@ -904,6 +922,17 @@ clock_init(void)
 
 	mutex_enter(&cpu_lock);
 	ddi_timer_cyclic = cyclic_add(&hdlr, &when);
+	mutex_exit(&cpu_lock);
+
+	hdlr.cyh_func = (cyc_func_t)clock_fast;
+	hdlr.cyh_level = CY_HIGH_LEVEL;
+	hdlr.cyh_arg = NULL;
+
+	when.cyt_when = 0;
+	when.cyt_interval = nsec_per_tick;
+
+	mutex_enter(&cpu_lock);
+	clock_fast_cyclic = cyclic_add(&hdlr, &when);
 	mutex_exit(&cpu_lock);
 }
 
@@ -1498,7 +1527,7 @@ clock_tick(kthread_t *t, int pending)
 	/*
 	 * Notify the CPU the thread is running on.
 	 */
-	if (poke && t->t_cpu != CPU)
+	if (poke && t->t_cpu != CPU_GLOBAL)
 		poke_cpu(t->t_cpu->cpu_id);
 }
 

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
@@ -541,6 +545,8 @@ _private_setcontext(const ucontext_t *ucp)
 		uc.uc_mcontext.gregs[REG_FS] = (greg_t)0; /* null for fsbase */
 #elif defined(__i386)
 		uc.uc_mcontext.gregs[GS] = (greg_t)LWPGS_SEL;
+#elif defined(__arm)
+		uc.uc_mcontext.gregs[REG_TP] = (greg_t)self;
 #else
 #error "none of __sparc, __amd64, __i386 defined"
 #endif

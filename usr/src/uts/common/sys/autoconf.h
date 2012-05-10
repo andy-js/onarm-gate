@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #ifndef _SYS_AUTOCONF_H
 #define	_SYS_AUTOCONF_H
@@ -139,11 +142,19 @@ extern int ddidebug;
 #define	DDI_INTR_APIDBG(args)
 #define	DDI_INTR_IMPLDBG(args)
 #define	DDI_INTR_NEXDBG(args)
+#ifndef	__arm
 #define	RIO_DEBUG(args)		if (ddidebug & DDI_DBG_RETIRE) cmn_err args
 #define	RIO_VERBOSE(args)	if (ddidebug & DDI_DBG_RTR_VRBOSE) cmn_err args
 #define	RIO_TRACE(args)		if (ddidebug & DDI_DBG_RTR_TRACE) cmn_err args
 #define	LDI_EVDBG(args)		if (ddidebug & LDI_EV_DEBUG) cmn_err args
 #define	LDI_EVTRC(args)		if (ddidebug & LDI_EV_TRACE) cmn_err args
+#else	/* __arm */
+#define	RIO_DEBUG(args)	
+#define	RIO_VERBOSE(args)
+#define	RIO_TRACE(args)	
+#define	LDI_EVDBG(args)
+#define	LDI_EVTRC(args)
+#endif	/* !__arm */
 #endif
 
 

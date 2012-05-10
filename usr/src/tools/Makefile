@@ -24,6 +24,10 @@
 #
 #ident	"%Z%%M%	%I%	%E% SMI"
 
+#
+# Copyright (c) 2006-2009 NEC Corporation
+#
+
 include ../Makefile.master
 
 # Bootstrap problem --
@@ -40,6 +44,7 @@ COMMON_SUBDIRS= \
 	cscope-fast \
 	ctf \
 	depcheck \
+	elfdatamod \
 	env \
 	fastfs \
 	findunref \
@@ -50,7 +55,9 @@ COMMON_SUBDIRS= \
 	lintdump \
 	protocmp \
 	protolist \
-	scripts
+	scripts \
+	utstune \
+	mkxramfs
 
 #
 #  special versions of commands for use only in build
@@ -66,6 +73,13 @@ i386_SUBDIRS=		\
 	aw		\
 	elfextract	\
 	mbh_patch
+
+arm_SUBDIRS= \
+	aw	\
+	devconf	\
+	symfilter \
+	mkimage \
+	xramconf
 
 LINTSUBDIRS= \
 	codereview \
@@ -110,6 +124,10 @@ ROOTDIRS= \
 	$(ROOTONBLD)/man \
 	$(ROOTONBLD)/man/man1
 
+arm_ROOTDIRS	= $(ROOTONBLD)/bin/$(NATIVE_MACH)
+
+ROOTDIRS	+= $($(MACH)_ROOTDIRS)
+
 all :=		TARGET= install
 install :=	TARGET= install
 clean :=	TARGET= clean
@@ -125,6 +143,12 @@ clean: $(SUBDIRS)
 
 clobber: $(SUBDIRS)
 	$(RM) -rf $(TOOLS_PROTO)
+
+# Need to install scripts before "make setup" on STATIC_UNIX, or
+# utstune environment.
+setup-tools:	$(ROOTDIRS)
+	@cd scripts; pwd; $(MAKE) install
+	@cd utstune; pwd; $(MAKE) install
 
 pkg: install .WAIT $(PKG_SUBDIRS)
 

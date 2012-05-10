@@ -28,6 +28,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<stdio.h>
@@ -49,6 +53,9 @@ static int      menu_match();
 /* mouse coordinates */
 extern int Mouse_row;
 extern int Mouse_col;
+
+static void strtolower();
+static int  nocase_strncmp();
 
 token
 menu_stream(t)
@@ -540,8 +547,6 @@ token	t;
 	register int	start;
 	register int	count;
 	register char	*p;
-	static void strtolower();
-	static int  nocase_strncmp();
 	char badmatch[PATHSIZ];
 
 	start = m->index;

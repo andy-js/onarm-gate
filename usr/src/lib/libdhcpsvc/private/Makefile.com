@@ -22,6 +22,11 @@
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -32,7 +37,7 @@ OBJECTS = confopt.o errmsgs.o private.o public.o dsvcd_synch.o
 # include library definitions
 include $(SRC)/lib/libdhcpsvc/Makefile.com
 
-LIBS	= $(DYNLIB) $(LINTLIB)
+LIBS	= $(ARLIB) $(DYNLIB) $(LINTLIB)
 $(LINTLIB) := SRCS = $(SRCDIR)/$(LINTSRC)
 
 LDLIBS += -lnsl -linetutil -lelf -lc

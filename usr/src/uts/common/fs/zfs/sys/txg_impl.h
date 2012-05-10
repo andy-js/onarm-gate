@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_TXG_IMPL_H
 #define	_SYS_TXG_IMPL_H
 
@@ -31,6 +35,7 @@
 
 #include <sys/spa.h>
 #include <sys/txg.h>
+#include <zfs_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -47,13 +52,13 @@ typedef struct tx_state {
 	tx_cpu_t	*tx_cpu;	/* protects right to enter txg	*/
 	kmutex_t	tx_sync_lock;	/* protects tx_state_t */
 	krwlock_t	tx_suspend;
-	uint64_t	tx_open_txg;	/* currently open txg id */
-	uint64_t	tx_quiesced_txg; /* quiesced txg waiting for sync */
-	uint64_t	tx_syncing_txg;	/* currently syncing txg id */
-	uint64_t	tx_synced_txg;	/* last synced txg id */
+	txg_t		tx_open_txg;	/* currently open txg id */
+	txg_t		tx_quiesced_txg; /* quiesced txg waiting for sync */
+	txg_t		tx_syncing_txg;	/* currently syncing txg id */
+	txg_t		tx_synced_txg;	/* last synced txg id */
 
-	uint64_t	tx_sync_txg_waiting; /* txg we're waiting to sync */
-	uint64_t	tx_quiesce_txg_waiting; /* txg we're waiting to open */
+	txg_t		tx_sync_txg_waiting; /* txg we're waiting to sync */
+	txg_t		tx_quiesce_txg_waiting; /* txg we're waiting to open */
 
 	kcondvar_t	tx_sync_more_cv;
 	kcondvar_t	tx_sync_done_cv;

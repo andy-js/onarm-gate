@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 LIBRARY =	libld.a
 VERS =		.4
 
@@ -96,8 +100,10 @@ BLTFILES =	$(BLTDEFS) $(BLTDATA) $(BLTMESG)
 SGSMSGCOM =	../common/libld.msg
 SGSMSGSPARC =	../common/libld.sparc.msg
 SGSMSGINTEL =	../common/libld.intel.msg
+SGSMSGARM =	../common/libld.arm.msg
+SGSMSGCROSS =	../common/libld.cross.msg
 SGSMSGTARG =	$(SGSMSGCOM)
-SGSMSGALL =	$(SGSMSGCOM) $(SGSMSGSPARC) $(SGSMSGINTEL)
+SGSMSGALL =	$(SGSMSGCOM) $(SGSMSGSPARC) $(SGSMSGINTEL) $(SGSMSGARM)
 
 SGSMSGFLAGS1 =	$(SGSMSGFLAGS) -m $(BLTMESG)
 SGSMSGFLAGS2 =	$(SGSMSGFLAGS) -h $(BLTDEFS) -d $(BLTDATA) -n libld_msg
@@ -124,3 +130,8 @@ CLEANFILES +=	$(LINTOUTS) $(BLTFILES)
 CLOBBERFILES +=	$(DYNLIB) $(LINTLIBS) $(LIBLINKS)
 
 ROOTFS_DYNLIB =	$(DYNLIB:%=$(ROOTFS_LIBDIR)/%)
+
+# Special macros for cross builds.
+cross	:=	SGSMSGALL += $(SGSMSGCROSS)
+cross	:=	SGSMSGTARG += $(SGSMSGCROSS)
+cross	:=	CPPFLAGS += -DDEFAULT_SYSROOT_PATH="\"$(DEFAULT_SYSROOT)\""

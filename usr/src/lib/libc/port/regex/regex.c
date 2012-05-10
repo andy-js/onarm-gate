@@ -28,6 +28,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -170,6 +174,7 @@ ____loc1(void)
 
 /* DEFINITION OF regex() */
 
+#pragma weak regex = _regex
 extern char *
 _regex(const char *regexp,
 	const char *stringp, ...)

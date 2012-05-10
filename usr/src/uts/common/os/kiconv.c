@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -46,6 +50,8 @@
 #include <sys/kiconv.h>
 #include <sys/kiconv_latin1.h>
 
+/* Determine whether we are loading kiconv module or not. */
+static volatile int	kiconv_loading;
 
 /*
  * The following macros indicate ids to the correct code conversion mapping
@@ -998,6 +1004,15 @@ kiconv_module_ref_count(size_t mid)
 
 	count = module_list[mid].refcount;
 
+	if (count == 0 && kiconv_loading) {
+		/*
+		 * Now we are loading kiconv module.
+		 * Non-zero value must be returned as reference count
+		 * to prevent new kiconv module from being unloaded.
+		 */
+		count = 1;
+	}
+
 	mutex_exit(&conv_list_lock);
 
 	return (count);
@@ -1225,16 +1240,22 @@ check_and_load_conversions(const char *tocode, const char *fromcode)
 	mid = conv_list[i].mid;
 
 	if (conv_list[i].open == NULL) {
+		kiconv_loading++;
 		mutex_exit(&conv_list_lock);
 
-		if (modload("kiconv", module_list[mid].name) < 0)
+		if (modload("kiconv", module_list[mid].name) < 0) {
+			mutex_enter(&conv_list_lock);
+			kiconv_loading--;
+			mutex_exit(&conv_list_lock);
 			return ((kiconv_t)-1);
+		}
 
 		/*
 		 * Let's double check if something happened right after
 		 * the modload and/or if the module really has the conversion.
 		 */
 		mutex_enter(&conv_list_lock);
+		kiconv_loading--;
 
 		if (conv_list[i].open == NULL) {
 			mutex_exit(&conv_list_lock);
@@ -1372,3 +1393,28 @@ kiconvstr(const char *tocode, const char *fromcode, char *inarray,
 
 	return (ret);
 }
+
+#ifdef	KICONV_LOADABLE
+/*
+ * boolean_t
+ * kiconv_is_unloadable(void)
+ *	Determine whether kiconv module is unloadable or not.
+ */
+boolean_t
+kiconv_is_unloadable(void)
+{
+	boolean_t	unloadable = B_TRUE;
+	size_t		mid;
+
+	mutex_enter(&conv_list_lock);
+	for (mid = 0; mid <= KICONV_MAX_MODULE_ID; mid++) {
+		if (module_list[mid].refcount > 0) {
+			unloadable = B_FALSE;
+			break;
+		}
+	}
+	mutex_exit(&conv_list_lock);
+
+	return unloadable;
+}
+#endif	/* KICONV_LOADABLE */

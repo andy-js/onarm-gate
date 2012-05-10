@@ -36,6 +36,9 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -703,9 +706,20 @@ ufs_direnter_cm(
 	 * If target directory has not been removed, then we can consider
 	 * allowing file to be created.
 	 */
+	/*
+	 * IRENAME means that target inode was renamed.
+	 * If returning a ESTALE, it is called again with new inode later.
+	 */
+	rw_enter(&tdp->i_contents, RW_READER);
 	if (tdp->i_nlink <= 0) {
+		if (tdp->i_flag & IRENAME) {
+			rw_exit(&tdp->i_contents);
+			return (ESTALE);
+		}
+		rw_exit(&tdp->i_contents);
 		return (ENOENT);
 	}
+	rw_exit(&tdp->i_contents);
 
 	/*
 	 * Check accessibility of directory.
@@ -730,6 +744,15 @@ ufs_direnter_cm(
 	slot.status = NONE;
 	rw_enter(&tdp->i_ufsvfs->vfs_dqrwlock, RW_READER);
 	rw_enter(&tdp->i_contents, RW_WRITER);
+	/*
+	 * IRENAME means that target inode was renamed.
+	 * If returning a ESTALE, it is called again with new inode later.
+	 */
+	if (tdp->i_nlink <= 0 && tdp->i_flag & IRENAME) {
+		rw_exit(&tdp->i_contents);
+		rw_exit(&tdp->i_ufsvfs->vfs_dqrwlock);
+		return (ESTALE);
+	}
 	err = ufs_dircheckforname(tdp, namep, namlen, &slot, &tip, cr, noentry);
 	if (err)
 		goto out;
@@ -870,8 +893,16 @@ ufs_direnter_lr(
 		return (err);
 	}
 
+	/*
+	 * IRENAME means that target inode was renamed.
+	 * If returning a ESTALE, it is called again with new inode later.
+	 */
 	rw_enter(&sip->i_contents, RW_WRITER);
 	if (sip->i_nlink <= 0) {
+		if (sip->i_flag & IRENAME) {
+			rw_exit(&sip->i_contents);
+			return (ESTALE);
+		}
 		rw_exit(&sip->i_contents);
 		return (ENOENT);
 	}
@@ -893,20 +924,28 @@ ufs_direnter_lr(
 
 	if (op != DE_SYMLINK)
 		sip->i_nlink++;
-	TRANS_INODE(sip->i_ufsvfs, sip);
-	sip->i_flag |= ICHG;
-	sip->i_seq++;
-	ufs_iupdat(sip, I_SYNC);
 	rw_exit(&sip->i_contents);
 
 	/*
 	 * If target directory has not been removed, then we can consider
 	 * allowing file to be created.
 	 */
+	/*
+	 * IRENAME means that target inode was renamed.
+	 * If returning a ESTALE, it is called again with new inode later.
+	 */
+	rw_enter(&tdp->i_contents, RW_READER);
 	if (tdp->i_nlink <= 0) {
+		if (tdp->i_flag & IRENAME) {
+			rw_exit(&tdp->i_contents);
+			err = ESTALE;
+			goto out2;
+		}
+		rw_exit(&tdp->i_contents);
 		err = ENOENT;
 		goto out2;
 	}
+	rw_exit(&tdp->i_contents);
 	/*
 	 * Check accessibility of directory.
 	 */
@@ -930,6 +969,14 @@ ufs_direnter_lr(
 	slot.fbp = NULL;
 	rw_enter(&tdp->i_ufsvfs->vfs_dqrwlock, RW_READER);
 	rw_enter(&tdp->i_contents, RW_WRITER);
+	/*
+	 * IRENAME means that target inode was renamed.
+	 * If returning a ESTALE, it is called again with new inode later.
+	 */
+	if (tdp->i_nlink <= 0 && tdp->i_flag & IRENAME) {
+		err = ESTALE;
+		goto out;
+	}
 	err = ufs_dircheckforname(tdp, namep, namlen, &slot, &tip, cr, 0);
 	if (err)
 		goto out;
@@ -1000,12 +1047,15 @@ out2:
 			rw_enter(&sip->i_contents, RW_WRITER);
 			sip->i_nlink--;
 			ufs_setreclaim(sip);
-			TRANS_INODE(sip->i_ufsvfs, sip);
-			sip->i_flag |= ICHG;
-			sip->i_seq++;
-			ITIMES_NOLOCK(sip);
 			rw_exit(&sip->i_contents);
 		}
+	} else {
+		rw_enter(&sip->i_contents, RW_WRITER);
+		TRANS_INODE(sip->i_ufsvfs, sip);
+		sip->i_flag |= ICHG;
+		sip->i_seq++;
+		ufs_iupdat(sip, I_SYNC);
+		rw_exit(&sip->i_contents);
 	}
 	return (err);
 }
@@ -1654,6 +1704,10 @@ retry:
 		tdp->i_seq++;
 		ITIMES_NOLOCK(tdp);
 		if (sdp != tdp) {
+			/*
+			 * IRENAME means that target inode was renamed.
+			 */
+			tip->i_flag |= IRENAME;
 			rw_exit(&tip->i_contents);
 			rw_exit(&sip->i_contents);
 			err = ufs_dirfixdotdot(sip, sdp, tdp);
@@ -1661,6 +1715,10 @@ retry:
 		}
 	} else
 		ufs_setreclaim(tip);
+	/*
+	 * IRENAME means that target inode was renamed.
+	 */
+	tip->i_flag |= IRENAME;
 out:
 	rw_exit(&tip->i_contents);
 	rw_exit(&sip->i_contents);
@@ -2891,7 +2949,12 @@ ufs_dirempty(
 	ino_t parentino,
 	struct cred *cr)
 {
-	return (ufs_dirscan(ip, parentino, cr, 0));
+	int rval;
+
+	ip->i_flag |= INOACC;
+	rval = ufs_dirscan(ip, parentino, cr, 0);
+	ip->i_flag &= ~INOACC;
+	return (rval);
 }
 
 /*
@@ -3040,6 +3103,16 @@ ufs_dircheckpath(
 			break;
 		if (((ip->i_mode & IFMT) != IFDIR) || ip->i_nlink == 0 ||
 		    ip->i_size < sizeof (struct dirtemplate)) {
+			/*
+	 		 * IRENAME means that target inode was renamed.
+	 		 * If returning a ESTALE,
+			 * it is called again with new inode later.
+			 */
+			if (ip->i_nlink == 0 && ip == target &&
+			    ip->i_flag & IRENAME) {
+				err = ESTALE;
+				break;
+			}
 			dirbad(ip, "bad size, unlinked or not dir", (off_t)0);
 			err = ENOTDIR;
 			break;

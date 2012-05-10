@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -44,8 +48,24 @@
 
 #include <sys/disp.h>
 
+#ifdef __arm
+
+#include <sys/usb/hcd/openhci/ohci_impl.h>
+#define OHCI_REGISTER_DEVHALT()		OHCI_REGISTER_DEVHALT_IMPL()
+#define OHCI_UNREGISTER_DEVHALT()	OHCI_UNREGISTER_DEVHALT_IMPL()
+/* Pointer to the state structure */
+void *ohci_statep;
+
+#else /* __arm */
+
+#define OHCI_REGISTER_DEVHALT()
+#define OHCI_UNREGISTER_DEVHALT()
 /* Pointer to the state structure */
 static void *ohci_statep;
+
+#endif /* __arm */
+
+int ohci_max_instance = 0;
 
 int force_ohci_off = 1;
 
@@ -557,7 +577,7 @@ static struct modlinkage modlinkage = {
 
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int error;
 
@@ -577,14 +597,15 @@ _init(void)
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int error;
 
@@ -595,6 +616,7 @@ _fini(void)
 
 	return (error);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 /*
@@ -674,6 +696,15 @@ ohci_attach(dev_info_t		*dip,
 		return (DDI_FAILURE);
 	}
 
+	/*
+	 * Disable all interrupts.
+	 * Host Controller is not reset after OS reboot
+	 * in particular platform.
+	 * So ensure that interrupts are not enabled
+	 * before enabling interrupt handler.
+	 */
+	Set_OpReg(hcr_intr_disable, Get_OpReg(hcr_intr_enable));
+
 	/* Register interrupts */
 	if (ohci_register_intrs_and_init_mutex(ohcip) != DDI_SUCCESS) {
 		(void) ohci_cleanup(ohcip);
@@ -690,6 +721,9 @@ ohci_attach(dev_info_t		*dip,
 
 		return (DDI_FAILURE);
 	}
+
+	/* Register devhalt function. */
+	OHCI_REGISTER_DEVHALT();
 
 	/*
 	 * At this point, the hardware wiil be okay.
@@ -765,6 +799,9 @@ ohci_attach(dev_info_t		*dip,
 	USB_DPRINTF_L4(PRINT_MASK_ATTA, ohcip->ohci_log_hdl,
 	    "ohci_attach: dip = 0x%p done", (void *)dip);
 
+	if(instance > ohci_max_instance)
+		ohci_max_instance = instance;
+
 	return (DDI_SUCCESS);
 }
 
@@ -776,6 +813,7 @@ int
 ohci_detach(dev_info_t		*dip,
 	ddi_detach_cmd_t	cmd)
 {
+	int		ret;
 	ohci_state_t		*ohcip = ohci_obtain_state(dip);
 
 	USB_DPRINTF_L4(PRINT_MASK_ATTA, ohcip->ohci_log_hdl, "ohci_detach:");
@@ -783,7 +821,12 @@ ohci_detach(dev_info_t		*dip,
 	switch (cmd) {
 	case DDI_DETACH:
 
-		return (ohci_cleanup(ohcip));
+		ret = ohci_cleanup(ohcip);
+		if(ret == DDI_SUCCESS){
+			/* unregister devhalt function */
+			OHCI_UNREGISTER_DEVHALT();
+		}
+		return (ret);
 
 	case DDI_SUSPEND:
 
@@ -11032,45 +11075,69 @@ ohci_do_byte_stats(
 	uint8_t 	dir = addr & USB_EP_DIR_MASK;
 
 	if (dir == USB_EP_DIR_IN) {
-		OHCI_TOTAL_STATS_DATA(ohcip)->reads++;
-		OHCI_TOTAL_STATS_DATA(ohcip)->nread += len;
+		if (OHCI_TOTAL_STATS(ohcip)) {
+			OHCI_TOTAL_STATS_DATA(ohcip)->reads++;
+			OHCI_TOTAL_STATS_DATA(ohcip)->nread += len;
+		}
 		switch (type) {
 			case USB_EP_ATTR_CONTROL:
-				OHCI_CTRL_STATS(ohcip)->reads++;
-				OHCI_CTRL_STATS(ohcip)->nread += len;
+				if (ohcip->
+				    ohci_count_stats[USB_EP_ATTR_CONTROL]) {
+					OHCI_CTRL_STATS(ohcip)->reads++;
+					OHCI_CTRL_STATS(ohcip)->nread += len;
+				}
 				break;
 			case USB_EP_ATTR_BULK:
-				OHCI_BULK_STATS(ohcip)->reads++;
-				OHCI_BULK_STATS(ohcip)->nread += len;
+				if (ohcip->ohci_count_stats[USB_EP_ATTR_BULK]) {
+					OHCI_BULK_STATS(ohcip)->reads++;
+					OHCI_BULK_STATS(ohcip)->nread += len;
+				}
 				break;
 			case USB_EP_ATTR_INTR:
-				OHCI_INTR_STATS(ohcip)->reads++;
-				OHCI_INTR_STATS(ohcip)->nread += len;
+				if (ohcip->ohci_count_stats[USB_EP_ATTR_INTR]) {
+					OHCI_INTR_STATS(ohcip)->reads++;
+					OHCI_INTR_STATS(ohcip)->nread += len;
+				}
 				break;
 			case USB_EP_ATTR_ISOCH:
-				OHCI_ISOC_STATS(ohcip)->reads++;
-				OHCI_ISOC_STATS(ohcip)->nread += len;
+				if (ohcip->
+				    ohci_count_stats[USB_EP_ATTR_ISOCH]) {
+					OHCI_ISOC_STATS(ohcip)->reads++;
+					OHCI_ISOC_STATS(ohcip)->nread += len;
+				}
 				break;
 		}
 	} else if (dir == USB_EP_DIR_OUT) {
-		OHCI_TOTAL_STATS_DATA(ohcip)->writes++;
-		OHCI_TOTAL_STATS_DATA(ohcip)->nwritten += len;
+		if (OHCI_TOTAL_STATS(ohcip)) {
+			OHCI_TOTAL_STATS_DATA(ohcip)->writes++;
+			OHCI_TOTAL_STATS_DATA(ohcip)->nwritten += len;
+		}
 		switch (type) {
 			case USB_EP_ATTR_CONTROL:
-				OHCI_CTRL_STATS(ohcip)->writes++;
-				OHCI_CTRL_STATS(ohcip)->nwritten += len;
+				if (ohcip->
+				    ohci_count_stats[USB_EP_ATTR_CONTROL]) {
+					OHCI_CTRL_STATS(ohcip)->writes++;
+					OHCI_CTRL_STATS(ohcip)->nwritten += len;
+				}
 				break;
 			case USB_EP_ATTR_BULK:
-				OHCI_BULK_STATS(ohcip)->writes++;
-				OHCI_BULK_STATS(ohcip)->nwritten += len;
+				if (ohcip->ohci_count_stats[USB_EP_ATTR_BULK]) {
+					OHCI_BULK_STATS(ohcip)->writes++;
+					OHCI_BULK_STATS(ohcip)->nwritten += len;
+				}
 				break;
 			case USB_EP_ATTR_INTR:
-				OHCI_INTR_STATS(ohcip)->writes++;
-				OHCI_INTR_STATS(ohcip)->nwritten += len;
+				if (ohcip->ohci_count_stats[USB_EP_ATTR_INTR]) {
+					OHCI_INTR_STATS(ohcip)->writes++;
+					OHCI_INTR_STATS(ohcip)->nwritten += len;
+				}
 				break;
 			case USB_EP_ATTR_ISOCH:
-				OHCI_ISOC_STATS(ohcip)->writes++;
-				OHCI_ISOC_STATS(ohcip)->nwritten += len;
+				if (ohcip->
+				    ohci_count_stats[USB_EP_ATTR_ISOCH]) {
+					OHCI_ISOC_STATS(ohcip)->writes++;
+					OHCI_ISOC_STATS(ohcip)->nwritten += len;
+				}
 				break;
 		}
 	}

@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/note.h>
@@ -155,6 +159,7 @@ ddi_apply_range(dev_info_t *dp, dev_info_t *rdip, struct regspec *rp)
 	return (i_ddi_apply_range(dp, rdip, rp));
 }
 
+#ifndef NO_USEDDI
 int
 ddi_map_regs(dev_info_t *dip, uint_t rnumber, caddr_t *kaddrp, off_t offset,
     off_t len)
@@ -218,7 +223,9 @@ ddi_map_regs(dev_info_t *dip, uint_t rnumber, caddr_t *kaddrp, off_t offset,
 
 	return (ddi_map(dip, &mr, offset, len, kaddrp));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 void
 ddi_unmap_regs(dev_info_t *dip, uint_t rnumber, caddr_t *kaddrp, off_t offset,
     off_t len)
@@ -243,6 +250,7 @@ ddi_unmap_regs(dev_info_t *dip, uint_t rnumber, caddr_t *kaddrp, off_t offset,
 	(void) ddi_prop_remove(DDI_DEV_T_NONE, dip, chosen_reg);
 #endif
 }
+#endif /* NO_USEDDI */
 
 int
 ddi_bus_map(dev_info_t *dip, dev_info_t *rdip, ddi_map_req_t *mp,
@@ -422,12 +430,14 @@ ddi_peek32(dev_info_t *dip, int32_t *addr, int32_t *val_p)
 	    val_p));
 }
 
+#ifndef NO_USEDDI
 int
 ddi_peek64(dev_info_t *dip, int64_t *addr, int64_t *val_p)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_PEEK, sizeof (*val_p), addr,
 	    val_p));
 }
+#endif /* NO_USEDDI */
 
 
 /*
@@ -439,33 +449,41 @@ ddi_peek64(dev_info_t *dip, int64_t *addr, int64_t *val_p)
  * or earlier will actually have a reference to ddi_peekc in the binary.
  */
 #ifdef _ILP32
+#ifndef NO_USEDDI
 int
 ddi_peekc(dev_info_t *dip, int8_t *addr, int8_t *val_p)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_PEEK, sizeof (*val_p), addr,
 	    val_p));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_peeks(dev_info_t *dip, int16_t *addr, int16_t *val_p)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_PEEK, sizeof (*val_p), addr,
 	    val_p));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_peekl(dev_info_t *dip, int32_t *addr, int32_t *val_p)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_PEEK, sizeof (*val_p), addr,
 	    val_p));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_peekd(dev_info_t *dip, int64_t *addr, int64_t *val_p)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_PEEK, sizeof (*val_p), addr,
 	    val_p));
 }
+#endif /* NO_USEDDI */
 #endif /* _ILP32 */
 
 int
@@ -486,11 +504,13 @@ ddi_poke32(dev_info_t *dip, int32_t *addr, int32_t val)
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_POKE, sizeof (val), addr, &val));
 }
 
+#ifndef NO_USEDDI
 int
 ddi_poke64(dev_info_t *dip, int64_t *addr, int64_t val)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_POKE, sizeof (val), addr, &val));
 }
+#endif /* NO_USEDDI */
 
 /*
  * We need to separate the old interfaces from the new ones and leave them
@@ -501,29 +521,37 @@ ddi_poke64(dev_info_t *dip, int64_t *addr, int64_t val)
  * or earlier will actually have a reference to ddi_pokec in the binary.
  */
 #ifdef _ILP32
+#ifndef NO_USEDDI
 int
 ddi_pokec(dev_info_t *dip, int8_t *addr, int8_t val)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_POKE, sizeof (val), addr, &val));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_pokes(dev_info_t *dip, int16_t *addr, int16_t val)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_POKE, sizeof (val), addr, &val));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_pokel(dev_info_t *dip, int32_t *addr, int32_t val)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_POKE, sizeof (val), addr, &val));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_poked(dev_info_t *dip, int64_t *addr, int64_t val)
 {
 	return (i_ddi_peekpoke(dip, DDI_CTLOPS_POKE, sizeof (val), addr, &val));
 }
+#endif /* NO_USEDDI */
 #endif /* _ILP32 */
 
 /*
@@ -631,6 +659,7 @@ ddi_copyout(const void *buf, void *kernbuf, size_t size, int flags)
 }
 #endif	/* !__sparc */
 
+#ifndef NO_USEDDI
 /*
  * Conversions in nexus pagesize units.  We don't duplicate the
  * 'nil dip' semantics of peek/poke because btopr/btop/ptob are DDI/DKI
@@ -644,7 +673,9 @@ ddi_btop(dev_info_t *dip, unsigned long bytes)
 	(void) ddi_ctlops(dip, dip, DDI_CTLOPS_BTOP, &bytes, &pages);
 	return (pages);
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 unsigned long
 ddi_btopr(dev_info_t *dip, unsigned long bytes)
 {
@@ -653,6 +684,7 @@ ddi_btopr(dev_info_t *dip, unsigned long bytes)
 	(void) ddi_ctlops(dip, dip, DDI_CTLOPS_BTOPR, &bytes, &pages);
 	return (pages);
 }
+#endif /* NO_USEDDI */
 
 unsigned long
 ddi_ptob(dev_info_t *dip, unsigned long pages)
@@ -669,11 +701,13 @@ ddi_enter_critical(void)
 	return ((uint_t)spl7());
 }
 
+#ifndef NO_USEDDI
 void
 ddi_exit_critical(unsigned int spl)
 {
 	splx((int)spl);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Nexus ctlops punter
@@ -730,9 +764,25 @@ static ddi_dma_lim_t standard_limits = {
 	(int)1,			/* int dlim_sgllen */
 	(uint_t)0xffffffff	/* uint_t dlim_reqsizes */
 };
+#elif defined(__arm)
+static ddi_dma_lim_t standard_limits = {
+	(uint_t)0,		/* addr_t dlim_addr_lo */
+	(uint_t)0xffffffff,	/* addr_t dlim_addr_hi */
+	(uint_t)0,		/* uint_t dlim_cntr_max */
+	(uint_t)0x00000001,	/* uint_t dlim_burstsizes */
+	(uint_t)DMA_UNIT_8,	/* uint_t dlim_minxfer */
+	(uint_t)0,		/* uint_t dlim_dmaspeed */
+	(uint_t)0x86<<24+0,	/* uint_t dlim_version */
+	(uint_t)0xffffffff,	/* uint_t dlim_adreg_max */
+	(uint_t)0xffffffff,	/* uint_t dlim_ctreg_max */
+	(uint_t)512,		/* uint_t dlim_granular */
+	(int)1,			/* int dlim_sgllen */
+	(uint_t)0xffffffff	/* uint_t dlim_reqsizes */
+};
 
 #endif
 
+#ifndef NO_USEDDI
 int
 ddi_dma_setup(dev_info_t *dip, struct ddi_dma_req *dmareqp,
     ddi_dma_handle_t *handlep)
@@ -765,7 +815,9 @@ ddi_dma_setup(dev_info_t *dip, struct ddi_dma_req *dmareqp,
 		funcp = bop->bus_dma_map;
 	return ((*funcp)(dip, dip, dmareqp, handlep));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_dma_addr_setup(dev_info_t *dip, struct as *as, caddr_t addr, size_t len,
     uint_t flags, int (*waitfp)(), caddr_t arg,
@@ -806,7 +858,9 @@ ddi_dma_addr_setup(dev_info_t *dip, struct as *as, caddr_t addr, size_t len,
 
 	return ((*funcp)(dip, dip, &dmareq, handlep));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_dma_buf_setup(dev_info_t *dip, struct buf *bp, uint_t flags,
     int (*waitfp)(), caddr_t arg, ddi_dma_lim_t *limits,
@@ -871,6 +925,7 @@ ddi_dma_buf_setup(dev_info_t *dip, struct buf *bp, uint_t flags,
 
 	return ((*funcp)(dip, dip, &dmareq, handlep));
 }
+#endif /* NO_USEDDI */
 
 #if !defined(__sparc)
 /*
@@ -910,26 +965,33 @@ ddi_dma_kvaddrp(ddi_dma_handle_t h, off_t off, size_t len, caddr_t *kp)
 	return (ddi_dma_mctl(HD, HD, h, DDI_DMA_KVADDR, &off, &len, kp, 0));
 }
 
+#ifndef NO_USEDDI
 int
 ddi_dma_htoc(ddi_dma_handle_t h, off_t o, ddi_dma_cookie_t *c)
 {
 	return (ddi_dma_mctl(HD, HD, h, DDI_DMA_HTOC, &o, 0, (caddr_t *)c, 0));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_dma_coff(ddi_dma_handle_t h, ddi_dma_cookie_t *c, off_t *o)
 {
 	return (ddi_dma_mctl(HD, HD, h, DDI_DMA_COFF,
 	    (off_t *)c, 0, (caddr_t *)o, 0));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_dma_movwin(ddi_dma_handle_t h, off_t *o, size_t *l, ddi_dma_cookie_t *c)
 {
 	return (ddi_dma_mctl(HD, HD, h, DDI_DMA_MOVWIN, o,
 	    l, (caddr_t *)c, 0));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_dma_curwin(ddi_dma_handle_t h, off_t *o, size_t *l)
 {
@@ -937,6 +999,7 @@ ddi_dma_curwin(ddi_dma_handle_t h, off_t *o, size_t *l)
 		return (DDI_FAILURE);
 	return (ddi_dma_mctl(HD, HD, h, DDI_DMA_REPWIN, o, l, 0, 0));
 }
+#endif /* NO_USEDDI */
 
 int
 ddi_dma_nextwin(ddi_dma_handle_t h, ddi_dma_win_t win,
@@ -946,6 +1009,7 @@ ddi_dma_nextwin(ddi_dma_handle_t h, ddi_dma_win_t win,
 	    (caddr_t *)nwin, 0));
 }
 
+#ifndef NO_USEDDI
 int
 ddi_dma_nextseg(ddi_dma_win_t win, ddi_dma_seg_t seg, ddi_dma_seg_t *nseg)
 {
@@ -954,8 +1018,10 @@ ddi_dma_nextseg(ddi_dma_win_t win, ddi_dma_seg_t seg, ddi_dma_seg_t *nseg)
 	return (ddi_dma_mctl(HD, HD, h, DDI_DMA_NEXTSEG, (off_t *)&win,
 	    (size_t *)&seg, (caddr_t *)nseg, 0));
 }
+#endif /* NO_USEDDI */
 
 #if (defined(__i386) && !defined(__amd64)) || defined(__sparc)
+#ifndef NO_USEDDI
 /*
  * This routine is Obsolete and should be removed from ALL architectures
  * in a future release of Solaris.
@@ -976,6 +1042,7 @@ ddi_dma_segtocookie(ddi_dma_seg_t seg, off_t *o, off_t *l,
 	return (ddi_dma_mctl(HD, HD, h, DDI_DMA_SEGTOC, o, (size_t *)l,
 	    (caddr_t *)cookiep, 0));
 }
+#endif /* NO_USEDDI */
 #endif	/* (__i386 && !__amd64) || __sparc */
 
 #if !defined(__sparc)
@@ -1123,6 +1190,7 @@ ddi_dma_unbind_handle(ddi_dma_handle_t h)
 
 #endif	/* !__sparc */
 
+#ifndef NO_USEDDI
 int
 ddi_dma_free(ddi_dma_handle_t h)
 {
@@ -1142,13 +1210,17 @@ ddi_iopb_alloc(dev_info_t *dip, ddi_dma_lim_t *limp, uint_t len, caddr_t *iopbp)
 	return (i_ddi_mem_alloc_lim(dip, limp, size, 0, 0, 0,
 	    iopbp, NULL, NULL));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 void
 ddi_iopb_free(caddr_t iopb)
 {
 	i_ddi_mem_free(iopb, NULL);
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_mem_alloc(dev_info_t *dip, ddi_dma_lim_t *limits, uint_t length,
 	uint_t flags, caddr_t *kaddrp, uint_t *real_length)
@@ -1163,12 +1235,15 @@ ddi_mem_alloc(dev_info_t *dip, ddi_dma_lim_t *limits, uint_t length,
 	return (i_ddi_mem_alloc_lim(dip, limits, size, flags & 0x1,
 	    1, 0, kaddrp, real_length, NULL));
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 void
 ddi_mem_free(caddr_t kaddr)
 {
 	i_ddi_mem_free(kaddr, NULL);
 }
+#endif /* NO_USEDDI */
 
 /*
  * DMA attributes, alignment, burst sizes, and transfer minimums
@@ -1195,6 +1270,7 @@ ddi_dma_burstsizes(ddi_dma_handle_t handle)
 		return (dimp->dmai_burstsizes);
 }
 
+#ifndef NO_USEDDI
 int
 ddi_dma_devalign(ddi_dma_handle_t handle, uint_t *alignment, uint_t *mineffect)
 {
@@ -1214,7 +1290,9 @@ ddi_dma_devalign(ddi_dma_handle_t handle, uint_t *alignment, uint_t *mineffect)
 	*mineffect = dimp->dmai_minxfer;
 	return (DDI_SUCCESS);
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_iomin(dev_info_t *a, int i, int stream)
 {
@@ -1234,6 +1312,7 @@ ddi_iomin(dev_info_t *a, int i, int stream)
 		return (0);
 	return (i);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Given two DMA attribute structures, apply the attributes
@@ -3859,6 +3938,7 @@ e_ddi_prop_create(dev_t dev, dev_info_t *dip, int flag,
 	    name, value, length, ddi_prop_fm_encode_bytes));
 }
 
+#ifndef NO_USEDDI
 int
 ddi_prop_modify(dev_t dev, dev_info_t *dip, int flag,
     char *name, caddr_t value, int length)
@@ -3882,6 +3962,7 @@ ddi_prop_modify(dev_t dev, dev_info_t *dip, int flag,
 	    (flag | DDI_PROP_TYPE_BYTE), name,
 	    value, length, ddi_prop_fm_encode_bytes));
 }
+#endif /* NO_USEDDI */
 
 int
 e_ddi_prop_modify(dev_t dev, dev_info_t *dip, int flag,
@@ -4515,6 +4596,7 @@ e_ddi_prop_remove_all(dev_info_t *dip)
 }
 
 
+#ifndef NO_USEDDI
 /*
  * ddi_prop_undefine:	Explicitly undefine a property.  Property
  *			searches which match this property return
@@ -4535,6 +4617,7 @@ ddi_prop_undefine(dev_t dev, dev_info_t *dip, int flag, char *name)
 	    (flag | DDI_PROP_STACK_CREATE | DDI_PROP_UNDEF_IT |
 	    DDI_PROP_TYPE_ANY), name, NULL, 0, ddi_prop_fm_encode_bytes));
 }
+#endif /* NO_USEDDI */
 
 int
 e_ddi_prop_undefine(dev_t dev, dev_info_t *dip, int flag, char *name)
@@ -5053,11 +5136,13 @@ ddi_dev_regsize(dev_info_t *dev, uint_t rnumber, off_t *result)
 	return (ret == DDI_SUCCESS ? DDI_SUCCESS : DDI_FAILURE);
 }
 
+#ifndef NO_USEDDI
 int
 ddi_dev_nregs(dev_info_t *dev, int *result)
 {
 	return (ddi_ctlops(dev, dev, DDI_CTLOPS_NREGS, 0, (void *)result));
 }
+#endif /* NO_USEDDI */
 
 int
 ddi_dev_is_sid(dev_info_t *d)
@@ -5065,11 +5150,13 @@ ddi_dev_is_sid(dev_info_t *d)
 	return (ddi_ctlops(d, d, DDI_CTLOPS_SIDDEV, (void *)0, (void *)0));
 }
 
+#ifndef NO_USEDDI
 int
 ddi_slaveonly(dev_info_t *d)
 {
 	return (ddi_ctlops(d, d, DDI_CTLOPS_SLAVEONLY, (void *)0, (void *)0));
 }
+#endif /* NO_USEDDI */
 
 int
 ddi_dev_affinity(dev_info_t *a, dev_info_t *b)
@@ -5656,6 +5743,7 @@ ddi_append_minor_node(dev_info_t *ddip, struct ddi_minor_data *dmdp)
 	mutex_exit(&(DEVI(ddip)->devi_lock));
 }
 
+#ifndef NO_USEDDI
 /*
  * Part of the obsolete SunCluster DDI Hooks.
  * Keep for binary compatibility
@@ -5665,6 +5753,7 @@ ddi_getiminor(dev_t dev)
 {
 	return (getminor(dev));
 }
+#endif /* NO_USEDDI */
 
 static int
 i_log_devfs_minor_create(dev_info_t *dip, char *minor_name)
@@ -7185,6 +7274,7 @@ ddi_regs_map_free(ddi_acc_handle_t *handlep)
 	*handlep = (ddi_acc_handle_t)NULL;
 }
 
+#ifndef NO_USEDDI
 int
 ddi_device_zero(ddi_acc_handle_t handle, caddr_t dev_addr, size_t bytecount,
 	ssize_t dev_advcnt, uint_t dev_datasz)
@@ -7224,7 +7314,9 @@ ddi_device_zero(ddi_acc_handle_t handle, caddr_t dev_addr, size_t bytecount,
 	}
 	return (DDI_SUCCESS);
 }
+#endif /* NO_USEDDI */
 
+#ifndef NO_USEDDI
 int
 ddi_device_copy(
 	ddi_acc_handle_t src_handle, caddr_t src_addr, ssize_t src_advcnt,
@@ -7290,6 +7382,7 @@ ddi_device_copy(
 	}
 	return (DDI_SUCCESS);
 }
+#endif /* NO_USEDDI */
 
 #define	swap16(value)  \
 	((((value) & 0xff) << 8) | ((value) >> 8))
@@ -7892,11 +7985,13 @@ ddi_lyr_free_devlist(dev_t *devlist, int ndevs)
  * Note: This will need to be fixed if we ever allow processes to
  * have more than one data model per exec.
  */
+#ifndef NO_USEDDI
 model_t
 ddi_mmap_get_model(void)
 {
 	return (get_udatamodel());
 }
+#endif /* NO_USEDDI */
 
 model_t
 ddi_model_convert_from(model_t model)
@@ -8422,6 +8517,7 @@ i_ddi_umem_unlock_thread_start(void)
 	mutex_exit(&ddi_umem_unlock_mutex);
 }
 
+#ifndef NO_USEDDI
 /*
  * Lock the virtual address range in the current process and create a
  * ddi_umem_cookie (of type UMEM_LOCKED). This can be used to pass to
@@ -8529,6 +8625,7 @@ ddi_umem_lock(caddr_t addr, size_t len, int flags, ddi_umem_cookie_t *cookie)
 	*cookie = (ddi_umem_cookie_t)p;
 	return (error);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Add the cookie to the ddi_umem_unlock list.  Pages will be
@@ -8567,6 +8664,7 @@ ddi_umem_unlock(ddi_umem_cookie_t cookie)
 	}
 }
 
+#ifndef NO_USEDDI
 /*
  * Create a buf structure from a ddi_umem_cookie
  * cookie - is a ddi_umem_cookie for from ddi_umem_lock and ddi_umem_alloc
@@ -8657,6 +8755,7 @@ ddi_umem_iosetup(ddi_umem_cookie_t cookie, off_t off, size_t len,
 	}
 	return (bp);
 }
+#endif /* NO_USEDDI */
 
 /*
  * Fault-handling and related routines
@@ -8677,6 +8776,7 @@ ddi_get_devstate(dev_info_t *dip)
 		return (DDI_DEVSTATE_UP);
 }
 
+#ifndef NO_USEDDI
 void
 ddi_dev_report_fault(dev_info_t *dip, ddi_fault_impact_t impact,
 	ddi_fault_location_t location, const char *message)
@@ -8702,6 +8802,7 @@ ddi_dev_report_fault(dev_info_t *dip, ddi_fault_impact_t impact,
 
 	(void) ndi_post_event(dip, dip, ec, &fd);
 }
+#endif /* NO_USEDDI */
 
 char *
 i_ddi_devi_class(dev_info_t *dip)

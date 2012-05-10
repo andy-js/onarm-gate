@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2009 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -31,6 +35,7 @@
 
 #include "dns_common.h"
 
+#ifndef	LIBRESOLV_NEEDED
 #pragma weak	dn_expand
 #pragma weak	res_ninit
 #pragma weak	res_nsearch
@@ -39,6 +44,7 @@
 #pragma weak	ns_get32
 #pragma weak	__ns_get16
 #pragma weak	__ns_get32
+#endif	/* !LIBRESOLV_NEEDED */
 
 #define	DNS_ALIASES	0
 #define	DNS_ADDRLIST	1

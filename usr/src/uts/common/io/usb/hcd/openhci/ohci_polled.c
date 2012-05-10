@@ -22,6 +22,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -99,6 +102,74 @@ static void	ohci_polled_finish_interrupt(
  * These functions are entry points into the POLLED code.
  */
 
+#ifdef NO_KBD_MS
+/*
+ * ohci_hcdi_polled_input_init:
+ *
+ * This is the initialization routine for handling the USB keyboard
+ * in POLLED mode.  This routine is not called from POLLED mode, so
+ * it is OK to acquire mutexes.
+ */
+int
+ohci_hcdi_polled_input_init(
+	usba_pipe_handle_data_t	*ph,
+	uchar_t			**polled_buf,
+	usb_console_info_impl_t	*console_input_info)
+{
+	return (USB_SUCCESS);
+}
+
+
+/*
+ * ohci_hcdi_polled_input_fini:
+ */
+int
+ohci_hcdi_polled_input_fini(usb_console_info_impl_t *info)
+{
+	return (USB_SUCCESS);
+}
+
+
+/*
+ * ohci_hcdi_polled_input_enter:
+ *
+ * This is where we enter into POLLED mode.  This routine sets up
+ * everything so that calls to	ohci_hcdi_polled_read will return
+ * characters.
+ */
+int
+ohci_hcdi_polled_input_enter(usb_console_info_impl_t *info)
+{
+	return (USB_SUCCESS);
+}
+
+
+/*
+ * ohci_hcdi_polled_input_exit:
+ *
+ * This is where we exit POLLED mode. This routine restores
+ * everything that is needed to continue operation.
+ */
+int
+ohci_hcdi_polled_input_exit(usb_console_info_impl_t *info)
+{
+	return (USB_SUCCESS);
+}
+
+
+/*
+ * ohci_hcdi_polled_read:
+ *
+ * Get a key character
+ */
+int
+ohci_hcdi_polled_read(
+	usb_console_info_impl_t	*info,
+	uint_t			*num_characters)
+{
+	return (USB_SUCCESS);
+}
+#else	/* NO_KBD_MS */
 /*
  * ohci_hcdi_polled_input_init:
  *
@@ -1768,3 +1839,4 @@ ohci_polled_finish_interrupt(
 	 */
 	(void) Get_OpReg(hcr_intr_status);
 }
+#endif	/* NO_KBD_MS */

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -49,6 +53,7 @@
 #include <vm/seg_kp.h>
 #include <sys/bitmap.h>
 #include <sys/mem_cage.h>
+#include <sys/lpg_config.h>
 
 /*
  * seg_kmem is the primary kernel memory segment driver.  It
@@ -106,8 +111,10 @@ struct seg kzioseg;		/* Segment for zio mappings */
 vmem_t *heap_arena;		/* primary kernel heap arena */
 vmem_t *heap_core_arena;	/* core kernel heap arena */
 char *heap_core_base;		/* start of core kernel heap arena */
+#ifndef	LPG_DISABLE
 char *heap_lp_base;		/* start of kernel large page heap arena */
 char *heap_lp_end;		/* end of kernel large page heap arena */
+#endif	/* !LPG_DISABLE */
 vmem_t *hat_memload_arena;	/* HAT translation data */
 struct seg kvseg32;		/* 32-bit kernel heap segment */
 vmem_t *heap32_arena;		/* 32-bit kernel heap arena */
@@ -120,6 +127,11 @@ vmem_t *static_arena;		/* arena for caches to import static memory */
 vmem_t *static_alloc_arena;	/* arena for allocating static memory */
 vmem_t *zio_arena = NULL;	/* arena for allocating zio memory */
 vmem_t *zio_alloc_arena = NULL;	/* arena for allocating zio memory */
+
+#ifdef	__arm
+extern uintptr_t	heaptext_base;
+extern size_t		heaptext_size;
+#endif	/* __arm */
 
 /*
  * seg_kmem driver can map part of the kernel heap with large pages.
@@ -138,6 +150,7 @@ vmem_t *zio_alloc_arena = NULL;	/* arena for allocating zio memory */
  * pages. kmem_lp_arena imports virtual segments from heap_lp_arena.
  */
 
+#ifndef	LPG_DISABLE
 size_t	segkmem_lpsize;
 static  uint_t	segkmem_lpshift = PAGESHIFT;
 int	segkmem_lpszc = 0;
@@ -173,6 +186,8 @@ static  size_t	segkmem_kmemlp_min;
 static  ulong_t segkmem_lpthrottle_max = 0x400000;
 static  ulong_t segkmem_lpthrottle_start = 0x40;
 static  ulong_t segkmem_use_lpthrottle = 1;
+
+#endif	/* !LPG_DISABLE */
 
 /*
  * Freed pages accumulate on a garbage list until segkmem is ready,
@@ -226,14 +241,17 @@ kernelheap_init(
 	size_t core_size;
 	size_t heap_size;
 	vmem_t *heaptext_parent;
+#ifndef	LPG_DISABLE
 	size_t	heap_lp_size = 0;
 #ifdef __sparc
 	size_t kmem64_sz = kmem64_aligned_end - kmem64_base;
 #endif	/* __sparc */
+#endif	/* !LPG_DISABLE */
 
 	kernelheap = heap_start;
 	ekernelheap = heap_end;
 
+#ifndef	LPG_DISABLE
 #ifdef __sparc
 	heap_lp_size = (((uintptr_t)heap_end - (uintptr_t)heap_start) / 4);
 	/*
@@ -246,7 +264,16 @@ kernelheap_init(
 	heap_lp_base = ekernelheap - heap_lp_size;
 	heap_lp_end = heap_lp_base + heap_lp_size;
 #endif	/* __sparc */
+#endif	/* !LPG_DISABLE */
 
+#ifdef	__arm
+	/*
+	 * On ARM architecture, the range of heaptext_arena is defined
+	 * by heaptext_base and heaptext_size. So we don't need to change
+	 * ekernelheap.
+	 */
+	core_size = 0;
+#else	/* !__arm */
 	/*
 	 * If this platform has a 'core' heap area, then the space for
 	 * overflow module text should be carved out of the end of that
@@ -265,6 +292,7 @@ kernelheap_init(
 		textbase = (uintptr_t)ekernelheap;
 	}
 #endif
+#endif	/* __arm */
 
 	heap_size = (uintptr_t)ekernelheap - (uintptr_t)kernelheap;
 	heap_arena = vmem_init("heap", kernelheap, heap_size, PAGESIZE,
@@ -285,9 +313,10 @@ kernelheap_init(
 	 * boot sequence in segkmem_heap_lp_init(). Otherwise the allocated
 	 * range will be returned back to the heap_arena.
 	 */
-	if (heap_lp_size) {
-		(void) vmem_xalloc(heap_arena, heap_lp_size, PAGESIZE, 0, 0,
-		    heap_lp_base, heap_lp_end,
+	if (LPG_EVAL(heap_lp_size)) {
+		(void) vmem_xalloc(heap_arena, LPG_EVAL(heap_lp_size),
+		    PAGESIZE, 0, 0,
+		    LPG_EVAL(heap_lp_base), LPG_EVAL(heap_lp_end),
 		    VM_NOSLEEP | VM_BESTFIT | VM_PANIC);
 	}
 
@@ -297,6 +326,16 @@ kernelheap_init(
 	(void) vmem_xalloc(heap_arena, first_avail - kernelheap, PAGESIZE,
 	    0, 0, kernelheap, first_avail, VM_NOSLEEP | VM_BESTFIT | VM_PANIC);
 
+#ifdef	__arm
+	/*
+	 * Create arena for module text.
+	 * We don't need to pay attention to module data. 
+	 */
+	heaptext_arena = vmem_create("heaptext", (void *)heaptext_base,
+				     heaptext_size, PAGESIZE, NULL, NULL,
+				     NULL, 0, VM_SLEEP);
+	heap32_arena = heap_core_arena;
+#else	/* !__arm */
 #ifdef __sparc
 	heap32_arena = vmem_create("heap32", (void *)SYSBASE32,
 	    SYSLIMIT32 - SYSBASE32 - HEAPTEXT_SIZE, PAGESIZE, NULL,
@@ -311,6 +350,7 @@ kernelheap_init(
 
 	heaptext_arena = vmem_create("heaptext", (void *)textbase,
 	    HEAPTEXT_SIZE, PAGESIZE, NULL, NULL, heaptext_parent, 0, VM_SLEEP);
+#endif	/* __arm */
 
 	/*
 	 * Create a set of arenas for memory with static translations
@@ -342,6 +382,7 @@ kernelheap_init(
 	    VM_SLEEP | VMC_POPULATOR);
 }
 
+#ifndef	__arm
 void
 boot_mapin(caddr_t addr, size_t size)
 {
@@ -388,6 +429,7 @@ boot_mapin(caddr_t addr, size_t size)
 #endif
 	}
 }
+#endif	/* !__arm */
 
 /*
  * Get pages from boot and hash them into the kernel's vp.
@@ -405,7 +447,9 @@ boot_alloc(void *inaddr, size_t size, uint_t align)
 	size = ptob(btopr(size));
 	if (BOP_ALLOC(bootops, addr, size, align) != addr)
 		panic("boot_alloc: BOP_ALLOC failed");
+#ifndef	__arm
 	boot_mapin((caddr_t)addr, size);
+#endif	/* !__arm */
 	return (addr);
 }
 
@@ -1074,6 +1118,7 @@ kmem_freepages(void *addr, pgcnt_t npages)
 	kmem_free(addr, ptob(npages));
 }
 
+#ifndef	LPG_DISABLE
 /*
  * segkmem_page_create_large() allocates a large page to be used for the kmem
  * caches. If kpr is enabled we ask for a relocatable page unless requested
@@ -1490,6 +1535,7 @@ segkmem_lpsetup()
 #endif
 	return (use_large_pages);
 }
+#endif	/* !LPG_DISABLE */
 
 void
 segkmem_zio_init(void *zio_mem_base, size_t zio_mem_size)
@@ -1507,6 +1553,7 @@ segkmem_zio_init(void *zio_mem_base, size_t zio_mem_size)
 	ASSERT(zio_alloc_arena != NULL);
 }
 
+#ifndef	LPG_DISABLE
 #ifdef __sparc
 
 
@@ -1616,3 +1663,4 @@ segkmem_heap_lp_init()
 }
 
 #endif
+#endif	/* !LPG_DISABLE */

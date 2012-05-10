@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef _PCTYPES_H
 #define	_PCTYPES_H
 
@@ -39,7 +43,7 @@ extern "C" {
 
 typedef int irq_t;		/* IRQ level */
 typedef unsigned char *baseaddr_t; /* memory base address */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 typedef uint32_t ioaddr_t;
 #elif defined(__sparc)
 typedef caddr_t ioaddr_t;

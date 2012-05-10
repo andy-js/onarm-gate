@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <fcntl.h>
@@ -901,6 +905,16 @@ dm_inuse(char *dev_name, char **msg, dm_who_type_t who, int *errp)
 		free(dname);
 		return (found);
 	}
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+	/* 
+	 * Extended partition should not be used as primary and
+	 * logical partition.
+	 */
+	if (is_extended_partition(dev_name, msg, errp) != 0) {
+		return (1);
+	}
+#endif
 
 	dm_get_slice_stats(dname, &dev_stats, errp);
 	if (dev_stats == NULL) {

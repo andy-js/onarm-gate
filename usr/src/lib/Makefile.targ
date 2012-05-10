@@ -22,6 +22,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
@@ -92,6 +97,8 @@ $(LIBRARY): objs .WAIT $$(OBJS)
 	$(POST_PROCESS_A)
 
 $(DYNLIB): $$(MAPFILES)
+
+$(__GNULD)$(DYNLIB):	$$(VERS_SCRIPT) $$(LDSCRIPT.SO)
 
 $(DYNLIB): pics .WAIT $$(PICS) $$(ALTPICS)
 	$(BUILD.SO)

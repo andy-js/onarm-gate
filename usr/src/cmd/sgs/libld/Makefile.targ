@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 pics/%.o:	../common/%.c
 		$(COMPILE.c) -o $@ $<
 		$(POST_PROCESS_O)
@@ -88,6 +92,9 @@ $(SGSPROTO)/$(DYNLIB): \
 		@$(RM) $(SGSPROTO)/$(LIBLINKS)
 		$(SYMLINK) $(DYNLIB) $(SGSPROTO)/$(LIBLINKS)
 
+# Special target for cross builds
+cross:		$(CROSSLIB)/$(DYNLIB)
+
 include		$(SRC)/lib/Makefile.targ
 include		$(SRC)/cmd/sgs/Makefile.targ
 
@@ -99,8 +106,8 @@ chkmsg:		$(LIBSRCS) $(CHKSRCS)
 		sh $(CHKMSG) $(CHKMSGFLAGS) $(LIBSRCS) $(CHKSRCS)
 
 $(BLTDEFS) + \
-$(BLTDATA):	$(SGSMSGTARG)
+$(BLTDATA):	$$(SGSMSGTARG)
 		$(SGSMSG) $(SGSMSGFLAGS2) $(SGSMSGTARG)
 
-$(BLTMESG):	$(SGSMSGALL)
+$(BLTMESG):	$$(SGSMSGALL)
 		$(SGSMSG) $(SGSMSGFLAGS1) $(SGSMSGALL)

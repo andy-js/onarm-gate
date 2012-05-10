@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_MODHASH_H
 #define	_SYS_MODHASH_H
 
@@ -37,7 +41,7 @@
 extern "C" {
 #endif
 
-#ifdef _KERNEL
+#if	defined(_KERNEL) || defined(_KMEMUSER)
 
 #include <sys/types.h>
 
@@ -57,6 +61,8 @@ typedef void *mod_hash_hndl_t;
  */
 struct mod_hash;
 typedef struct mod_hash mod_hash_t;
+
+#ifdef	_KERNEL
 
 /*
  * String hash table
@@ -102,6 +108,8 @@ void mod_hash_clear(mod_hash_t *);
 void mod_hash_null_keydtor(mod_hash_key_t);
 void mod_hash_null_valdtor(mod_hash_val_t);
 
+#endif	/* _KERNEL */
+
 /*
  * Basic hash operations
  */
@@ -118,6 +126,8 @@ void mod_hash_null_valdtor(mod_hash_val_t);
  */
 #define	MH_WALK_CONTINUE 0
 #define	MH_WALK_TERMINATE 1
+
+#ifdef	_KERNEL
 
 /*
  * Basic hash operations
@@ -141,7 +151,9 @@ void mod_hash_cancel(mod_hash_t *, mod_hash_hndl_t *);
 int mod_hash_insert_reserve(mod_hash_t *, mod_hash_key_t, mod_hash_val_t,
     mod_hash_hndl_t);
 
-#endif /* _KERNEL */
+#endif	/* _KERNEL */
+
+#endif	/* defined(_KERNEL) || defined(_KMEMUSER) */
 
 #ifdef __cplusplus
 }

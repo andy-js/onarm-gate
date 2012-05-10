@@ -7,6 +7,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifndef SOLARIS
@@ -1040,8 +1044,7 @@ int	blen;
 	(void) sprintf(t, "%*.*s%u", len, len, ipf->fl_ifname, ipf->fl_unit);
 	t += strlen(t);
 #endif
-#if defined(__sgi) || defined(_AIX51) || defined(__powerpc__) || \
-    defined(__arm__)
+#if defined(__sgi) || defined(_AIX51) || defined(__powerpc__)
 	if ((ipf->fl_group[0] == 255) && (ipf->fl_group[1] == '\0'))
 #else
 	if ((ipf->fl_group[0] == -1) && (ipf->fl_group[1] == '\0'))

@@ -18,6 +18,11 @@
  *
  * CDDL HEADER END
  */
+
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 /*
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
@@ -177,6 +182,10 @@ extern int		disp_anywork(void);
 		    CPU->cpu_kprunrun)			\
 			kpreempt(KPREEMPT_SYNC);	\
 	}
+
+#if	defined(_KERNEL_BUILD_TREE)
+#include <sys/disp_impl.h>
+#endif	/* defined(_KERNEL_BUILD_TREE) */
 
 #endif	/* _KERNEL */
 

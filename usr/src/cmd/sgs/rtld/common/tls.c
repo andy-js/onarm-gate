@@ -23,8 +23,12 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
 #include <strings.h>
@@ -38,6 +42,43 @@
 
 #define	TLSBLOCKCNT	16	/* number of blocks of tmi_bits to allocate */
 				/* at a time. */
+
+#ifdef	__arm
+
+/*
+ * Return tm_stattlsoffset value for added TLS module.
+ * On ARM, set static TLS offset if the module has static TLS.
+ */
+#define	TLS_STATTLSOFFSET_NEWMOD(lmp)				\
+	((FLAGS1(lmp) & FL1_RT_TLSSTAT) ? TLSSTATOFF(lmp) : 0)
+
+/*
+ * Initial value for tls_static_size.
+ * On ARM, the size of thread control block must be reserved in static TLS.
+ */
+#define	TLS_STATIC_INITSIZE	 M_TCB_SIZE
+
+/*
+ * Allocate TLS from TLS backup reservation.
+ */
+#define	TLS_STATIC_RESV_ALLOC(lmp, size)		\
+	{						\
+		TLSSTATOFF(lmp) = tls_static_size;	\
+		tls_static_size += (size);		\
+	}
+
+#else	/* !__arm */
+
+#define	TLS_STATTLSOFFSET_NEWMOD(lmp)	(0)
+#define	TLS_STATIC_INITSIZE	 	(0)
+#define	TLS_STATIC_RESV_ALLOC(lmp, size)		\
+	{						\
+		tls_static_size += (size);		\
+		TLSSTATOFF(lmp) = tls_static_size;	\
+	}
+
+#endif	/* __arm */
+
 typedef struct {
 	uint_t	*tmi_bits;
 	ulong_t	tmi_lowfree;
@@ -145,7 +186,7 @@ tls_modaddrem(Rt_map *lmp, uint_t flag)
 	tmi.tm_filesz = tlsphdr->p_filesz;
 	tmi.tm_memsz = tlsphdr->p_memsz;
 	tmi.tm_flags = 0;
-	tmi.tm_stattlsoffset = 0;
+	tmi.tm_stattlsoffset = TLS_STATTLSOFFSET_NEWMOD(lmp);
 
 	DBG_CALL(Dbg_tls_modactivity(LIST(lmp), &tmi, flag));
 	(*fptr)(&tmi);
@@ -160,7 +201,8 @@ tls_modaddrem(Rt_map *lmp, uint_t flag)
 		tls_freemodid(TLSMODID(lmp));
 }
 
-static ulong_t	tls_static_size = 0;	/* static TLS buffer size */
+/* static TLS buffer size */
+static ulong_t	tls_static_size = TLS_STATIC_INITSIZE;
 static ulong_t	tls_static_resv = 512;	/* (extra) static TLS reservation */
 
 /*
@@ -231,8 +273,7 @@ tls_assign(Lm_list *lml, Rt_map *lmp, Phdr *phdr)
 	 */
 	if (((rtld_flags2 & RT_FL2_PLMSETUP) == 0) ||
 	    (FLAGS1(lmp) & FL1_RT_TLSSTAT)) {
-		tls_static_size += memsz;
-		TLSSTATOFF(lmp) = tls_static_size;
+		TLS_STATIC_RESV_ALLOC(lmp, memsz);
 	}
 
 	/*
@@ -286,7 +327,8 @@ tls_statmod(Lm_list *lml, Rt_map *lmp)
 	 */
 	if (tlsmodcnt == 0) {
 		if (fptr)
-			(*fptr)(tlsmodlist, tls_static_resv);
+			(*fptr)(tlsmodlist,
+				tls_static_resv + TLS_STATIC_INITSIZE);
 		DBG_CALL(Dbg_tls_static_block(&lml_main, 0, 0,
 		    tls_static_resv));
 		return (1);

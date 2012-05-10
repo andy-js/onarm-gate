@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_PC_NODE_H
 #define	_SYS_FS_PC_NODE_H
 
@@ -35,6 +39,7 @@ extern "C" {
 #include <vm/page.h>
 #include <sys/buf.h>
 #include <sys/vnode.h>
+#include <sys/vfs_opreg.h>
 
 /*
  * This overlays the fid structure (see vfs.h)
@@ -60,6 +65,8 @@ struct pcnode {
 	struct pcdir pc_entry;		/* directory entry of file */
 	pc_cluster32_t	pc_lcluster;	/* last cluster visited */
 	daddr_t		pc_lindex;	/* index of last cluster visited */
+	pc_cluster32_t	pc_bcluster;	/* for pc_lcluster backup */
+	daddr_t		pc_bindex;	/* for pc_lindex backup */
 };
 
 /*
@@ -98,6 +105,7 @@ struct pchead {
 	struct pcnode *pch_back;
 };
 
+#ifdef	_KERNEL
 /*
  * pcnode file and directory operations vectors
  */
@@ -128,11 +136,11 @@ extern void pc_mark_irrecov(struct pcfs *);
 
 extern int pc_dirlook(struct pcnode *, char *, struct pcnode **);
 extern int pc_direnter(struct pcnode *, char *, struct vattr *,
-	struct pcnode **);
+	struct pcnode **, struct cred *);
 extern int pc_dirremove(struct pcnode *, char *, struct vnode *, enum vtype,
-		caller_context_t *);
+		caller_context_t *, struct cred *);
 extern int pc_rename(struct pcnode *, struct pcnode *, char *, char *,
-		caller_context_t *);
+		caller_context_t *, struct cred *);
 extern int pc_blkatoff(struct pcnode *, offset_t, struct buf **,
 	struct pcdir **);
 extern int pc_truncate(struct pcnode *, uint_t);
@@ -140,6 +148,14 @@ extern int pc_fileclsize(struct pcfs *, pc_cluster32_t, pc_cluster32_t *);
 extern int pcfs_putapage(struct vnode *, page_t *, u_offset_t *, size_t *, int,
 	struct cred *);
 extern void pc_badfs(struct pcfs *);
+
+#ifdef PCFS_ENABLE_CACHE
+extern struct pcfs_fatcache_unit *pc_fatcachesearch(struct pcfs *,
+	int32_t, int *);
+extern int pc_get_fat_mediadescriptor(struct pcfs *, uchar_t *);
+#endif	/* PCFS_ENABLE_CACHE */
+
+#endif	/* _KERNEL */
 
 #ifdef	__cplusplus
 }

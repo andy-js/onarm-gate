@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -81,19 +85,21 @@ static struct modlinkage modlinkage = {
 };
 
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	return (mod_install(&modlinkage));
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	return (mod_remove(&modlinkage));
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -104,7 +110,11 @@ update_flowacct_kstats(ipp_stat_t *sp, void *arg, int rw)
 {
 	flowacct_data_t *flowacct_data = (flowacct_data_t *)arg;
 	flowacct_stat_t *fl_stat  = (flowacct_stat_t *)sp->ipps_data;
-	ASSERT((fl_stat != NULL) && (flowacct_data != 0));
+
+	if (fl_stat == NULL)
+		return (0);
+
+	ASSERT(flowacct_data != 0);
 
 	(void) ipp_stat_named_op(&fl_stat->nbytes, &flowacct_data->nbytes, rw);
 	(void) ipp_stat_named_op(&fl_stat->tbytes, &flowacct_data->tbytes, rw);
@@ -133,7 +143,8 @@ global_statinit(ipp_action_id_t aid, flowacct_data_t *flowacct_data)
 		return (err);
 	}
 	flacct_stat = (flowacct_stat_t *)(flowacct_data->stats)->ipps_data;
-	ASSERT(flacct_stat != NULL);
+	if (flacct_stat == NULL)
+		return (err);
 
 	if ((err = ipp_stat_named_init(flowacct_data->stats, "bytes_in_tbl",
 	    IPP_STAT_UINT64, &flacct_stat->tbytes)) != 0) {

@@ -28,6 +28,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <stdio.h>
@@ -158,7 +162,14 @@ static char p_buf[512];
 static int exotic(char *s);
 static void set_A_header(char *);
 
-
+static void print_header(int);
+#ifndef XPG4
+static void print_with_uflag(SYM *, char *);
+#endif
+static void print_with_pflag(int, Elf *, unsigned int, SYM *, char *);
+static void print_with_Pflag(int, Elf *, unsigned int, SYM *);
+static void print_with_otherflags(int, Elf *, unsigned int, SYM *, char *);
+static char *FormatName(char *, char *);
 
 /*
  * Parses the command line options and then
@@ -690,15 +701,7 @@ print_symtab(Elf *elf_file, unsigned int shstrndx,
 		8,		/* FMT_T_HEX */
 		11,		/* FMT_T_OCT */
 	};
-	static void print_header(int);
 	int ndigits;
-#ifndef XPG4
-	static void print_with_uflag(SYM *, char *);
-#endif
-	static void print_with_pflag(int, Elf *, unsigned int, SYM *, char *);
-	static void print_with_Pflag(int, Elf *, unsigned int, SYM *);
-	static void print_with_otherflags(int, Elf *, unsigned int,
-		SYM *, char *);
 
 	/*
 	 * Determine # of digits to use for each numeric value.
@@ -805,7 +808,6 @@ static SYM *
 readsyms(Elf_Data * data, GElf_Sxword num, Elf *elf,
 	unsigned int link, unsigned int symscnndx)
 {
-	static char *FormatName(char *, char *);
 	SYM		*s, *buf;
 	GElf_Sym	sym;
 	Elf32_Word	*symshndx = 0;

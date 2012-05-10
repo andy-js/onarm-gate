@@ -26,6 +26,10 @@
 #
 # lib/pkcs11/Makefile
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 include ../Makefile.lib
 
 HDRS =     	cryptoki.h pkcs11.h pkcs11f.h pkcs11t.h
@@ -43,7 +47,11 @@ SUBDIRS = \
 # Don't build these for OpenSolaris, since they will be replaced by
 # binaries that are signed by ON Gatekeepers.
 #
-$(CLOSED_BUILD)SUBDIRS += \
+BUILD_SOFTTOKEN			= $(POUND_SIGN)
+$(CLOSED_BUILD)BUILD_SOFTTOKEN	=
+$(ARM_BLD)BUILD_SOFTTOKEN	=
+
+$(BUILD_SOFTTOKEN)SUBDIRS += \
 			pkcs11_kernel	\
 			pkcs11_softtoken
 

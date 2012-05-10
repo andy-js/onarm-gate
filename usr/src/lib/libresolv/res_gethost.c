@@ -16,6 +16,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI" /* SunOS 1.11; UCB 6.32 */
 
 #include "c_synonyms.h"
@@ -59,6 +63,9 @@ static char hostaddr[MAXADDRS];
 static char *host_addrs[2];
 static int stayopen = 0;
 static char *any();
+
+static struct hostent *_gethtbyname();
+static struct hostent *_gethtbyaddr();
 
 #if PACKETSZ > 1024
 #define	MAXPACKET	PACKETSZ
@@ -233,7 +240,6 @@ res_gethostbyname(name)
 	register char *cp;
 	int n;
 	struct hostent *hp, *gethostdomain();
-	static struct hostent *_gethtbyname();
 
 	/*
 	 * disallow names consisting only of digits/dots, unless
@@ -273,7 +279,6 @@ _getrhbyaddr(addr, len, type)
 	querybuf buf;
 	register struct hostent *hp;
 	char qbuf[MAXDNAME];
-	static struct hostent *_gethtbyaddr();
 
 	if (type != AF_INET)
 		return ((struct hostent *) NULL);

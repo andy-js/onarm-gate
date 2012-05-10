@@ -27,6 +27,10 @@
 /*	Copyright (c) 1988 AT&T */
 /*	  All Rights Reserved */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 
 #ifndef _IEEEFP_H
 #define	_IEEEFP_H
@@ -84,6 +88,18 @@ extern fpclass_t fpclass();	/* get class of double value */
  * mutually-exclusive rounding modes.
  */
 
+#if defined(__arm)   
+
+typedef	enum	fp_rnd {
+	FP_RN = 0,	/* round to nearest representable number, tie -> even */
+	FP_RP = 1,	/* round toward plus infinity */
+	FP_RM = 2,	/* round toward minus infinity */
+	FP_RZ = 3	/* round toward zero (truncate) */
+} fp_rnd;
+
+#endif
+
+
 #if defined(__i386) || defined(__amd64)
 
 /*
@@ -135,6 +151,17 @@ extern fp_rnd	fpgetround();		/* return current rounding mode */
 #define	FP_ENABLE	1	/* exception will cause SIGFPE */
 #define	FP_CLEAR	0	/* exception has not occurred */
 #define	FP_SET		1	/* exception has occurred */
+
+#if defined(__arm)   
+
+#define	FP_X_INV	0x01	/* invalid operation exception */
+#define	FP_X_DZ		0x02	/* divide-by-zero exception */
+#define	FP_X_OFL	0x04	/* overflow exception */
+#define	FP_X_UFL	0x08	/* underflow exception */
+#define	FP_X_IMP	0x10	/* imprecise (loss of precision) */
+#define	FP_X_DNML	0x80	/* denormalization exception */
+
+#endif
 
 #if defined(__i386) || defined(__amd64)
 
@@ -208,6 +235,80 @@ extern int isnand(double);
 extern int isnand();
 #define	isnanf(x)	(((*(long *)&(x) & 0x7f800000L) == 0x7f800000L) && \
 			    ((*(long *)&(x) & 0x007fffffL) != 0x00000000L))
+#endif
+
+#if defined(__arm)   
+
+struct _fpreg {	/* structure of a temp real fp register */
+	unsigned short significand[4];	/* 64 bit mantissa value */
+	unsigned short exponent;	/* 15 bit exponent and sign bit */
+};
+
+struct _fpstackframe {		/* signal handler's argument */
+	long signo;		/* signal number arg */
+	long regs[19];		/* all registers */
+	struct _fpstate *fpsp;	/* address of saved 387 state */
+	char *wsp;		/* address of saved Weitek state */
+};
+
+struct _fpstate {		/* saved state info from an exception */
+	unsigned int	cw,	/* control word */
+			sw,	/* status word after fnclex-not useful */
+			tag,	/* tag word */
+			ipoff,	/* %eip register */
+			cssel,	/* code segment selector */
+			dataoff, /* data operand address */
+			datasel; /* data operand selector */
+	struct _fpreg _st[8];	/* saved register stack */
+	unsigned int status;	/* status word saved at exception */
+	unsigned int mxcsr;
+	unsigned int xstatus;	/* status word saved at exception */
+	unsigned int __pad[2];
+	unsigned int xmm[8][4];
+};
+
+struct _cw87 {
+	unsigned
+		excp:	8,	/* exception */
+		mask:	8,	/* trap enable bits */
+		len:	3,	/* vector length */
+		non1:	1,	/* not used */
+		str:	2,	/* vector stride */
+		rnd:	2,	/* rounding control */
+		fzero:	1,	/* flush to zero */
+		dnan:	1,	/* default NaN mode */ 
+		non2:	2,	/* not used */
+		resm:	4;	/* exception masks */
+};
+
+struct _sw87 {
+	unsigned
+		excp:	8,	/* exception */
+		mask:	8,	/* trap enable bits */
+		len:	3,	/* vector length */
+		non1:	1,	/* not used */
+		str:	2,	/* vector stride */
+		rnd:	2,	/* rounding control */
+		fzero:	1,	/* flush to zero */
+		dnan:	1,	/* default NaN mode */ 
+		non2:	2,	/* not used */
+		resm:	4;	/* exception masks */
+};
+
+struct _mxcsr {
+	unsigned
+		excp:	8,	/* exception */
+		mask:	8,	/* trap enable bits */
+		len:	3,	/* vector length */
+		non1:	1,	/* not used */
+		str:	2,	/* vector stride */
+		rnd:	2,	/* rounding control */
+		fzero:	1,	/* flush to zero */
+		dnan:	1,	/* default NaN mode */ 
+		non2:	2,	/* not used */
+		resm:	4;	/* exception masks */
+};
+
 #endif
 
 #if defined(__i386) || defined(__amd64)

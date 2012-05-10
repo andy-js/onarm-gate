@@ -25,6 +25,10 @@
  */
 
 /*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
+/*
  * This is where all the interfaces that are internal to libc
  * which do not have a better home live
  */
@@ -118,7 +122,7 @@ extern uint64_t __umul64(uint64_t, uint64_t);
 /*
  * Rounding direction functions
  */
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 extern enum fp_direction_type __xgetRD(void);
 #elif defined(__sparc)
 extern enum fp_direction_type _QgetRD(void);
@@ -137,7 +141,7 @@ extern void __hex_to_double(decimal_record *, enum fp_direction_type,
 #if defined(__sparc)
 extern void __hex_to_quadruple(decimal_record *, enum fp_direction_type,
 	quadruple *, fp_exception_field_type *);
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 extern void __hex_to_extended(decimal_record *, enum fp_direction_type,
 	extended *, fp_exception_field_type *);
 #else

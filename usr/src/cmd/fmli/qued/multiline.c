@@ -27,6 +27,11 @@
  * Copyright  (c) 1985 AT&T
  *	All Rights Reserved
  */
+
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ident	"%Z%%M%	%I%	%E% SMI"       /* SVr4.0 1.11 */
 
 #include <stdio.h>
@@ -39,6 +44,7 @@
 
 static token _fixed();
 static token _virtual();
+static int emptyrow();
 
 #define SCROLLSIZE	((Cfld->rows - 2 <= 0) ? 1 : Cfld->rows - 2)
 #define HALFSIZE	(int)(Cfld->rows / 2)
@@ -58,7 +64,6 @@ token tok;
 {
 	register token rettok;
 	register int col;
-	static int emptyrow();
 
 	rettok = TOK_NOP;
 	switch (tok) {

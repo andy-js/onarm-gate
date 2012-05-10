@@ -3,6 +3,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*	$OpenBSD: arc4random.c,v 1.6 2001/06/05 05:05:38 pvalchev Exp $	*/
@@ -104,7 +108,7 @@ arc4_stir(as)
 	/* fd < 0 ?  Ah, what the heck. We'll just take
 	 * whatever was on the stack... */
 
-	arc4_addrandom(as, (void *) &rdat, sizeof(rdat));
+	arc4_addrandom(as, (u_char *) &rdat, sizeof(rdat));
 }
 
 static inline uint8_t

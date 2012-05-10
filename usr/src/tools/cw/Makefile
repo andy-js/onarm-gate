@@ -25,6 +25,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
 PROG	= cw
 
 MAN1FILES=	cw.1
@@ -36,6 +40,8 @@ i386_CC=		$(SPRO_VROOT)/bin/cc
 sparc_CC=		$(SPRO_VROOT)/bin/cc
 $(__GNUC)i386_CC=	$(GNU_ROOT)/bin/gcc
 $(__GNUC)sparc_CC=	$(GNU_ROOT)/bin/gcc
+$(__GNUC)arm_CC=	$(NATIVE_GNU_ROOT)/bin/gcc
+CC=			$($(MACH)_CC)
 
 CFLAGS += $(CCVERBOSE)
 
@@ -58,7 +64,8 @@ $(ROOTONBLDMAN1FILES) := FILEMODE=      644
 
 all: $(PROG) $(MAN1FILES)
 
-install: all .WAIT $(ROOTONBLDMACHPROG) $(ROOTONBLDMAN1FILES)
+install: all .WAIT $(ROOTONBLDMACHPROG) $(ROOTONBLDNATTIVEMACHPROG) \
+	 $(ROOTONBLDMAN1FILES)
 
 lint: lint_PROG
 

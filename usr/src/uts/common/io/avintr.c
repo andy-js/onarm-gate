@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -339,6 +343,9 @@ insert_av(void *intr_id, struct av_head *vectp, avfunc f, caddr_t arg1,
 	 */
 	struct autovec *p, *mem;
 
+	/* Check pri_level and append interrupt thread */
+	cpu_intr_append(pri_level);
+
 	mem = kmem_zalloc(sizeof (struct autovec), KM_SLEEP);
 	mem->av_vector = f;
 	mem->av_intarg1 = arg1;
@@ -608,6 +615,7 @@ sir_on(int level)
 	(*setsoftint)(level, softlevel_hdl[level-1].ih_pending);
 }
 
+#ifndef	__arm
 /*
  * The handler which is executed on the target CPU.
  */
@@ -640,6 +648,7 @@ siron_poke_cpu(cpuset_t poke)
 
 	xc_call(0, 0, 0, X_CALL_MEDPRI, poke, (xc_func_t)siron_poke_intr);
 }
+#endif	/* !__arm */
 
 /*
  * Walk the autovector table for this vector, invoking each

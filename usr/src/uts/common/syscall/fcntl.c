@@ -546,6 +546,23 @@ fcntl(int fdes, int cmd, intptr_t arg)
 		else if (cmd == F_FREESP64)
 			cmd = F_FREESP;
 
+		/*
+		 * In case of F_ALLOCSP, the following file size limit check
+		 * procedure is not supported;
+		 *   + usage of l_len is unfixed.
+		 *   + supported by UFS only.
+		 *   + ufs_allocsp() is very buggy code.
+		 */
+		if (cmd == F_FREESP && 
+		    vp->v_type == VREG && start > curproc->p_fsz_ctl) { 
+			mutex_enter(&curproc->p_lock); 
+			(void) rctl_action(rctlproc_legacy[RLIMIT_FSIZE], 
+			    curproc->p_rctls, curproc, RCA_UNSAFE_SIGINFO); 
+			mutex_exit(&curproc->p_lock); 
+			error = EFBIG; 
+			break; 
+		} 
+
 		error = VOP_SPACE(vp, cmd, &bf, flag, offset, fp->f_cred, NULL);
 
 		break;
@@ -741,9 +758,8 @@ flock_check(vnode_t *vp, flock64_t *flp, offset_t offset, offset_t max)
 		 * Because this allows easy specification of
 		 * the last n bytes of the file.
 		 */
-		end = start;
+		end = start - 1;
 		start += (u_offset_t)flp->l_len;
-		(start)++;
 		if (start > max)
 			return (EINVAL);
 		ASSERT(end <= max);

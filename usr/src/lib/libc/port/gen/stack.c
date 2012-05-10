@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "thr_uberdata.h"
@@ -110,6 +114,8 @@ _stack_violation(int sig, const siginfo_t *sip, const ucontext_t *ucp)
 	 */
 	if (addr - (uintptr_t)sip->si_addr < 32)
 		addr = (uintptr_t)sip->si_addr;
+#elif defined(__arm)
+	addr = ucp->uc_mcontext.gregs[REG_SP] - STACK_BIAS;
 #else
 #error "none of __sparc, __amd64, __i386 is defined"
 #endif

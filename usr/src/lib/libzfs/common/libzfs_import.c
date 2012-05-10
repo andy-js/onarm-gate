@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -52,15 +56,17 @@
 #include <fcntl.h>
 
 #include <sys/vdev_impl.h>
+#include <zfs_types.h>
 
 #include "libzfs.h"
 #include "libzfs_impl.h"
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Intermediate structures used to gather configuration information.
  */
 typedef struct config_entry {
-	uint64_t		ce_txg;
+	txg_t			ce_txg;
 	nvlist_t		*ce_config;
 	struct config_entry	*ce_next;
 } config_entry_t;
@@ -206,7 +212,8 @@ static int
 add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
     nvlist_t *config)
 {
-	uint64_t pool_guid, vdev_guid, top_guid, txg, state;
+	uint64_t pool_guid, vdev_guid, top_guid, state;
+	txg_t txg;
 	pool_entry_t *pe;
 	vdev_entry_t *ve;
 	config_entry_t *ce;
@@ -248,7 +255,7 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 	    &vdev_guid) != 0 ||
 	    nvlist_lookup_uint64(config, ZPOOL_CONFIG_TOP_GUID,
 	    &top_guid) != 0 ||
-	    nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG,
+	    nvlist_lookup_txg(config, ZPOOL_CONFIG_POOL_TXG,
 	    &txg) != 0 || txg == 0) {
 		nvlist_free(config);
 		return (0);
@@ -420,7 +427,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 	nvlist_t **spares, **l2cache;
 	uint_t i, nspares, nl2cache;
 	boolean_t config_seen;
-	uint64_t best_txg;
+	txg_t best_txg;
 	char *name, *hostname;
 	uint64_t version, guid;
 	uint_t children = 0;
@@ -706,6 +713,7 @@ error:
 
 	return (NULL);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Return the offset of the given label.
@@ -728,7 +736,8 @@ zpool_read_label(int fd, nvlist_t **config)
 	struct stat64 statbuf;
 	int l;
 	vdev_label_t *label;
-	uint64_t state, txg, size;
+	uint64_t state, size;
+	txg_t txg;
 
 	*config = NULL;
 
@@ -755,7 +764,7 @@ zpool_read_label(int fd, nvlist_t **config)
 		}
 
 		if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE &&
-		    (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_TXG,
+		    (nvlist_lookup_txg(*config, ZPOOL_CONFIG_POOL_TXG,
 		    &txg) != 0 || txg == 0)) {
 			nvlist_free(*config);
 			continue;
@@ -770,6 +779,7 @@ zpool_read_label(int fd, nvlist_t **config)
 	return (0);
 }
 
+#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Given a list of directories to search, find all pools stored on disk.  This
  * includes partial pools which are not available to import.  If no args are
@@ -1011,6 +1021,7 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 	nvlist_free(raw);
 	return (pools);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */
 
 
 boolean_t
@@ -1040,6 +1051,7 @@ typedef struct aux_cbdata {
 	zpool_handle_t	*cb_zhp;
 } aux_cbdata_t;
 
+#ifndef ZFS_CMD_MINIMUMSET
 static int
 find_aux(zpool_handle_t *zhp, void *data)
 {
@@ -1228,3 +1240,4 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 	*inuse = ret;
 	return (0);
 }
+#endif	/* ZFS_CMD_MINIMUMSET */

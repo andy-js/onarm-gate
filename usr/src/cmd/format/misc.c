@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -696,6 +700,24 @@ fdisk_physical_name(char *name)
 	skip_digits(name);
 	return (*name == 0);
 }
+
+#if defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0)
+int
+fdisk_logical_name(char *name)
+{
+	must_be(name, 'c');
+	skip_digits(name);
+	if (*name == 't') {
+		name++;
+		skip_digit_or_hexupper(name);
+	}
+	must_be(name, 'd');
+	skip_digits(name);
+	must_be(name, 'l');
+	skip_digits(name);
+	return (*name == 0);
+}
+#endif /* defined(_EXTFDISK_PARTITION) && (_EXTFDISK_PARTITION > 0) */
 
 /*
  * Return true if a device name matches the conventions

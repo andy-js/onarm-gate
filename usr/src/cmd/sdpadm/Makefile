@@ -24,6 +24,10 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 PROG = sdpadm
 
 OBJS = sdpadm.o
@@ -53,7 +57,7 @@ LINT_OBJS       = $(OBJS:%.o=%.ln)
 all: $(PROG) $(ETCFILES)
 
 $(PROG): $(OBJS)
-	$(LINK.c) -o $@ $(OBJS)
+	$(LINK.c) -o $@ $(OBJS) $(LDLIBS)
 	$(POST_PROCESS)
 
 install: all $(ROOTUSRSBINPROG) $(ROOTETCFILES)

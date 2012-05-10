@@ -25,6 +25,10 @@
  */
 /* Copyright (c) 1990 Mentat Inc. */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 const char tcp_version[] = "%Z%%M%	%I%	%E% SMI";
 
@@ -566,7 +570,9 @@ uint_t tcp_free_list_max_cnt = 0;
  * Bind hash list size and has function.  It has to be a power of 2 for
  * hashing.
  */
+#ifndef	TCP_BIND_FANOUT_SIZE
 #define	TCP_BIND_FANOUT_SIZE	512
+#endif	/* !TCP_BIND_FANOUT_SIZE */
 #define	TCP_BIND_HASH(lport) (ntohs(lport) & (TCP_BIND_FANOUT_SIZE - 1))
 /*
  * Size of listen and acceptor hash list.  It has to be a power of 2 for
@@ -1132,9 +1138,17 @@ static tcpparam_t	lcl_tcp_param_arr[] = {
  { 128,		(1<<30),	1024*1024,	"tcp_cwnd_max" },
  { 0,		10,		0,		"tcp_debug" },
  { 1024,	(32*1024),	1024,		"tcp_smallest_nonpriv_port"},
+#if	defined(NDD_CUSTOM)
+ { 1*SECONDS,	PARAM_MAX,	40*SECONDS,	"tcp_ip_abort_cinterval"},
+#else	/* !NDD_CUSTOM */
  { 1*SECONDS,	PARAM_MAX,	3*MINUTES,	"tcp_ip_abort_cinterval"},
+#endif	/* NDD_CUSTOM */
  { 1*SECONDS,	PARAM_MAX,	3*MINUTES,	"tcp_ip_abort_linterval"},
+#if	defined(NDD_CUSTOM)
+ { 500*MS,	PARAM_MAX,	190*SECONDS,	"tcp_ip_abort_interval"},
+#else	/* !NDD_CUSTOM */
  { 500*MS,	PARAM_MAX,	8*MINUTES,	"tcp_ip_abort_interval"},
+#endif	/* NDD_CUSTOM */
  { 1*SECONDS,	PARAM_MAX,	10*SECONDS,	"tcp_ip_notify_cinterval"},
  { 500*MS,	PARAM_MAX,	10*SECONDS,	"tcp_ip_notify_interval"},
  { 1,		255,		64,		"tcp_ipv4_ttl"},
@@ -1145,8 +1159,16 @@ static tcpparam_t	lcl_tcp_param_arr[] = {
  { 1,		TCP_MSS_MAX,	108,		"tcp_mss_min"},
  { 1,		(64*1024)-1,	(4*1024)-1,	"tcp_naglim_def"},
  { 1*MS,	20*SECONDS,	3*SECONDS,	"tcp_rexmit_interval_initial"},
+#if	defined(NDD_CUSTOM)
+ { 1*MS,	2*HOURS,	16*SECONDS,	"tcp_rexmit_interval_max"},
+#else	/* !NDD_CUSTOM */
  { 1*MS,	2*HOURS,	60*SECONDS,	"tcp_rexmit_interval_max"},
+#endif	/* NDD_CUSTOM */
+#if	defined(NDD_CUSTOM)
+ { 1*MS,	2*HOURS,	1500*MS,	"tcp_rexmit_interval_min"},
+#else	/* !NDD_CUSTOM */
  { 1*MS,	2*HOURS,	400*MS,		"tcp_rexmit_interval_min"},
+#endif	/* NDD_CUSTOM */
  { 1*MS,	1*MINUTES,	100*MS,		"tcp_deferred_ack_interval" },
  { 0,		16,		0,		"tcp_snd_lowat_fraction" },
  { 0,		128000,		0,		"tcp_sth_rcv_hiwat" },
@@ -1169,7 +1191,11 @@ static tcpparam_t	lcl_tcp_param_arr[] = {
  { 0,		65536,		20,		"tcp_rtt_updates"},
  { 0,		1,		1,		"tcp_wscale_always"},
  { 0,		1,		0,		"tcp_tstamp_always"},
+#if	defined(NDD_CUSTOM)
+ { 0,		1,		0,		"tcp_tstamp_if_wscale"},
+#else	/* !NDD_CUSTOM */
  { 0,		1,		1,		"tcp_tstamp_if_wscale"},
+#endif	/* NDD_CUSTOM */
  { 0*MS,	2*HOURS,	0*MS,		"tcp_rexmit_interval_extra"},
  { 0,		16,		2,		"tcp_deferred_acks_max"},
  { 1,		16384,		4,		"tcp_slow_start_after_idle"},
@@ -6846,7 +6872,11 @@ tcp_def_q_set(tcp_t *tcp, mblk_t *mp)
 			 */
 			tcp->tcp_connp->conn_recv = tcp_conn_request;
 
+#ifdef	USE_INET6
 			mp1 = ip_bind_v6(q, mp1, tcp->tcp_connp, NULL);
+#else	/* !USE_INET6 */
+			mp1 = ip_bind_v4(q, mp1, tcp->tcp_connp);
+#endif	/* USE_INET6 */
 			if (mp1 != NULL)
 				tcp_rput_other(tcp, mp1);
 		}
@@ -26475,7 +26505,7 @@ tcp_g_kstat_init(tcp_g_stat_t *tcp_g_statp)
 {
 	kstat_t *ksp;
 
-	tcp_g_stat_t template = {
+	static tcp_g_stat_t template = {
 		{ "tcp_timermp_alloced",	KSTAT_DATA_UINT64 },
 		{ "tcp_timermp_allocfail",	KSTAT_DATA_UINT64 },
 		{ "tcp_timermp_allocdblfail",	KSTAT_DATA_UINT64 },
@@ -26509,8 +26539,7 @@ static void *
 tcp_kstat2_init(netstackid_t stackid, tcp_stat_t *tcps_statisticsp)
 {
 	kstat_t *ksp;
-
-	tcp_stat_t template = {
+	static tcp_stat_t template = {
 		{ "tcp_time_wait",		KSTAT_DATA_UINT64 },
 		{ "tcp_time_wait_syn",		KSTAT_DATA_UINT64 },
 		{ "tcp_time_wait_success",	KSTAT_DATA_UINT64 },
@@ -26627,6 +26656,62 @@ tcp_kstat2_fini(netstackid_t stackid, kstat_t *ksp)
 	}
 }
 
+static tcp_named_kstat_t tcp_mib_template = {
+	{ "rtoAlgorithm",	KSTAT_DATA_INT32, 0 },
+	{ "rtoMin",		KSTAT_DATA_INT32, 0 },
+	{ "rtoMax",		KSTAT_DATA_INT32, 0 },
+	{ "maxConn",		KSTAT_DATA_INT32, 0 },
+	{ "activeOpens",	KSTAT_DATA_UINT32, 0 },
+	{ "passiveOpens",	KSTAT_DATA_UINT32, 0 },
+	{ "attemptFails",	KSTAT_DATA_UINT32, 0 },
+	{ "estabResets",	KSTAT_DATA_UINT32, 0 },
+	{ "currEstab",		KSTAT_DATA_UINT32, 0 },
+	{ "inSegs",		KSTAT_DATA_UINT64, 0 },
+	{ "outSegs",		KSTAT_DATA_UINT64, 0 },
+	{ "retransSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "connTableSize",	KSTAT_DATA_INT32, 0 },
+	{ "outRsts",		KSTAT_DATA_UINT32, 0 },
+	{ "outDataSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "outDataBytes",	KSTAT_DATA_UINT32, 0 },
+	{ "retransBytes",	KSTAT_DATA_UINT32, 0 },
+	{ "outAck",		KSTAT_DATA_UINT32, 0 },
+	{ "outAckDelayed",	KSTAT_DATA_UINT32, 0 },
+	{ "outUrg",		KSTAT_DATA_UINT32, 0 },
+	{ "outWinUpdate",	KSTAT_DATA_UINT32, 0 },
+	{ "outWinProbe",	KSTAT_DATA_UINT32, 0 },
+	{ "outControl",		KSTAT_DATA_UINT32, 0 },
+	{ "outFastRetrans",	KSTAT_DATA_UINT32, 0 },
+	{ "inAckSegs",		KSTAT_DATA_UINT32, 0 },
+	{ "inAckBytes",		KSTAT_DATA_UINT32, 0 },
+	{ "inDupAck",		KSTAT_DATA_UINT32, 0 },
+	{ "inAckUnsent",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataInorderSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataInorderBytes",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataUnorderSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataUnorderBytes",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataDupSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataDupBytes",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataPartDupSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataPartDupBytes",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataPastWinSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "inDataPastWinBytes",	KSTAT_DATA_UINT32, 0 },
+	{ "inWinProbe",		KSTAT_DATA_UINT32, 0 },
+	{ "inWinUpdate",	KSTAT_DATA_UINT32, 0 },
+	{ "inClosed",		KSTAT_DATA_UINT32, 0 },
+	{ "rttUpdate",		KSTAT_DATA_UINT32, 0 },
+	{ "rttNoUpdate",	KSTAT_DATA_UINT32, 0 },
+	{ "timRetrans",		KSTAT_DATA_UINT32, 0 },
+	{ "timRetransDrop",	KSTAT_DATA_UINT32, 0 },
+	{ "timKeepalive",	KSTAT_DATA_UINT32, 0 },
+	{ "timKeepaliveProbe",	KSTAT_DATA_UINT32, 0 },
+	{ "timKeepaliveDrop",	KSTAT_DATA_UINT32, 0 },
+	{ "listenDrop",		KSTAT_DATA_UINT32, 0 },
+	{ "listenDropQ0",	KSTAT_DATA_UINT32, 0 },
+	{ "halfOpenDrop",	KSTAT_DATA_UINT32, 0 },
+	{ "outSackRetransSegs",	KSTAT_DATA_UINT32, 0 },
+	{ "connTableSize6",	KSTAT_DATA_INT32, 0 }
+};
+
 /*
  * TCP Kstats implementation
  */
@@ -26634,75 +26719,21 @@ static void *
 tcp_kstat_init(netstackid_t stackid, tcp_stack_t *tcps)
 {
 	kstat_t	*ksp;
-
-	tcp_named_kstat_t template = {
-		{ "rtoAlgorithm",	KSTAT_DATA_INT32, 0 },
-		{ "rtoMin",		KSTAT_DATA_INT32, 0 },
-		{ "rtoMax",		KSTAT_DATA_INT32, 0 },
-		{ "maxConn",		KSTAT_DATA_INT32, 0 },
-		{ "activeOpens",	KSTAT_DATA_UINT32, 0 },
-		{ "passiveOpens",	KSTAT_DATA_UINT32, 0 },
-		{ "attemptFails",	KSTAT_DATA_UINT32, 0 },
-		{ "estabResets",	KSTAT_DATA_UINT32, 0 },
-		{ "currEstab",		KSTAT_DATA_UINT32, 0 },
-		{ "inSegs",		KSTAT_DATA_UINT64, 0 },
-		{ "outSegs",		KSTAT_DATA_UINT64, 0 },
-		{ "retransSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "connTableSize",	KSTAT_DATA_INT32, 0 },
-		{ "outRsts",		KSTAT_DATA_UINT32, 0 },
-		{ "outDataSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "outDataBytes",	KSTAT_DATA_UINT32, 0 },
-		{ "retransBytes",	KSTAT_DATA_UINT32, 0 },
-		{ "outAck",		KSTAT_DATA_UINT32, 0 },
-		{ "outAckDelayed",	KSTAT_DATA_UINT32, 0 },
-		{ "outUrg",		KSTAT_DATA_UINT32, 0 },
-		{ "outWinUpdate",	KSTAT_DATA_UINT32, 0 },
-		{ "outWinProbe",	KSTAT_DATA_UINT32, 0 },
-		{ "outControl",		KSTAT_DATA_UINT32, 0 },
-		{ "outFastRetrans",	KSTAT_DATA_UINT32, 0 },
-		{ "inAckSegs",		KSTAT_DATA_UINT32, 0 },
-		{ "inAckBytes",		KSTAT_DATA_UINT32, 0 },
-		{ "inDupAck",		KSTAT_DATA_UINT32, 0 },
-		{ "inAckUnsent",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataInorderSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataInorderBytes",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataUnorderSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataUnorderBytes",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataDupSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataDupBytes",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataPartDupSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataPartDupBytes",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataPastWinSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "inDataPastWinBytes",	KSTAT_DATA_UINT32, 0 },
-		{ "inWinProbe",		KSTAT_DATA_UINT32, 0 },
-		{ "inWinUpdate",	KSTAT_DATA_UINT32, 0 },
-		{ "inClosed",		KSTAT_DATA_UINT32, 0 },
-		{ "rttUpdate",		KSTAT_DATA_UINT32, 0 },
-		{ "rttNoUpdate",	KSTAT_DATA_UINT32, 0 },
-		{ "timRetrans",		KSTAT_DATA_UINT32, 0 },
-		{ "timRetransDrop",	KSTAT_DATA_UINT32, 0 },
-		{ "timKeepalive",	KSTAT_DATA_UINT32, 0 },
-		{ "timKeepaliveProbe",	KSTAT_DATA_UINT32, 0 },
-		{ "timKeepaliveDrop",	KSTAT_DATA_UINT32, 0 },
-		{ "listenDrop",		KSTAT_DATA_UINT32, 0 },
-		{ "listenDropQ0",	KSTAT_DATA_UINT32, 0 },
-		{ "halfOpenDrop",	KSTAT_DATA_UINT32, 0 },
-		{ "outSackRetransSegs",	KSTAT_DATA_UINT32, 0 },
-		{ "connTableSize6",	KSTAT_DATA_INT32, 0 }
-	};
+	tcp_named_kstat_t *template = &tcp_mib_template;
 
 	ksp = kstat_create_netstack(TCP_MOD_NAME, 0, TCP_MOD_NAME, "mib2",
-	    KSTAT_TYPE_NAMED, NUM_OF_FIELDS(tcp_named_kstat_t), 0, stackid);
+	    KSTAT_TYPE_NAMED, NUM_OF_FIELDS(tcp_named_kstat_t),
+	    KSTAT_FLAG_VIRTUAL, stackid);
 
 	if (ksp == NULL)
 		return (NULL);
 
-	template.rtoAlgorithm.value.ui32 = 4;
-	template.rtoMin.value.ui32 = tcps->tcps_rexmit_interval_min;
-	template.rtoMax.value.ui32 = tcps->tcps_rexmit_interval_max;
-	template.maxConn.value.i32 = -1;
+	template->rtoAlgorithm.value.ui32 = 4;
+	template->rtoMin.value.ui32 = tcps->tcps_rexmit_interval_min;
+	template->rtoMax.value.ui32 = tcps->tcps_rexmit_interval_max;
+	template->maxConn.value.i32 = -1;
 
-	bcopy(&template, ksp->ks_data, sizeof (template));
+	ksp->ks_data = template;
 	ksp->ks_update = tcp_kstat_update;
 	ksp->ks_private = (void *)(uintptr_t)stackid;
 
@@ -26714,8 +26745,64 @@ static void
 tcp_kstat_fini(netstackid_t stackid, kstat_t *ksp)
 {
 	if (ksp != NULL) {
+		tcp_named_kstat_t *template = &tcp_mib_template;
+
 		ASSERT(stackid == (netstackid_t)(uintptr_t)ksp->ks_private);
 		kstat_delete_netstack(ksp, stackid);
+
+		template->rtoAlgorithm.value.ui32 = 0;
+		template->rtoMin.value.ui32 = 0;
+		template->rtoMax.value.ui32 = 0;
+		template->maxConn.value.ui32 = 0;
+		template->activeOpens.value.ui32 = 0;
+		template->passiveOpens.value.ui32 = 0;
+		template->attemptFails.value.ui32 = 0;
+		template->estabResets.value.ui32 = 0;
+		template->currEstab.value.ui32 = 0;
+		template->inSegs.value.ui32 = 0;
+		template->outSegs.value.ui32 = 0;
+		template->retransSegs.value.ui32 = 0;
+		template->connTableSize.value.ui32 = 0;
+		template->outRsts.value.ui32 = 0;
+		template->outDataSegs.value.ui32 = 0;
+		template->outDataBytes.value.ui32 = 0;
+		template->retransBytes.value.ui32 = 0;
+		template->outAck.value.ui32 = 0;
+		template->outAckDelayed.value.ui32 = 0;
+		template->outUrg.value.ui32 = 0;
+		template->outWinUpdate.value.ui32 = 0;
+		template->outWinProbe.value.ui32 = 0;
+		template->outControl.value.ui32 = 0;
+		template->outFastRetrans.value.ui32 = 0;
+		template->inAckSegs.value.ui32 = 0;
+		template->inAckBytes.value.ui32 = 0;
+		template->inDupAck.value.ui32 = 0;
+		template->inAckUnsent.value.ui32 = 0;
+		template->inDataInorderSegs.value.ui32 = 0;
+		template->inDataInorderBytes.value.ui32 = 0;
+		template->inDataUnorderSegs.value.ui32 = 0;
+		template->inDataUnorderBytes.value.ui32 = 0;
+		template->inDataDupSegs.value.ui32 = 0;
+		template->inDataDupBytes.value.ui32 = 0;
+		template->inDataPartDupSegs.value.ui32 = 0;
+		template->inDataPartDupBytes.value.ui32 = 0;
+		template->inDataPastWinSegs.value.ui32 = 0;
+		template->inDataPastWinBytes.value.ui32 = 0;
+		template->inWinProbe.value.ui32 = 0;
+		template->inWinUpdate.value.ui32 = 0;
+		template->inClosed.value.ui32 = 0;
+		template->rttNoUpdate.value.ui32 = 0;
+		template->rttUpdate.value.ui32 = 0;
+		template->timRetrans.value.ui32 = 0;
+		template->timRetransDrop.value.ui32 = 0;
+		template->timKeepalive.value.ui32 = 0;
+		template->timKeepaliveProbe.value.ui32 = 0;
+		template->timKeepaliveDrop.value.ui32 = 0;
+		template->listenDrop.value.ui32 = 0;
+		template->listenDropQ0.value.ui32 = 0;
+		template->halfOpenDrop.value.ui32 = 0;
+		template->outSackRetransSegs.value.ui32 = 0;
+		template->connTableSize6.value.ui32 = 0;
 	}
 }
 

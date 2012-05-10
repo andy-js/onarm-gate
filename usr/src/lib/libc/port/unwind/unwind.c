@@ -74,6 +74,16 @@ _t_cancel(void *fp)
 	__cleanup_t *head;
 	void (*fptr)(void (*func)(void *), void *arg);
 
+#if defined(__arm)
+	while ((head = self->ul_clnup_hdr) != NULL) {
+		self->ul_clnup_hdr = head->next;
+		/* execute the cleanup handler */
+		(head->func)(head->arg);
+	}
+
+	_thrp_exit();
+	thr_panic("_t_cancel(): _thrp_exit() returned");
+#else
 	/* Do this once per thread exit, not once per unwind frame */
 	if (self->ul_ex_unwind == NULL &&
 	    (self->ul_ex_unwind = dlsym(RTLD_PROBE, "_ex_unwind")) == NULL)
@@ -109,5 +119,6 @@ _t_cancel(void *fp)
 		_thrp_exit();
 		thr_panic("_t_cancel(): _thrp_exit() returned");
 	}
+#endif
 	/* never returns here */
 }

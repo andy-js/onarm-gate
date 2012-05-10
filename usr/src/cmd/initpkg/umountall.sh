@@ -30,6 +30,10 @@
 #
 #
 
+#
+# Copyright (c) 2007 NEC Corporation
+#
+
 usage () {
 	if [ -n "$1" ]; then
 		echo "umountall: $1" 1>&2
@@ -168,7 +172,11 @@ if [ -n "$FFLAG" -a "$FSType" != "nfs"  -a -n "$RFLAG" ]; then		# 7
 	usage "option -r and FSType ${FSType} are incompatible"
 fi
 
-ZONENAME=`zonename`
+if [ -x /sbin/zonename ] ; then
+	ZONENAME=`/sbin/zonename`
+else
+	ZONENAME="global"
+fi
 
 # Check and if needed sync the boot archive before unmounting everything.
 #

@@ -27,6 +27,10 @@
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -81,11 +85,18 @@ typedef  union {
 } _fval;
 
 
-#elif defined(__i386) || defined(__amd64)
+#elif defined(__i386) || defined(__amd64) || defined(__arm)
 /* byte order with low order bits at lowest address */
 
 /* double precision */
 typedef  union {
+#if defined(__arm)
+#if defined(__VFP_FP__)
+#define	HIWORD		1  /* HIWORD defined. used only this area */
+#else
+#define	HIWORD		0  /* HIWORD defined. used only this area */
+#endif
+#if (HIWORD)
 	struct {
 		unsigned  lo	:32;
 		unsigned  hi	:20;
@@ -103,6 +114,44 @@ typedef  union {
 		unsigned  lo	:32;
 		unsigned  hi	:32;
 	} fwords;
+#else
+	struct {
+		unsigned  hi	:20;
+		unsigned  exp	:11;
+		unsigned  sign	:1;
+		unsigned  lo	:32;
+	} fparts;
+	struct {
+		unsigned  hi	:19;
+		unsigned  qnan_bit	:1;
+		unsigned  exp	:11;
+		unsigned  sign	:1;
+		unsigned  lo	:32;
+	} nparts;
+	struct {
+		unsigned  hi	:32;
+		unsigned  lo	:32;
+	} fwords;
+#endif
+#else
+	struct {
+		unsigned  lo	:32;
+		unsigned  hi	:20;
+		unsigned  exp	:11;
+		unsigned  sign	:1;
+	} fparts;
+	struct {
+		unsigned  lo	:32;
+		unsigned  hi	:19;
+		unsigned  qnan_bit	:1;
+		unsigned  exp	:11;
+		unsigned  sign	:1;
+	} nparts;
+	struct {
+		unsigned  lo	:32;
+		unsigned  hi	:32;
+	} fwords;
+#endif
 	double	d;
 } _dval;
 
@@ -122,6 +171,10 @@ typedef  union {
 	unsigned long	fword;
 	float	f;
 } _fval;
+#endif
+
+#if defined(__arm)
+#undef HIWORD
 #endif
 
 /* parts of a double precision floating point number */

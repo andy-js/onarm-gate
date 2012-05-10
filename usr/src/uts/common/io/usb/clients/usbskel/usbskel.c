@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -194,7 +198,7 @@ static void *usbskel_statep;
  * Module-wide initialization routine.
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int rval;
 
@@ -216,11 +220,12 @@ _init(void)
 }
 
 
+#ifndef	STATIC_DRIVER
 /*
  * Module-wide tear-down routine.
  */
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int rval;
 
@@ -235,10 +240,11 @@ _fini(void)
 
 	return (rval);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }

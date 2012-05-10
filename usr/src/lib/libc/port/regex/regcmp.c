@@ -27,6 +27,10 @@
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved	*/
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -121,8 +125,9 @@ ___i_size(void)
 
 /* DEFINITION OF regcmp() */
 
+#pragma weak regcmp = _regcmp
 extern char *
-regcmp(const char *regexp, ...)
+_regcmp(const char *regexp, ...)
 {
 	va_list		arg_listp;
 	size_t		arg_strlen;

@@ -35,6 +35,10 @@
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
+/*
  *	sulogin - special login program exec'd from init to let user
  *	come up single user, or go to default init state straight away.
  *
@@ -542,7 +546,11 @@ single(const char *cmd, char *ttyn)
 			break;
 		}
 	}
-	if (!found) {
+#if !defined(__ARM_INIT)
+	if (!found) {	
+#else
+	if (!found && getppid() != 1) {
+#endif
 		struct utmpx entryx;
 
 		entryx.ut_tv.tv_sec = time(NULL);

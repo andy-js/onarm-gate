@@ -19,8 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
  */
 
 #ifndef	_SYS_FS_PC_DIR_H
@@ -36,7 +40,6 @@ extern "C" {
 
 #define	PCFNAMESIZE	8
 #define	PCFEXTSIZE	3
-#define	PCMAXPATHLEN	MAXPATHLEN
 #define	PCMAXNAMLEN	255
 #define	PCMAXNAM_UTF16	(256 * sizeof (uint16_t))	/* for UTF-16 */
 #define	PCLFNCHUNKSIZE	13
@@ -196,6 +199,7 @@ struct pcdir_lfn {
  */
 #define	PCD_UNUSED	((char)0x00)	/* entry has never been used */
 #define	PCD_ERASED	((char)0xE5)	/* entry was erased */
+#define	PCD_ESCAPE	((char)0x05)	/* entry was escaped */
 
 /*
  * File attributes.
@@ -274,7 +278,10 @@ struct pc_dirent {
 	(c) == '<' || (c) == '=' || (c) == '>' || (c) == '?' || \
 	(c) == '[' || (c) == '|' || (c) == ']' || (c) == '\\')
 
-#define	pc_validchar(c)	(((c) >= ' ' && !((c) & ~0177)) && !pc_invalchar(c))
+#define	pc_validchar(c)						\
+	(((' ' <= ((uchar_t)c) && ((uchar_t)c) <= 0x7F) ||	\
+	    (0xA0 <= ((uchar_t)c) && ((uchar_t)c) <= 0xDF)) &&	\
+	    !pc_invalchar((uchar_t)c))
 
 
 #ifdef _KERNEL
@@ -310,6 +317,8 @@ extern int pc_fname_ext_to_name(char *, char *, char *, int);
 
 extern pc_cluster32_t pc_getstartcluster(struct pcfs *, struct pcdir *);
 extern void pc_setstartcluster(struct pcfs *, struct pcdir *, pc_cluster32_t);
+extern int pc_cp932_conv_utf8(char *, char *);
+extern int pc_is_cp932mb1st(char);
 
 /*
  * Private tunables

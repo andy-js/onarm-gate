@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
@@ -36,6 +40,7 @@
 #include <sys/zap_impl.h> /* for fzap_default_block_shift */
 #include <sys/spa.h>
 #include <sys/zfs_context.h>
+#include <zfs_types.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
@@ -67,7 +72,7 @@ dmu_tx_create(objset_t *os)
 }
 
 dmu_tx_t *
-dmu_tx_create_assigned(struct dsl_pool *dp, uint64_t txg)
+dmu_tx_create_assigned(struct dsl_pool *dp, txg_t txg)
 {
 	dmu_tx_t *tx = dmu_tx_create_dd(NULL);
 
@@ -92,7 +97,7 @@ dmu_tx_private_ok(dmu_tx_t *tx)
 }
 
 static dmu_tx_hold_t *
-dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
+dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, objid_t object,
     enum dmu_tx_hold_type type, uint64_t arg1, uint64_t arg2)
 {
 	dmu_tx_hold_t *txh;
@@ -134,7 +139,7 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 }
 
 void
-dmu_tx_add_new_object(dmu_tx_t *tx, objset_t *os, uint64_t object)
+dmu_tx_add_new_object(dmu_tx_t *tx, objset_t *os, objid_t object)
 {
 	/*
 	 * If we're syncing, they can manipulate any object anyhow, and
@@ -300,7 +305,7 @@ dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 }
 
 void
-dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
+dmu_tx_hold_write(dmu_tx_t *tx, objid_t object, uint64_t off, int len)
 {
 	dmu_tx_hold_t *txh;
 
@@ -440,7 +445,7 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 }
 
 void
-dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
+dmu_tx_hold_free(dmu_tx_t *tx, objid_t object, uint64_t off, uint64_t len)
 {
 	dmu_tx_hold_t *txh;
 	dnode_t *dn;
@@ -510,7 +515,7 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 }
 
 void
-dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, char *name)
+dmu_tx_hold_zap(dmu_tx_t *tx, objid_t object, int add, char *name)
 {
 	dmu_tx_hold_t *txh;
 	dnode_t *dn;
@@ -595,7 +600,7 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, char *name)
 }
 
 void
-dmu_tx_hold_bonus(dmu_tx_t *tx, uint64_t object)
+dmu_tx_hold_bonus(dmu_tx_t *tx, objid_t object)
 {
 	dmu_tx_hold_t *txh;
 
@@ -620,7 +625,7 @@ dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space)
 }
 
 int
-dmu_tx_holds(dmu_tx_t *tx, uint64_t object)
+dmu_tx_holds(dmu_tx_t *tx, objid_t object)
 {
 	dmu_tx_hold_t *txh;
 	int holds = 0;
@@ -738,7 +743,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 #endif
 
 static int
-dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
+dmu_tx_try_assign(dmu_tx_t *tx, txg_t txg_how)
 {
 	dmu_tx_hold_t *txh;
 	spa_t *spa = tx->tx_pool->dp_spa;
@@ -759,9 +764,11 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 		 *
 		 * Note that we always honor the txg_how flag regardless
 		 * of the failuremode setting.
+		 * (Provided, however, that abort is set to failuremode.)
 		 */
-		if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE &&
-		    txg_how != TXG_WAIT)
+		if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_ABORT ||
+		    (spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE &&
+		    txg_how != TXG_WAIT))
 			return (EIO);
 
 		return (ERESTART);
@@ -891,7 +898,7 @@ dmu_tx_unassign(dmu_tx_t *tx)
  *	returns ERESTART if it can't assign you into the requested txg.
  */
 int
-dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
+dmu_tx_assign(dmu_tx_t *tx, txg_t txg_how)
 {
 	int err;
 
@@ -927,7 +934,8 @@ dmu_tx_wait(dmu_tx_t *tx)
 	 */
 	if (spa_state(spa) == POOL_STATE_IO_FAILURE ||
 	    tx->tx_lasttried_txg == 0) {
-		txg_wait_synced(tx->tx_pool, spa_last_synced_txg(spa) + 1);
+		(void) txg_wait_synced(tx->tx_pool,
+		    spa_last_synced_txg(spa) + 1);
 	} else if (tx->tx_needassign_txh) {
 		dnode_t *dn = tx->tx_needassign_txh->txh_dnode;
 
@@ -937,7 +945,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 		mutex_exit(&dn->dn_mtx);
 		tx->tx_needassign_txh = NULL;
 	} else {
-		txg_wait_open(tx->tx_pool, tx->tx_lasttried_txg + 1);
+		(void) txg_wait_open(tx->tx_pool, tx->tx_lasttried_txg + 1);
 	}
 }
 
@@ -1026,7 +1034,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 	kmem_free(tx, sizeof (dmu_tx_t));
 }
 
-uint64_t
+txg_t
 dmu_tx_get_txg(dmu_tx_t *tx)
 {
 	ASSERT(tx->tx_txg != 0);

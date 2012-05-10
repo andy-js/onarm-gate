@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -227,7 +231,7 @@ static	ndi_event_set_t usb_mid_ndi_events = {
  * standard driver entry points
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int rval;
 
@@ -246,8 +250,9 @@ _init(void)
 }
 
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	rval;
 
@@ -261,10 +266,11 @@ _fini(void)
 
 	return (rval);
 }
+#endif	/* !STATIC_DRIVER */
 
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
@@ -1443,6 +1449,7 @@ usb_mid_obtain_state(dev_info_t *dip)
 /*
  * ugen support
  */
+#ifndef USB_UGEN_DISABLE
 /* ARGSUSED3 */
 static int
 usb_mid_open(dev_t *devp, int flags, int otyp, cred_t *credp)
@@ -1553,3 +1560,42 @@ usb_mid_poll(dev_t dev, short events, int anyyet,  short *reventsp,
 	return (usb_ugen_poll(usb_mid->mi_ugen_hdl, dev, events,
 						anyyet, reventsp, phpp));
 }
+#else	/* USB_UGEN_DISABLE */
+
+/* ARGSUSED3 */
+static int
+usb_mid_open(dev_t *devp, int flags, int otyp, cred_t *credp)
+{
+	return (EINVAL);
+}
+
+
+/* ARGSUSED */
+static int
+usb_mid_close(dev_t dev, int flag, int otyp, cred_t *credp)
+{
+	return (EINVAL);
+}
+
+
+static int
+usb_mid_read(dev_t dev, struct uio *uio, cred_t *credp)
+{
+	return (EINVAL);
+}
+
+
+static int
+usb_mid_write(dev_t dev, struct uio *uio, cred_t *credp)
+{
+	return (EINVAL);
+}
+
+
+static int
+usb_mid_poll(dev_t dev, short events, int anyyet,  short *reventsp,
+    struct pollhead **phpp)
+{
+	return (EINVAL);
+}
+#endif	/* USB_UGEN_DISABLE */

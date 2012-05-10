@@ -18,12 +18,18 @@
 #
 # CDDL HEADER END
 #
+# Copyright (c) 2012 Nexenta Systems, Inc.  All rights reserved.
+#
 
 #
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
+#
+
+#
+# Copyright (c) 2007-2008 NEC Corporation
 #
 
 # The link-editor related source files and Makefile files are normally unified
@@ -116,6 +122,7 @@ VAR_I386_ARCH=		intel
 VAR_PLAT_sparc=		sparc
 VAR_PLAT_i386=		intel/ia32
 VAR_PLAT_amd64=		intel/amd64
+VAR_PLAT_arm=		arm
 
 VAR_POUND_1=
 VAR_POUND_2=		$(POUND_SIGN)
@@ -136,7 +143,7 @@ VAR_POUND_3=		$(POUND_SIGN)
 # the system.
 #
 VAR_AVLDIR=		$(SRCBASE)/common/avl
-VAR_AVLINCDIR=
+VAR_AVLINCDIR=		$(ROOT)/usr/include
 
 #
 # VAR_DTRDIR - directory to find dtrace_data.c in.
@@ -220,19 +227,21 @@ VAR_LIBELF_ROOTDEMODIR_DIRMODE=	755
 # libld
 #
 VAR_LIBLD_CPPFLAGS=		$(VAR_COM_CPPFLAGS) \
-				$(VAR_AVLINCDIR)
+				-I$(VAR_AVLINCDIR)
 VAR_LIBLD_64_ROOTFS_LIBDIR=	$(ROOT)/lib/$(MACH64)
 
 #
 # Tools
 #
-VAR_TOOLS_CPPFLAGS=		$(VAR_AVLINCDIR)
+VAR_TOOLS_CPPFLAGS=		-I$(VAR_AVLINCDIR)
 
 #
 # liblddbg
 #
 VAR_LIBLDDBG_V9_ROOTFS_LIBDIR=	$(ROOT)/lib/$(MACH64)
 VAR_LIBLDDBG_CPPFLAGS=-DDEMANGLE
+# In the case of ARM with GNU tool-chain, disable -DDEMANGLE
+$(ARM_BLD)$(__GNUC)VAR_LIBLDDBG_CPPFLAGS=
 
 #
 # librtld_db
@@ -252,5 +261,5 @@ VAR_RTLD_CPPFEATUREMACROS= \
 			-DLD_BREADTH_DISABLED \
 			-DEXPAND_RELATIVE \
 			-DISSOLOAD_BASENAME_DISABLED
-VAR_RTLD_CPPFLAGS=	$(VAR_AVLINCDIR)
+VAR_RTLD_CPPFLAGS=	-I$(VAR_AVLINCDIR)
 VAR_RTLD_EXTRASUBDIRS=	mdbmod

@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -213,7 +217,7 @@ int scsa1394_symbios_size_max = 512 * 248;	/* multiple of page size */
  *
  */
 int
-_init(void)
+MODDRV_ENTRY_INIT(void)
 {
 	int	ret;
 
@@ -236,8 +240,9 @@ _init(void)
 	return (ret);
 }
 
+#ifndef	STATIC_DRIVER
 int
-_fini(void)
+MODDRV_ENTRY_FINI(void)
 {
 	int	ret;
 
@@ -248,9 +253,10 @@ _fini(void)
 
 	return (ret);
 }
+#endif	/* !STATIC_DRIVER */
 
 int
-_info(struct modinfo *modinfop)
+MODDRV_ENTRY_INFO(struct modinfo *modinfop)
 {
 	return (mod_info(&scsa1394_modlinkage, modinfop));
 }

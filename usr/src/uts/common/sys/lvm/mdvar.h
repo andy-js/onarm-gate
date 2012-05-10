@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef	_SYS_MDVAR_H
 #define	_SYS_MDVAR_H
 
@@ -536,6 +540,21 @@ typedef struct md_ops {
 
 /* macro to generate linkage for a md misc plugin module */
 #define	md_noop
+#ifdef	STATIC_DRIVER
+#define	MD_PLUGIN_MOSC_MODULE_FINI()
+#else	/* !STATIC_DRIVER */
+#define	MD_PLUGIN_MOSC_MODULE_FINI()					\
+	int								\
+	MODDRV_ENTRY_FINI()						\
+	{								\
+		int	i;                                              \
+		if ((i = mod_remove(&modlinkage)) == 0) {		\
+			fini_uninit;					\
+		}							\
+		return (i);						\
+	}
+#endif	/* STATIC_DRIVER */
+
 #define	MD_PLUGIN_MISC_MODULE(desc, init_init, fini_uninit)		\
 	static struct modlmisc		modlmisc = {			\
 		&mod_miscops, "Solaris Volume Manager " desc		\
@@ -544,7 +563,7 @@ typedef struct md_ops {
 		MODREV_1, (void *)&modlmisc, NULL			\
 	};								\
 	int								\
-	_init(void)							\
+	MODDRV_ENTRY_INIT(void)						\
 	{								\
 		int	i;						\
 		init_init;						\
@@ -553,17 +572,9 @@ typedef struct md_ops {
 		}							\
 		return (i);						\
 	}								\
+	MD_PLUGIN_MOSC_MODULE_FINI()					\
 	int								\
-	_fini()								\
-	{								\
-		int	i;                                              \
-		if ((i = mod_remove(&modlinkage)) == 0) {		\
-			fini_uninit;					\
-		}							\
-		return (i);						\
-	}								\
-	int								\
-	_info(struct modinfo *modinfop)					\
+	MODDRV_ENTRY_INFO(struct modinfo *modinfop)			\
 	{								\
 		return (mod_info(&modlinkage, modinfop));		\
 	}

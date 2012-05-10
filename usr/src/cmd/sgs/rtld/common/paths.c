@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -562,7 +567,9 @@ expand(char **name, size_t *len, char **list, uint_t orig, uint_t omit,
 				nptr--, nlen--;
 				olen += MSG_TKN_HWCAP_SIZE;
 				optr += MSG_TKN_HWCAP_SIZE;
+#if	!defined(__arm)
 				_flags |= PN_TKN_HWCAP;
+#endif
 			}
 
 		} else {

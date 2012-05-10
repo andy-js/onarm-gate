@@ -23,6 +23,10 @@
  * Use is subject to license terms of the CDDLv1.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _E1000G_SW_H
 #define	_E1000G_SW_H
 
@@ -76,6 +80,9 @@ extern "C" {
 #include <sys/fm/protocol.h>
 #include <sys/fm/util.h>
 #include <sys/fm/io/ddi.h>
+#ifdef	__arm
+#include <sys/archsystm.h>
+#endif	/* __arm */
 #include "e1000_api.h"
 
 
@@ -96,11 +103,19 @@ extern "C" {
 #define	E1000_FC_LOW_DIFF	0x1640 /* Low: 5696 bytes below Rx FIFO size */
 #define	E1000_FC_PAUSE_TIME	0x0680 /* 858 usec */
 
+#ifdef	__arm
+#define	MAX_NUM_TX_DESCRIPTOR		1024
+#define	MAX_NUM_RX_DESCRIPTOR		1024
+#define	MAX_NUM_RX_FREELIST		1024
+#define	MAX_NUM_TX_FREELIST		1024
+#define	MAX_RX_LIMIT_ON_INTR		1024
+#else	/* !__arm */
 #define	MAX_NUM_TX_DESCRIPTOR		4096
 #define	MAX_NUM_RX_DESCRIPTOR		4096
 #define	MAX_NUM_RX_FREELIST		4096
 #define	MAX_NUM_TX_FREELIST		4096
 #define	MAX_RX_LIMIT_ON_INTR		4096
+#endif	/* __arm */
 #define	MAX_RX_INTR_DELAY		65535
 #define	MAX_RX_INTR_ABS_DELAY		65535
 #define	MAX_TX_INTR_DELAY		65535
@@ -111,11 +126,19 @@ extern "C" {
 #define	MAX_TX_RECYCLE_THRESHOLD	MAX_NUM_TX_DESCRIPTOR
 #define	MAX_TX_RECYCLE_NUM		MAX_NUM_TX_DESCRIPTOR
 
+#ifdef	__arm
+#define	MIN_NUM_TX_DESCRIPTOR		20
+#define	MIN_NUM_RX_DESCRIPTOR		20
+#define	MIN_NUM_RX_FREELIST		18
+#define	MIN_NUM_TX_FREELIST		8
+#define	MIN_RX_LIMIT_ON_INTR		4
+#else	/* !__arm */
 #define	MIN_NUM_TX_DESCRIPTOR		80
 #define	MIN_NUM_RX_DESCRIPTOR		80
 #define	MIN_NUM_RX_FREELIST		64
 #define	MIN_NUM_TX_FREELIST		80
 #define	MIN_RX_LIMIT_ON_INTR		16
+#endif	/* __arm */
 #define	MIN_RX_INTR_DELAY		0
 #define	MIN_RX_INTR_ABS_DELAY		0
 #define	MIN_TX_INTR_DELAY		0
@@ -126,13 +149,27 @@ extern "C" {
 #define	MIN_TX_RECYCLE_THRESHOLD	0
 #define	MIN_TX_RECYCLE_NUM		MAX_TX_DESC_PER_PACKET
 
+#ifdef	__arm
+#define	DEFAULT_NUM_RX_DESCRIPTOR	512
+#define	DEFAULT_NUM_TX_DESCRIPTOR	512
+#define	DEFAULT_NUM_RX_FREELIST		512
+#define	DEFAULT_NUM_TX_FREELIST		16
+#define	DEFAULT_RX_LIMIT_ON_INTR	64
+#else	/* !__arm */
 #define	DEFAULT_NUM_RX_DESCRIPTOR	2048
 #define	DEFAULT_NUM_TX_DESCRIPTOR	2048
 #define	DEFAULT_NUM_RX_FREELIST		4096
 #define	DEFAULT_NUM_TX_FREELIST		2304
 #define	DEFAULT_RX_LIMIT_ON_INTR	128
+#endif	/* __arm */
 
-#ifdef __sparc
+#if	defined(__arm)
+#define	MAX_INTR_PER_SEC		5000
+#define	MIN_INTR_PER_SEC		1500
+#define	DEFAULT_INTR_PACKET_LOW		5
+#define	DEFAULT_INTR_PACKET_HIGH	64
+#define	DEFAULT_TX_RECYCLE_THRESHOLD	512
+#elif	defined(__sparc)
 #define	MAX_INTR_PER_SEC		7100
 #define	MIN_INTR_PER_SEC		3000
 #define	DEFAULT_INTR_PACKET_LOW		5
@@ -185,6 +222,22 @@ extern "C" {
 
 #define	FORCE_BCOPY_EXCEED_FRAGS	0x1
 #define	FORCE_BCOPY_UNDER_SIZE		0x2
+
+#ifdef	__arm
+
+/*
+ * We should always use bcopy() to send data because passing cached memory
+ * to ddi_dma_addr_bind_handle() makes system slower.
+ */
+#define	E1000G_TX_FORCE_BCOPY		1
+
+#define	E1000G_BCOPY(from, to, size)	FAST_BCOPY(from, to, size)
+
+#else	/* !__arm */
+
+#define	E1000G_BCOPY(from, to, size)	bcopy(from, to, size)
+
+#endif	/* __arm */
 
 #define	E1000G_RX_SW_FREE		0x0
 #define	E1000G_RX_SW_SENDUP		0x1

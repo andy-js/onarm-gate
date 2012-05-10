@@ -26,6 +26,11 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -2849,6 +2854,13 @@ static const uchar_t ret_template[] = {
 /* 0x00 */	0x81, 0xc3, 0xe0, 0x08,		/* retl */
 /* 0x04 */	0x01, 0x00, 0x00, 0x00		/* nop */
 };
+
+#elif defined(__arm)
+
+static const uchar_t ret_template[] = {
+/* 0x00 */	0x0e, 0xf0, 0xa0, 0xe1		/* mov  pc, lr */
+};
+
 #else
 #error	unsupported architecture!
 #endif

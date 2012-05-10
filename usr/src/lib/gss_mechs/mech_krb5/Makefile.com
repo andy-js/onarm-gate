@@ -26,6 +26,10 @@
 #
 
 #
+# Copyright (c) 2006-2008 NEC Corporation
+#
+
+#
 # This make file will build mech_krb5.so.1. This shared object
 # contains all the functionality needed to support the Kereros V5 GSS-API
 # mechanism. No other Kerberos libraries are needed.
@@ -307,6 +311,9 @@ DYNFLAGS += $(ZIGNORE)
 
 # mech lib needs special initialization at load time
 DYNFLAGS += -zinitarray=krb5_ld_init
+
+# GNU ld will ignore -zinitarray. We need to use -Wl,-init to set initializer.
+$(__GNULD)DYNFLAGS	+= -Wl,-init,krb5_ld_init
 
 objs/%.o pics/%.o: $(SRC)/uts/common/gssapi/%.c
 	$(COMPILE.c)  -o $@ $<

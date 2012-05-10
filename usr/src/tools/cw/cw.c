@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -305,6 +309,7 @@
 #define	CW_F_ECHO	0x08
 #define	CW_F_XLATE	0x10
 #define	CW_F_PROG	0x20
+#define	CW_F_GNULD	0x40
 
 typedef enum cw_compiler {
 	CW_C_CC = 0,
@@ -382,7 +387,12 @@ typedef struct xarch_table {
  * The translation table for the -xarch= flag used in the Studio compilers.
  */
 static const xarch_table_t xtbl[] = {
-#if defined(__x86)
+#if	defined(__arm) || defined(TARGET_arm)
+	/* Flags for ARM cross compiler. */
+	{ "arm",	SS11, { "-mcpu=arm1136jf-s" } },
+	{ "mpcore",	SS11, { "-mcpu=mpcore" } },
+	{ "mpcorenovfp",SS11, { "-mcpu=mpcorenovfp" } },
+#elif defined(__x86)
 	{ "generic",	SS11 },
 	{ "generic64",	(SS11|M64), { "-m64", "-mtune=opteron" } },
 	{ "amd64",	(SS11|M64), { "-m64", "-mtune=opteron" } },
@@ -579,7 +589,8 @@ static void
 usage()
 {
 	(void) fprintf(stderr,
-	    "usage: %s { -_cc | -_gcc | -_CC | -_g++ } [ -_compiler | ... ]\n",
+	    "usage: %s {-_cc|-_gcc|-_CC|-_g++|-_gcc_gld|-_g++_gld}"
+	    " [ -_compiler | ... ]\n",
 	    progname);
 	exit(2);
 }
@@ -888,6 +899,10 @@ do_gcc(cw_ictx_t *ctx)
 				newae(ctx->i_ae, "-Werror");
 				break;
 			}
+			if (strcmp(arg, "-errwarn=%none") == 0) {
+				newae(ctx->i_ae, "-Wno-error");
+				break;
+			}
 			error(arg);
 			break;
 		case 'f':
@@ -964,6 +979,24 @@ do_gcc(cw_ictx_t *ctx)
 					ctx->i_oldargc--;
 				} else {
 					opt = arg + 2;
+				}
+				if (ctx->i_flags & CW_F_GNULD) {
+					if (c == 'M') {
+						/*
+						 * -M is used to pass mapfile
+						 * to Solaris ld. So -M should
+						 * be ignored if GNU ld is used.
+						 */
+						break;
+					}
+					if (c == 'B' &&
+					    !(strcmp(opt, "static") == 0 ||
+					      strcmp(opt, "dynamic") == 0 ||
+					      strcmp(opt, "group") == 0 ||
+					      strcmp(opt, "symbolic") == 0)) {
+						/* Unsupported linker option. */
+						break;
+					}
 				}
 				len = strlen(opt) + 7;
 				if ((s = malloc(len)) == NULL)
@@ -1825,7 +1858,8 @@ main(int argc, char **argv)
 		ctx->i_flags |= CW_F_EXEC;
 
 	/*
-	 * The first argument must be one of "-_cc", "-_gcc", "-_CC", or "-_g++"
+	 * The first argument must be one of "-_cc", "-_gcc", "-_CC", "-_g++",
+	 * "-_gcc_gld", or "-_g++_gld".
 	 */
 	if (argc == 1)
 		usage();
@@ -1841,6 +1875,12 @@ main(int argc, char **argv)
 	} else if (strcmp(argv[0], "-_g++") == 0) {
 		ctx->i_compiler = CW_C_GCC;
 		ctx->i_flags |= CW_F_CXX;
+	} else if (strcmp(argv[0], "-_gcc_gld") == 0) {
+		ctx->i_compiler = CW_C_GCC;
+		ctx->i_flags |= CW_F_GNULD;
+	} else if (strcmp(argv[0], "-_g++_gld") == 0) {
+		ctx->i_compiler = CW_C_GCC;
+		ctx->i_flags |= CW_F_CXX|CW_F_GNULD;
 	} else {
 		/* assume "-_gcc" by default */
 		argc++;

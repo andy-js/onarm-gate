@@ -24,6 +24,9 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
 
 LIBRARY =	libdiskmgt.a
 VERS =		.1
@@ -35,9 +38,11 @@ OBJECTS =	assoc_types.o \
 
 include ../../Makefile.lib
 
-LIBS =		$(DYNLIB) $(LINTLIB)
+LIBS =		$(ARLIB) $(DYNLIB) $(LINTLIB)
+LIBEFI =	-lefi
+$(ARM_BLD)LIBEFI =
 LDLIBS +=	-ldevinfo -ladm -ldevid -lkstat -lsysevent \
-		-lnvpair -lefi -lc
+		-lnvpair $(LIBEFI) -lc
 LDFLAGS	+= 	-R/opt/VRTSvxvm/lib
 
 SRCDIR =	../common

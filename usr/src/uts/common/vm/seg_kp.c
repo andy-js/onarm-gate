@@ -31,6 +31,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -74,6 +78,7 @@
 #include <vm/page.h>
 #include <vm/hat.h>
 #include <sys/bitmap.h>
+#include <sys/mem_cage.h>
 
 /*
  * Private seg op routines
@@ -182,7 +187,11 @@ segkp_badop(void)
 	/*NOTREACHED*/
 }
 
+#ifdef	KCAGE_DISABLE
+#define	segkpinit_mem_config(seg)	((void)0)
+#else	/* !KCAGE_DISABLE */
 static void segkpinit_mem_config(struct seg *);
+#endif	/* KCAGE_DISABLE */
 
 static uint32_t segkp_indel;
 
@@ -1413,6 +1422,8 @@ segkp_capable(struct seg *seg, segcapability_t capability)
 	return (0);
 }
 
+#ifndef	KCAGE_DISABLE
+
 #include <sys/mem_config.h>
 
 /*ARGSUSED*/
@@ -1457,3 +1468,5 @@ segkpinit_mem_config(struct seg *seg)
 	ret = kphysm_setup_func_register(&segkp_mem_config_vec, (void *)seg);
 	ASSERT(ret == 0);
 }
+
+#endif	/* !KCAGE_DISABLE */

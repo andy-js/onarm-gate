@@ -26,6 +26,10 @@
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
+#
+# Copyright (c) 2007-2008 NEC Corporation
+#
+
 .KEEP_STATE:
 
 NOT_NATIVE = $(POUND_SIGN)              # tell Makefile.com we're native
@@ -39,6 +43,9 @@ CPPFLAGS =	$(MY_NATIVE_CPPFLAGS)
 LDFLAGS =	$(MY_NATIVE_LDFLAGS)
 LDLIBS =	$(MY_NATIVE_LDLIBS)
 POST_PROCESS =
+
+$(ARM_BLD)GNUC_SYSROOT=
+$(ARM_BLD)CC	= GNU_ROOT=$(SFW_ROOT) $(arm_CC)
 
 all install:	$(PROG)
 

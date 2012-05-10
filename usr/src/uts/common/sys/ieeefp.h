@@ -24,10 +24,14 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef _SYS_IEEEFP_H
 #define	_SYS_IEEEFP_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SunOS4.0 1.6	*/
+#pragma ident	"%Z%%M%	%I%	%E% SMI"	/* SunOS4.0 1.6 */
 
 #ifdef	__cplusplus
 extern "C" {
@@ -103,7 +107,42 @@ enum fp_trap_enable_type {	/* trap enable bits according to bit number */
 	fp_trap_inexact	= 5
 };
 
-#endif	/* __i386 || __amd64 */
+#elif defined(__arm)
+
+enum fp_direction_type {	/* rounding direction */
+	fp_nearest	= 0,
+	fp_positive	= 1,
+	fp_negative	= 2,
+	fp_tozero	= 3
+};
+
+enum fp_precision_type {	/* extended rounding precision */
+	fp_single	= 0,
+	fp_precision_3	= 1,
+	fp_double	= 2,
+	fp_extended	= 3
+};
+
+
+enum fp_exception_type {	/* exceptions according to bit number */
+	fp_invalid	= 0,
+	fp_denormalized	= 1,
+	fp_division	= 2,
+	fp_overflow	= 3,
+	fp_underflow	= 4,
+	fp_inexact	= 5
+};
+
+enum fp_trap_enable_type {	/* trap enable bits according to bit number */
+	fp_trap_invalid	= 0,
+	fp_trap_denormalized	= 1,
+	fp_trap_division	= 2,
+	fp_trap_overflow	= 3,
+	fp_trap_underflow	= 4,
+	fp_trap_inexact	= 5
+};
+
+#endif	/* __arm */
 
 enum fp_class_type {		/* floating-point classes */
 	fp_zero		= 0,

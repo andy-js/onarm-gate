@@ -46,8 +46,8 @@ all:	$(SUBDIRS)
 clean clobber lint:	$(SUBDIRS)
 
 install:	$(SUBDIRS)
-	-$(RM) $(ROOTUSRSBINPROG)
-	-$(LN) $(ISAEXEC) $(ROOTUSRSBINPROG)
+	-$(USE_ISAEXEC)$(RM) $(ROOTUSRSBINPROG)
+	-$(USE_ISAEXEC)$(LN) $(ISAEXEC) $(ROOTUSRSBINPROG)
 
 $(SUBDIRS):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)

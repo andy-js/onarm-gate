@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2006 NEC Corporation
+ */
+
 #ifndef	_ALLOCA_H
 #define	_ALLOCA_H
 
@@ -53,7 +57,8 @@ extern "C" {
  */
 
 #if defined(__BUILTIN_VA_ARG_INCR) || \
-	defined(__sparc) || defined(__i386) || defined(__amd64)
+	defined(__sparc) || defined(__i386) || defined(__amd64) || \
+	defined(__arm)
 #define	alloca(x)	__builtin_alloca(x)
 
 #ifdef	__STDC__

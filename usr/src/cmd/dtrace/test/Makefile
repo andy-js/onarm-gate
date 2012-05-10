@@ -25,9 +25,14 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 
+#
+# Copyright (c) 2008 NEC Corporation
+#
+
 include $(SRC)/Makefile.master
 
 SUBDIRS = cmd tst
+$(ARM_BLD)SUBDIRS	= cmd
 
 ROOTOPTPKG = $(ROOT)/opt/SUNWdtrt
 

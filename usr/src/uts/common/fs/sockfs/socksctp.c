@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -152,6 +156,12 @@ sctp_upcalls_t sosctp_assoc_upcalls = {
 static int
 sosctp_sock_constructor(void *buf, void *cdrarg, int kmflags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (-1);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = buf;
 	struct sonode *so = &ss->ss_so;
 	struct vnode *vp;
@@ -194,12 +204,18 @@ sosctp_sock_constructor(void *buf, void *cdrarg, int kmflags)
 	cv_init(&ss->ss_rxdata_cv, NULL, CV_DEFAULT, NULL);
 
 	return (0);
+#endif
 }
 
 /*ARGSUSED*/
 static void
 sosctp_sock_destructor(void *buf, void *cdrarg)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = buf;
 	struct sonode *so = &ss->ss_so;
 	struct vnode *vp = SOTOV(so);
@@ -233,11 +249,18 @@ sosctp_sock_destructor(void *buf, void *cdrarg)
 	cv_destroy(&so->so_want_cv);
 	cv_destroy(&ss->ss_txdata_cv);
 	cv_destroy(&ss->ss_rxdata_cv);
+#endif
 }
 
 int
 sosctp_init(void)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (0);
+
+#else
+        /* Orignal Program */
 	int error;
 
 	error = vn_make_ops("socksctp", socksctp_vnodeops_template,
@@ -254,12 +277,19 @@ sosctp_init(void)
 	sosctp_assoccache = kmem_cache_create("sctp_assoc",
 	    sizeof (struct sctp_soassoc), 0, NULL, NULL, NULL, NULL, NULL, 0);
 	return (0);
+#endif
 }
 
 static struct vnode *
 sosctp_makevp(struct vnode *accessvp, int domain, int type, int protocol,
     int kmflags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (NULL);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss;
 	struct sonode *so;
 	struct vnode *vp;
@@ -348,6 +378,7 @@ sosctp_makevp(struct vnode *accessvp, int domain, int type, int protocol,
 
 	vn_exists(vp);
 	return (vp);
+#endif
 }
 
 /*
@@ -358,6 +389,13 @@ struct sonode *
 sosctp_create(vnode_t *accessvp, int domain, int type, int protocol,
     int version, struct sonode *tso, int *errorp)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	*errorp = EINVAL;
+	return (NULL);
+
+#else
+        /* Orignal Program */
 	struct sonode *so;
 	vnode_t *vp;
 	int error;
@@ -418,6 +456,7 @@ sosctp_create(vnode_t *accessvp, int domain, int type, int protocol,
 	so->so_version = (short)version;
 
 	return (so);
+#endif
 }
 
 /*
@@ -428,6 +467,11 @@ sosctp_create(vnode_t *accessvp, int domain, int type, int protocol,
 void
 sosctp_free(struct sonode *so)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = SOTOSSO(so);
 	struct sonode *nso;
 	mblk_t *mp;
@@ -475,6 +519,7 @@ sosctp_free(struct sonode *so)
 	mutex_exit(&so->so_lock);
 
 	sockfree(so);
+#endif
 }
 
 /*
@@ -483,6 +528,12 @@ sosctp_free(struct sonode *so)
 static int
 sosctp_accept(struct sonode *lso, int fflag, struct sonode **nsop)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	int error = 0;
 	mblk_t *mp;
 	struct sonode *nso;
@@ -549,6 +600,7 @@ sosctp_accept(struct sonode *lso, int fflag, struct sonode **nsop)
 
 	*nsop = nso;
 	return (0);
+#endif
 }
 
 /*
@@ -558,6 +610,12 @@ int
 sosctp_bind(struct sonode *so, struct sockaddr *name, socklen_t namelen,
     int flags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	int error = 0;
 
 	if (!(flags & _SOBIND_LOCK_HELD)) {
@@ -611,6 +669,7 @@ done:
 		ASSERT(so->so_flag & SOLOCKED);
 	}
 	return (error);
+#endif
 }
 
 /*
@@ -619,6 +678,12 @@ done:
 static int
 sosctp_listen(struct sonode *so, int backlog)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	int error = 0;
 
 	mutex_enter(&so->so_lock);
@@ -665,6 +730,7 @@ done:
 	mutex_exit(&so->so_lock);
 
 	return (error);
+#endif
 }
 
 /*
@@ -674,6 +740,12 @@ static int
 sosctp_connect(struct sonode *so, const struct sockaddr *name,
     socklen_t namelen, int fflag, int flags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	int error;
 
 	ASSERT(so->so_type == SOCK_STREAM);
@@ -764,6 +836,7 @@ done:
 	so_unlock_single(so, SOLOCKED);
 	mutex_exit(&so->so_lock);
 	return (error);
+#endif
 }
 
 /*
@@ -776,6 +849,12 @@ static int
 sosctp_seq_connect(struct sonode *so, const struct sockaddr *name,
     socklen_t namelen, int fflag, int flags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	struct sctp_soassoc *ssa;
 	struct sctp_sonode *ss;
 	int error;
@@ -808,6 +887,7 @@ done:
 	so_unlock_single(so, SOLOCKED);
 	mutex_exit(&so->so_lock);
 	return (error);
+#endif
 }
 
 /*
@@ -816,6 +896,12 @@ done:
 int
 sosctp_recvmsg(struct sonode *so, struct nmsghdr *msg, struct uio *uiop)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = SOTOSSO(so);
 	struct sctp_soassoc *ssa = NULL;
 	int flags, error = 0;
@@ -1084,12 +1170,19 @@ done:
 	}
 
 	return (error);
+#endif
 }
 
 int
 sosctp_uiomove(mblk_t *hdr_mp, ssize_t count, ssize_t blk_size, int wroff,
     struct uio *uiop, int flags, cred_t *cr)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	ssize_t size;
 	int error;
 	mblk_t *mp;
@@ -1131,6 +1224,7 @@ sosctp_uiomove(mblk_t *hdr_mp, ssize_t count, ssize_t blk_size, int wroff,
 		hdr_mp = mp;
 	}
 	return (0);
+#endif
 }
 
 /*
@@ -1139,6 +1233,12 @@ sosctp_uiomove(mblk_t *hdr_mp, ssize_t count, ssize_t blk_size, int wroff,
 static int
 sosctp_sendmsg(struct sonode *so, struct nmsghdr *msg, struct uio *uiop)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EOPNOTSUPP);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = SOTOSSO(so);
 	mblk_t *mctl;
 	struct cmsghdr *cmsg;
@@ -1330,6 +1430,7 @@ error_nofree:
 	}
 	mutex_exit(&so->so_lock);
 	return (error);
+#endif
 }
 
 /*
@@ -1339,6 +1440,12 @@ error_nofree:
 static int
 sosctp_seq_sendmsg(struct sonode *so, struct nmsghdr *msg, struct uio *uiop)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss;
 	struct sctp_soassoc *ssa;
 	struct cmsghdr *cmsg;
@@ -1538,6 +1645,7 @@ refrele:
 done:
 	mutex_exit(&so->so_lock);
 	return (error);
+#endif
 }
 
 /*
@@ -1546,6 +1654,12 @@ done:
 static int
 sosctp_getpeername(struct sonode *so)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EOPNOTSUPP);
+
+#else
+        /* Orignal Program */
 	int error;
 
 	if (so->so_type != SOCK_STREAM) {
@@ -1562,6 +1676,7 @@ sosctp_getpeername(struct sonode *so)
 		    &so->so_faddr_len);
 	}
 	return (error);
+#endif
 }
 
 /*
@@ -1570,6 +1685,12 @@ sosctp_getpeername(struct sonode *so)
 static int
 sosctp_getsockname(struct sonode *so)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	int error;
 
 	mutex_enter(&so->so_lock);
@@ -1593,6 +1714,7 @@ sosctp_getsockname(struct sonode *so)
 	}
 
 	return (error);
+#endif
 }
 
 /*
@@ -1601,6 +1723,12 @@ sosctp_getsockname(struct sonode *so)
 static int
 sosctp_shutdown(struct sonode *so, int how)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EOPNOTSUPP);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = SOTOSSO(so);
 	uint_t state_change;
 	int error = 0;
@@ -1681,6 +1809,7 @@ done:
 	if (error == EWOULDBLOCK)
 		error = 0;
 	return (error);
+#endif
 }
 
 /*
@@ -1691,6 +1820,12 @@ static int
 sosctp_getsockopt(struct sonode *so, int level, int option_name,
     void *optval, socklen_t *optlenp, int flags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	int		error = 0;
 	void		*option = NULL;
 	socklen_t	maxlen = *optlenp;
@@ -1853,6 +1988,7 @@ free:
 done:
 	mutex_exit(&so->so_lock);
 	return (error);
+#endif
 }
 
 /*
@@ -1862,6 +1998,12 @@ static int
 sosctp_setsockopt(struct sonode *so, int level, int option_name,
     const void *optval, t_uscalar_t optlen)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (EINVAL);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = SOTOSSO(so);
 	struct sctp_soassoc *ssa = NULL;
 	sctp_assoc_t id;
@@ -2150,6 +2292,7 @@ done:
 	mutex_exit(&so->so_lock);
 
 	return (error);
+#endif
 }
 
 /*
@@ -2162,6 +2305,12 @@ done:
 static void *
 sctp_sock_newconn(void *parenthandle, void *connind)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (NULL);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *lss = parenthandle;
 	struct sonode *lso = &lss->ss_so;
 	struct sonode *nso;
@@ -2238,6 +2387,7 @@ sctp_sock_newconn(void *parenthandle, void *connind)
 	mutex_exit(&lso->so_lock);
 
 	return (nss);
+#endif
 }
 
 /*
@@ -2251,6 +2401,12 @@ sctp_sock_newconn(void *parenthandle, void *connind)
 static void *
 sctp_assoc_newconn(void *parenthandle, void *connind)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+	return (NULL);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *lss = (struct sctp_sonode *)parenthandle;
 	struct sonode *lso = &lss->ss_so;
 	struct sctp_soassoc *ssa;
@@ -2295,6 +2451,7 @@ sctp_assoc_newconn(void *parenthandle, void *connind)
 	mutex_exit(&lso->so_lock);
 
 	return (ssa);
+#endif
 }
 
 /*
@@ -2303,6 +2460,11 @@ sctp_assoc_newconn(void *parenthandle, void *connind)
 static void
 sctp_sock_connected(void *handle)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking **/
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = handle;
 	struct sonode *so = &ss->ss_so;
 
@@ -2322,11 +2484,17 @@ sctp_sock_connected(void *handle)
 	 * Wake ones who're waiting for conn to become established.
 	 */
 	pollwakeup(&ss->ss_poll_list, POLLOUT);
+#endif
 }
 
 static void
 sctp_assoc_connected(void *handle)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_soassoc *ssa = handle;
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
 
@@ -2336,6 +2504,7 @@ sctp_assoc_connected(void *handle)
 	mutex_enter(&so->so_lock);
 	sosctp_assoc_isconnected(ssa);
 	mutex_exit(&so->so_lock);
+#endif
 }
 
 /*
@@ -2346,6 +2515,12 @@ sctp_assoc_connected(void *handle)
 static int
 sctp_sock_disconnected(void *handle, int error)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (0);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = handle;
 	struct sonode *so = &ss->ss_so;
 	int event = 0;
@@ -2380,11 +2555,18 @@ sctp_sock_disconnected(void *handle, int error)
 	pollwakeup(&ss->ss_poll_list, POLLIN|POLLRDNORM|POLLOUT);
 
 	return (0);
+#endif
 }
 
 static int
 sctp_assoc_disconnected(void *handle, int error)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (0);
+
+#else
+        /* Orignal Program */
 	struct sctp_soassoc *ssa = handle;
 	struct sctp_sonode *ss = ssa->ssa_sonode;
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
@@ -2408,6 +2590,7 @@ sctp_assoc_disconnected(void *handle, int error)
 	mutex_exit(&so->so_lock);
 
 	return (ret);
+#endif
 }
 
 /*
@@ -2418,6 +2601,11 @@ sctp_assoc_disconnected(void *handle, int error)
 static void
 sctp_sock_disconnecting(void *handle)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = handle;
 	struct sonode *so = &ss->ss_so;
 
@@ -2444,11 +2632,17 @@ sctp_sock_disconnecting(void *handle)
 	mutex_exit(&so->so_lock);
 
 	pollwakeup(&ss->ss_poll_list, POLLOUT);
+#endif
 }
 
 static void
 sctp_assoc_disconnecting(void *handle)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_soassoc *ssa = handle;
 	struct sonode *so = &ssa->ssa_sonode->ss_so;
 
@@ -2458,6 +2652,7 @@ sctp_assoc_disconnecting(void *handle)
 	mutex_enter(&so->so_lock);
 	sosctp_assoc_isdisconnecting(ssa);
 	mutex_exit(&so->so_lock);
+#endif
 }
 
 /*
@@ -2466,6 +2661,12 @@ sctp_assoc_disconnecting(void *handle)
 static int
 sctp_sock_recv(void *handle, mblk_t *mp, int flags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (-1);
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = handle;
 	struct sonode *so = &ss->ss_so;
 	int msglen;
@@ -2520,11 +2721,18 @@ sctp_sock_recv(void *handle, mblk_t *mp, int flags)
 	pollwakeup(&ss->ss_poll_list, POLLIN|POLLRDNORM);
 
 	return (so->so_rcvbuf - ss->ss_rxqueued);
+#endif
 }
 
 static int
 sctp_assoc_recv(void *handle, mblk_t *mp, int flags)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+	return (-1);
+
+#else
+        /* Orignal Program */
 	struct sctp_soassoc *ssa = handle;
 	struct sctp_sonode *ss = ssa->ssa_sonode;
 	struct sonode *so = &ss->ss_so;
@@ -2645,6 +2853,7 @@ sctp_assoc_recv(void *handle, mblk_t *mp, int flags)
 	pollwakeup(&ss->ss_poll_list, POLLIN|POLLRDNORM);
 
 	return (so->so_rcvbuf - ssa->ssa_rxqueued);
+#endif
 }
 
 /*
@@ -2653,6 +2862,11 @@ sctp_assoc_recv(void *handle, mblk_t *mp, int flags)
 static void
 sctp_sock_xmitted(void *handle, int txqueued)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = handle;
 	struct sonode *so = &ss->ss_so;
 	boolean_t writeable;
@@ -2683,11 +2897,17 @@ sctp_sock_xmitted(void *handle, int txqueued)
 	} else {
 		mutex_exit(&so->so_lock);
 	}
+#endif
 }
 
 static void
 sctp_assoc_xmitted(void *handle, int txqueued)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_soassoc *ssa = handle;
 	struct sctp_sonode *ss = ssa->ssa_sonode;
 
@@ -2705,6 +2925,7 @@ sctp_assoc_xmitted(void *handle, int txqueued)
 	cv_broadcast(&ss->ss_txdata_cv);
 
 	mutex_exit(&ss->ss_so.so_lock);
+#endif
 }
 
 /*
@@ -2713,6 +2934,11 @@ sctp_assoc_xmitted(void *handle, int txqueued)
 static void
 sctp_sock_properties(void *handle, int wroff, size_t maxblk)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_sonode *ss = handle;
 
 	ASSERT(ss->ss_so.so_type == SOCK_STREAM);
@@ -2731,11 +2957,17 @@ sctp_sock_properties(void *handle, int wroff, size_t maxblk)
 		ss->ss_wrsize = maxblk;
 	}
 	mutex_exit(&ss->ss_so.so_lock);
+#endif
 }
 
 static void
 sctp_assoc_properties(void *handle, int wroff, size_t maxblk)
 {
+#ifdef SCTP_SHRINK
+        /* Enable SCTP shrinking */
+
+#else
+        /* Orignal Program */
 	struct sctp_soassoc *ssa = handle;
 	struct sctp_sonode *ss;
 
@@ -2765,4 +2997,5 @@ sctp_assoc_properties(void *handle, int wroff, size_t maxblk)
 	}
 
 	mutex_exit(&ss->ss_so.so_lock);
+#endif
 }

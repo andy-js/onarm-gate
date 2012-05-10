@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -43,11 +46,12 @@ static kmem_cache_t *reference_history_cache;
 void
 refcount_init(void)
 {
-	reference_cache = kmem_cache_create("reference_cache",
+	reference_cache = kmem_cache_create(KMEM_REFERENCE_CACHE,
 	    sizeof (reference_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
-	reference_history_cache = kmem_cache_create("reference_history_cache",
-	    sizeof (uint64_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	reference_history_cache = kmem_cache_create(
+	    KMEM_REFERENCE_HISTORY_CACHE, sizeof (uint64_t), 0, NULL, NULL,
+	    NULL, NULL, NULL, 0);
 }
 
 void

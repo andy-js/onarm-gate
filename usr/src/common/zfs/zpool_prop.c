@@ -22,6 +22,9 @@
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -62,6 +65,7 @@ zpool_prop_init(void)
 		{ "wait",	ZIO_FAILURE_MODE_WAIT },
 		{ "continue",	ZIO_FAILURE_MODE_CONTINUE },
 		{ "panic",	ZIO_FAILURE_MODE_PANIC },
+		{ "abort",	ZIO_FAILURE_MODE_ABORT },
 		{ NULL }
 	};
 
@@ -91,16 +95,21 @@ zpool_prop_init(void)
 	register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<version>", "VERSION");
 
+#ifndef ZFS_COMPACT
 	/* default index (boolean) properties */
 	register_index(ZPOOL_PROP_DELEGATION, "delegation", 1, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "on | off", "DELEGATION", boolean_table);
+#else
+	register_hidden(ZPOOL_PROP_DELEGATION, "delegation", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_POOL, "DELEGATION");
+#endif	/* ZFS_COMPACT */
 	register_index(ZPOOL_PROP_AUTOREPLACE, "autoreplace", 0, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "on | off", "REPLACE", boolean_table);
 
 	/* default index properties */
 	register_index(ZPOOL_PROP_FAILUREMODE, "failmode",
-	    ZIO_FAILURE_MODE_WAIT, PROP_DEFAULT, ZFS_TYPE_POOL,
-	    "wait | continue | panic", "FAILMODE", failuremode_table);
+	    ZIO_FAILURE_MODE_DEFAULT, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    "wait | continue | panic | abort", "FAILMODE", failuremode_table);
 
 	/* hidden properties */
 	register_hidden(ZPOOL_PROP_NAME, "name", PROP_TYPE_STRING,

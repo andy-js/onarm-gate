@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
@@ -1768,6 +1772,7 @@ usba_hubdi_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 
 		hubd = hubd_get_soft_state(dip);
 		if (hubd == NULL) {
+			ddi_soft_state_free(hubd_statep, instance);
 			goto fail;
 		}
 	}
@@ -1988,11 +1993,11 @@ fail:
 		kmem_free(pathname, MAXPATHLEN);
 	}
 
-	mutex_enter(HUBD_MUTEX(hubd));
-	hubd_pm_idle_component(hubd, dip, 0);
-	mutex_exit(HUBD_MUTEX(hubd));
-
 	if (hubd) {
+		mutex_enter(HUBD_MUTEX(hubd));
+		hubd_pm_idle_component(hubd, dip, 0);
+		mutex_exit(HUBD_MUTEX(hubd));
+
 		rval = hubd_cleanup(dip, hubd);
 		if (rval != USB_SUCCESS) {
 			USB_DPRINTF_L2(DPRINT_MASK_ATTA, hubdi_log_handle,

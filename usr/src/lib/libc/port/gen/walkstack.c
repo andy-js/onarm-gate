@@ -22,6 +22,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
@@ -156,6 +160,8 @@
 #define	CHECK_FOR_SIGFRAME(fp, oldctx) ((((fp) + sizeof (struct frame)) + \
 	3 * sizeof (int) == (oldctx)) && \
 	(((struct frame *)fp)->fr_savpc == (greg_t)-1))
+#elif	defined(__arm)
+/* Not supported on ARM */
 #else
 #error no arch defined
 #endif
@@ -198,6 +204,9 @@ int
 walkcontext(const ucontext_t *uptr, int (*operate_func)(uintptr_t, int, void *),
     void *usrarg)
 {
+#ifdef	__arm
+	return -1;		/* not supported on ARM */
+#else	/* !__arm */
 	ucontext_t *oldctx = uptr->uc_link;
 
 	int	fd;
@@ -346,6 +355,7 @@ walkcontext(const ucontext_t *uptr, int (*operate_func)(uintptr_t, int, void *),
 
 	(void) close(fd);
 	return (0);
+#endif	/* __arm */
 }
 
 /*
@@ -403,12 +413,16 @@ display_stack_info(uintptr_t pc, int signo, void *arg)
 int
 printstack(int dofd)
 {
+#ifdef	__arm
+	return -1;		/* not supported on ARM */
+#else	/* !__arm */
 	ucontext_t u;
 
 	if (getcontext(&u) < 0)
 		return (-1);
 
 	return (walkcontext(&u, display_stack_info, (void*)(intptr_t)dofd));
+#endif	/* __arm */
 }
 
 /*
@@ -442,6 +456,9 @@ callback(uintptr_t pc, int signo, void *arg)
 int
 backtrace(void **buffer, int count)
 {
+#ifdef	__arm
+	return -1;		/* not supported on ARM */
+#else	/* !__arm */
 	backtrace_t 	bt;
 	ucontext_t 	u;
 
@@ -455,6 +472,7 @@ backtrace(void **buffer, int count)
 	(void) walkcontext(&u, callback, &bt);
 
 	return (bt.bt_actcount);
+#endif	/* __arm */
 }
 
 /*

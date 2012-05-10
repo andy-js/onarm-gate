@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -1899,6 +1903,45 @@ secpolicy_spec_open(const cred_t *cr, struct vnode *vp, int oflag)
 	}
 
 	err = secpolicy_require_set(cr, &pset, "devpolicy");
+	dpfree(plcy);
+
+	return (err);
+}
+
+/*
+ * int
+ * secpolicy_dev_open(const cred_t *cr, devplcy_t *plcy, int oflag)
+ *	Check for device open privilege with the specified device policy data.
+ *	This allows driver to check privilege using its own device policy.
+ */
+int
+secpolicy_dev_open(const cred_t *cr, devplcy_t *plcy, int oflag)
+{
+	int		err;
+	priv_set_t	*psetp, lpset;
+	const priv_set_t	*cpset;
+
+	dphold(plcy);
+	psetp = (oflag & FWRITE) ? &plcy->dp_wrp : &plcy->dp_rdp;
+
+	/*
+	 * Special case:
+	 * PRIV_SYS_NET_CONFIG is a superset of PRIV_SYS_IP_CONFIG.
+	 * If PRIV_SYS_NET_CONFIG is present and PRIV_SYS_IP_CONFIG is
+	 * required, replace PRIV_SYS_IP_CONFIG with PRIV_SYS_NET_CONFIG
+	 * in the required privilege set before doing the check.
+	 */
+	cpset = &CR_OEPRIV(cr);
+	if (priv_ismember(psetp, PRIV_SYS_IP_CONFIG) &&
+	    priv_ismember(cpset, PRIV_SYS_NET_CONFIG) &&
+	    !priv_ismember(cpset, PRIV_SYS_IP_CONFIG)) {
+		lpset = *psetp;
+		priv_delset(&lpset, PRIV_SYS_IP_CONFIG);
+		priv_addset(&lpset, PRIV_SYS_NET_CONFIG);
+		psetp = &lpset;
+	}
+
+	err = secpolicy_require_set(cr, psetp, "devpolicy");
 	dpfree(plcy);
 
 	return (err);

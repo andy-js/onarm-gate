@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
@@ -436,7 +440,11 @@ ulwp_alloc(void)
 	data = lmalloc(sizeof (*ulwp) + tls_size);
 	if (data != NULL) {
 		/* LINTED pointer cast may result in improper alignment */
+#ifdef	__arm
+		ulwp = (ulwp_t *)data;
+#else
 		ulwp = (ulwp_t *)(data + tls_size);
+#endif
 	}
 	return (ulwp);
 }
@@ -1270,11 +1278,19 @@ libc_init(void)
 
 	tls_size = roundup64(udp->tls_metadata.static_tls.tls_size);
 	ASSERT(primary_link_map || tls_size == 0);
+#ifdef	__arm
+	data = lmalloc(roundup64(sizeof (ulwp_t)) + tls_size);
+#else
 	data = lmalloc(sizeof (ulwp_t) + tls_size);
+#endif
 	if (data == NULL)
 		thr_panic("cannot allocate thread structure for main thread");
 	/* LINTED pointer cast may result in improper alignment */
+#ifdef	__arm
+	self = (ulwp_t *)data;
+#else
 	self = (ulwp_t *)(data + tls_size);
+#endif
 	init_hash_table[0].hash_bucket = self;
 
 	self->ul_sigmask = uc.uc_sigmask;
@@ -1431,9 +1447,11 @@ libc_init(void)
 	 * When we have initialized the primary link map, inform
 	 * the dynamic linker about our interface functions.
 	 */
+
+#if defined(PIC)
 	if (self->ul_primarymap)
 		_ld_libc((void *)rtld_funcs);
-
+#endif
 	/*
 	 * Defer signals until TLS constructors have been called.
 	 */
@@ -1466,8 +1484,10 @@ libc_init(void)
 	__threaded = 1;
 }
 
+/* arm is not need. So returned orignal source image */
 #pragma fini(libc_fini)
-void
+
+void 
 libc_fini()
 {
 	/*

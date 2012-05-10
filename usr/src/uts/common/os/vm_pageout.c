@@ -36,6 +36,10 @@
  * contributors.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -60,6 +64,11 @@
 #include <sys/tnf_probe.h>
 #include <sys/mem_cage.h>
 #include <sys/time.h>
+#ifdef	__arm
+#include <sys/fs/swapnode.h>
+#endif	/* __arm */
+#include <sys/uctx_ops.h>
+#include <sys/lpg_config.h>
 
 #include <vm/hat.h>
 #include <vm/as.h>
@@ -256,6 +265,17 @@ setupclock(int recalc)
 		lotsfree = MAX(looppages / 64, btop(512 * 1024));
 	else
 		lotsfree = init_lfree;
+
+#ifdef	__arm
+	if (lotsfree < swapfs_reserve) {
+		/*
+		 * swapfs_reserve should be less than lotsfree, or kernel
+		 * will try to reserve memory without kicking memory scheduler.
+		 * We choose (lotsfree * 3/4) to swapfs_reserve.
+		 */
+		swapfs_reserve = (lotsfree * 3) >> 2;
+	}
+#endif	/* __arm */
 
 	/*
 	 * Desfree is amount of memory desired free.
@@ -528,10 +548,12 @@ schedpaging(void *arg)
 {
 	spgcnt_t vavail;
 
-	if (freemem < lotsfree + needfree + kmem_reapahead)
+	if (DESPERATE_FREEMEM() ||
+	    (freemem < lotsfree + needfree + kmem_reapahead))
 		kmem_reap();
 
-	if (freemem < lotsfree + needfree + seg_preapahead)
+	if (DESPERATE_FREEMEM() ||
+	    (freemem < lotsfree + needfree + seg_preapahead))
 		seg_preap();
 
 	if (kcage_on && (kcage_freemem < kcage_desfree || kcage_needfree))
@@ -556,8 +578,9 @@ schedpaging(void *arg)
 		 * happens, desscan becomes negative and pageout_scanner()
 		 * stops paging out.
 		 */
-		if ((needfree) && (pageout_new_spread == 0)) {
-			/*
+		if (DESPERATE_FREEMEM() ||
+		    ((needfree) && (pageout_new_spread == 0))) {
+			 /*
 			 * If we've not yet collected enough samples to
 			 * calculate a spread, use the old logic of kicking
 			 * into high gear anytime needfree is non-zero.
@@ -581,8 +604,9 @@ schedpaging(void *arg)
 		pageout_ticks = min_pageout_ticks + (lotsfree - vavail) *
 		    (max_pageout_ticks - min_pageout_ticks) / nz(lotsfree);
 
-		if (freemem < lotsfree + needfree ||
+		if (DESPERATE_FREEMEM() || freemem < lotsfree + needfree ||
 		    pageout_sample_cnt < pageout_sample_lim) {
+			UCTX_OPS_MEMSCHED();
 			TRACE_1(TR_FAC_VM, TR_PAGEOUT_CV_SIGNAL,
 			    "pageout_cv_signal:freemem %ld", freemem);
 			cv_signal(&proc_pageout->p_cv);
@@ -709,7 +733,8 @@ pageout()
 	for (;;) {
 		mutex_enter(&push_lock);
 
-		while ((arg = push_list) == NULL || pushes > max_pushes) {
+		while ((arg = push_list) == NULL ||
+		       (!DESPERATE_FREEMEM() && pushes > max_pushes)) {
 			CALLB_CPR_SAFE_BEGIN(&cprinfo);
 			cv_wait(&push_cv, &push_lock);
 			pushes = 0;
@@ -820,8 +845,10 @@ loop:
 	 * or not there is enough free memory.
 	 */
 
-	while (nscan < nscan_limit && (freemem < lotsfree + needfree ||
-	    pageout_sample_cnt < pageout_sample_lim)) {
+	while (nscan < nscan_limit &&
+	       (DESPERATE_FREEMEM() ||
+		freemem < lotsfree + needfree ||
+		pageout_sample_cnt < pageout_sample_lim)) {
 		int rvfront, rvback;
 
 		/*
@@ -1045,7 +1072,8 @@ recheck:
 	 * If large page, attempt to demote it. If successfully demoted,
 	 * retry the checkpage.
 	 */
-	if (pp->p_szc != 0) {
+	SZC_ASSERT(pp->p_szc);
+	if (SZC_EVAL(pp->p_szc) != 0) {
 		if (!page_try_demote_pages(pp)) {
 			VM_STAT_ADD(pageoutvmstats.checkpage[1]);
 			page_unlock(pp);

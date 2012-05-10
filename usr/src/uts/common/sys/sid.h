@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #ifndef _SYS_SID_H
 #define	_SYS_SID_H
 
@@ -54,7 +58,8 @@ extern "C" {
 #define	SIDSYS_SID2ID	0
 #define	SIDSYS_ID2SID	1
 
-#ifdef _KERNEL
+#if	defined(_KERNEL) || defined(_KMEMUSER)
+
 #define	KSIDLIST_MEM(n)	(sizeof (ksidlist_t) + ((n) - 1) * sizeof (ksid_t))
 
 /* Domains are stored in AVL trees so we can share them among SIDs */
@@ -97,6 +102,8 @@ typedef struct credsid {
 	ksidlist_t	*kr_sidlist;		/* List of SIDS */
 } credsid_t;
 
+#ifdef	_KERNEL
+
 const char *ksid_getdomain(ksid_t *);
 uint_t ksid_getrid(ksid_t *);
 
@@ -122,13 +129,17 @@ ksiddomain_t *ksid_lookupdomain(const char *);
 
 ksidlist_t *kcrsid_gidstosids(zone_t *, int, gid_t *);
 
-#else
+#endif	/* _KERNEL */
+
+#endif	/* defined(_KERNEL) || defined(_KMEMUSER) */
+
+#ifndef	_KERNEL
 
 int allocids(int, int, uid_t *, int, gid_t *);
 int idmap_reg(int);
 int idmap_unreg(int);
 
-#endif /* _KERNEL */
+#endif	/* !_KERNEL */
 
 #ifdef __cplusplus
 }

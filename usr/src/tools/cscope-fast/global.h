@@ -18,6 +18,8 @@
  * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
+ *
+ * Copyright (c) 2012 Nexenta Systems, Inc.  All rights reserved.
  */
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -273,7 +275,7 @@ HISTORY *nextcmd(void);
 void	catchint(int sig);
 int	ungetch(int c);
 int	mygetch(void);
-int	getline(char s[], size_t size, int firstchar, BOOL iscaseless);
+int	mygetline(char s[], size_t size, int firstchar, BOOL iscaseless);
 void	askforchar(void);
 void	askforreturn(void);
 void	shellpath(char *out, int limit, char *in);

@@ -29,8 +29,9 @@ include		../Makefile.cmd
 
 SUBDIRS=	etc lib sbin usr.bin usr.sbin usr.lib usr.sadm
 MSGSUBDIRS=	lib usr.bin usr.sbin usr.lib usr.sadm
-POFILES=	lib/lib.po usr.bin/usr.bin.po usr.sbin/usr.sbin.po \
-		usr.sadm/usr.sadm.po
+# POFILES=	lib/lib.po usr.bin/usr.bin.po usr.sbin/usr.sbin.po \
+# 		usr.sadm/usr.sadm.po
+POFILES=	lib/lib.po usr.bin/usr.bin.po usr.sbin/usr.sbin.po
 POFILE=		cmd-inet.po
 
 all:=		TARGET= all

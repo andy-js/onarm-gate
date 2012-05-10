@@ -31,6 +31,10 @@
  * under license from the Regents of the University of California.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
@@ -763,24 +767,7 @@ void
 ufs_thread_idle(void)
 {
 	callb_cpr_t cprinfo;
-	int i;
 	int ne;
-
-	ufs_niqhash = (ufs_idle_q.uq_lowat >> 1) / IQHASHQLEN;
-	ufs_niqhash = 1 << highbit(ufs_niqhash); /* round up to power of 2 */
-	ufs_iqhashmask = ufs_niqhash - 1;
-	ufs_junk_iq = kmem_alloc(ufs_niqhash * sizeof (*ufs_junk_iq),
-	    KM_SLEEP);
-	ufs_useful_iq = kmem_alloc(ufs_niqhash * sizeof (*ufs_useful_iq),
-	    KM_SLEEP);
-
-	/* Initialize hash queue headers */
-	for (i = 0; i < ufs_niqhash; i++) {
-		ufs_junk_iq[i].i_freef = (inode_t *)&ufs_junk_iq[i];
-		ufs_junk_iq[i].i_freeb = (inode_t *)&ufs_junk_iq[i];
-		ufs_useful_iq[i].i_freef = (inode_t *)&ufs_useful_iq[i];
-		ufs_useful_iq[i].i_freeb = (inode_t *)&ufs_useful_iq[i];
-	}
 
 	CALLB_CPR_INIT(&cprinfo, &ufs_idle_q.uq_mutex, callb_generic_cpr,
 	    "ufsidle");

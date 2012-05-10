@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #ifndef	_SYS_ZFS_IOCTL_H
 #define	_SYS_ZFS_IOCTL_H
 
@@ -32,6 +36,7 @@
 #include <sys/dmu.h>
 #include <sys/zio.h>
 #include <sys/dsl_deleg.h>
+#include <zfs_types.h>
 
 #ifdef _KERNEL
 #include <sys/nvpair.h>
@@ -52,6 +57,50 @@ extern "C" {
 #define	DMU_BACKUP_MAGIC 0x2F5bacbacULL
 
 #define	DRR_FLAG_CLONE (1<<0)
+
+#ifdef ZFS_IOCTL_MINIMUMSET
+#define	zfs_ioc_pool_create		zfs_ioc_notsup
+#define	zfs_ioc_pool_destroy		zfs_ioc_notsup
+#define	zfs_ioc_pool_import		zfs_ioc_notsup
+#define	zfs_ioc_pool_export		zfs_ioc_notsup
+#define	zfs_ioc_pool_tryimport		zfs_ioc_notsup
+#define	zfs_ioc_pool_scrub		zfs_ioc_notsup
+#define	zfs_ioc_pool_freeze		zfs_ioc_notsup
+#define	zfs_ioc_pool_upgrade		zfs_ioc_notsup
+#define	zfs_ioc_pool_get_history	zfs_ioc_notsup
+#define	zfs_ioc_vdev_add		zfs_ioc_notsup
+#define	zfs_ioc_vdev_remove		zfs_ioc_notsup
+#define	zfs_ioc_vdev_set_state		zfs_ioc_notsup
+#define	zfs_ioc_vdev_detach		zfs_ioc_notsup
+#define	zfs_ioc_vdev_setpath		zfs_ioc_notsup
+#define	zfs_ioc_objset_zplprops		zfs_ioc_notsup
+#define	zfs_ioc_set_prop		zfs_ioc_notsup
+#define	zfs_ioc_create_minor		zfs_ioc_notsup
+#define	zfs_ioc_remove_minor		zfs_ioc_notsup
+#define	zfs_ioc_create			zfs_ioc_notsup
+#define	zfs_ioc_rename			zfs_ioc_notsup
+#define	zfs_ioc_recv			zfs_ioc_notsup
+#define	zfs_ioc_send			zfs_ioc_notsup
+#define	zfs_ioc_inject_fault		zfs_ioc_notsup
+#define	zfs_ioc_clear_fault		zfs_ioc_notsup
+#define	zfs_ioc_inject_list_next	zfs_ioc_notsup
+#define	zfs_ioc_error_log		zfs_ioc_notsup
+#define	zfs_ioc_clear			zfs_ioc_notsup
+#define	zfs_ioc_promote			zfs_ioc_notsup
+#define	zfs_ioc_destroy_snaps		zfs_ioc_notsup
+#define	zfs_ioc_snapshot		zfs_ioc_notsup
+#define	zfs_ioc_dsobj_to_dsname		zfs_ioc_notsup
+#define	zfs_ioc_obj_to_path		zfs_ioc_notsup
+#define	zfs_ioc_pool_set_props		zfs_ioc_notsup
+#define	zfs_ioc_pool_get_props		zfs_ioc_notsup
+#define	zfs_ioc_iscsi_perm_check	zfs_ioc_notsup
+#define	zfs_ioc_share			zfs_ioc_notsup
+#define	zfs_ioc_inherit_prop		zfs_ioc_notsup
+#endif	/* ZFS_IOCTL_MINIMUMSET */
+
+#if defined(ZFS_NO_MIRROR) || defined(ZFS_IOCTL_MINIMUMSET)
+#define	zfs_ioc_vdev_attach		zfs_ioc_notsup
+#endif	/* defined(ZFS_NO_MIRROR) || defined(ZFS_IOCTL_MINIMUMSET) */
 
 /*
  * zfs ioctl command structure
@@ -77,7 +126,10 @@ typedef struct dmu_replay_record {
 			zio_cksum_t drr_checksum;
 		} drr_end;
 		struct drr_object {
-			uint64_t drr_object;
+			objid_t drr_object;
+#ifdef ZFS_COMPACT
+			uint32_t drr_pad2;
+#endif	/* ZFS_COMPACT */
 			dmu_object_type_t drr_type;
 			dmu_object_type_t drr_bonustype;
 			uint32_t drr_blksz;
@@ -88,11 +140,14 @@ typedef struct dmu_replay_record {
 			/* bonus content follows */
 		} drr_object;
 		struct drr_freeobjects {
-			uint64_t drr_firstobj;
-			uint64_t drr_numobjs;
+			objid_t drr_firstobj;
+			objid_t drr_numobjs;
 		} drr_freeobjects;
 		struct drr_write {
-			uint64_t drr_object;
+			objid_t drr_object;
+#ifdef ZFS_COMPACT
+			uint32_t drr_pad2;
+#endif	/* ZFS_COMPACT */
 			dmu_object_type_t drr_type;
 			uint32_t drr_pad;
 			uint64_t drr_offset;
@@ -100,7 +155,7 @@ typedef struct dmu_replay_record {
 			/* content follows */
 		} drr_write;
 		struct drr_free {
-			uint64_t drr_object;
+			objid_t drr_object;
 			uint64_t drr_offset;
 			uint64_t drr_length;
 		} drr_free;
@@ -108,8 +163,8 @@ typedef struct dmu_replay_record {
 } dmu_replay_record_t;
 
 typedef struct zinject_record {
-	uint64_t	zi_objset;
-	uint64_t	zi_object;
+	objid_t		zi_objset;
+	objid_t		zi_object;
 	uint64_t	zi_start;
 	uint64_t	zi_end;
 	uint64_t	zi_guid;
@@ -160,7 +215,7 @@ typedef struct zfs_cmd {
 	uint64_t 	zc_history;		/* really (char *) */
 	uint64_t 	zc_history_len;
 	uint64_t	zc_history_offset;
-	uint64_t	zc_obj;
+	objid_t		zc_obj;
 	zfs_share_t	zc_share;
 	dmu_objset_stats_t zc_objset_stats;
 	struct drr_begin zc_begin_record;

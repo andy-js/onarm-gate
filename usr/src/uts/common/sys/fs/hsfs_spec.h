@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #ifndef	_SYS_FS_HSFS_SPEC_H
 #define	_SYS_FS_HSFS_SPEC_H
 
@@ -61,7 +65,7 @@ extern void	hs_parse_longdate(uchar_t *, struct timeval *);
 #define	MSB_SHORT(x)	((ZERO(x) << 8) | ONE(x))
 #define	LSB_SHORT(x)	((ONE(x) << 8) | ZERO(x))
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__i386) || defined(__amd64) || defined(__arm)
 #define	BOTH_SHORT(x)	(short)*((short *)x)
 #define	BOTH_INT(x)	(int)*((int *)x)
 #elif defined(__sparc)

@@ -30,6 +30,10 @@
 
 /* Copyright (c) 1981 Regents of the University of California */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "ex.h"
@@ -1737,7 +1741,7 @@ unsigned char *prompt;
 
 	/* In ex mode, let the system hassle with setting no echo */
 	if (!inopen)
-		return (unsigned char *)getpass(prompt);
+		return (unsigned char *)getpass((char *)prompt);
 	viprintf("%s", prompt); flush();
 	for (p=pbuf; (c = getkey())!='\n' && c!=EOF && c!='\r';) {
 		if (p < &pbuf[8])

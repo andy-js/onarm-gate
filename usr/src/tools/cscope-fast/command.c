@@ -18,6 +18,8 @@
  * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
+ *
+ * Copyright (c) 2012 Nexenta Systems, Inc.  All rights reserved.
  */
 /*	Copyright (c) 1988 AT&T	*/
 /*	  All Rights Reserved  	*/
@@ -235,7 +237,7 @@ command(int commandc)
 			}
 			if (c != '\r' && c != '\n' && c != KEY_ENTER &&
 			    c != KEY_BREAK &&
-			    getline(newpat, COLS - sizeof (appendprompt), c,
+			    mygetline(newpat, COLS - sizeof (appendprompt), c,
 			    NO) > 0) {
 				shellpath(filename, sizeof (filename), newpat);
 				if ((file = fopen(filename, s)) == NULL) {
@@ -256,7 +258,7 @@ command(int commandc)
 	case '<':	/* read lines from a file */
 		(void) move(PRLINE, 0);
 		(void) addstr(readprompt);
-		if (getline(newpat, COLS - sizeof (readprompt), '\0',
+		if (mygetline(newpat, COLS - sizeof (readprompt), '\0',
 		    NO) > 0) {
 			clearprompt();
 			shellpath(filename, sizeof (filename), newpat);
@@ -278,7 +280,7 @@ command(int commandc)
 		/* get the shell command */
 		(void) move(PRLINE, 0);
 		(void) addstr(pipeprompt);
-		if (getline(newpat,
+		if (mygetline(newpat,
 		    COLS - sizeof (pipeprompt), '\0', NO) == 0) {
 			clearprompt();
 			return (NO);
@@ -391,7 +393,7 @@ command(int commandc)
 			} else {
 				(void) move(PRLINE, 0);
 				(void) addstr(selectionprompt);
-				if (getline(newpat,
+				if (mygetline(newpat,
 				    COLS - sizeof (selectionprompt), commandc,
 				    NO) > 0 &&
 				    (i = atoi(newpat)) > 0) {
@@ -402,7 +404,7 @@ command(int commandc)
 		} else if (isprint(commandc)) {
 			/* this is the start of a pattern */
 ispat:
-			if (getline(newpat, COLS - fldcolumn - 1, commandc,
+			if (mygetline(newpat, COLS - fldcolumn - 1, commandc,
 			    caseless) > 0) {
 					(void) strcpy(pattern, newpat);
 					resetcmd();	/* reset history */
@@ -412,7 +414,7 @@ repeat:
 					/* prompt for the new text */
 					(void) move(PRLINE, 0);
 					(void) addstr(toprompt);
-					(void) getline(newpat,
+					(void) mygetline(newpat,
 					    COLS - sizeof (toprompt), '\0', NO);
 				}
 				/* search for the pattern */
@@ -594,7 +596,7 @@ changestring(void)
 					clearprompt();
 					(void) move(PRLINE, 0);
 					(void) addstr(selectionprompt);
-					if (getline(buf,
+					if (mygetline(buf,
 					    COLS - sizeof (selectionprompt), c,
 					    NO) > 0 &&
 					    (i = atoi(buf)) > 0) {

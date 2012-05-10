@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "lint.h"
@@ -116,7 +120,11 @@ initial_allocation(bucket_t *bp)	/* &__uberdata.bucket[0] */
 	 * We opt to give a thread panic message instead.
 	 */
 	if (__systemcall6(&rval, SYS_mmap, CHUNKSIZE, BASE_SIZE,
+#ifdef _LMALLOC_NO_PROT_EXEC
+	    PROT_READ | PROT_WRITE,
+#else
 	    PROT_READ | PROT_WRITE | PROT_EXEC,
+#endif
 	    _MAP_NEW | MAP_PRIVATE | MAP_ANON | MAP_ALIGN, -1L, (off_t)0) != 0)
 		thr_panic("initial allocation failed; swap space exhausted?");
 	base = (void *)rval.sys_rval1;
@@ -189,7 +197,11 @@ lmalloc(size_t size)
 	 * is a normal data object _and_ it contains instructions that are
 	 * executed for user-land DTrace tracing with the fasttrap provider.
 	 */
+#ifdef _LMALLOC_NO_PROT_EXEC
+	int prot = PROT_READ | PROT_WRITE;
+#else
 	int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+#endif
 
 	/* round size up to the proper power of 2 */
 	size = (size_t)MINSIZE << bucketnum;

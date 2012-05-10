@@ -11,6 +11,10 @@
  * specifies the terms and conditions for redistribution.
  */
 
+/*
+ * Copyright (c) 2007 NEC Corporation
+ */
+
 #include <sys/param.h>
 #include <sys/user.h>
 #include <sys/vnode.h>
@@ -614,7 +618,7 @@ realprofexpire(void *arg)
 		 * force the thread into the kernel
 		 * if it is not already there.
 		 */
-		if (t->t_state == TS_ONPROC && t->t_cpu != CPU)
+		if (t->t_state == TS_ONPROC && t->t_cpu != CPU_GLOBAL)
 			poke_cpu(t->t_cpu->cpu_id);
 		thread_unlock(t);
 	} while ((t = t->t_forw) != p->p_tlist);

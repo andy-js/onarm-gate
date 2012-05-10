@@ -24,6 +24,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2007-2008 NEC Corporation
+ */
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dtrace.h>
@@ -280,12 +284,14 @@ dtrace_vtime_switch(kthread_t *next)
 	dtrace_icookie_t cookie;
 	hrtime_t ts;
 
+#ifndef NPROBE
 	if (tnf_tracing_active) {
 		tnf_thread_switch(next);
 
 		if (dtrace_vtime_active == DTRACE_VTIME_INACTIVE_TNF)
 			return;
 	}
+#endif /* NPROBE */
 
 	cookie = dtrace_interrupt_disable();
 	ts = dtrace_gethrtime();

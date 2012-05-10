@@ -23,6 +23,9 @@
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2006-2007 NEC Corporation
+ */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
@@ -810,7 +813,7 @@ find_lwp_stack(uintptr_t sp)
 }
 
 struct callstack *
-find_stack(uintptr_t sp)
+find_stack_truss(uintptr_t sp)
 {
 	const pstatus_t *Psp = Pstatus(Proc);
 	private_t *pri = get_private();
@@ -822,6 +825,8 @@ find_stack(uintptr_t sp)
 	prgreg_t tref = Lsp->pr_reg[REG_FS];
 #elif defined(__i386)
 	prgreg_t tref = Lsp->pr_reg[GS];
+#elif defined(__arm)
+	prgreg_t tref = Lsp->pr_reg[REG_TP];
 #endif
 	struct callstack *Stk = NULL;
 	td_thrhandle_t th;
@@ -935,6 +940,8 @@ get_tid(struct callstack *Stk)
 	    Lsp->pr_reg[REG_FS] : Lsp->pr_reg[REG_GS];
 #elif defined(__i386)
 	prgreg_t tref = Lsp->pr_reg[GS];
+#elif defined(__arm)
+	prgreg_t tref = Lsp->pr_reg[REG_TP];
 #endif
 	td_thrhandle_t th;
 	td_thrinfo_t thrinfo;
@@ -1011,6 +1018,10 @@ callstack_info(uintptr_t sp, uintptr_t fp, int makeid)
 		else
 #endif
 			minsize = 2 * sizeof (uint32_t);
+#elif defined(__arm)
+		/* This is not supported, because fp register does not exist 
+		   on ARM architecture. */
+		minsize = 2 * sizeof (uint32_t);
 #else
 #ifdef _LP64
 		if (data_model != PR_MODEL_LP64)
@@ -1039,7 +1050,7 @@ callstack_info(uintptr_t sp, uintptr_t fp, int makeid)
 	}
 
 	if (Stk == NULL && makeid)	/* new stack */
-		Stk = find_stack(sp);
+		Stk = find_stack_truss(sp);
 
 	if (Stk == NULL)
 		return (NULL);
@@ -1249,7 +1260,13 @@ function_trace(private_t *pri, int first, int clear, int dotrace)
 	const lwpstatus_t *Lsp = pri->lwpstat;
 	uintptr_t pc = Lsp->pr_reg[R_PC];
 	uintptr_t sp = Lsp->pr_reg[R_SP];
+#ifdef __arm
+	/* This is not supported, because fp register does not exist 
+	   on ARM architecture. */
+	uintptr_t fp = Lsp->pr_reg[REG_R11];
+#else
 	uintptr_t fp = Lsp->pr_reg[R_FP];
+#endif
 	struct bkpt *Bp;
 	struct dynlib *Dp;
 	struct callstack *Stk;
@@ -1508,7 +1525,13 @@ function_return(private_t *pri, struct callstack *Stk)
 {
 	const lwpstatus_t *Lsp = pri->lwpstat;
 	uintptr_t sp = Lsp->pr_reg[R_SP];
+#ifdef __arm
+	/* This is not supported, because fp register does not exist 
+	   on ARM architecture. */
+	uintptr_t fp = Lsp->pr_reg[REG_R11];
+#else
 	uintptr_t fp = Lsp->pr_reg[R_FP];
+#endif
 	int i;
 
 #ifdef _LP64
@@ -1557,6 +1580,10 @@ function_return(private_t *pri, struct callstack *Stk)
 #define	FPADJUST	8
 #elif defined(__i386)
 #define	FPADJUST	4
+#elif defined(__arm)
+/* This is not supported, because fp register does not exist 
+   on ARM architecture. */
+#define	FPADJUST	0
 #endif
 
 void
@@ -1663,6 +1690,42 @@ thr_stack_traps(const td_thrhandle_t *Thp, void *cd)
 
 	return (interrupt | sigusr1);
 }
+
+#if defined(__arm)
+
+uintptr_t
+previous_fp(uintptr_t sp, uintptr_t *rpc)
+{
+	/* This is not supported, because fp register does not exist 
+	   on ARM architecture. */
+	return 0;
+}
+
+/* ARGSUSED */
+uintptr_t
+get_return_address(uintptr_t *psp)
+{
+	/* This is not supported, because fp register does not exist 
+	   on ARM architecture. */
+	return 0;
+}
+
+int
+get_arguments(long *argp)
+{
+	/* This is not supported, because fp register does not exist 
+	   on ARM architecture. */
+	private_t *pri = get_private();
+	const lwpstatus_t *Lsp = pri->lwpstat;
+	int i;
+
+	for (i = 0; i < 4; i++) {
+		argp[i] = (uint_t)Lsp->pr_reg[R_R0+i];
+	}
+	return 4;
+}
+
+#endif	/* __arm */
 
 #if defined(__sparc)
 
