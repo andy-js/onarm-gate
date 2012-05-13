@@ -342,9 +342,7 @@ zil_create(zilog_t *zilog)
 	/*
 	 * Wait for any previous destroy to complete.
 	 */
-	error = txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
-	if (error)
-		return (error);
+	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
 
 	ASSERT(zh->zh_claim_txg == 0);
 	ASSERT(zh->zh_replay_seq == 0);
@@ -398,7 +396,7 @@ zil_create(zilog_t *zilog)
 	 */
 	if (tx != NULL) {
 		dmu_tx_commit(tx);
-		error = txg_wait_synced(zilog->zl_dmu_pool, txg);
+		txg_wait_synced(zilog->zl_dmu_pool, txg);
 	}
 
 	ASSERT(bcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
@@ -426,9 +424,7 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 	/*
 	 * Wait for any previous destroy to complete.
 	 */
-	error = txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
-	if (error)
-		return (error);
+	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
 
 	if (BP_IS_HOLE(&zh->zh_log))
 		return (0);
@@ -829,8 +825,7 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 		zil_lwb_write_init(zilog, lwb);
 		ASSERT(lwb->lwb_nused == 0);
 		if (reclen + dlen > ZIL_BLK_DATA_SZ(lwb)) {
-			if (txg_wait_synced(zilog->zl_dmu_pool, txg))
-				zilog->zl_log_error = B_TRUE;
+			txg_wait_synced(zilog->zl_dmu_pool, txg);
 			return (lwb);
 		}
 	}
@@ -1105,7 +1100,7 @@ zil_commit_writer(zilog_t *zilog, uint64_t seq, objid_t foid)
 
 	if (zilog->zl_log_error || lwb == NULL) {
 		zilog->zl_log_error = 0;
-		error = txg_wait_synced(zilog->zl_dmu_pool, 0);
+		txg_wait_synced(zilog->zl_dmu_pool, 0);
 	}
 
 	mutex_enter(&zilog->zl_lock);
@@ -1549,9 +1544,7 @@ zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, txg_t claim_txg)
 		 * transaction.
 		 */
 		if (error != ERESTART && !sunk) {
-			error = txg_wait_synced(spa_get_dsl(zilog->zl_spa), 0);
-			if (error)
-				break;
+			txg_wait_synced(spa_get_dsl(zilog->zl_spa), 0);
 			sunk = B_TRUE;
 			continue; /* retry */
 		}
@@ -1560,10 +1553,8 @@ zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, txg_t claim_txg)
 			break;
 
 		if (pass != 1) {
-			error = txg_wait_open(spa_get_dsl(zilog->zl_spa),
+			txg_wait_open(spa_get_dsl(zilog->zl_spa),
 			    replay_txg + 1);
-			if (error)
-				break;
 		}
 
 		dprintf("pass %d, retrying\n", pass);
@@ -1613,11 +1604,7 @@ zil_replay(objset_t *os, void *arg, txg_t *txgp,
 	/*
 	 * Wait for in-progress removes to sync before starting replay.
 	 */
-	if (txg_wait_synced(zilog->zl_dmu_pool, 0)) {
-		kmem_free(zr.zr_lrbuf, 2 * SPA_MAXBLOCKSIZE);
-		(void) zil_destroy(zilog, B_TRUE);
-		return;
-	}
+	txg_wait_synced(zilog->zl_dmu_pool, 0);
 
 	zilog->zl_stop_replay = 0;
 	zilog->zl_replay_time = lbolt;

@@ -20,7 +20,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -92,19 +92,20 @@
 @ MSG_ERR_BADSHINFO	"%s: %s: invalid sh_info: %d\n"
 @ MSG_ERR_BADSHTYPE	"%s: %s: invalid sh_type: %d\n"
 @ MSG_ERR_BADALIGN	"%s: %s: bad sh_offset alignment\n"
-@ MSG_ERR_BADSYM2	"%s: %s: bad symbol entry: %s: must be SHN_COMMON or \
+@ MSG_ERR_BADSYM2	"%s: %s: index[%d]: bad symbol entry: %s: must be SHN_COMMON or \
 			 defined in SHT_NOBITS section\n"
-@ MSG_ERR_BADSYM3	"%s: %s: bad symbol entry: %s: must be defined in \
+@ MSG_ERR_BADSYM3	"%s: %s: index[%d]: bad symbol entry: %s: must be defined in \
 			 a SHF_TLS section\n"
-@ MSG_ERR_BADSYM4	"%s: %s: bad symbol entry: %s: must be defined in \
+@ MSG_ERR_BADSYM4	"%s: %s: index[%d]: bad symbol entry: %s: must be defined in \
 			 a non-SHF_TLS section\n"
-@ MSG_ERR_BADSYM5	"%s: %s: bad symbol entry: %s: invalid shndx: %d\n"
-@ MSG_ERR_BADSYM6	"%s: %s: bad symbol entry: %s: section[%d] \
+@ MSG_ERR_BADSYM5	"%s: %s: index[%d]: bad symbol entry: %s: \
+			 invalid shndx: %d\n"
+@ MSG_ERR_BADSYM6	"%s: %s: index[%d]: bad symbol entry: %s: section[%d] \
 			 size: %#llx: symbol (address %#llx, size %#llx) \
 			 lies outside of containing section\n"
-@ MSG_ERR_BADSYM7	"%s: %s: suspicious global symbol entry: %s: lies \
+@ MSG_ERR_BADSYM7	"%s: %s: index[%d]: suspicious global symbol entry: %s: lies \
 			 within local symbol range (index < %lld)\n"
-@ MSG_ERR_BADSYM8	"%s: %s: suspicious local symbol entry: %s: lies \
+@ MSG_ERR_BADSYM8	"%s: %s: index[%d]: suspicious local symbol entry: %s: lies \
 			 within global symbol range (index >= %lld)\n"
 
 @ MSG_ERR_RELBADSYMNDX	"%s: bad symbol reference %d: from relocation \
@@ -147,6 +148,8 @@
 			 shdr[%d: %s].sh_size (%#llx)\n"
 @ MSG_ERR_DYNBADENTSIZE	"%s: DT_%s (%#llx) does not match \
 			 shdr[%d: %s].sh_entsize (%#llx)\n"
+@ MSG_ERR_DYNSYMVAL	"%s: %s: symbol value does not match \
+			 DT_%s entry: %s: value: %#llx\n"
 
 @ MSG_WARN_INVINTERP1	"%s: PT_INTERP header has no associated section\n"
 @ MSG_WARN_INVINTERP2	"%s: interp section: %s: and PT_INTERP program \
@@ -273,7 +276,9 @@
 @ MSG_ELF_XLATETOM	"elf_xlatetom"
 @ MSG_ELF_ARSYM		"ARSYM"
 
-@ MSG_GOT_SYM		"_GLOBAL_OFFSET_TABLE_"
+@ MSG_SYM_INIT		"_init"
+@ MSG_SYM_FINI		"_fini"
+@ MSG_SYM_GOT		"_GLOBAL_OFFSET_TABLE_"
 
 @ MSG_STR_OPTIONS	"CcdeGgHhiI:klmN:nPprSsT:uvw:y"
 

@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -36,7 +36,7 @@
 #include <sys/inttypes.h>
 #include <sys/cmn_err.h>
 #include <sys/time.h>
-#include <sys/mutex.h>
+#include <sys/ksynch.h>
 #include <sys/systm.h>
 #include <sys/kcpc.h>
 #include <sys/cpc_impl.h>
@@ -170,6 +170,11 @@ kcpc_bind_cpu(kcpc_set_t *set, processorid_t cpuid, int *subcode)
 	mutex_exit(&cp->cpu_cpc_ctxlock);
 	mutex_exit(&cpu_lock);
 
+	mutex_enter(&set->ks_lock);
+	set->ks_state |= KCPC_SET_BOUND;
+	cv_signal(&set->ks_condv);
+	mutex_exit(&set->ks_lock);
+
 	return (0);
 
 unbound:
@@ -261,6 +266,10 @@ kcpc_bind_thread(kcpc_set_t *set, kthread_t *t, int *subcode)
 		 */
 		atomic_and_uint(&ctx->kc_flags, ~KCPC_CTX_FREEZE);
 
+	mutex_enter(&set->ks_lock);
+	set->ks_state |= KCPC_SET_BOUND;
+	cv_signal(&set->ks_condv);
+	mutex_exit(&set->ks_lock);
 
 	return (0);
 }
@@ -344,9 +353,14 @@ kcpc_sample(kcpc_set_t *set, uint64_t *buf, hrtime_t *hrtime, uint64_t *tick)
 	kcpc_ctx_t	*ctx = set->ks_ctx;
 	uint64_t	curtick = KCPC_GET_TICK();
 
-	if (ctx == NULL)
+	mutex_enter(&set->ks_lock);
+	if ((set->ks_state & KCPC_SET_BOUND) == 0) {
+		mutex_exit(&set->ks_lock);
 		return (EINVAL);
-	else if (ctx->kc_flags & KCPC_CTX_INVALID)
+	}
+	mutex_exit(&set->ks_lock);
+
+	if (ctx->kc_flags & KCPC_CTX_INVALID)
 		return (EAGAIN);
 
 	if ((ctx->kc_flags & KCPC_CTX_FREEZE) == 0) {
@@ -420,13 +434,27 @@ kcpc_stop_hw(kcpc_ctx_t *ctx)
 int
 kcpc_unbind(kcpc_set_t *set)
 {
-	kcpc_ctx_t	*ctx = set->ks_ctx;
+	kcpc_ctx_t	*ctx;
 	kthread_t	*t;
 
-	if (ctx == NULL)
-		return (EINVAL);
+	/*
+	 * We could be racing with the process's agent thread as it
+	 * binds the set; we must wait for the set to finish binding
+	 * before attempting to tear it down.
+	 */
+	mutex_enter(&set->ks_lock);
+	while ((set->ks_state & KCPC_SET_BOUND) == 0)
+		cv_wait(&set->ks_condv, &set->ks_lock);
+	mutex_exit(&set->ks_lock);
 
-	atomic_or_uint(&ctx->kc_flags, KCPC_CTX_INVALID);
+	ctx = set->ks_ctx;
+
+	/*
+	 * Use kc_lock to synchronize with kcpc_restore().
+	 */
+	mutex_enter(&ctx->kc_lock);
+	ctx->kc_flags |= KCPC_CTX_INVALID;
+	mutex_exit(&ctx->kc_lock);
 
 	if (ctx->kc_cpuid == -1) {
 		t = ctx->kc_thread;
@@ -496,7 +524,7 @@ kcpc_preset(kcpc_set_t *set, int index, uint64_t preset)
 	int i;
 
 	ASSERT(set != NULL);
-	ASSERT(set->ks_ctx != NULL);
+	ASSERT(set->ks_state & KCPC_SET_BOUND);
 	ASSERT(set->ks_ctx->kc_thread == curthread);
 	ASSERT(set->ks_ctx->kc_cpuid == -1);
 
@@ -518,7 +546,7 @@ kcpc_restart(kcpc_set_t *set)
 	kcpc_ctx_t	*ctx = set->ks_ctx;
 	int		i;
 
-	ASSERT(ctx != NULL);
+	ASSERT(set->ks_state & KCPC_SET_BOUND);
 	ASSERT(ctx->kc_thread == curthread);
 	ASSERT(ctx->kc_cpuid == -1);
 
@@ -694,7 +722,7 @@ kcpc_ctx_alloc(void)
 	kcpc_ctx_t	*ctx;
 	long		hash;
 
-	ctx = (kcpc_ctx_t *)kmem_alloc(sizeof (kcpc_ctx_t), KM_SLEEP);
+	ctx = (kcpc_ctx_t *)kmem_zalloc(sizeof (kcpc_ctx_t), KM_SLEEP);
 
 	hash = CPC_HASH_CTX(ctx);
 	mutex_enter(&kcpc_ctx_llock[hash]);
@@ -705,9 +733,6 @@ kcpc_ctx_alloc(void)
 	ctx->kc_pics = (kcpc_pic_t *)kmem_zalloc(sizeof (kcpc_pic_t) *
 	    cpc_ncounters, KM_SLEEP);
 
-	ctx->kc_flags = 0;
-	ctx->kc_vtick = 0;
-	ctx->kc_rawtick = 0;
 	ctx->kc_cpuid = -1;
 
 	return (ctx);
@@ -729,7 +754,8 @@ kcpc_ctx_clone(kcpc_ctx_t *ctx, kcpc_ctx_t *cctx)
 	if ((ks->ks_flags & CPC_BIND_LWP_INHERIT) == 0)
 		return;
 
-	cks = kmem_alloc(sizeof (*cks), KM_SLEEP);
+	cks = kmem_zalloc(sizeof (*cks), KM_SLEEP);
+	cks->ks_state &= ~KCPC_SET_BOUND;
 	cctx->kc_set = cks;
 	cks->ks_flags = ks->ks_flags;
 	cks->ks_nreqs = ks->ks_nreqs;
@@ -762,6 +788,11 @@ kcpc_ctx_clone(kcpc_ctx_t *ctx, kcpc_ctx_t *cctx)
 	}
 	if (kcpc_configure_reqs(cctx, cks, &code) != 0)
 		kcpc_invalidate_config(cctx);
+
+	mutex_enter(&cks->ks_lock);
+	cks->ks_state |= KCPC_SET_BOUND;
+	cv_signal(&cks->ks_condv);
+	mutex_exit(&cks->ks_lock);
 }
 
 
@@ -780,6 +811,8 @@ kcpc_ctx_free(kcpc_ctx_t *ctx)
 	mutex_exit(&kcpc_ctx_llock[hash]);
 
 	kmem_free(ctx->kc_pics, cpc_ncounters * sizeof (kcpc_pic_t));
+	cv_destroy(&ctx->kc_condv);
+	mutex_destroy(&ctx->kc_lock);
 	kmem_free(ctx, sizeof (*ctx));
 }
 
@@ -1025,6 +1058,7 @@ kcpc_save(kcpc_ctx_t *ctx)
 static void
 kcpc_restore(kcpc_ctx_t *ctx)
 {
+	mutex_enter(&ctx->kc_lock);
 	if ((ctx->kc_flags & (KCPC_CTX_INVALID | KCPC_CTX_INVALID_STOPPED)) ==
 	    KCPC_CTX_INVALID)
 		/*
@@ -1032,11 +1066,25 @@ kcpc_restore(kcpc_ctx_t *ctx)
 		 * We mark it as such here because we will not start the
 		 * counters during this context switch.
 		 */
-		atomic_or_uint(&ctx->kc_flags, KCPC_CTX_INVALID_STOPPED);
+		ctx->kc_flags |= KCPC_CTX_INVALID_STOPPED;
 
 
-	if (ctx->kc_flags & (KCPC_CTX_INVALID | KCPC_CTX_FREEZE))
+	if (ctx->kc_flags & (KCPC_CTX_INVALID | KCPC_CTX_FREEZE)) {
+		mutex_exit(&ctx->kc_lock);
 		return;
+	}
+
+	/*
+	 * Set kc_flags to show that a kcpc_restore() is in progress to avoid
+	 * ctx & set related memory objects being freed without us knowing.
+	 * This can happen if an agent thread is executing a kcpc_unbind(),
+	 * with this thread as the target, whilst we're concurrently doing a
+	 * restorectx() during, for example, a proc_exit().  Effectively, by
+	 * doing this, we're asking kcpc_free() to cv_wait() until
+	 * kcpc_restore() has completed.
+	 */
+	ctx->kc_flags |= KCPC_CTX_RESTORE;
+	mutex_exit(&ctx->kc_lock);
 
 	/*
 	 * While programming the hardware, the counters should be stopped. We
@@ -1045,6 +1093,14 @@ kcpc_restore(kcpc_ctx_t *ctx)
 	 */
 	ctx->kc_rawtick = KCPC_GET_TICK();
 	pcbe_ops->pcbe_program(ctx);
+
+	/*
+	 * Wake the agent thread if it's waiting in kcpc_free().
+	 */
+	mutex_enter(&ctx->kc_lock);
+	ctx->kc_flags &= ~KCPC_CTX_RESTORE;
+	cv_signal(&ctx->kc_condv);
+	mutex_exit(&ctx->kc_lock);
 }
 
 /*
@@ -1199,7 +1255,14 @@ kcpc_free(kcpc_ctx_t *ctx, int isexec)
 
 	ASSERT(set != NULL);
 
-	atomic_or_uint(&ctx->kc_flags, KCPC_CTX_INVALID);
+	/*
+	 * Wait for kcpc_restore() to finish before we tear things down.
+	 */
+	mutex_enter(&ctx->kc_lock);
+	while (ctx->kc_flags & KCPC_CTX_RESTORE)
+		cv_wait(&ctx->kc_condv, &ctx->kc_lock);
+	ctx->kc_flags |= KCPC_CTX_INVALID;
+	mutex_exit(&ctx->kc_lock);
 
 	if (isexec) {
 		/*
@@ -1287,6 +1350,8 @@ kcpc_free_set(kcpc_set_t *set)
 	}
 
 	kmem_free(set->ks_req, sizeof (kcpc_request_t) * set->ks_nreqs);
+	cv_destroy(&set->ks_condv);
+	mutex_destroy(&set->ks_lock);
 	kmem_free(set, sizeof (kcpc_set_t));
 }
 
@@ -1488,7 +1553,8 @@ kcpc_dup_set(kcpc_set_t *set)
 	int		i;
 	int		j;
 
-	new = kmem_alloc(sizeof (*new), KM_SLEEP);
+	new = kmem_zalloc(sizeof (*new), KM_SLEEP);
+	new->ks_state &= ~KCPC_SET_BOUND;
 	new->ks_flags = set->ks_flags;
 	new->ks_nreqs = set->ks_nreqs;
 	new->ks_req = kmem_alloc(set->ks_nreqs * sizeof (kcpc_request_t),

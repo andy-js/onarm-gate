@@ -3,9 +3,8 @@
 # CDDL HEADER START
 #
 # The contents of this file are subject to the terms of the
-# Common Development and Distribution License, Version 1.0 only
-# (the "License").  You may not use this file except in compliance
-# with the License.
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
 #
 # You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
 # or http://www.opensolaris.org/os/licensing.
@@ -23,7 +22,7 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
-# Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 
@@ -34,7 +33,7 @@
 
 usage()
 {
-	echo "usage: bld_vernote [-D] -R <SUNWonld-README> -r <release> -o <outfile.s>"
+	echo "usage: bld_vernote -R <revision> -r <release> -o <outfile.s>"
 }
 
 pad_notestring()
@@ -52,7 +51,7 @@ pad_notestring()
 
 build_sparcnote()
 {
-	notestring="\tSolaris Link Editors: $release-$readmerev\n\0"
+	notestring="\tSolaris Link Editors: $release-$revision\n\0"
 	#
 	# The 'adjustment' is for the '\t\n\0'
 	#
@@ -75,14 +74,14 @@ cat > $notefile <<EOF
 	.global		link_ver_string
 link_ver_string:
 	.type		link_ver_string, #object
-	.ascii	"${release}-${readmerev}\0"
+	.ascii	"${release}-${revision}\0"
 	.size	link_ver_string, .-link_ver_string
 EOF
 }
 
 build_i386note()
 {
-	notestring="\tSolaris Link Editors: $release-$readmerev\n"
+	notestring="\tSolaris Link Editors: $release-$revision\n"
 	#
 	# The 'adjustment' is for the '\t\n' and the
 	# fact that the x86/amd64 assembler automatically
@@ -106,7 +105,7 @@ cat > $notefile <<EOF
 	.globl		link_ver_string
 link_ver_string:
 	.type	link_ver_string,@object
-	.string	"${release}-${readmerev}\0"
+	.string	"${release}-${revision}\0"
 	.size	link_ver_string, .-link_ver_string
 EOF
 }
@@ -145,15 +144,11 @@ EOF
 
 notefile=""
 release=""
-readme=""
-debug=""
+revision=""
 
 while getopts DR:o:r: c
 do
 	case $c in
-	D)
-		debug="1"
-		;;
 	o)
 		notefile=$OPTARG
 		;;
@@ -161,7 +156,7 @@ do
 		release=$OPTARG
 		;;
 	R)
-		readme=$OPTARG
+		revision=$OPTARG
 		;;
 	\?)
 		usage
@@ -170,43 +165,11 @@ do
 	esac
 done
 
-if [[ ( -z $notefile ) || ( -z $release ) || ( -z $readme ) ]]; then
+if [[ ( -z $notefile ) || ( -z $release ) || ( -z $revision ) ]]; then
 	usage
 	exit 1
 fi
 
-
-identstring=$(head -10 $readme | grep '^#ident')
-if [[ -z $identstring ]]; then
-	echo "*** Fatal Error: building vernote.s: unable to find "
-	echo "*** '#ident' string in first 10 lines of $readme"
-	exit 1
-fi
-
-readmerev=$(echo $identstring | awk '{print $3;}')
-
-if [[ ( -z $readmerev ) || ( $readmerev = "%""I""%" ) ]]; then
-	opwd=$(pwd)
-	readdir=$(dirname $readme)
-	readbase=$(basename $readme)
-	cd $readdir
-	readmerev=$(sccs get -p $readbase 2>/dev/null | \
-		grep '^#ident' | \
-		awk '{print $3;}')
-	if [[ -z $readmerev ]]; then
-		readmerev='0.0'
-	fi
-	cd $opwd
-	debug="1"
-fi
-
-if [[ ! -z $debug ]]; then
-	wsname=
-	if [[ ! -z $CODEMGR_WS ]]; then
-		wsname=$(basename $CODEMGR_WS)
-	fi
-	readmerev=${readmerev}":"${wsname}"-${USER}-"$(date +%m/%d/%y)
-fi
 
 if [[ $MACH = "sparc" ]]; then
 	build_sparcnote

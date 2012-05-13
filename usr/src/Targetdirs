@@ -138,6 +138,7 @@ ROOT.SYS= \
 	/opt  \
 	/platform  \
 	/proc  \
+	/root  \
 	/sbin  \
 	/system \
 	/system/contract \
@@ -250,6 +251,7 @@ ROOT.BIN= \
 	/usr/include/libmilter \
 	/usr/include/libpolkit \
 	/usr/include/sasl \
+	/usr/include/scsi \
 	/usr/include/tsol \
 	/usr/include/security \
 	/usr/lib \
@@ -292,6 +294,7 @@ ROOT.BIN= \
 	/usr/lib/sasl \
 	/usr/lib/secure \
 	/usr/lib/security \
+	/usr/lib/scsi \
 	/usr/lib/smbsrv \
 	/usr/lib/term \
 	/usr/lib/vscan \
@@ -323,6 +326,7 @@ ROOT.BIN= \
 	/usr/xpg4/lib \
 	/usr/xpg6 \
 	/usr/xpg6/bin \
+	/var/games \
 	/var/ld \
 	/var/news \
 	/var/preserve \
@@ -364,6 +368,7 @@ ROOT.BIN64= \
 	/usr/lib/sasl/$(MACH64) \
 	/usr/lib/secure/$(MACH64) \
 	/usr/lib/security/$(MACH64) \
+	/usr/lib/scsi/$(MACH64) \
 	/usr/lib/smbsrv/$(MACH64) \
 	/usr/lib/abi/$(MACH64) \
 	/usr/sbin/$(MACH64) \
@@ -415,7 +420,6 @@ UUCP.UUCP= \
 
 ROOT.SFW= \
 	/usr/sfw/bin \
-	/usr/sfw/sbin \
 	/usr/sfw/include \
 	/usr/sfw/lib \
 	/usr/sfw/share
@@ -549,6 +553,8 @@ $(ROOT)/var/adm/sa :=		DIRMODE= 775
 $(ROOT)/var/idmap :=		OWNER= daemon
 $(ROOT)/var/idmap :=		GROUP= daemon
 
+$(ROOT)/root:=			GROUP= root
+
 $(ROOT)/dev/term:=		GROUP= root
 
 $(UUCP.UUCP:%=$(ROOT)%):=	OWNER= uucp
@@ -591,6 +597,8 @@ $(ROOT)/var/preserve \
 $(ROOT)/var/spool/pkg \
 $(ROOT)/var/spool/uucppublic \
 $(ROOT)/var/tmp:=	DIRMODE= 1777
+
+$(ROOT)/root:=		DIRMODE= 700
 
 $(ROOT)/var/krb5/rcache/root:=	DIRMODE= 700
 

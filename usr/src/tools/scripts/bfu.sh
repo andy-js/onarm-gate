@@ -3667,14 +3667,14 @@ remove_eof_SUNWcry()
 	rm -f $rootprefix/platform/SUNW,Sun-Fire-V215/kernel/crypto/sparcv9/aes256
 	rm -f $rootprefix/platform/SUNW,Sun-Fire-V240/kernel/crypto/sparcv9/aes256
 	rm -f $rootprefix/platform/SUNW,Sun-Fire-V250/kernel/crypto/sparcv9/aes256
-	rm -f $rootprefix/platform/SUNW,Sun-Fire-V440/kernel/crypto/sparcv9/aes25
+	rm -f $rootprefix/platform/SUNW,Sun-Fire-V440/kernel/crypto/sparcv9/aes256
 	rm -f $rootprefix/platform/SUNW,Sun-Fire-V445/kernel/crypto/sparcv9/aes256
 	rm -f $rootprefix/platform/SUNW,Sun-Fire/kernel/crypto/sparcv9/aes256
 	rm -f $rootprefix/platform/sun4u-us3/kernel/crypto/sparcv9/aes256
 	rm -f $rootprefix/kernel/crypto/arcfour2048
 	rm -f $rootprefix/kernel/crypto/sparcv9/arcfour2048
 	rm -f $rootprefix/kernel/crypto/amd64/arcfour2048
-	rm -f $rootprefix/platform/sun4u/kernel/crypto/sparcv9/arcfour208
+	rm -f $rootprefix/platform/sun4u/kernel/crypto/sparcv9/arcfour2048
 	rm -f $rootprefix/kernel/crypto/blowfish448
 	rm -f $rootprefix/kernel/crypto/sparcv9/blowfish448
 	rm -f $rootprefix/kernel/crypto/amd64/blowfish448
@@ -6539,11 +6539,9 @@ mondo_loop() {
         if [ $zone = global ]; then
                 rm -rf \
                     $root/kernel/misc/sparcv9/krtld \
-                    $root/platform/sun4u/ufsboot \
-                    $root/platform/sun4v/ufsboot \
-                    $usr/platform/sun4c/lib/fs/ufs/bootblk \
-                    $usr/platform/sun4d/lib/fs/ufs/bootblk \
-                    $usr/platform/sun4m/lib/fs/ufs/bootblk
+                    $root/platform/*/ufsboot \
+                    $root/platform/*/lib/fs/*/bootblk \
+                    $usr/platform/*/lib/fs/*/bootblk
         fi
 
 	#
@@ -7202,6 +7200,11 @@ mondo_loop() {
 
 	if [ $diskless = no -a $zone = global ]; then
 		print "Extracting ufs modules for boot block ... \c" | \
+			tee -a $EXTRACT_LOG
+		# extract both /platform and /usr/platform bootblks
+		# for compatibility with older bootblk delivery
+		do_extraction $cpiodir/$karch.root$ZFIX \
+			'platform/'$karch'/lib/fs/ufs/*' | \
 			tee -a $EXTRACT_LOG
 		do_extraction $cpiodir/$karch.usr$ZFIX \
 			'usr/platform/'$karch'/lib/fs/ufs/*' | \

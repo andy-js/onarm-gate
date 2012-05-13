@@ -39,10 +39,6 @@ hal
 idmap
 iscsi
 keyserv
-krb5
-ksh
-ldap
-ldapcachemgr
 lp
 lvm
 mdb
@@ -54,7 +50,6 @@ policykit
 pools
 power
 ppgsz
-print
 prtdiag
 rcap
 rcm_daemon
@@ -68,7 +63,6 @@ spell
 stmsboot
 svc
 tnf
-trapstat
 valtools
 volcheck
 volrmmount
@@ -77,9 +71,5 @@ wbem
 ypcmd
 yppasswd
 zdb
-zlogin
-zoneadm
 zoneadmd
-zonecfg
-zonename
 ztest

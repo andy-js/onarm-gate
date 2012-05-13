@@ -43,7 +43,6 @@ MKFILE = /usr/sbin/mkfile
 # Parameters for QEMU NaviEngine system emulator.
 #
 QEMUARM		= qemu-system-arm
-SRC_QEMUARM	= ../qemu-0.9.1/arm-softmmu/$(QEMUARM)
 UARTLOG		= uartdump1 uartdump2
 
 #
@@ -70,11 +69,7 @@ NORSIZE		= 64m
 
 .KEEP_STATE:
 
-all:	$(QEMUARM) $(UIMAGE) $(RDIMAGE) $(NORIMAGE)
-
-# Emulator
-$(QEMUARM):
-	$(SYMLINK) $(SRC_QEMUARM) $@
+all:	$(UIMAGE) $(RDIMAGE) $(NORIMAGE)
 
 # Kernel uImage
 $(UIMAGE):	$(SRC_UIMAGE)

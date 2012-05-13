@@ -21,6 +21,8 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+# Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+#
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
@@ -46,7 +48,9 @@ LIBSRCS = $(LIBOBJS:%.o=$(SRCDIR)/%.c)
 lintcheck := SRCS = $(LIBSRCS)
 
 LIBS =		$(DYNLIB)
-LDLIBS +=	-lshare -lnsl -lscf -lumem -lc
+LIBUMEM =	-lumem
+$(ARM_BLD)LIBUMEM =
+LDLIBS +=	-lshare -lnsl -lscf $(LIBUMEM) -lc
 all install := LDLIBS += -lxml2
 
 CFLAGS +=	$(CCVERBOSE)

@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -61,6 +61,7 @@
 #include <sys/atomic.h>
 #include <sys/dtrace.h>
 #include <sys/sdt.h>
+#include <sys/archsystm.h>
 
 #include <vm/as.h>
 
@@ -536,7 +537,7 @@ disp_anywork(void)
 		 *	- context switch on an otherwise empty queue.
 		 *	- The CPU isn't running the idle loop.
 		 */
-		for (ocp = cp->cpu_next_part; ocp != CPU_SELF(cp);
+		for (ocp = cp->cpu_next_part; ocp != cp;
 		    ocp = ocp->cpu_next_part) {
 			ASSERT(CPU_ACTIVE(ocp));
 
@@ -875,11 +876,11 @@ swtch()
 	} else {
 #ifdef	DEBUG
 		if (t->t_state == TS_ONPROC &&
-		    t->t_disp_queue->disp_cpu == CPU_GLOBAL &&
+		    t->t_disp_queue->disp_cpu == CPU &&
 		    t->t_preempt == 0) {
 			thread_lock(t);
 			ASSERT(t->t_state != TS_ONPROC ||
-			    t->t_disp_queue->disp_cpu != CPU_GLOBAL ||
+			    t->t_disp_queue->disp_cpu != CPU ||
 			    t->t_preempt != 0);	/* cannot migrate */
 			thread_unlock_nopreempt(t);
 		}
@@ -980,45 +981,70 @@ swtch_from_zombie()
 }
 
 #if defined(DEBUG) && (defined(DISP_DEBUG) || defined(lint))
+
+/*
+ * search_disp_queues()
+ *	Search the given dispatch queues for thread tp.
+ *	Return 1 if tp is found, otherwise return 0.
+ */
+static int
+search_disp_queues(disp_t *dp, kthread_t *tp)
+{
+	dispq_t		*dq;
+	dispq_t		*eq;
+
+	disp_lock_enter_high(&dp->disp_lock);
+
+	for (dq = dp->disp_q, eq = dp->disp_q_limit; dq < eq; ++dq) {
+		kthread_t	*rp;
+
+		ASSERT(dq->dq_last == NULL || dq->dq_last->t_link == NULL);
+
+		for (rp = dq->dq_first; rp; rp = rp->t_link)
+			if (tp == rp) {
+				disp_lock_exit_high(&dp->disp_lock);
+				return (1);
+			}
+	}
+	disp_lock_exit_high(&dp->disp_lock);
+
+	return (0);
+}
+
+/*
+ * thread_on_queue()
+ *	Search all per-CPU dispatch queues and all partition-wide kpreempt
+ *	queues for thread tp. Return 1 if tp is found, otherwise return 0.
+ */
 static int
 thread_on_queue(kthread_t *tp)
 {
-	cpu_t	*cp;
-	cpu_t	*self;
-	disp_t	*dp;
+	cpu_t		*cp;
+	struct cpupart	*part;
 
-	self = CPU_GLOBAL;
-	cp = self->cpu_next_onln;
-	dp = cp->cpu_disp;
-	for (;;) {
-		dispq_t		*dq;
-		dispq_t		*eq;
+	ASSERT(getpil() >= DISP_LEVEL);
 
-		disp_lock_enter_high(&dp->disp_lock);
-		for (dq = dp->disp_q, eq = dp->disp_q_limit; dq < eq; ++dq) {
-			kthread_t	*rp;
+	/*
+	 * Search the per-CPU dispatch queues for tp.
+	 */
+	cp = CPU;
+	do {
+		if (search_disp_queues(cp->cpu_disp, tp))
+			return (1);
+	} while ((cp = cp->cpu_next_onln) != CPU);
 
-			ASSERT(dq->dq_last == NULL ||
-			    dq->dq_last->t_link == NULL);
-			for (rp = dq->dq_first; rp; rp = rp->t_link)
-				if (tp == rp) {
-					disp_lock_exit_high(&dp->disp_lock);
-					return (1);
-				}
-		}
-		disp_lock_exit_high(&dp->disp_lock);
-		if (cp == NULL)
-			break;
-		if (cp == self) {
-			cp = NULL;
-			dp = &cp->cpu_part->cp_kp_queue;
-		} else {
-			cp = cp->cpu_next_onln;
-			dp = cp->cpu_disp;
-		}
-	}
+	/*
+	 * Search the partition-wide kpreempt queues for tp.
+	 */
+	part = CPU->cpu_part;
+	do {
+		if (search_disp_queues(&part->cp_kp_queue, tp))
+			return (1);
+	} while ((part = part->cp_next) != CPU->cpu_part);
+
 	return (0);
-}	/* end of thread_on_queue */
+}
+
 #else
 
 #define	thread_on_queue(tp)	0	/* ASSERT must be !thread_on_queue */
@@ -1094,12 +1120,12 @@ cpu_resched(cpu_t *cp, pri_t tpri)
 		if (tpri >= upreemptpri && cp->cpu_runrun == 0) {
 			cp->cpu_runrun = 1;
 			aston(cp->cpu_dispthread);
-			if (tpri < kpreemptpri && cp != CPU_GLOBAL)
+			if (tpri < kpreemptpri && cp != CPU)
 				call_poke_cpu = 1;
 		}
 		if (tpri >= kpreemptpri && cp->cpu_kprunrun == 0) {
 			cp->cpu_kprunrun = 1;
-			if (cp != CPU_GLOBAL)
+			if (cp != CPU)
 				call_poke_cpu = 1;
 		}
 	}
@@ -1401,7 +1427,7 @@ setbackdq(kthread_t *tp)
 
 	if (!bound && tpri > dp->disp_max_unbound_pri) {
 		if (tp == curthread && dp->disp_max_unbound_pri == -1 &&
-		    cp == CPU_GLOBAL) {
+		    cp == CPU) {
 			/*
 			 * If there are no other unbound threads on the
 			 * run queue, don't allow other CPUs to steal
@@ -1554,7 +1580,7 @@ setfrontdq(kthread_t *tp)
 
 	if (!bound && tpri > dp->disp_max_unbound_pri) {
 		if (tp == curthread && dp->disp_max_unbound_pri == -1 &&
-		    cp == CPU_GLOBAL) {
+		    cp == CPU) {
 			/*
 			 * If there are no other unbound threads on the
 			 * run queue, don't allow other CPUs to steal
@@ -1880,7 +1906,7 @@ cpu_surrender(kthread_t *tp)
 	if (tp != curthread || (lwp = tp->t_lwp) == NULL ||
 	    lwp->lwp_state != LWP_USER) {
 		aston(tp);
-		if (cpup != CPU_GLOBAL)
+		if (cpup != CPU)
 			poke_cpu(cpup->cpu_id);
 	}
 	TRACE_2(TR_FAC_DISP, TR_CPU_SURRENDER,
@@ -1960,9 +1986,8 @@ disp_getwork(cpu_t *cp)
 		 * Try to take a thread from the kp_queue.
 		 */
 		tp = (disp_getbest(kpq));
-		if (tp) {
+		if (tp)
 			return (disp_ratify(tp, kpq));
-		}
 	}
 
 	kpreempt_disable();		/* protect the cpu_active list */
@@ -2326,7 +2351,7 @@ disp_getbest(disp_t *dp)
 			break;
 
 		DTRACE_PROBE4(nosteal, kthread_t *, tp,
-		    cpu_t *, tcp, cpu_t *, CPU_SELF(cp), hrtime_t, rqtime);
+		    cpu_t *, tcp, cpu_t *, cp, hrtime_t, rqtime);
 		scalehrtime(&now);
 		/*
 		 * Calculate when this thread becomes stealable
@@ -2397,8 +2422,7 @@ disp_getbest(disp_t *dp)
 	cp->cpu_dispatch_pri = pri;
 	ASSERT(pri == DISP_PRIO(tp));
 
-	DTRACE_PROBE3(steal, kthread_t *, tp, cpu_t *, tcp, cpu_t *,
-		      CPU_SELF(cp));
+	DTRACE_PROBE3(steal, kthread_t *, tp, cpu_t *, tcp, cpu_t *, cp);
 
 	thread_onproc(tp, cp);			/* set t_state to TS_ONPROC */
 

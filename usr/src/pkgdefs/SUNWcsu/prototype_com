@@ -98,7 +98,7 @@ f none usr/bin/devattr 555 root bin
 f none usr/bin/devfree 555 root bin
 f none usr/bin/devreserv 555 root bin
 s none usr/bin/df=../sbin/df
-f none usr/bin/digest 555 root bin
+l none usr/bin/digest=../../usr/lib/isaexec
 f none usr/bin/dirname 555 root bin
 l none usr/bin/dispgid=../../usr/bin/ckgid
 l none usr/bin/dispuid=../../usr/bin/ckuid
@@ -177,7 +177,7 @@ f none usr/bin/login 4555 root bin
 f none usr/bin/logins 750 root bin
 f none usr/bin/ls 555 root bin
 l none usr/bin/m68k=../../usr/bin/i286
-l none usr/bin/mac=../../usr/bin/digest
+l none usr/bin/mac=../../usr/lib/isaexec
 f none usr/bin/mach 555 root bin
 f none usr/bin/mail 2511 root mail
 f none usr/bin/mailx 2511 root mail
@@ -971,7 +971,7 @@ f none usr/share/lib/terminfo/a/ansi+tabs 644 root bin
 f none usr/share/lib/terminfo/a/at386 644 root bin
 f none usr/share/lib/terminfo/a/at386-m 644 root bin
 d none usr/share/lib/terminfo/s 755 root bin
-f none usr/share/lib/terminfo/s/screen 644 root bin 
+f none usr/share/lib/terminfo/s/screen 644 root bin
 f none usr/share/lib/terminfo/s/screen-w 644 root bin
 f none usr/share/lib/terminfo/s/sun 644 root bin
 f none usr/share/lib/terminfo/s/sun-1 644 root bin
@@ -1103,6 +1103,7 @@ f none usr/share/lib/zoneinfo/America/Argentina/La_Rioja 644 root bin
 f none usr/share/lib/zoneinfo/America/Argentina/Mendoza 644 root bin
 f none usr/share/lib/zoneinfo/America/Argentina/Rio_Gallegos 644 root bin
 f none usr/share/lib/zoneinfo/America/Argentina/San_Juan 644 root bin
+f none usr/share/lib/zoneinfo/America/Argentina/San_Luis 644 root bin
 f none usr/share/lib/zoneinfo/America/Argentina/Tucuman 644 root bin
 f none usr/share/lib/zoneinfo/America/Argentina/Ushuaia 644 root bin
 f none usr/share/lib/zoneinfo/America/Aruba 644 root bin
@@ -1272,7 +1273,7 @@ f none usr/share/lib/zoneinfo/Asia/Bangkok 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Beirut 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Bishkek 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Brunei 644 root bin
-f none usr/share/lib/zoneinfo/Asia/Calcutta 644 root bin
+l none usr/share/lib/zoneinfo/Asia/Calcutta=../../../../../usr/share/lib/zoneinfo/Asia/Kolkata
 f none usr/share/lib/zoneinfo/Asia/Choibalsan 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Chongqing 644 root bin
 l none usr/share/lib/zoneinfo/Asia/Chungking=../../../../../usr/share/lib/zoneinfo/Asia/Chongqing
@@ -1285,6 +1286,7 @@ f none usr/share/lib/zoneinfo/Asia/Dubai 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Dushanbe 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Gaza 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Harbin 644 root bin
+f none usr/share/lib/zoneinfo/Asia/Ho_Chi_Minh 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Hong_Kong 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Hovd 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Irkutsk 644 root bin
@@ -1297,6 +1299,7 @@ f none usr/share/lib/zoneinfo/Asia/Kamchatka 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Karachi 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Kashgar 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Katmandu 644 root bin
+f none usr/share/lib/zoneinfo/Asia/Kolkata 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Krasnoyarsk 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Kuala_Lumpur 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Kuching 644 root bin
@@ -1321,7 +1324,7 @@ f none usr/share/lib/zoneinfo/Asia/Riyadh 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Riyadh87 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Riyadh88 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Riyadh89 644 root bin
-f none usr/share/lib/zoneinfo/Asia/Saigon 644 root bin
+l none usr/share/lib/zoneinfo/Asia/Saigon=../../../../../usr/share/lib/zoneinfo/Asia/Ho_Chi_Minh
 f none usr/share/lib/zoneinfo/Asia/Sakhalin 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Samarkand 644 root bin
 f none usr/share/lib/zoneinfo/Asia/Seoul 644 root bin

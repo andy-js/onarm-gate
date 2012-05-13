@@ -552,8 +552,7 @@ find_lwp(thread_t tid)
 
 int
 _thrp_create(void *stk, size_t stksize, void *(*func)(void *), void *arg,
-	long flags, thread_t *new_thread, pri_t priority, int policy,
-	size_t guardsize)
+	long flags, thread_t *new_thread, size_t guardsize)
 {
 	ulwp_t *self = curthread;
 	uberdata_t *udp = self->ul_uberdata;
@@ -574,8 +573,7 @@ _thrp_create(void *stk, size_t stksize, void *(*func)(void *), void *arg,
 	if (udp->hash_size == 1)
 		finish_init();
 
-	if (((stk || stksize) && stksize < MINSTACK) ||
-	    priority < THREAD_MIN_PRIORITY || priority > THREAD_MAX_PRIORITY)
+	if ((stk || stksize) && stksize < MINSTACK)
 		return (EINVAL);
 
 	if (stk == NULL) {
@@ -613,6 +611,12 @@ _thrp_create(void *stk, size_t stksize, void *(*func)(void *), void *arg,
 	ulwp->ul_adaptive_spin = self->ul_adaptive_spin;
 	ulwp->ul_queue_spin = self->ul_queue_spin;
 	ulwp->ul_door_noreserve = self->ul_door_noreserve;
+
+	/* new thread inherits creating thread's scheduling parameters */
+	ulwp->ul_policy = self->ul_policy;
+	ulwp->ul_pri = (self->ul_epri? self->ul_epri : self->ul_pri);
+	ulwp->ul_cid = self->ul_cid;
+	ulwp->ul_rtclassid = self->ul_rtclassid;
 
 	ulwp->ul_primarymap = self->ul_primarymap;
 	ulwp->ul_self = ulwp;
@@ -677,8 +681,6 @@ _thrp_create(void *stk, size_t stksize, void *(*func)(void *), void *arg,
 	ulwp->ul_stop = TSTP_REGULAR;
 	if (flags & THR_SUSPENDED)
 		ulwp->ul_created = 1;
-	ulwp->ul_policy = policy;
-	ulwp->ul_pri = priority;
 
 	lmutex_lock(&udp->link_lock);
 	ulwp->ul_forw = udp->all_lwps;
@@ -713,8 +715,7 @@ int
 _thr_create(void *stk, size_t stksize, void *(*func)(void *), void *arg,
 	long flags, thread_t *new_thread)
 {
-	return (_thrp_create(stk, stksize, func, arg, flags, new_thread,
-	    curthread->ul_pri, curthread->ul_policy, 0));
+	return (_thrp_create(stk, stksize, func, arg, flags, new_thread, 0));
 }
 
 /*
@@ -801,8 +802,10 @@ _thrp_exit()
 		self->ul_back->ul_forw = self->ul_forw;
 	}
 	self->ul_forw = self->ul_back = NULL;
+#if defined(THREAD_DEBUG)
 	/* collect queue lock statistics before marking ourself dead */
 	record_spin_locks(self);
+#endif
 	self->ul_dead = 1;
 	self->ul_pleasestop = 0;
 	if (replace != NULL) {
@@ -873,6 +876,7 @@ _thrp_exit()
 	thr_panic("_thrp_exit(): _lwp_terminate() returned");
 }
 
+#if defined(THREAD_DEBUG)
 void
 collect_queue_statistics()
 {
@@ -889,6 +893,7 @@ collect_queue_statistics()
 		lmutex_unlock(&udp->link_lock);
 	}
 }
+#endif
 
 void
 _thr_exit_common(void *status, int unwind)
@@ -1164,9 +1169,9 @@ etest(const char *ev)
 #if defined(THREAD_DEBUG)
 	if ((value = envvar(ev, "QUEUE_VERIFY", 1)) >= 0)
 		thread_queue_verify = value;
-#endif
 	if ((value = envvar(ev, "QUEUE_DUMP", 1)) >= 0)
 		thread_queue_dump = value;
+#endif
 	if ((value = envvar(ev, "STACK_CACHE", 10000)) >= 0)
 		thread_stack_cache = value;
 	if ((value = envvar(ev, "COND_WAIT_DEFER", 1)) >= 0)
@@ -1217,7 +1222,7 @@ extern void __cleanup(void);
 extern void atfork_init(void);
 
 #ifdef __amd64
-extern void __amd64id(void);
+extern void __proc64id(void);
 #endif
 
 /*
@@ -1245,9 +1250,9 @@ libc_init(void)
 #ifdef __amd64
 	/*
 	 * Gather information about cache layouts for optimized
-	 * AMD assembler strfoo() and memfoo() functions.
+	 * AMD and Intel assembler strfoo() and memfoo() functions.
 	 */
-	__amd64id();
+	__proc64id();
 #endif
 
 	/*
@@ -1328,6 +1333,10 @@ libc_init(void)
 	self->ul_lwpid = 1; /* __lwp_self() */
 	self->ul_main = 1;
 	self->ul_self = self;
+	self->ul_policy = -1;		/* initialize only when needed */
+	self->ul_pri = 0;
+	self->ul_cid = 0;
+	self->ul_rtclassid = -1;
 	self->ul_uberdata = udp;
 	if (oldself != NULL) {
 		int i;
@@ -1530,7 +1539,12 @@ finish_init()
 	ASSERT(udp->hash_size == 1);
 
 	/*
-	 * First allocate the queue_head array if not already allocated.
+	 * Initialize self->ul_policy, self->ul_cid, and self->ul_pri.
+	 */
+	update_sched(self);
+
+	/*
+	 * Allocate the queue_head array if not already allocated.
 	 */
 	if (udp->queue_head == NULL)
 		queue_alloc();
@@ -1562,14 +1576,16 @@ finish_init()
 	/*
 	 * Arrange to do special things on exit --
 	 * - collect queue statistics from all remaining active threads.
+	 * - dump queue statistics to stderr if _THREAD_QUEUE_DUMP is set.
 	 * - grab assert_lock to ensure that assertion failures
 	 *   and a core dump take precedence over _exit().
-	 * - dump queue statistics to stderr if _THREAD_QUEUE_DUMP is set.
 	 * (Functions are called in the reverse order of their registration.)
 	 */
-	(void) _atexit(dump_queue_statistics);
 	(void) _atexit(grab_assert_lock);
+#if defined(THREAD_DEBUG)
+	(void) _atexit(dump_queue_statistics);
 	(void) _atexit(collect_queue_statistics);
+#endif
 }
 
 /*
@@ -1595,7 +1611,7 @@ postfork1_child()
 {
 	ulwp_t *self = curthread;
 	uberdata_t *udp = self->ul_uberdata;
-	mutex_t *mp;
+	queue_head_t *qp;
 	ulwp_t *next;
 	ulwp_t *ulwp;
 	int i;
@@ -1619,13 +1635,18 @@ postfork1_child()
 	    USYNC_THREAD | LOCK_RECURSIVE, NULL);
 
 	/* no one in the child is on a sleep queue; reinitialize */
-	if (udp->queue_head) {
-		(void) _private_memset(udp->queue_head, 0,
+	if ((qp = udp->queue_head) != NULL) {
+		(void) _private_memset(qp, 0,
 		    2 * QHASHSIZE * sizeof (queue_head_t));
-		for (i = 0; i < 2 * QHASHSIZE; i++) {
-			mp = &udp->queue_head[i].qh_lock;
-			mp->mutex_flag = LOCK_INITED;
-			mp->mutex_magic = MUTEX_MAGIC;
+		for (i = 0; i < 2 * QHASHSIZE; qp++, i++) {
+			qp->qh_type = (i < QHASHSIZE)? MX : CV;
+			qp->qh_lock.mutex_flag = LOCK_INITED;
+			qp->qh_lock.mutex_magic = MUTEX_MAGIC;
+			qp->qh_hlist = &qp->qh_def_root;
+#if defined(THREAD_DEBUG)
+			qp->qh_hlen = 1;
+			qp->qh_hmax = 1;
+#endif
 		}
 	}
 
@@ -1684,36 +1705,6 @@ postfork1_child()
 	postfork1_child_sigev_mq();
 	postfork1_child_sigev_timer();
 	postfork1_child_aio();
-}
-
-#pragma weak thr_setprio = _thr_setprio
-#pragma weak pthread_setschedprio = _thr_setprio
-#pragma weak _pthread_setschedprio = _thr_setprio
-int
-_thr_setprio(thread_t tid, int priority)
-{
-	struct sched_param param;
-
-	(void) _memset(&param, 0, sizeof (param));
-	param.sched_priority = priority;
-	return (_thread_setschedparam_main(tid, 0, &param, PRIO_SET_PRIO));
-}
-
-#pragma weak thr_getprio = _thr_getprio
-int
-_thr_getprio(thread_t tid, int *priority)
-{
-	uberdata_t *udp = curthread->ul_uberdata;
-	ulwp_t *ulwp;
-	int error = 0;
-
-	if ((ulwp = find_lwp(tid)) == NULL)
-		error = ESRCH;
-	else {
-		*priority = ulwp->ul_pri;
-		ulwp_unlock(ulwp, udp);
-	}
-	return (error);
 }
 
 lwpid_t

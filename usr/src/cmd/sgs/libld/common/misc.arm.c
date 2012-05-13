@@ -20,6 +20,8 @@
  */
 
 /*
+ * Copyright (c) 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright (c) 2008 NEC Corporation
  * All rights reserved.
  */
@@ -28,6 +30,7 @@
 #include <string.h>
 #include <sys/elf_ARM.h>
 #include <debug.h>
+#include <arm/machdep_arm.h>
 #include <dwarf.h>
 #include "msg.h"
 #include "_libld.h"

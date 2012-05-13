@@ -19,7 +19,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
@@ -32,10 +32,14 @@ sun4u_SRCS = cmd_ecache.c \
 		cmd_dp_page.c \
 		cmd_hc_opl.c \
 		cmd_opl.c \
-		cmd_oplerr.c
+		cmd_oplerr.c \
+		cmd_Lxcache.c \
+		cmd_Lxcacheerr.c  \
 
 INCDIRS = $(SRC)/uts/sun4u
+INCDIRS += $(SRC)/lib/fm/libfmd_adm/common
+INCDIRS += $(SRC)/lib/fm/libfmd_adm/sparcv9
 
 include ../../sun4/cpumem-diagnosis/Makefile.cpumem
-
+LDLIBS += -L$(ROOT)/usr/lib/fm -lfmd_adm
 LDFLAGS += -R/usr/lib/fm

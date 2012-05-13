@@ -67,6 +67,22 @@
 #include <getxby_door.h>
 
 /*
+ * configurable values for default buffer sizes
+ */
+
+/*
+ * PSARC/2005/133 updated the buffering mechanisms to handle
+ * up to 2^64 buffering.  But sets a practical limit of 512*1024.
+ * the expectation is the practical limit will be dynamic from
+ * nscd.  For now, set the group limit to this value.
+ */
+
+#define	NSS_BUFLEN_PRACTICAL	(512*1024)
+
+static size_t __nss_buflen_group = NSS_BUFLEN_PRACTICAL;
+static size_t __nss_buflen_default = NSS_BUFLEN_DOOR;
+
+/*
  * policy component function interposing definitions:
  * nscd if so desired can interpose it's own switch functions over
  * the internal unlocked counterparts.  This will allow nscd to replace
@@ -400,7 +416,7 @@ nss_cfgcomp_get(char *name, int add)
 			return ((nss_cfglist_t *)NULL);
 		}
 		(void) memset((void *)(next + nss_cfgcount), '\0',
-			NSS_CFG_INCR * sizeof (nss_cfglist_t));
+		    NSS_CFG_INCR * sizeof (nss_cfglist_t));
 		nss_cfgmax += NSS_CFG_INCR;
 		nss_cfg = next;
 	}
@@ -645,12 +661,12 @@ set_option(struct option *opt, char *name, char *val)
 	for (; opt->name; opt++) {
 		if (strcmp(name, opt->name) == 0) {
 			switch (opt->type) {
-			    case OPT_STRING:
+			case OPT_STRING:
 				p = libc_strdup(val);
 				*((char **)opt->address) = p;
 				break;
 
-			    case OPT_INT:
+			case OPT_INT:
 				if (strcmp(val, "") == 0)
 					n = 1;
 				else
@@ -658,7 +674,7 @@ set_option(struct option *opt, char *name, char *val)
 				*((int *)opt->address) = n;
 				break;
 #ifdef DEBUG
-			    case OPT_FILE:
+			case OPT_FILE:
 				fp = fopen(val, "wF");
 				*((FILE **)opt->address) = fp;
 				break;
@@ -778,11 +794,8 @@ nss_get_backend_u(nss_db_root_t **rootpp, struct nss_db_state *s, int n_src)
 			for (bf = s->p.finders;  bf != 0;  bf = bf->next) {
 				nss_backend_constr_t c;
 
-				c = (*bf->lookup)
-					(bf->lookup_priv,
-						s->p.name,
-						src->lkp->service_name,
-						&src->finder_priv);
+				c = (*bf->lookup) (bf->lookup_priv, s->p.name,
+				    src->lkp->service_name, &src->finder_priv);
 				if (c != 0) {
 					src->be_constr = c;
 					src->finder = bf;
@@ -798,8 +811,7 @@ nss_get_backend_u(nss_db_root_t **rootpp, struct nss_db_state *s, int n_src)
 
 		if (src->n_active < s->p.max_active_per_src) {
 			be = (*src->be_constr)(s->p.name,
-						src->lkp->service_name,
-						0 /* === unimplemented */);
+			    src->lkp->service_name, 0 /* === unimplemented */);
 			if (be != 0) {
 				src->n_active++;
 				break;
@@ -851,9 +863,9 @@ nss_put_backend_u(struct nss_db_state *s, int n_src, nss_backend_t *be)
 			src->dormant.single = be;
 			src->n_dormant++;
 		} else if (src->dormant.multi != 0 ||
-			(src->dormant.multi =
-			    libc_malloc(s->p.max_dormant_per_src *
-			    sizeof (nss_backend_t *))) != NULL) {
+		    (src->dormant.multi =
+		    libc_malloc(s->p.max_dormant_per_src *
+		    sizeof (nss_backend_t *))) != NULL) {
 			src->dormant.multi[src->n_dormant] = be;
 			src->n_dormant++;
 		} else {
@@ -939,14 +951,14 @@ _nss_src_state_destr(struct nss_src_state *src, int max_dormant)
 	if (max_dormant == 1) {
 		if (src->n_dormant != 0) {
 			(void) NSS_INVOKE_DBOP(src->dormant.single,
-					NSS_DBOP_DESTRUCTOR, 0);
+			    NSS_DBOP_DESTRUCTOR, 0);
 		};
 	} else if (src->dormant.multi != 0) {
 		int	n;
 
 		for (n = 0;  n < src->n_dormant;  n++) {
 			(void) NSS_INVOKE_DBOP(src->dormant.multi[n],
-					NSS_DBOP_DESTRUCTOR, 0);
+			    NSS_DBOP_DESTRUCTOR, 0);
 		}
 		libc_free(src->dormant.multi);
 	}
@@ -989,7 +1001,7 @@ _nss_db_state_destr(struct nss_db_state *s)
 
 		for (n_src = 0;  n_src < s->max_src;  n_src++) {
 			_nss_src_state_destr(&s->src[n_src],
-				s->p.max_dormant_per_src);
+			    s->p.max_dormant_per_src);
 		}
 		libc_free(s->src);
 	}
@@ -1093,7 +1105,7 @@ retry_test(nss_status_t res, int n, struct __nsw_lookup_v1 *lkp)
 		if (res == NSS_SUCCESS) {
 			__NSW_UNPAUSE_ACTION(lkp->actions[__NSW_TRYAGAIN]);
 			__NSW_UNPAUSE_ACTION(
-				lkp->actions[__NSW_NISSERVDNS_TRYAGAIN]);
+			    lkp->actions[__NSW_NISSERVDNS_TRYAGAIN]);
 		}
 		return (0);
 	}
@@ -1200,20 +1212,23 @@ nss_search(nss_db_root_t *rootp, nss_db_initf_t initf, int search_fnum,
 
 					/* After several tries, backoff... */
 					if (n_loop > no_backoff) {
-					    if (__nss_debug_eng_loop > 1)
-						(void) fprintf(__nss_debug_file,
-						"NSS: loop: sleeping %d ...\n",
-						    NSS_BACKOFF(n_loop,
-						    no_backoff, max_backoff));
+						if (__nss_debug_eng_loop > 1)
+							(void) fprintf(
+							    __nss_debug_file,
+							    "NSS: loop: "
+							    "sleeping %d ...\n",
+							    NSS_BACKOFF(n_loop,
+							    no_backoff,
+							    max_backoff));
 
-					    (void) sleep(NSS_BACKOFF(n_loop,
+						(void) sleep(NSS_BACKOFF(n_loop,
 						    no_backoff, max_backoff));
 					}
 
 					if (__nss_debug_eng_loop)
 						output_loop_diag_a(n_loop,
-							s->config->dbase,
-							s->src[n_src].lkp);
+						    s->config->dbase,
+						    s->src[n_src].lkp);
 
 
 					res = (*funcp)(be, search_args);
@@ -1221,9 +1236,9 @@ nss_search(nss_db_root_t *rootp, nss_db_initf_t initf, int search_fnum,
 					n_loop++;
 					if (__nss_debug_eng_loop)
 						output_loop_diag_b(res,
-							s->src[n_src].lkp);
+						    s->src[n_src].lkp);
 				} while (retry_test(res, n_loop,
-							s->src[n_src].lkp));
+				    s->src[n_src].lkp));
 			}
 			nss_put_backend_u(s, n_src, be);
 		}
@@ -1231,14 +1246,14 @@ nss_search(nss_db_root_t *rootp, nss_db_initf_t initf, int search_fnum,
 		if (__NSW_ACTION_V1(s->src[n_src].lkp, res) == __NSW_RETURN) {
 			if (__nss_debug_eng_loop)
 				(void) fprintf(__nss_debug_file,
-					"NSS: '%s': return.\n",
-					s->config->dbase);
+				    "NSS: '%s': return.\n",
+				    s->config->dbase);
 			break;
 		} else
 			if (__nss_debug_eng_loop)
 				(void) fprintf(__nss_debug_file,
-					"NSS: '%s': continue ...\n",
-					s->config->dbase);
+				    "NSS: '%s': continue ...\n",
+				    s->config->dbase);
 	}
 	NSS_UNREF_UNLOCK(rootp, s);
 	return (res);
@@ -1433,7 +1448,7 @@ nss_setent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 		}
 	}
 	for (n_src = 0, be = 0; n_src < s->max_src &&
-		(be = nss_get_backend_u(&rootp, s, n_src)) == 0; n_src++) {
+	    (be = nss_get_backend_u(&rootp, s, n_src)) == 0; n_src++) {
 		;
 	}
 	NSS_UNLOCK(rootp);
@@ -1511,7 +1526,7 @@ nss_getent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 		do {
 			n_src++;
 		} while (n_src < s->max_src &&
-			(be = nss_get_backend_u(&rootp, s, n_src)) == 0);
+		    (be = nss_get_backend_u(&rootp, s, n_src)) == 0);
 		if (be == 0) {
 			/*
 			 * This is the case where we failed to get the backend
@@ -1719,13 +1734,13 @@ nss_pack(void *buffer, size_t bufsize, nss_db_root_t *rootp,
 		}
 		/* use default packer for known getXbyY ops */
 		ret = nss_default_key2str(bptr, blen, in, dbn,
-						search_fnum, &len);
+		    search_fnum, &len);
 	} else if (in->key2str == NULL ||
-		(search_fnum == NSS_DBOP_GROUP_BYMEMBER &&
-			strcmp(dbn, NSS_DBNAM_GROUP) == 0)) {
+	    (search_fnum == NSS_DBOP_GROUP_BYMEMBER &&
+	    strcmp(dbn, NSS_DBNAM_GROUP) == 0)) {
 		/* use default packer for known getXbyY ops */
 		ret = nss_default_key2str(bptr, blen, in, dbn,
-						search_fnum, &len);
+		    search_fnum, &len);
 	} else {
 		ret = (*in->key2str)(bptr, blen, &in->key, &len);
 	}
@@ -1864,10 +1879,10 @@ nss_unpack(void *buffer, size_t bufsize, nss_db_root_t *rootp,
 	dbn = (char *)pdbd + pdbd->o_name;
 	fmt_type = 0; /* nss_XbyY_args_t */
 	if (search_fnum == NSS_DBOP_GROUP_BYMEMBER &&
-		strcmp(dbn, NSS_DBNAM_GROUP) == 0)
+	    strcmp(dbn, NSS_DBNAM_GROUP) == 0)
 		fmt_type = 1; /* struct nss_groupsbymem */
 	else if (search_fnum == NSS_DBOP_NETGROUP_IN &&
-		strcmp(dbn, NSS_DBNAM_NETGROUP) == 0)
+	    strcmp(dbn, NSS_DBNAM_NETGROUP) == 0)
 		fmt_type = 2; /* struct nss_innetgr_args */
 
 	/* if error - door's switch error */
@@ -1917,7 +1932,7 @@ nss_unpack(void *buffer, size_t bufsize, nss_db_root_t *rootp,
 	/* process the normal cases */
 	/* marshall data directly into users buffer */
 	ret = (*in->str2ent)(buf, len, in->buf.result, in->buf.buffer,
-		in->buf.buflen);
+	    in->buf.buflen);
 	if (ret == NSS_STR_PARSE_ERANGE) {
 		in->returnval = 0;
 		in->returnlen = 0;
@@ -1968,7 +1983,7 @@ nss_unpack_ent(void *buffer, size_t bufsize, nss_db_root_t *rootp,
 	nptr = (nssuint_t *)((void *)((char *)buffer + pbuf->key_off));
 	cookie = contextp->cookie;
 	if (cookie != NSCD_NEW_COOKIE && cookie != contextp->cookie_setent &&
-		cookie != *nptr) {
+	    cookie != *nptr) {
 		/*
 		 * Should either be new, or the cookie returned by the last
 		 * setent (i.e., this is the first getent after the setent)
@@ -1993,7 +2008,7 @@ nss_unpack_ent(void *buffer, size_t bufsize, nss_db_root_t *rootp,
 
 	/* marshall data directly into users buffer */
 	ret = (*in->str2ent)(buf, len, in->buf.result, in->buf.buffer,
-		in->buf.buflen);
+	    in->buf.buflen);
 	if (ret == NSS_STR_PARSE_ERANGE) {
 		in->returnval = 0;
 		in->returnlen = 0;
@@ -2041,7 +2056,7 @@ _nsc_search(nss_db_root_t *rootp, nss_db_initf_t initf, int search_fnum,
 	pbuf->nsc_callnumber = NSCD_SEARCH;
 	/* copy relevant door request info into door buffer */
 	status = nss_pack((void *)pbuf, bufsize, rootp,
-			initf, search_fnum, search_args);
+	    initf, search_fnum, search_args);
 
 	/* Packing error return error results */
 	if (status != NSS_SUCCESS)
@@ -2068,7 +2083,7 @@ _nsc_search(nss_db_root_t *rootp, nss_db_initf_t initf, int search_fnum,
 	/* unpack and marshall data/errors to user structure */
 	/* set any error conditions */
 	status = nss_unpack((void *)doorptr, bufsize, rootp, initf,
-			search_fnum, search_args);
+	    search_fnum, search_args);
 	/*
 	 * check if doors reallocated the memory underneath us
 	 * if they did munmap it or suffer a memory leak
@@ -2129,8 +2144,7 @@ _nsc_setent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 	}
 
 	/* pack relevant setent request info into door buffer */
-	status = nss_pack_ent((void *)pbuf, bufsize, rootp,
-			initf, contextpp);
+	status = nss_pack_ent((void *)pbuf, bufsize, rootp, initf, contextpp);
 	if (status != NSS_SUCCESS)
 		return (status);
 
@@ -2149,7 +2163,7 @@ _nsc_setent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 	}
 	/* unpack returned cookie stash it away */
 	status = nss_unpack_ent((void *)doorptr, bufsize, rootp,
-			initf, contextpp, NULL);
+	    initf, contextpp, NULL);
 	/* save the setent cookie for later use */
 	contextp->cookie_setent = contextp->cookie;
 	/*
@@ -2193,8 +2207,7 @@ _nsc_getent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 	pbuf->nsc_callnumber = NSCD_GETENT;
 
 	/* pack relevant setent request info into door buffer */
-	status = nss_pack_ent((void *)pbuf, bufsize, rootp,
-			initf, contextpp);
+	status = nss_pack_ent((void *)pbuf, bufsize, rootp, initf, contextpp);
 	if (status != NSS_SUCCESS)
 		return (status);
 
@@ -2206,7 +2219,7 @@ _nsc_getent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 	/* If fallback to standard nss logic (door failure) if possible */
 	if (status != NSS_SUCCESS) {
 		if (status == NSS_TRYLOCAL ||
-				contextp->cookie == NSCD_NEW_COOKIE) {
+		    contextp->cookie == NSCD_NEW_COOKIE) {
 			contextp->cookie = NSCD_LOCAL_COOKIE;
 
 			/* init the local cookie */
@@ -2219,7 +2232,7 @@ _nsc_getent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 	}
 	/* check error, unpack and process results */
 	status = nss_unpack_ent((void *)doorptr, bufsize, rootp,
-			initf, contextpp, args);
+	    initf, contextpp, args);
 	/*
 	 * check if doors reallocated the memory underneath us
 	 * if they did munmap it or suffer a memory leak
@@ -2259,8 +2272,7 @@ _nsc_endent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 	pbuf->nsc_callnumber = NSCD_ENDENT;
 
 	/* pack relevant setent request info into door buffer */
-	status = nss_pack_ent((void *)pbuf, bufsize, rootp,
-			initf, contextpp);
+	status = nss_pack_ent((void *)pbuf, bufsize, rootp, initf, contextpp);
 	if (status != NSS_SUCCESS)
 		return (status);
 
@@ -2288,4 +2300,19 @@ _nsc_endent_u(nss_db_root_t *rootp, nss_db_initf_t initf,
 	/* clear cookie */
 	contextp->cookie = NSCD_NEW_COOKIE;
 	return (NSS_SUCCESS);
+}
+
+/*
+ * Internal private API to return default suggested buffer sizes
+ * for nsswitch API requests
+ */
+
+size_t
+_nss_get_bufsizes(int arg)
+{
+	switch (arg) {
+	case _SC_GETGR_R_SIZE_MAX:
+		return (__nss_buflen_group);
+	}
+	return (__nss_buflen_default);
 }

@@ -177,7 +177,7 @@ do_relocate(struct module *mp, char *reltbl, Word relshtype, int nreloc,
 
 		reladdr += relocsize;
 
-		if (rtype == R_ARM_NUM) {
+		if (rtype == R_ARM_NONE) {
 			continue;
 		}
 
@@ -217,8 +217,7 @@ do_relocate(struct module *mp, char *reltbl, Word relshtype, int nreloc,
 			if (ELF32_ST_BIND(symref->st_info) == STB_LOCAL) {
 				/* *** this is different for .o and .so */
 				value = symref->st_value;
-			}
-			else {
+			} else {
 				/*
 				 * It's global. Allow weak references.  If
 				 * the symbol is undefined, give TNF (the
@@ -247,8 +246,7 @@ do_relocate(struct module *mp, char *reltbl, Word relshtype, int nreloc,
 						err = 1;
 					}
 					continue;
-				}
-				else { /* symbol found  - relocate */
+				} else { /* symbol found  - relocate */
 					/*
 					 * calculate location of definition
 					 * - symbol value plus base address of
@@ -282,14 +280,11 @@ do_relocate(struct module *mp, char *reltbl, Word relshtype, int nreloc,
 		}
 
 	} /* end of while loop */
-
-	if (err) {
+	if (err)
 		return -1;
-	}
 
-	if (tnf_splice_probes(IS_KOBJ_PRIM(mp), probelist, taglist)) {
+	if (tnf_splice_probes(IS_KOBJ_PRIM(mp), probelist, taglist))
 		mp->flags |= KOBJ_TNF_PROBE;
-	}
 
 	return 0;
 }
@@ -333,9 +328,8 @@ do_relocations(struct module *mp)
 		 * Do not relocate any section that isn't loaded into memory.
 		 * Most commonly this will skip over the .rela.stab* sections
 		 */
-		if (!(shp->sh_flags & SHF_ALLOC)) {
+		if (!(shp->sh_flags & SHF_ALLOC))
 			continue;
-		}
 #ifdef	KOBJ_DEBUG
 		if (kobj_debug & D_RELOCATIONS) {
 			_kobj_printf(ops, "krtld: relocating: file=%s ",
@@ -355,10 +349,9 @@ do_relocations(struct module *mp)
 		rshp->sh_addr = 0;
 	}
 	mp->flags |= KOBJ_RELOCATED;
-	return 0;
-
+	return (0);
 bad:
 	kobj_free((void *)rshp->sh_addr, rshp->sh_size);
 	rshp->sh_addr = 0;
-	return -1;
+	return (-1);
 }

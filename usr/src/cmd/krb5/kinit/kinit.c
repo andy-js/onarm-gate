@@ -8,6 +8,8 @@
 /*
  * clients/kinit/kinit.c
  *
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright 1990 by the Massachusetts Institute of Technology.
  * All Rights Reserved.
  *
@@ -238,7 +240,7 @@ struct option long_options[] = {
 static char *progname;
 
 static void
-usage(progname)
+usage(char *progname)
 {
 #define USAGE_BREAK "\n\t"
 

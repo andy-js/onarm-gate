@@ -36,7 +36,7 @@ include	$(SRC)/lib/Makefile.lib
 
 MPSDIR=		/usr/lib/mps
 KMFINC=		-I../../../include -I../../../ber_der/inc
-NSSINC=		-I/usr/include/mps
+NSSINC=		-I/usr/include
 BERLIB=		-lkmf -lkmfberder
 BERLIB64=	$(BERLIB)
 

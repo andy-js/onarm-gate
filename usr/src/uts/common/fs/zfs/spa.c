@@ -662,12 +662,7 @@ spa_unload(spa_t *spa)
 	 * Stop syncing.
 	 */
 	if (spa->spa_sync_on) {
-		int error;
-		error = txg_sync_stop(spa->spa_dsl_pool);
-		if (error) {
-			spa_async_resume(spa);
-			return (error);
-		}
+		txg_sync_stop(spa->spa_dsl_pool);
 		spa->spa_sync_on = B_FALSE;
 	}
 
@@ -1403,9 +1398,7 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 		/*
 		 * Wait for all claims to sync.
 		 */
-		error = txg_wait_synced(spa->spa_dsl_pool, 0);
-		if (error)
-			goto out;
+		txg_wait_synced(spa->spa_dsl_pool, 0);
 
 		/*
 		 * If the config cache is stale, or we have uninitialized
@@ -2093,11 +2086,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	 * We explicitly wait for the first transaction to complete so that our
 	 * bean counters are appropriately updated.
 	 */
-	error = txg_wait_synced(spa->spa_dsl_pool, txg);
-	if (error) {
-		mutex_exit(&spa_namespace_lock);
-		return (error);
-	}
+	txg_wait_synced(spa->spa_dsl_pool, txg);
 
 	spa_config_sync();
 
@@ -2368,12 +2357,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig)
 		 * have to force it to sync before checking spa_refcnt.
 		 */
 		spa_scrub_suspend(spa);
-		if ((error = txg_wait_synced(spa->spa_dsl_pool, 0)) != 0) {
-			spa_scrub_resume(spa);
-			spa_async_resume(spa);
-			mutex_exit(&spa_namespace_lock);
-			return (error);
-		}
+		txg_wait_synced(spa->spa_dsl_pool, 0);
 
 		/*
 		 * A pool cannot be exported or destroyed if there are active
@@ -3431,14 +3415,7 @@ spa_scrub_thread(spa_t *spa)
 	 * If we're restarting due to a snapshot create/delete,
 	 * wait for that to complete.
 	 */
-	if (txg_wait_synced(spa_get_dsl(spa), 0)) {
-		mutex_enter(&spa->spa_scrub_lock);
-		spa->spa_scrub_type = POOL_SCRUB_NONE;
-		spa->spa_scrub_thread = NULL;
-		cv_broadcast(&spa->spa_scrub_cv);
-		CALLB_CPR_EXIT(&cprinfo);
-		thread_exit();
-	}
+	txg_wait_synced(spa_get_dsl(spa), 0);
 
 	dprintf("start %s mintxg=%" PRIuTXG " maxtxg=%" PRIuTXG "\n",
 	    scrub_type == POOL_SCRUB_RESILVER ? "resilver" : "scrub",
@@ -4329,7 +4306,7 @@ spa_sync_allpools(void)
 			continue;
 		spa_open_ref(spa, FTAG);
 		mutex_exit(&spa_namespace_lock);
-		err = (txg_wait_synced(spa_get_dsl(spa), 0) != 0) ? EIO : err;
+		txg_wait_synced(spa_get_dsl(spa), 0);
 		mutex_enter(&spa_namespace_lock);
 		spa_close(spa, FTAG);
 	}
@@ -4397,7 +4374,7 @@ spa_lookup_by_guid(spa_t *spa, uint64_t guid)
 int
 spa_upgrade(spa_t *spa, uint64_t version)
 {
-	int error;
+	int error = 0;
 
 	if ((error = spa_config_enter(spa, RW_WRITER, FTAG, SPA_NOWAIT)) != 0)
 		return (error);
@@ -4415,7 +4392,7 @@ spa_upgrade(spa_t *spa, uint64_t version)
 
 	spa_config_exit(spa, FTAG);
 
-	error = txg_wait_synced(spa_get_dsl(spa), 0);
+	txg_wait_synced(spa_get_dsl(spa), 0);
 
 	return (error);
 }

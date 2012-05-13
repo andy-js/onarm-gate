@@ -372,8 +372,8 @@ ld_create_outfile(Ofl_desc *ofl)
 	Is_desc		*isp;
 	Elf_Data	*tlsdata = 0;
 	Aliste		idx;
-	Word		flags = ofl->ofl_flags;
-	Word		flags1 = ofl->ofl_flags1;
+	ofl_flag_t	flags = ofl->ofl_flags;
+	ofl_flag_t	flags1 = ofl->ofl_flags1;
 	size_t		ndx = 0, fndx = 0;
 	Elf_Cmd		cmd;
 	Boolean		fixalign = FALSE;
@@ -458,8 +458,9 @@ ld_create_outfile(Ofl_desc *ofl)
 			} else if (ptype == PT_TLS) {
 				if (flags & FLG_OF_TLSPHDR)
 					nseg++;
-#if	defined(__x86) && defined(_ELF64)
-			} else if (ptype == PT_SUNW_UNWIND) {
+#if	defined(_ELF64)
+			} else if ((ld_targ.t_m.m_mach == EM_AMD64) &&
+			    (ptype == PT_SUNW_UNWIND)) {
 				if (ofl->ofl_unwindhdr)
 					nseg++;
 #endif
@@ -623,7 +624,7 @@ ld_create_outfile(Ofl_desc *ofl)
 				 * buffer based on the alignment requirements
 				 * of all the TLS input sections.
 				 */
-				if ((ofl->ofl_flags & FLG_OF_TLSPHDR) &&
+				if ((flags & FLG_OF_TLSPHDR) &&
 				    (isp->is_shdr->sh_flags & SHF_TLS)) {
 					if (tlsdata == 0)
 						tlsdata = data;

@@ -1142,8 +1142,7 @@ out:
 		 * rollback or destroy what we created, so we don't
 		 * leave it in the restoring state.
 		 */
-		if (txg_wait_synced(drc->drc_real_ds->ds_dir->dd_pool, 0) == 0)
-			dmu_recv_abort_cleanup(drc);
+		txg_wait_synced(drc->drc_real_ds->ds_dir->dd_pool, 0);
 	}
 
 	kmem_free(ra.buf, ra.bufsize);
@@ -1195,9 +1194,7 @@ dmu_recv_end(dmu_recv_cookie_t *drc)
 	 * dsl_pool_zil_clean() expects it to have a ds_user_ptr (and
 	 * zil), but clone_swap() can close it.
 	 */
-	err = txg_wait_synced(drc->drc_real_ds->ds_dir->dd_pool, 0);
-	if (err)
-		return (err);
+	txg_wait_synced(drc->drc_real_ds->ds_dir->dd_pool, 0);
 
 	if (dsl_dataset_tryupgrade(drc->drc_real_ds,
 	    DS_MODE_PRIMARY, DS_MODE_EXCLUSIVE)) {
@@ -1208,7 +1205,7 @@ dmu_recv_end(dmu_recv_cookie_t *drc)
 	}
 
 	if (drc->drc_logical_ds != drc->drc_real_ds) {
-		if (err == 0 && dsl_dataset_tryupgrade(drc->drc_logical_ds,
+		if (dsl_dataset_tryupgrade(drc->drc_logical_ds,
 		    DS_MODE_STANDARD, DS_MODE_EXCLUSIVE)) {
 			lmode = DS_MODE_EXCLUSIVE;
 			err = dsl_dataset_clone_swap(drc->drc_real_ds,

@@ -1,4 +1,6 @@
 /*
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
@@ -2850,7 +2852,7 @@ load_db(argc, argv)
 		}
 	}
 
-    if (restore_dump(programname, kcontext, (dumpfile) ? dumpfile : stdin_name,
+    if (restore_dump(programname, kcontext, (dumpfile) ? dumpfile : (char *)stdin_name,
 		     f, verbose, load)) {
 	 fprintf(stderr, gettext(restfail_fmt),
 		 programname, load->name);

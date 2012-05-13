@@ -371,6 +371,7 @@ CHKHDRS=			\
 	lwp_upimutex_impl.h	\
 	mac.h			\
 	mac_impl.h		\
+	machelf.h		\
 	map.h			\
 	md4.h			\
 	md5.h			\
@@ -869,6 +870,7 @@ SCSIIMPLHDRS=		\
 	status.h	\
 	transport.h	\
 	scsi_reset_notify.h \
+	spc3_types.h	\
 	types.h		\
 	uscsi.h		\
 	usmp.h

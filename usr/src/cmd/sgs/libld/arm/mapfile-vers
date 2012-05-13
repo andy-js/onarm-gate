@@ -20,15 +20,12 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2012 Nexenta Systems, Inc.  All right reserved.
+#
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
-# ident	"@(#)mapfile-vers	1.41	07/05/14 SMI"
-
-#
-# Copyright (c) 2008 NEC Corporation
-#
-
+# ident	"%Z%%M%	%I%	%E% SMI"
 #
 # Generic interface definition for usr/src/cmd/sgs/libld.
 #
@@ -51,6 +48,7 @@ SUNWprivate_4.2 {
 		ld32_create_outfile;
 		ld32_ent_setup;
 		ld32_init_strings;
+		ld32_init_target;
 		ld32_make_sections;
 		ld32_ofl_cleanup;
 		ld32_process_open;

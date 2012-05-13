@@ -197,6 +197,8 @@
 			 against COMDAT sections\n"
 @ MSG_ARG_DETAIL_ZRS	"\t[-z rescan]\trescan archive list until no further \
 			 member\n\t\t\textraction occurs\n"
+@ MSG_ARG_DETAIL_ZTARG	"\t[-z target=platform]\n\
+			 \t\t\ttarget machine for cross linking\n"
 @ MSG_ARG_DETAIL_ZT	"\t[-z text]\tdisallow output relocations against \
 			 text\n"
 @ MSG_ARG_DETAIL_ZTO	"\t[-z textoff]\tallow output relocations against \
@@ -296,6 +298,8 @@
 @ MSG_REL_SLOPCDATNAM	"relocation warning: %s: file %s: section %s: \
 			 symbol %s: relocation against discarded COMDAT \
 			 section %s redirected to file %s"
+@ MSG_REL_NOREG		"relocation error: REGISTER relocation not supported \
+			 on target architecture"
 
 #
 # TRANSLATION_NOTE
@@ -389,6 +393,11 @@
 @ MSG_SYS_MMAPANON	"file %s: mmap anon failed: %s"
 
 
+# Messages related to platform support
+@ MSG_TARG_UNSUPPORTED	"unsupported ELF machine type: %s"
+
+
+
 # ELF processing messages
 
 @ MSG_ELF_LIBELF	"libelf: version not supported: %d"
@@ -435,9 +444,9 @@
 @ MSG_SYM_TENTERR	"\ttentative symbol cannot override defined symbol \
 			 of smaller size"
 
-@ MSG_SYM_INVSHNDX	"symbol `%s' has invalid section index; \
+@ MSG_SYM_INVSHNDX	"symbol %s has invalid section index; \
 			 ignored:\n\t(file %s value=%s);"
-@ MSG_SYM_NONGLOB	"global symbol `%s' has non-global binding:\n\
+@ MSG_SYM_NONGLOB	"global symbol %s has non-global binding:\n\
 			 \t(file %s value=%s);"
 @ MSG_SYM_RESERVE	"reserved symbol `%s' already defined in file %s"
 @ MSG_SYM_NOTNULL	"undefined symbol `%s' with non-zero value encountered \
@@ -578,6 +587,7 @@
 @ MSG_ELF_NEWPHDR	"file %s: elf_newphdr"
 @ MSG_ELF_STRPTR	"file %s: elf_strptr"
 @ MSG_ELF_UPDATE	"file %s: elf_update"
+@ MSG_ELF_SWAP_WRIMAGE	"file %s: _elf_swap_wrimage"
 
 
 @ MSG_REJ_MACH		"file %s: wrong ELF machine type: %s"
@@ -612,10 +622,10 @@
 
 @ MSG_FMT_ARMEM		"%s(%s)"
 @ MSG_FMT_COLPATH	"%s:%s"
+@ MSG_FMT_SYMNAM	"`%s'"
+@ MSG_FMT_NULLSYMNAM	"%s[%d]"
 
 @ MSG_PTH_RTLD		"/usr/lib/ld.so.1"
-@ MSG_PTH_RTLD_SPARCV9	"/usr/lib/sparcv9/ld.so.1"
-@ MSG_PTH_RTLD_AMD64	"/usr/lib/amd64/ld.so.1"
 @ MSG_PTH_DEVZERO	"/dev/zero"
 
 @ MSG_SUNW_OST_SGS	"SUNW_OST_SGS"
@@ -1125,6 +1135,7 @@
 @ MSG_ARG_NOLDYNSYM	"noldynsym"
 @ MSG_ARG_RELAXRELOC	"relaxreloc"
 @ MSG_ARG_GLOBAUDIT	"globalaudit"
+@ MSG_ARG_TARGET	"target="
 
 @ MSG_ARG_HELP		"help"
 @ MSG_ARG_GROUP		"group"

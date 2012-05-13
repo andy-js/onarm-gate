@@ -45,7 +45,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/ucontext.h>
-#include <libzfs.h>
 #include <assert.h>
 #include <umem.h>
 #include <time.h>
@@ -342,8 +341,8 @@ t10_handle_destroy(t10_targ_handle_t tp)
 					    t->s_targ_num);
 				}
 			}
-			(void) pthread_mutex_unlock(&l->l_cmd_mutex);
 			avl_destroy(&l->l_cmds);
+			(void) pthread_mutex_unlock(&l->l_cmd_mutex);
 			free(l);
 		}
 	}
@@ -738,6 +737,7 @@ t10_task_mgmt(t10_targ_handle_t t1, TaskOp_t op, int opt_lun, void *tag)
 
 	switch (op) {
 	case InventoryChange:
+		(void) pthread_mutex_lock(&t->s_mutex);
 		if ((lu = avl_first(&t->s_open_lu)) != NULL) {
 			do {
 				/*CSTYLED*/
@@ -745,40 +745,53 @@ t10_task_mgmt(t10_targ_handle_t t1, TaskOp_t op, int opt_lun, void *tag)
 				    0, msg_targ_inventory_change, (void *)lu);
 			} while ((lu = AVL_NEXT(&t->s_open_lu, lu)) != NULL);
 		}
+		(void) pthread_mutex_unlock(&t->s_mutex);
 		return (True);
 
 	case ResetTarget:
+		(void) pthread_mutex_lock(&t->s_mutex);
 		if ((lu = avl_first(&t->s_open_lu)) != NULL) {
 			do {
 				/*CSTYLED*/
 				queue_message_set(lu->l_common->l_from_transports,
 				    Q_HIGH, msg_reset_lu, (void *)lu);
 			} while ((lu = AVL_NEXT(&t->s_open_lu, lu)) != NULL);
+			(void) pthread_mutex_unlock(&t->s_mutex);
 			return (True);
-		} else
+		} else {
+			(void) pthread_mutex_unlock(&t->s_mutex);
 			return (False);
+		}
 
 	case ResetLun:
 		search.l_targ_lun = opt_lun;
+		(void) pthread_mutex_lock(&t->s_mutex);
 		if ((lu = avl_find(&t->s_open_lu, (void *)&search, NULL)) !=
 		    NULL) {
 			queue_message_set(lu->l_common->l_from_transports,
 			    Q_HIGH, msg_reset_lu, (void *)lu);
+			(void) pthread_mutex_unlock(&t->s_mutex);
 			return (True);
-		} else
+		} else {
+			(void) pthread_mutex_unlock(&t->s_mutex);
 			return (False);
+		}
 		break;
 
 	case CapacityChange:
 		search.l_targ_lun = opt_lun;
+		(void) pthread_mutex_lock(&t->s_mutex);
 		if ((lu = avl_find(&t->s_open_lu, (void *)&search, NULL)) !=
 		    NULL) {
 			queue_message_set(lu->l_common->l_from_transports,
 			    Q_HIGH, msg_lu_capacity_change,
 			    (void *)(uintptr_t)opt_lun);
+			(void) pthread_mutex_unlock(&t->s_mutex);
 			return (True);
-		} else
+		} else {
+			(void) pthread_mutex_unlock(&t->s_mutex);
 			return (False);
+		}
 		break;
 
 	default:
@@ -807,6 +820,7 @@ t10_targ_stat(t10_targ_handle_t t1, char **buf)
 	if (t == NULL)
 		return;
 
+	(void) pthread_mutex_lock(&t->s_mutex);
 	itl = avl_first(&t->s_open_lu);
 	while (itl) {
 		tgt_buf_add_tag(buf, XML_ELEMENT_LUN, Tag_Start);
@@ -838,6 +852,7 @@ t10_targ_stat(t10_targ_handle_t t1, char **buf)
 		tgt_buf_add_tag(buf, XML_ELEMENT_LUN, Tag_End);
 		itl = AVL_NEXT(&t->s_open_lu, itl);
 	}
+	(void) pthread_mutex_unlock(&t->s_mutex);
 }
 
 /*
@@ -1370,11 +1385,7 @@ t10_find_lun(t10_targ_impl_t *t, int lun, t10_cmd_t *cmd)
 	tgt_node_t		*n1;
 	tgt_node_t		*targ;
 	tgt_node_t		*ll;
-	xmlTextReaderPtr	r		= NULL;
 	char			path[MAXPATHLEN];
-	int			xml_fd		= -1;
-	libzfs_handle_t		*zh;
-	zfs_handle_t		*zfsh;
 	Boolean_t		okay_to_free	= True;
 
 	bzero(&lc, sizeof (lc));
@@ -1385,6 +1396,7 @@ t10_find_lun(t10_targ_impl_t *t, int lun, t10_cmd_t *cmd)
 	 */
 	search.l_targ_lun = lun;
 
+	(void) pthread_mutex_lock(&t->s_mutex);
 	if ((l = avl_find(&t->s_open_lu, (void *)&search, &wt)) != NULL) {
 
 		/*
@@ -1395,8 +1407,10 @@ t10_find_lun(t10_targ_impl_t *t, int lun, t10_cmd_t *cmd)
 		 * even faster than an AVL tree and not take up to much space.
 		 */
 		cmd->c_lu = l;
+		(void) pthread_mutex_unlock(&t->s_mutex);
 		return (True);
 	}
+	(void) pthread_mutex_unlock(&t->s_mutex);
 
 	/*
 	 * First access for this I_T_L so we need to allocate space for it.
@@ -1455,12 +1469,10 @@ t10_find_lun(t10_targ_impl_t *t, int lun, t10_cmd_t *cmd)
 
 	if (tgt_find_value_str(n, XML_ELEMENT_GUID, &guid) == False) {
 		/*
-		 * Set the targ variable back to NULL to indicate that
-		 * we don't have an incore copy of the information.
-		 * If the guid is currently 0, we'll update that value
-		 * If the guid is currently 0, we'll update that value
-		 * and update the ZFS property if targ is not NULL.
-		 * Otherwise will update parameter file.
+		 * Set the targ variable back to NULL to indicate that we don't
+		 * have an incore copy of the information. If the guid is 0,
+		 * we'll update that value and update the ZFS property if targ
+		 * is not NULL, otherwise will update parameter file.
 		 */
 		targ = NULL;
 
@@ -1500,34 +1512,22 @@ t10_find_lun(t10_targ_impl_t *t, int lun, t10_cmd_t *cmd)
 			goto error;
 		}
 		if (targ != NULL) {
-			str = NULL;
-			tgt_dump2buf(targ, &str);
-
+			/*
+			 * Get the dataset for this shareiscsi target
+			 */
 			if (tgt_find_value_str(targ, XML_ELEMENT_ALIAS,
-			    &dataset) == False ||
-			    (zh = libzfs_init()) == NULL)
+			    &dataset) == False)
 				goto error;
 
-			if ((zfsh = zfs_open(zh, dataset, ZFS_TYPE_DATASET)) ==
-			    NULL) {
-				libzfs_fini(zh);
-				goto error;
-			}
-
-			if (zfs_prop_set(zfsh,
-			    zfs_prop_to_name(ZFS_PROP_ISCSIOPTIONS),
-			    str) != 0) {
-				zfs_close(zfsh);
-				libzfs_fini(zh);
+			/*
+			 * Set the ZFS persisted shareiscsi options
+			 */
+			if (put_zfs_shareiscsi(dataset, targ) != ERR_SUCCESS) {
 				goto error;
 			}
 
-			zfs_close(zfsh);
-			libzfs_fini(zh);
 			free(dataset);
-			free(str);
 			dataset = NULL;
-			str = NULL;
 
 		} else if (mgmt_param_save2scf(n, local_name, lun) == False) {
 			(void) pthread_mutex_unlock(&lu_list_mutex);
@@ -1634,7 +1634,9 @@ t10_find_lun(t10_targ_impl_t *t, int lun, t10_cmd_t *cmd)
 	 * We wait to add the LU to the target list until now so that we don't
 	 * have to delete the node in case an error occurs.
 	 */
+	(void) pthread_mutex_lock(&t->s_mutex);
 	avl_insert(&t->s_open_lu, (void *)l, wt);
+	(void) pthread_mutex_unlock(&t->s_mutex);
 
 	(void) pthread_mutex_lock(&l->l_mutex);
 	l->l_common = common;
@@ -1656,12 +1658,6 @@ error:
 	cmd->c_cmd_status = STATUS_CHECK;
 	if (guid)
 		free(guid);
-	if (xml_fd != -1)
-		(void) close(xml_fd);
-	if (r) {
-		xmlTextReaderClose(r);
-		xmlFreeTextReader(r);
-	}
 	if (n)
 		tgt_node_free(n);
 	if (l)

@@ -42,15 +42,21 @@
 
 static void txg_sync_thread(dsl_pool_t *dp);
 static void txg_quiesce_thread(dsl_pool_t *dp);
-static void txg_timelimit_thread(dsl_pool_t *dp);
 
-int txg_time = 5;	/* max 5 seconds worth of delta per txg */
+int zfs_txg_timeout = 30;	/* max seconds worth of delta per txg */
+int zfs_txg_synctime = 5;	/* target seconds to sync a txg */
+
+int zfs_write_limit_shift = 3;	/* 1/8th of physical memory */
+
+uint64_t zfs_write_limit_min = 32 << 20; /* min write limit is 32MB */
+uint64_t zfs_write_limit_max = 0; /* max data payload per txg */
+uint64_t zfs_write_limit_inflated = 0;
 
 /*
  * Prepare the txg subsystem.
  */
 void
-txg_init(dsl_pool_t *dp, txg_t txg)
+txg_init(dsl_pool_t *dp, uint64_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	int c;
@@ -115,15 +121,12 @@ txg_sync_start(dsl_pool_t *dp)
 
 	ASSERT(tx->tx_threads == 0);
 
-	tx->tx_threads = 3;
+	tx->tx_threads = 2;
 
 	tx->tx_quiesce_thread = thread_create(NULL, 0, txg_quiesce_thread,
 	    dp, 0, &p0, TS_RUN, minclsyspri);
 
 	tx->tx_sync_thread = thread_create(NULL, 0, txg_sync_thread,
-	    dp, 0, &p0, TS_RUN, minclsyspri);
-
-	tx->tx_timelimit_thread = thread_create(NULL, 0, txg_timelimit_thread,
 	    dp, 0, &p0, TS_RUN, minclsyspri);
 
 	mutex_exit(&tx->tx_sync_lock);
@@ -148,12 +151,12 @@ txg_thread_exit(tx_state_t *tx, callb_cpr_t *cpr, kthread_t **tpp)
 }
 
 static void
-txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, int secmax)
+txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, uint64_t time)
 {
 	CALLB_CPR_SAFE_BEGIN(cpr);
 
-	if (secmax)
-		(void) cv_timedwait(cv, &tx->tx_sync_lock, lbolt + secmax * hz);
+	if (time)
+		(void) cv_timedwait(cv, &tx->tx_sync_lock, lbolt + time);
 	else
 		cv_wait(cv, &tx->tx_sync_lock);
 
@@ -163,33 +166,30 @@ txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, int secmax)
 /*
  * Stop syncing transaction groups.
  */
-int
+void
 txg_sync_stop(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	int error;
 
 	dprintf("pool %p\n", dp);
 	/*
 	 * Finish off any work in progress.
 	 */
-	ASSERT(tx->tx_threads == 3);
-	if ((error = txg_wait_synced(dp, 0)) != 0)
-		return (error);
+	ASSERT(tx->tx_threads == 2);
+	txg_wait_synced(dp, 0);
 
 	/*
-	 * Wake all 3 sync threads (one per state) and wait for them to die.
+	 * Wake all sync threads and wait for them to die.
 	 */
 	mutex_enter(&tx->tx_sync_lock);
 
-	ASSERT(tx->tx_threads == 3);
+	ASSERT(tx->tx_threads == 2);
 
 	tx->tx_exiting = 1;
 
 	cv_broadcast(&tx->tx_quiesce_more_cv);
 	cv_broadcast(&tx->tx_quiesce_done_cv);
 	cv_broadcast(&tx->tx_sync_more_cv);
-	cv_broadcast(&tx->tx_timeout_exit_cv);
 
 	while (tx->tx_threads != 0)
 		cv_wait(&tx->tx_exit_cv, &tx->tx_sync_lock);
@@ -197,15 +197,14 @@ txg_sync_stop(dsl_pool_t *dp)
 	tx->tx_exiting = 0;
 
 	mutex_exit(&tx->tx_sync_lock);
-	return (error);
 }
 
-txg_t
+uint64_t
 txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	tx_cpu_t *tc = &tx->tx_cpu[CPU_SEQID];
-	txg_t txg;
+	uint64_t txg;
 
 	mutex_enter(&tc->tc_lock);
 
@@ -242,7 +241,7 @@ txg_rele_to_sync(txg_handle_t *th)
 }
 
 static void
-txg_quiesce(dsl_pool_t *dp, txg_t txg)
+txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	int g = txg & TXG_MASK;
@@ -281,23 +280,30 @@ txg_sync_thread(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
+	uint64_t timeout, start, delta, timer;
+	int target;
 
 	txg_thread_enter(tx, &cpr);
 
+	start = delta = 0;
+	timeout = zfs_txg_timeout * hz;
 	for (;;) {
-		txg_t txg;
+		uint64_t txg, written;
 
 		/*
 		 * We sync when there's someone waiting on us, or the
-		 * quiesce thread has handed off a txg to us.
+		 * quiesce thread has handed off a txg to us, or we have
+		 * reached our timeout.
 		 */
-		while (!tx->tx_exiting &&
+		timer = (delta >= timeout ? 0 : timeout - delta);
+		while (!tx->tx_exiting && timer > 0 &&
 		    tx->tx_synced_txg >= tx->tx_sync_txg_waiting &&
 		    tx->tx_quiesced_txg == 0) {
-			dprintf("waiting; tx_synced=%" PRIuTXG
-			    " waiting=%" PRIuTXG " dp=%p\n",
+			dprintf("waiting; tx_synced=%llu waiting=%llu dp=%p\n",
 			    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
-			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, 0);
+			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, timer);
+			delta = lbolt - start;
+			timer = (delta > timeout ? 0 : timeout - delta);
 		}
 
 		/*
@@ -327,11 +333,54 @@ txg_sync_thread(dsl_pool_t *dp)
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 		rw_exit(&tx->tx_suspend);
 
-		dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG
-		    " sync_txg=%" PRIuTXG "\n",
+		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
+		start = lbolt;
 		spa_sync(dp->dp_spa, txg);
+		delta = lbolt - start;
+
+		written = dp->dp_space_towrite[txg & TXG_MASK];
+		dp->dp_space_towrite[txg & TXG_MASK] = 0;
+		ASSERT(dp->dp_tempreserved[txg & TXG_MASK] == 0);
+
+		/*
+		 * If the write limit max has not been explicitly set, set it
+		 * to a fraction of available phisical memory (default 1/8th).
+		 * Note that we must inflate the limit because the spa
+		 * inflates write sizes to account for data replication.
+		 * Check this each sync phase to catch changing memory size.
+		 */
+		if (zfs_write_limit_inflated == 0 ||
+		    (zfs_write_limit_shift && zfs_write_limit_max !=
+		    physmem * PAGESIZE >> zfs_write_limit_shift)) {
+			zfs_write_limit_max =
+			    physmem * PAGESIZE >> zfs_write_limit_shift;
+			zfs_write_limit_inflated =
+			    spa_get_asize(dp->dp_spa, zfs_write_limit_max);
+			if (zfs_write_limit_min > zfs_write_limit_inflated)
+				zfs_write_limit_inflated = zfs_write_limit_min;
+		}
+
+		/*
+		 * Attempt to keep the sync time consistant by adjusting the
+		 * amount of write traffic allowed into each transaction group.
+		 */
+		target = zfs_txg_synctime * hz;
+		if (delta > target) {
+			uint64_t old = MIN(dp->dp_write_limit, written);
+
+			dp->dp_write_limit = MAX(zfs_write_limit_min,
+			    old * target / delta);
+		} else if (written >= dp->dp_write_limit &&
+		    delta >> 3 < target >> 3) {
+			uint64_t rescale =
+			    MIN((100 * target) / delta, 200);
+
+			dp->dp_write_limit = MIN(zfs_write_limit_inflated,
+			    written * rescale / 100);
+		}
+
 		mutex_enter(&tx->tx_sync_lock);
 		rw_enter(&tx->tx_suspend, RW_WRITER);
 		tx->tx_synced_txg = txg;
@@ -350,7 +399,7 @@ txg_quiesce_thread(dsl_pool_t *dp)
 	txg_thread_enter(tx, &cpr);
 
 	for (;;) {
-		txg_t txg;
+		uint64_t txg;
 
 		/*
 		 * We quiesce when there's someone waiting on us.
@@ -368,8 +417,8 @@ txg_quiesce_thread(dsl_pool_t *dp)
 			txg_thread_exit(tx, &cpr, &tx->tx_quiesce_thread);
 
 		txg = tx->tx_open_txg;
-		dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG
-		    " sync_txg=%" PRIuTXG "\n", txg, tx->tx_quiesce_txg_waiting,
+		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
+		    txg, tx->tx_quiesce_txg_waiting,
 		    tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 		txg_quiesce(dp, txg);
@@ -378,113 +427,84 @@ txg_quiesce_thread(dsl_pool_t *dp)
 		/*
 		 * Hand this txg off to the sync thread.
 		 */
-		dprintf("quiesce done, handing off txg %" PRIuTXG "\n", txg);
+		dprintf("quiesce done, handing off txg %llu\n", txg);
 		tx->tx_quiesced_txg = txg;
 		cv_broadcast(&tx->tx_sync_more_cv);
 		cv_broadcast(&tx->tx_quiesce_done_cv);
 	}
 }
 
+/*
+ * Delay this thread by 'ticks' if we are still in the open transaction
+ * group and there is already a waiting txg quiesing or quiesced.  Abort
+ * the delay if this txg stalls or enters the quiesing state.
+ */
 void
-txg_wait_abort(dsl_pool_t *dp)
+txg_delay(dsl_pool_t *dp, uint64_t txg, int ticks)
 {
 	tx_state_t *tx = &dp->dp_tx;
+	int timeout = lbolt + ticks;
+
+	/* don't delay if this txg could transition to quiesing immediately */
+	if (tx->tx_open_txg > txg ||
+	    tx->tx_syncing_txg == txg-1 || tx->tx_synced_txg == txg-1)
+		return;
 
 	mutex_enter(&tx->tx_sync_lock);
+	if (tx->tx_open_txg > txg || tx->tx_synced_txg == txg-1) {
+		mutex_exit(&tx->tx_sync_lock);
+		return;
+	}
 
-	dprintf("quiesced_txg %" PRIuTXG "synced_txg %" PRIuTXG "\n",
-	    tx->tx_quiesced_txg, tx->tx_synced_txg);
-
-	cv_broadcast(&tx->tx_quiesce_done_cv);
-	cv_broadcast(&tx->tx_sync_done_cv);
+	while (lbolt < timeout &&
+	    tx->tx_syncing_txg < txg-1 && !txg_stalled(dp))
+		(void) cv_timedwait(&tx->tx_quiesce_more_cv, &tx->tx_sync_lock,
+		    timeout);
 
 	mutex_exit(&tx->tx_sync_lock);
 }
 
-int
-txg_wait_synced(dsl_pool_t *dp, txg_t txg)
+void
+txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	int error = 0;
 
 	mutex_enter(&tx->tx_sync_lock);
-	ASSERT(tx->tx_threads == 3);
+	ASSERT(tx->tx_threads == 2);
 	if (txg == 0)
 		txg = tx->tx_open_txg;
 	if (tx->tx_sync_txg_waiting < txg)
 		tx->tx_sync_txg_waiting = txg;
-	dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG " sync_txg=%" PRIuTXG
-	    "\n", txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+	dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
+	    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 	while (tx->tx_synced_txg < txg) {
-		if (spa_state(dp->dp_spa) == POOL_STATE_IO_FAILURE &&
-		    spa_get_failmode(dp->dp_spa) == ZIO_FAILURE_MODE_ABORT){
-			error = EIO;
-			dprintf("abort wait txg=%" PRIuTXG " synced_txg="
-			    "%" PRIuTXG "\n", txg, tx->tx_synced_txg);
-			break;
-		}
 		dprintf("broadcasting sync more "
-		    "tx_synced=%" PRIuTXG " waiting=%" PRIuTXG " dp=%p\n",
+		    "tx_synced=%llu waiting=%llu dp=%p\n",
 		    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
 		cv_broadcast(&tx->tx_sync_more_cv);
 		cv_wait(&tx->tx_sync_done_cv, &tx->tx_sync_lock);
 	}
 	mutex_exit(&tx->tx_sync_lock);
-	return (error);
 }
 
-int
-txg_wait_open(dsl_pool_t *dp, txg_t txg)
+void
+txg_wait_open(dsl_pool_t *dp, uint64_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	int error = 0;
 
 	mutex_enter(&tx->tx_sync_lock);
-	ASSERT(tx->tx_threads == 3);
+	ASSERT(tx->tx_threads == 2);
 	if (txg == 0)
 		txg = tx->tx_open_txg + 1;
 	if (tx->tx_quiesce_txg_waiting < txg)
 		tx->tx_quiesce_txg_waiting = txg;
-	dprintf("txg=%" PRIuTXG " quiesce_txg=%" PRIuTXG " sync_txg=%" PRIuTXG
-	    "\n", txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+	dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
+	    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 	while (tx->tx_open_txg < txg) {
-		if (spa_state(dp->dp_spa) == POOL_STATE_IO_FAILURE &&
-		    spa_get_failmode(dp->dp_spa) == ZIO_FAILURE_MODE_ABORT) {
-			error = EIO;
-			dprintf("abort wait txg=%" PRIuTXG
-			    "open_txg=%" PRIuTXG "\n", txg, tx->tx_open_txg);
-			break;
-		}
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 		cv_wait(&tx->tx_quiesce_done_cv, &tx->tx_sync_lock);
 	}
 	mutex_exit(&tx->tx_sync_lock);
-	return (error);
-}
-
-static void
-txg_timelimit_thread(dsl_pool_t *dp)
-{
-	tx_state_t *tx = &dp->dp_tx;
-	callb_cpr_t cpr;
-
-	txg_thread_enter(tx, &cpr);
-
-	while (!tx->tx_exiting) {
-		txg_t txg = tx->tx_open_txg + 1;
-
-		txg_thread_wait(tx, &cpr, &tx->tx_timeout_exit_cv, txg_time);
-
-		if (tx->tx_quiesce_txg_waiting < txg)
-			tx->tx_quiesce_txg_waiting = txg;
-
-		while (!tx->tx_exiting && tx->tx_open_txg < txg) {
-			dprintf("pushing out %" PRIuTXG "\n", txg);
-			cv_broadcast(&tx->tx_quiesce_more_cv);
-			txg_thread_wait(tx, &cpr, &tx->tx_quiesce_done_cv, 0);
-		}
-	}
-	txg_thread_exit(tx, &cpr, &tx->tx_timelimit_thread);
 }
 
 int
@@ -537,7 +557,7 @@ txg_list_destroy(txg_list_t *tl)
 }
 
 int
-txg_list_empty(txg_list_t *tl, txg_t txg)
+txg_list_empty(txg_list_t *tl, uint64_t txg)
 {
 	return (tl->tl_head[txg & TXG_MASK] == NULL);
 }
@@ -547,7 +567,7 @@ txg_list_empty(txg_list_t *tl, txg_t txg)
  * Returns 0 if it's a new entry, 1 if it's already there.
  */
 int
-txg_list_add(txg_list_t *tl, void *p, txg_t txg)
+txg_list_add(txg_list_t *tl, void *p, uint64_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = (txg_node_t *)((char *)p + tl->tl_offset);
@@ -569,7 +589,7 @@ txg_list_add(txg_list_t *tl, void *p, txg_t txg)
  * Remove the head of the list and return it.
  */
 void *
-txg_list_remove(txg_list_t *tl, txg_t txg)
+txg_list_remove(txg_list_t *tl, uint64_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn;
@@ -591,7 +611,7 @@ txg_list_remove(txg_list_t *tl, txg_t txg)
  * Remove a specific item from the list and return it.
  */
 void *
-txg_list_remove_this(txg_list_t *tl, void *p, txg_t txg)
+txg_list_remove_this(txg_list_t *tl, void *p, uint64_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn, **tp;
@@ -614,7 +634,7 @@ txg_list_remove_this(txg_list_t *tl, void *p, txg_t txg)
 }
 
 int
-txg_list_member(txg_list_t *tl, void *p, txg_t txg)
+txg_list_member(txg_list_t *tl, void *p, uint64_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = (txg_node_t *)((char *)p + tl->tl_offset);
@@ -626,7 +646,7 @@ txg_list_member(txg_list_t *tl, void *p, txg_t txg)
  * Walk a txg list -- only safe if you know it's not changing.
  */
 void *
-txg_list_head(txg_list_t *tl, txg_t txg)
+txg_list_head(txg_list_t *tl, uint64_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = tl->tl_head[t];
@@ -635,7 +655,7 @@ txg_list_head(txg_list_t *tl, txg_t txg)
 }
 
 void *
-txg_list_next(txg_list_t *tl, void *p, txg_t txg)
+txg_list_next(txg_list_t *tl, void *p, uint64_t txg)
 {
 	int t = txg & TXG_MASK;
 	txg_node_t *tn = (txg_node_t *)((char *)p + tl->tl_offset);

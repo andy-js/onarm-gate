@@ -20,14 +20,13 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<stdio.h>
 #include	<ctype.h>
-#include	<machdep.h>
 #include	<elfedit.h>
 #include	<sys/elf_SPARC.h>
 #include	<sys/elf_amd64.h>
@@ -35,11 +34,6 @@
 #include	<conv.h>
 #include	<debug.h>
 #include	<ehdr_msg.h>
-
-
-
-
-#define	MAXNDXSIZE	10
 
 
 
@@ -1490,14 +1484,7 @@ cpl_e_shstrndx(elfedit_obj_state_t *obj_state, void *cpldata, int argc,
 			elfedit_cpl_match(cpldata, sec->sec_name, 0);
 			break;
 		case INDEX:
-			{
-				char index[MAXNDXSIZE];
-
-				(void) snprintf(index, sizeof (index),
-				    MSG_ORIG(MSG_FMT_WORDVAL),
-				    ndx);
-				elfedit_cpl_match(cpldata, index, 1);
-			}
+			elfedit_cpl_ndx(cpldata, ndx);
 			break;
 		case TYPE:
 			elfedit_cpl_atoconst(cpldata, ELFEDIT_CONST_SHT_STRTAB);

@@ -20,7 +20,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -70,6 +70,8 @@
 @ MSG_ERR_NODYNELT	"[%d: %s]: no elements of type %s found\n"
 @ MSG_ERR_STRPADSTRVAL	"[%d: %s]: -s option cannot be used with \
 			 DT_SUNW_STRPAD dynamic element\n"
+@ MSG_ERR_WRONGTAG	"[%d: %s][%d]: expected %s dynamic element: %s\n"
+@ MSG_ERR_NEEDEDNOMATCH	"[%d: %s]: matching DT_NEEDED element not found: %s\n";
 
 
 # Module description
@@ -91,6 +93,7 @@
 @ MSG_DESC_FLAGS1	"DT_FLAGS_1 bit values"
 @ MSG_DESC_FEATURE1	"DT_FEATURE_1 bit values"
 @ MSG_DESC_CHECKSUM	"Recompute DT_CHECKSUM"
+@ MSG_DESC_SUNW_LDMACH	"Linker machine type"
 
 
 # Commmand option description strings
@@ -111,9 +114,19 @@
    but there is room to add it, the new string is added and then\n\
    the offset is placed in the dynamic entry.\n"
 
-@ MSG_OPTDESC_DYNNDX		"\
+@ MSG_OPTDESC_DYNNDX_ELT	"\
    Interpret the elt argument as a direct index into the dynamic\n\
    section, rather than as a DT_ tag value.\n"
+
+@ MSG_OPTDESC_DYNNDX_VAL	"\
+   Use the dynamic element with the specified index.\n"
+
+@ MSG_OPTDESC_NEEDED	"\
+   Select the first DT_POSFLAG_1 dynamic element that corresponds\n\
+   to the DT_NEEDED element with a value that starts with the\n\
+   string given by prefix. If present, the DT_POSFLAG_1 element\n\
+   will be in the dynamic element directly in front of the\n\
+   DT_NEEDED element.\n"
 
 
 # Command argument description strings
@@ -188,6 +201,11 @@
    Feature values. This can be an integer value, or any of\n\
    the DTF_1_ symbolic constants defined in\n\
    /usr/include/sys/link.h\n"
+
+@ MSG_A1_SUNW_LDMACH_VALUE	"\
+   Machine type of link-editor that built the object being edited.\n\
+   This can be an integer value, or any of the EM_ symbolic\n\
+   constants defined in /usr/include/elf.h\n"
 
 
 # Help strings
@@ -281,28 +299,45 @@
    for it exists.\n"
 
 @ MSG_HELP_POSFLAG1	"   \
-   The dyn:posflag1 command is used to display or alter the\n\
-   DT_POSFLAG_1 flags values.\n\
+   The dyn:posflag1 command is used to display or alter\n\
+   DT_POSFLAG_1 flags values. DT_POSFLAG_1 is a positional\n\
+   dynamic element that affects the interpretation of the item\n\
+   that follows it. Therefore, when displaying DT_POSFLAG_1 elements\n\
+   using the default output style, dyn:posflag1 also displays the\n\
+   dynamic element that follows it.\n\
    \n\
    If dyn:posflag1 is called without arguments, the current\n\
-   value is shown. If one or more value arguments are present,\n\
-   the following steps are taken:\n\
+   value of all DT_POSFLAG_1 elements are shown. It is possible\n\
+   to display the value of a single specific DT_POSFLAG_1 element\n\
+   by using the -dynndx or -needed option to specify it.\n\
+   \n\
+   If one or more value arguments are present, the default is to\n\
+   modify the first DT_POSFLAG_1 element. The -dynndx or -needed\n\
+   option can be used to specify a specific DT_POSFLAG_1_element\n\
+   instead. The following steps are taken to compute the new value:\n\
    \n   \
    o\tAll the value arguments are OR'd together.\n\
    \n   \
    o\tIf the -cmp option has been specified, the new value\n\
    \tis complemented.\n\
    \n   \
-   o\tThe DT_POSFLAG_1 element of the dynamic section is updated\n\
-   \twith the new value. If -and is specified, the new value is\n\
-   \tAND'd against the existing value. If -or is specified,\n\
-   \tthe new value is OR'd against the existing value. If\n\
-   \tneither -and or -or are specified, the new value replaces\n\
-   \tthe existing value.\n\
+   o\tThe DT_POSFLAG_1 element is updated with the new value.\n\
+   \tIf -and is specified, the new value is AND'd against the\n\
+   \texisting value. If -or is specified, the new value is OR'd\n\
+   \tagainst the existing value. If neither -and or -or are\n\
+   \tspecified, the new value replaces the existing value.\n\
    \n\
-   If the current dynamic section does not have a current\n\
-   DT_POSFLAG_1 element, and room for it exists at the end\n\
-   of the section, a new one is inserted.\n"
+   A new DT_POSFLAG_1 element is inserted in the dynamic section\n\
+   when all of the following are true:\n\
+   \n   \
+   o\tOne or more value arguments are present.\n\
+   \n   \
+   o\tThe -dynndx and -needed options are not used.\n\
+   \n   \
+   o\tThe current dynamic section does not have a current\n\
+   \tDT_POSFLAG_1 element.\n\
+   \n   \
+   o\tThere is available space at the end of the dynamic section.\n"
 
 @ MSG_HELP_FLAGS	"   \
    The dyn:flags command is used to display or alter the\n\
@@ -386,6 +421,22 @@
    DT_CHECKSUM element, and room for it exists at the end\n\
    of the section, a new one is inserted.\n"
 
+@ MSG_HELP_SUNW_LDMACH	"   \
+   The dyn:sunw_ldmach command is used to display or alter the\n\
+   DT_SUNW_LDMACH dynamic element of the ELF object. This dynamic\n\
+   element records the ELF machine type of the link-editor that produced\n\
+   the object. This is of special interest if the object was built\n\
+   by a cross link-editor instead of being linked on a machine of the\n\
+   same type as the object.\n\
+   \n\
+   If dyn:sunw_ldmach is called without arguments, the current\n\
+   value is shown. If called with the value argument, the\n\
+   DT_SUNW_LDMACH dynamic element is set to the specified machine type.\n\
+   \n\
+   If the current dynamic section does not have a current\n\
+   DT_SUNW_LDMACH element, and room for it exists at the end\n\
+   of the section, a new one is inserted.\n"
+
 @ _END_
 
 
@@ -399,10 +450,13 @@
 @ MSG_STR_COUNT		"count"
 @ MSG_STR_ELT		"elt"
 @ MSG_STR_DST_INDEX	"dst_index"
+@ MSG_STR_INDEX		"index"
 @ MSG_STR_MINUS_ADD	"-add"
 @ MSG_STR_MINUS_DYNNDX	"-dynndx"
+@ MSG_STR_MINUS_NEEDED	"-needed"
 @ MSG_STR_MINUS_S	"-s"
 @ MSG_STR_NEWPATH	"newpath"
+@ MSG_STR_PREFIX	"prefix"
 @ MSG_STR_VALUE		"value"
 
 # Format strings
@@ -429,3 +483,4 @@
 @ MSG_CMD_FLAGS1	"flags1"
 @ MSG_CMD_FEATURE1	"feature1"
 @ MSG_CMD_CHECKSUM	"checksum"
+@ MSG_CMD_SUNW_LDMACH	"sunw_ldmach"

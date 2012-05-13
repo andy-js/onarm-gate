@@ -1913,11 +1913,12 @@ pci_ereport_teardown(dev_info_t *dip);
 void
 pci_ereport_post(dev_info_t *dip, ddi_fm_error_t *derr, uint16_t *status);
 
-#if defined(__i386) || defined(__amd64) || defined(__arm)
+#if defined(__i386) || defined(__amd64)
 int
 pci_peekpoke_check(dev_info_t *, dev_info_t *, ddi_ctl_enum_t, void *, void *,
 	int (*handler)(dev_info_t *, dev_info_t *, ddi_ctl_enum_t, void *,
-	void *), kmutex_t *, kmutex_t *);
+	void *), kmutex_t *, kmutex_t *,
+	void (*scan)(dev_info_t *, ddi_fm_error_t *));
 #endif
 
 void

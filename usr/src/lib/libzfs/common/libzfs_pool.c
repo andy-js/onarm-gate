@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -2584,6 +2584,10 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	diskaddr_t start_block;
 	char errbuf[1024];
 
+	/* prepare an error message just in case */
+	(void) snprintf(errbuf, sizeof (errbuf),
+	    dgettext(TEXT_DOMAIN, "cannot label '%s'"), name);
+
 	if (zhp) {
 		nvlist_t *nvroot;
 
@@ -2608,8 +2612,8 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		 * This shouldn't happen.  We've long since verified that this
 		 * is a valid device.
 		 */
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-		    "label '%s': unable to open device"), name);
+		zfs_error_aux(hdl,
+		    dgettext(TEXT_DOMAIN, "unable to open device"));
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
 	}
 
@@ -2622,8 +2626,8 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 			(void) no_memory(hdl);
 
 		(void) close(fd);
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-		    "label '%s': unable to read disk capacity"), name);
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "unable to read disk capacity"), name);
 
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
@@ -2663,8 +2667,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		efi_free(vtoc);
 
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "cannot label '%s': try using fdisk(1M) and then "
-		    "provide a specific slice"), name);
+		    "try using fdisk(1M) and then provide a specific slice"));
 		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}
 

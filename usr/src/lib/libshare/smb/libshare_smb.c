@@ -62,7 +62,7 @@ static int smb_share_changed(sa_share_t);
 static int smb_resource_changed(sa_resource_t);
 static int smb_rename_resource(sa_handle_t, sa_resource_t, char *);
 static int smb_disable_share(sa_share_t share, char *);
-static int smb_validate_property(sa_property_t, sa_optionset_t);
+static int smb_validate_property(sa_handle_t, sa_property_t, sa_optionset_t);
 static int smb_set_proto_prop(sa_property_t);
 static sa_protocol_properties_t smb_get_proto_set(void);
 static char *smb_get_status(void);
@@ -329,6 +329,21 @@ smb_enable_share(sa_share_t share)
 	int err = SA_OK;
 	priv_set_t *priv_effective;
 	boolean_t online;
+
+	/*
+	 * We only start in the global zone and only run if we aren't
+	 * running Trusted Extensions.
+	 */
+	if (getzoneid() != GLOBAL_ZONEID) {
+		(void) printf(dgettext(TEXT_DOMAIN,
+		    "SMB: service not supported in local zone\n"));
+		return (SA_NOT_SUPPORTED);
+	}
+	if (is_system_labeled()) {
+		(void) printf(dgettext(TEXT_DOMAIN,
+		    "SMB: service not supported with Trusted Extensions\n"));
+		return (SA_NOT_SUPPORTED);
+	}
 
 	priv_effective = priv_allocset();
 	(void) getppriv(PRIV_EFFECTIVE, priv_effective);
@@ -699,13 +714,16 @@ done:
 }
 
 /*
- * smb_validate_property(property, parent)
+ * smb_validate_property(handle, property, parent)
  *
  * Check that the property has a legitimate value for its type.
+ * Handle isn't currently used but may need to be in the future.
  */
 
+/*ARGSUSED*/
 static int
-smb_validate_property(sa_property_t property, sa_optionset_t parent)
+smb_validate_property(sa_handle_t handle, sa_property_t property,
+    sa_optionset_t parent)
 {
 	int ret = SA_OK;
 	char *propname;

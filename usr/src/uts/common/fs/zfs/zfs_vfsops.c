@@ -130,7 +130,7 @@ static mntopts_t zfs_mntopts = {
 int
 zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 {
-	int err;
+	int err = 0;
 	/*
 	 * Data integrity is job one.  We don't want a compromised kernel
 	 * writing to the storage pool, so we never sync during panic.
@@ -157,7 +157,7 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 		if (zfsvfs->z_log != NULL)
 			err = zil_commit(zfsvfs->z_log, UINT64_MAX, 0);
 		else
-			err = txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+			txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 		ZFS_EXIT(zfsvfs);
 	} else {
 		/*

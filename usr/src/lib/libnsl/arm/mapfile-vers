@@ -436,7 +436,10 @@ SUNWprivate_1.1 {
 	__name_distance;
 	__nderror;
 	__netdir_getbyaddr_nosrv;
+	__nis_get_mechanisms;
 	nis_insert_name;
+	__nis_keyalg2authtype;
+	__nis_release_mechanisms;
 	__npd_cbc_crypt;
 	__npd_ecb_crypt;
 	__nsl_dom;
@@ -642,6 +645,7 @@ SYSVABI_1.3 {
 	getnetname;
 	getnetpath;
 	getpublickey;
+	getsecretkey;
 	host2netname;
 	key_gendes;
 	nc_perror;
@@ -687,6 +691,7 @@ SYSVABI_1.3 {
 	t_open;
 	t_optmgmt;
 	t_rcv;
+	t_rcvconnect;
 	t_rcvdis;
 	t_rcvrel;
 	t_rcvudata;

@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -3931,11 +3931,15 @@ int
 fop_dump(
 	vnode_t *vp,
 	caddr_t addr,
-	int lbdn,
-	int dblks,
+	offset_t lbdn,
+	offset_t dblks,
 	caller_context_t *ct)
 {
 	int	err;
+
+	/* ensure lbdn and dblks can be passed safely to bdev_dump */
+	if ((lbdn != (daddr_t)lbdn) || (dblks != (int)dblks))
+		return (EIO);
 
 	err = (*(vp)->v_op->vop_dump)(vp, addr, lbdn, dblks, ct);
 	VOPSTATS_UPDATE(vp, dump);
@@ -3982,7 +3986,7 @@ int
 fop_dumpctl(
 	vnode_t *vp,
 	int action,
-	int *blkp,
+	offset_t *blkp,
 	caller_context_t *ct)
 {
 	int	err;

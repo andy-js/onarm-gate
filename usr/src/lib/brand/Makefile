@@ -18,6 +18,7 @@
 #
 # CDDL HEADER END
 #
+# Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
 #
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
@@ -33,10 +34,12 @@ include ../../Makefile.master
 # Build everything in parallel; use .WAIT for dependencies
 .PARALLEL:
 
-i386_SUBDIRS= lx
-i386_MSGSUBDIRS= lx
+i386_SUBDIRS= sn1 lx
+i386_MSGSUBDIRS= sn1 lx
+sparc_SUBDIRS = sn1
+sparc_MSGSUBDIRS = sn1
 
-SUBDIRS= sn1 native $($(MACH)_SUBDIRS)
+SUBDIRS= native $($(MACH)_SUBDIRS)
 MSGSUBDIRS= $($(MACH)_MSGSUBDIRS)
 
 all :=		TARGET= all

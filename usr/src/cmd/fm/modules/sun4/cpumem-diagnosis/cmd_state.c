@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -37,6 +37,7 @@
 #ifdef sun4u
 #include <cmd_dp.h>
 #include <cmd_dp_page.h>
+#include <cmd_Lxcache.h>
 #endif
 #include <cmd_bank.h>
 #include <cmd.h>
@@ -106,7 +107,9 @@ static cmd_case_closer_f *const cmd_case_closers[] = {
 #ifdef sun4v
 	cmd_branch_close	/* CMD_PTR_BRANCH_CASE */
 #else
-	NULL
+	NULL,
+	cmd_Lxcache_close,	/* CMD_PTR_CACHE_CASE */
+
 #endif
 };
 
@@ -178,7 +181,8 @@ static cmd_case_restorer_f *const cmd_case_restorers[] = {
 	cmd_bank_restore,	/* CMD_NT_BANK */
 	cmd_page_restore,	/* CMD_NT_PAGE */
 #ifdef sun4u
-	cmd_dp_restore		/* CMD_NT_DP */
+	cmd_dp_restore,		/* CMD_NT_DP */
+	cmd_Lxcache_restore,	/* CMD_NT_CACHE */
 #endif
 #ifdef sun4v
 	cmd_branch_restore	/* CMD_NT_BRANCH */
@@ -211,8 +215,10 @@ cmd_state_restore(fmd_hdl_t *hdl)
 			return (cmd_set_errno(EINVAL));
 
 		if ((thing = cmd_case_restorers[ptr.ptr_type](hdl,
-		    cp, &ptr)) == NULL)
-			return (-1); /* errno is set for us */
+		    cp, &ptr)) == NULL) {
+			fmd_hdl_debug(hdl, "Unable to restore case %s\n", uuid);
+			continue;
+		}
 
 		cl = fmd_hdl_alloc(hdl, sizeof (cmd_case_closer_t), FMD_SLEEP);
 		cl->cl_func = cmd_case_closers[ptr.ptr_subtype];

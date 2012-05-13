@@ -824,7 +824,6 @@ THREADSOBJS=			\
 	pthr_mutex.o		\
 	pthr_rwlock.o		\
 	pthread.o		\
-	rtsched.o		\
 	rwlock.o		\
 	scalls.o		\
 	sema.o			\

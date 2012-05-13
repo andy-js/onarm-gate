@@ -20,7 +20,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -51,6 +51,7 @@ f none $SGSDIR/lib/amd64/librtld_db.so.1=lib/amd64/librtld_db.so.1 755 root bin
 s none $SGSDIR/lib/amd64/librtld_db.so=librtld_db.so.1
 d none $SGSDIR/usr/bin/amd64 755 root bin
 f none $SGSDIR/usr/bin/amd64/crle=usr/bin/amd64/crle 555 root bin
+f none $SGSDIR/usr/bin/amd64/ldd=usr/bin/amd64/ldd 555 root bin
 f none $SGSDIR/usr/bin/amd64/moe=usr/bin/amd64/moe 555 root bin
 f none $SGSDIR/usr/bin/amd64/pvs=usr/bin/amd64/pvs 555 root bin
 d none $SGSDIR/usr/ccs/bin/amd64 755 root bin
@@ -59,6 +60,7 @@ s none $SGSDIR/usr/ccs/bin/amd64/dump=../../../bin/amd64/dump
 f none $SGSDIR/usr/bin/amd64/elfdump=usr/bin/amd64/elfdump 0555 root bin
 s none $SGSDIR/usr/ccs/bin/amd64/elfdump=../../../bin/amd64/elfdump
 f none $SGSDIR/usr/bin/amd64/elfedit=usr/bin/amd64/elfedit 0555 root bin
+f none $SGSDIR/usr/bin/amd64/elfwrap=usr/bin/amd64/elfwrap 0555 root bin
 f none $SGSDIR/usr/bin/amd64/ld=usr/bin/amd64/ld 755 root bin
 s none $SGSDIR/usr/ccs/bin/amd64/ld=../../../bin/amd64/ld
 f none $SGSDIR/usr/bin/amd64/nm=usr/bin/amd64/nm 0555 root bin

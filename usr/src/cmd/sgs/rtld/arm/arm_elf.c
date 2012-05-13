@@ -23,6 +23,8 @@
  *	Copyright (c) 1988 AT&T
  *	  All Rights Reserved
  *
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
@@ -483,7 +485,7 @@ elf_reloc_relative(ulong_t relbgn, ulong_t relend, ulong_t relsiz,
 		if (relbgn >= relend)
 			break;
 
-		rtype = ELF_R_TYPE(((Rel *)relbgn)->r_info);
+		rtype = ELF_R_TYPE(((Rel *)relbgn)->r_info, M_MACH);
 		roffset = ((Rel *)relbgn)->r_offset;
 
 	} while (rtype == R_ARM_RELATIVE);
@@ -642,7 +644,7 @@ elf_reloc(Rt_map *lmp, uint_t plt)
 	while (relbgn < relend) {
 		uint_t	sb_flags = 0;
 
-		rtype = ELF_R_TYPE(((Rel *)relbgn)->r_info);
+		rtype = ELF_R_TYPE(((Rel *)relbgn)->r_info, M_MACH);
 
 		/*
 		 * If this is a RELATIVE relocation in a shared object (the
@@ -679,7 +681,7 @@ elf_reloc(Rt_map *lmp, uint_t plt)
 
 			if (relbgn >= relend)
 				break;
-			rtype = ELF_R_TYPE(((Rel *)relbgn)->r_info);
+			rtype = ELF_R_TYPE(((Rel *)relbgn)->r_info, M_MACH);
 
 		}
 		roffset = ((Rel *)relbgn)->r_offset;

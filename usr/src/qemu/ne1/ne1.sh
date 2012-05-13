@@ -29,7 +29,7 @@
 
 # emulation system
 MACHINE=naviengine
-MEMSIZE=320		# DRAM:256MB + NORFLASH:64MB
+MEMSIZE=576		# DRAM:512MB + NORFLASH:64MB
 
 # kernel and root filesystem image
 KERNEL=uImage
@@ -48,6 +48,6 @@ SERIAL0=stdio
 SERIAL1=file:uartdump1
 SERIAL2=file:uartdump2
 
-./qemu-system-arm -M $MACHINE -kernel $KERNEL -m $MEMSIZE -pflash $FLASH \
+/opt/arm-qemu/bin/qemu-system-arm -M $MACHINE -kernel $KERNEL -m $MEMSIZE -pflash $FLASH \
         -append $BOOTARGS -initrd $INITRD -nographic \
         -serial $SERIAL0 -serial $SERIAL1 -serial $SERIAL2

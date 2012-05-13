@@ -826,12 +826,7 @@ spa_vdev_exit(spa_t *spa, vdev_t *vd, txg_t txg, int error)
 	 * that there won't be more than one config change per txg.
 	 * This allows us to use the txg as the generation number.
 	 */
-	if (error == 0) {
-		if ((error = txg_wait_synced(spa->spa_dsl_pool, txg)) != 0) {
-			mutex_exit(&spa_namespace_lock);
-			return (error);
-		}
-	}
+	txg_wait_synced(spa->spa_dsl_pool, txg);
 
 	if (vd != NULL) {
 		ASSERT(!vd->vdev_detached || vd->vdev_dtl.smo_object == 0);
@@ -896,11 +891,7 @@ spa_rename(const char *name, const char *newname)
 
 	spa_config_exit(spa, FTAG);
 
-	if ((err = txg_wait_synced(spa->spa_dsl_pool, 0)) != 0) {
-		spa_close(spa, FTAG);
-		mutex_exit(&spa_namespace_lock);
-		return (err);
-	}
+	txg_wait_synced(spa->spa_dsl_pool, 0);
 
 	/*
 	 * Sync the updated config cache.

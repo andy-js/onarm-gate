@@ -203,12 +203,11 @@ i_dls_mgmt_door_revoked(door_handle_t dh)
  * Upcall to the datalink management daemon (dlmgmtd).
  */
 static int
-i_dls_mgmt_upcall(void *arg, size_t asize, void *rbuf, size_t *rsizep)
+i_dls_mgmt_upcall(void *arg, size_t asize, void *rbuf, size_t rsize)
 {
 	door_arg_t			darg, save_arg;
-	struct dlmgmt_null_retval_s	*retvalp;
 	door_handle_t			dh;
-	int				err = EINVAL;
+	int				err;
 	int				retry = 0;
 
 #define	MAXRETRYNUM	3
@@ -219,7 +218,7 @@ i_dls_mgmt_upcall(void *arg, size_t asize, void *rbuf, size_t *rsizep)
 	darg.desc_ptr = NULL;
 	darg.desc_num = 0;
 	darg.rbuf = rbuf;
-	darg.rsize = *rsizep;
+	darg.rsize = rsize;
 	save_arg = darg;
 
 retry:
@@ -234,7 +233,7 @@ retry:
 
 	for (;;) {
 		retry++;
-		if ((err = door_ki_upcall(dh, &darg)) == 0)
+		if ((err = door_ki_upcall_cred(dh, &darg, kcred)) == 0)
 			break;
 
 		/*
@@ -286,19 +285,12 @@ retry:
 		goto done;
 	}
 
-	if (darg.rsize > *rsizep || darg.rsize < sizeof (uint_t)) {
+	if (darg.rsize != rsize) {
 		err = EINVAL;
 		goto done;
 	}
 
-	/* LINTED E_BAD_PTR_CAST_ALIGN */
-	retvalp = (struct dlmgmt_null_retval_s *)darg.rbuf;
-	if (retvalp->lr_err != 0) {
-		err = retvalp->lr_err;
-		goto done;
-	}
-
-	*rsizep = darg.rsize;
+	err = ((dlmgmt_retval_t *)rbuf)->lr_err;
 
 done:
 	door_ki_rele(dh);
@@ -325,7 +317,6 @@ dls_mgmt_create(const char *devname, dev_t dev, datalink_class_t class,
 {
 	dlmgmt_upcall_arg_create_t	create;
 	dlmgmt_create_retval_t		retval;
-	size_t				rsize;
 	int				err;
 
 	create.ld_cmd = DLMGMT_CMD_DLS_CREATE;
@@ -337,11 +328,10 @@ dls_mgmt_create(const char *devname, dev_t dev, datalink_class_t class,
 	if (strlcpy(create.ld_devname, devname, MAXNAMELEN) >= MAXNAMELEN)
 		return (EINVAL);
 
-	rsize = sizeof (retval);
-
-	err = i_dls_mgmt_upcall(&create, sizeof (create), &retval, &rsize);
-	if (err == 0)
+	if ((err = i_dls_mgmt_upcall(&create, sizeof (create), &retval,
+	    sizeof (retval))) == 0) {
 		*linkidp = retval.lr_linkid;
+	}
 	return (err);
 }
 
@@ -354,14 +344,13 @@ dls_mgmt_destroy(datalink_id_t linkid, boolean_t persist)
 {
 	dlmgmt_upcall_arg_destroy_t	destroy;
 	dlmgmt_destroy_retval_t		retval;
-	size_t				rsize;
 
 	destroy.ld_cmd = DLMGMT_CMD_DLS_DESTROY;
 	destroy.ld_linkid = linkid;
 	destroy.ld_persist = persist;
-	rsize = sizeof (retval);
 
-	return (i_dls_mgmt_upcall(&destroy, sizeof (destroy), &retval, &rsize));
+	return (i_dls_mgmt_upcall(&destroy, sizeof (destroy),
+	    &retval, sizeof (retval)));
 }
 
 /*
@@ -386,7 +375,6 @@ dls_mgmt_update(const char *devname, uint32_t media, boolean_t novanity,
 {
 	dlmgmt_upcall_arg_update_t	update;
 	dlmgmt_update_retval_t		retval;
-	size_t				rsize;
 	int				err;
 
 	update.ld_cmd = DLMGMT_CMD_DLS_UPDATE;
@@ -396,10 +384,9 @@ dls_mgmt_update(const char *devname, uint32_t media, boolean_t novanity,
 
 	update.ld_media = media;
 	update.ld_novanity = novanity;
-	rsize = sizeof (retval);
 
-	err = i_dls_mgmt_upcall(&update, sizeof (update), &retval, &rsize);
-	if (err == EEXIST) {
+	if ((err = i_dls_mgmt_upcall(&update, sizeof (update), &retval,
+	    sizeof (retval))) == EEXIST) {
 		*linkidp = retval.lr_linkid;
 		*mediap = retval.lr_media;
 	} else if (err == 0) {
@@ -422,16 +409,15 @@ dls_mgmt_get_linkinfo(datalink_id_t linkid, char *link,
 {
 	dlmgmt_door_getname_t	getname;
 	dlmgmt_getname_retval_t	retval;
-	size_t			rsize;
 	int			err, len;
 
 	getname.ld_cmd = DLMGMT_CMD_GETNAME;
 	getname.ld_linkid = linkid;
-	rsize = sizeof (retval);
 
-	err = i_dls_mgmt_upcall(&getname, sizeof (getname), &retval, &rsize);
-	if (err != 0)
+	if ((err = i_dls_mgmt_upcall(&getname, sizeof (getname), &retval,
+	    sizeof (retval))) != 0) {
 		return (err);
+	}
 
 	len = strlen(retval.lr_link);
 	if (len <= 1 || len >= MAXLINKNAMELEN)
@@ -458,17 +444,15 @@ dls_mgmt_get_linkid(const char *link, datalink_id_t *linkid)
 {
 	dlmgmt_door_getlinkid_t		getlinkid;
 	dlmgmt_getlinkid_retval_t	retval;
-	size_t				rsize;
 	int				err;
 
 	getlinkid.ld_cmd = DLMGMT_CMD_GETLINKID;
 	(void) strlcpy(getlinkid.ld_link, link, MAXLINKNAMELEN);
-	rsize = sizeof (retval);
 
-	err = i_dls_mgmt_upcall(&getlinkid, sizeof (getlinkid), &retval,
-	    &rsize);
-	if (err == 0)
+	if ((err = i_dls_mgmt_upcall(&getlinkid, sizeof (getlinkid), &retval,
+	    sizeof (retval))) == 0) {
 		*linkid = retval.lr_linkid;
+	}
 	return (err);
 }
 
@@ -478,17 +462,17 @@ dls_mgmt_get_next(datalink_id_t linkid, datalink_class_t class,
 {
 	dlmgmt_door_getnext_t	getnext;
 	dlmgmt_getnext_retval_t	retval;
-	size_t			rsize;
 
 	getnext.ld_cmd = DLMGMT_CMD_GETNEXT;
 	getnext.ld_class = class;
 	getnext.ld_dmedia = dmedia;
 	getnext.ld_flags = flags;
 	getnext.ld_linkid = linkid;
-	rsize = sizeof (retval);
 
-	if (i_dls_mgmt_upcall(&getnext, sizeof (getnext), &retval, &rsize) != 0)
+	if (i_dls_mgmt_upcall(&getnext, sizeof (getnext), &retval,
+	    sizeof (retval)) != 0) {
 		return (DATALINK_INVALID_LINKID);
+	}
 
 	return (retval.lr_linkid);
 }
@@ -498,25 +482,21 @@ i_dls_mgmt_get_linkattr(const datalink_id_t linkid, const char *attr,
     void *attrval, size_t *attrszp)
 {
 	dlmgmt_upcall_arg_getattr_t	getattr;
-	dlmgmt_getattr_retval_t		*retvalp;
-	size_t				oldsize, size;
+	dlmgmt_getattr_retval_t		retval;
 	int				err;
 
 	getattr.ld_cmd = DLMGMT_CMD_DLS_GETATTR;
 	getattr.ld_linkid = linkid;
 	(void) strlcpy(getattr.ld_attr, attr, MAXLINKATTRLEN);
 
-	oldsize = size = *attrszp + sizeof (dlmgmt_getattr_retval_t) - 1;
-	retvalp = kmem_zalloc(oldsize, KM_SLEEP);
-
-	err = i_dls_mgmt_upcall(&getattr, sizeof (getattr), retvalp, &size);
-	if (err == 0) {
-		ASSERT(size <= oldsize);
-		*attrszp = size + 1 - sizeof (dlmgmt_getattr_retval_t);
-		bcopy(retvalp->lr_attr, attrval, *attrszp);
+	if ((err = i_dls_mgmt_upcall(&getattr, sizeof (getattr), &retval,
+	    sizeof (retval))) == 0) {
+		if (*attrszp < retval.lr_attrsz)
+			return (EINVAL);
+		*attrszp = retval.lr_attrsz;
+		bcopy(retval.lr_attrval, attrval, retval.lr_attrsz);
 	}
 
-	kmem_free(retvalp, oldsize);
 	return (err);
 }
 

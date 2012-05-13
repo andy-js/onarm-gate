@@ -97,7 +97,8 @@
 @ MSG_DEBUG_FNDCAP	"[%d: %s]: capabilities section\n"
 @ MSG_DEBUG_FNDDYN	"[%d: %s]: dynamic section\n"
 @ MSG_DEBUG_FNDSTR	"[%d: %s][%d]: string: %s\n"
-@ MSG_DEBUG_FNDSTRTAB	"[%d: %s]: string table section\n"
+@ MSG_DEBUG_FNDSTRTAB	"[%d: %s]: string table section (SHT_STRTAB)\n"
+@ MSG_DEBUG_FNDSTRTABFL	"[%d: %s]: string table section (SHF_STRINGS)\n"
 @ MSG_DEBUG_FNDSYMTAB	"[%d: %s]: %s symbol table section\n"
 @ MSG_DEBUG_FNDSYMINFO	"[%d: %s]: syminfo section\n"
 @ MSG_DEBUG_FNDVERSYM	"[%d: %s]: versym section: [%d: %s]\n"
@@ -794,6 +795,8 @@
 @ MSG_DT_SUNW_TLSSORTSZ_ALT1	"sunw_tlssortsz"
 @ MSG_DT_SUNW_STRPAD		"DT_SUNW_STRPAD"	# 0x60000019
 @ MSG_DT_SUNW_STRPAD_ALT1	"sunw_strpad"
+@ MSG_DT_SUNW_LDMACH		"DT_SUNW_ldmach"	# 0x6000001b
+@ MSG_DT_SUNW_LDMACH_ALT1	"sunw_ldmach"
 @ MSG_DT_SPARC_REGISTER		"DT_SPARC_REGISTER"	# 0x70000001
 @ MSG_DT_SPARC_REGISTER_ALT1	"sparc_register"
 @ MSG_DT_DEPRECATED_SPARC_REGISTER "DT_DEPRECATED_SPARC_REGISTER" # 0x7000001

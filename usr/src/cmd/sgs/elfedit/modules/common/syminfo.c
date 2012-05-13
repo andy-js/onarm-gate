@@ -20,14 +20,13 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include	<stdio.h>
 #include	<unistd.h>
-#include	<machdep.h>
 #include	<elfedit.h>
 #include	<strings.h>
 #include	<debug.h>
@@ -233,7 +232,7 @@ argstate_add_str(ARGSTATE *argstate)
 
 	argstate_add_sym(argstate);
 	argstate->str.sec = elfedit_sec_getstr(argstate->obj_state,
-	    argstate->sym.sec->sec_shdr->sh_link);
+	    argstate->sym.sec->sec_shdr->sh_link, 0);
 }
 static void
 argstate_add_dynamic(ARGSTATE *argstate)

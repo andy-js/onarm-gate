@@ -73,6 +73,7 @@ static  int client_setadmin(admin_t *ptr);
 static int client_showstats(admin_t *ptr);
 static int is_root(int free_uc, char *dc_str, ucred_t **uc);
 static int is_nscd(pid_t pid);
+static void client_killserver();
 
 #ifdef SLP
 int			use_slp = 0;
@@ -269,7 +270,6 @@ main(int argc, char ** argv)
 	struct stat		buf;
 	sigset_t		myset;
 	struct sigaction	sighupaction;
-	static void		client_killserver();
 	int			debug_level = 0;
 
 	/* setup for localization */

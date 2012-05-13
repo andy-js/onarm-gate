@@ -209,15 +209,6 @@ typedef struct cmlb_lun {
 
 } cmlb_lun_t;
 
-/*
- * Driver minor node structure
- */
-struct driver_minor_data {
-	char	*name;
-	minor_t	minor;
-	int	type;
-};
-
 _NOTE(MUTEX_PROTECTS_DATA(cmlb_lun::cl_mutex, cmlb_lun))
 _NOTE(SCHEME_PROTECTS_DATA("stable data", cmlb_lun::cmlb_tg_ops))
 _NOTE(SCHEME_PROTECTS_DATA("stable data", cmlb_lun::cl_devi))

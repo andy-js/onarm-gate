@@ -105,6 +105,8 @@ struct upimutex;
 struct kproject;
 struct on_trap_data;
 struct waitq;
+struct _kcpc_ctx;
+struct _kcpc_set;
 
 /* Definition for kernel thread identifier type */
 typedef uint64_t kt_did_t;
@@ -125,7 +127,9 @@ typedef struct _kthread {
 	uint_t	t_state;	/* thread state	(protected by thread_lock) */
 	pri_t	t_pri;		/* assigned thread priority */
 	pri_t	t_epri;		/* inherited thread priority */
+	pri_t	t_cpri;		/* thread scheduling class priority */
 	char	t_writer;	/* sleeping in lwp_rwlock_lock(RW_WRITE_LOCK) */
+	uchar_t	t_bindflag;	/* CPU and pset binding type */
 	label_t	t_pcb;		/* pcb, save area when switching */
 	lwpchan_t t_lwpchan;	/* reason for blocking */
 #define	t_wchan0	t_lwpchan.lc_wchan0
@@ -152,8 +156,8 @@ typedef struct _kthread {
 	uint64_t	t_intr_start;	/* timestamp when time slice began */
 	kt_did_t	t_did;	/* thread id for kernel debuggers */
 	caddr_t t_tnf_tpdp;	/* Trace facility data pointer */
-	kcpc_ctx_t	*t_cpc_ctx;	/* performance counter context */
-	kcpc_set_t	*t_cpc_set;	/* set this thread has bound */
+	struct _kcpc_ctx *t_cpc_ctx;	/* performance counter context */
+	struct _kcpc_set *t_cpc_set;	/* set this thread has bound */
 
 	/*
 	 * non swappable part of the lwp state.
@@ -418,6 +422,21 @@ typedef struct _kthread {
 #define	TS_ANYWAITQ	(TS_PROJWAITQ|TS_ZONEWAITQ)
 
 /*
+ * Thread binding types
+ */
+#define	TB_ALLHARD	0
+#define	TB_CPU_SOFT	0x01		/* soft binding to CPU */
+#define	TB_PSET_SOFT	0x02		/* soft binding to pset */
+
+#define	TB_CPU_SOFT_SET(t)		((t)->t_bindflag |= TB_CPU_SOFT)
+#define	TB_CPU_HARD_SET(t)		((t)->t_bindflag &= ~TB_CPU_SOFT)
+#define	TB_PSET_SOFT_SET(t)		((t)->t_bindflag |= TB_PSET_SOFT)
+#define	TB_PSET_HARD_SET(t)		((t)->t_bindflag &= ~TB_PSET_SOFT)
+#define	TB_CPU_IS_SOFT(t)		((t)->t_bindflag & TB_CPU_SOFT)
+#define	TB_CPU_IS_HARD(t)		(!TB_CPU_IS_SOFT(t))
+#define	TB_PSET_IS_SOFT(t)		((t)->t_bindflag & TB_PSET_SOFT)
+
+/*
  * No locking needed for AST field.
  */
 #define	aston(t)		((t)->t_astflag = 1)
@@ -572,6 +591,8 @@ extern disp_lock_t stop_lock;		/* lock protecting stopped threads */
 
 caddr_t	thread_stk_init(caddr_t);	/* init thread stack */
 
+extern int default_binding_mode;
+
 #endif	/* _KERNEL */
 
 /*
@@ -595,6 +616,7 @@ caddr_t	thread_stk_init(caddr_t);	/* init thread stack */
 	pri_t __new_pri = (pri);					\
 	DTRACE_SCHED2(change__pri, kthread_t *, (t), pri_t, __new_pri);	\
 	(t)->t_pri = __new_pri;						\
+	schedctl_set_cidpri(t);						\
 }
 
 /*

@@ -19,7 +19,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # Copyright (c) 2008 NEC Corporation
@@ -80,7 +80,7 @@ LDLIBS += $(SSH_COMMON_LDLIBS) -lsocket \
 	-lz \
 	-lpam \
 	-lbsm \
-	-L$(ROOTSFWLIB) -lwrap \
+	-lwrap \
 	$(OPENSSL_LDFLAGS) -lcrypto \
 	-lgss \
 	$(CONTRACT_LDLIB)

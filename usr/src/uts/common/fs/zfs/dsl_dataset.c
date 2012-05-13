@@ -890,10 +890,7 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag)
 		dmu_tx_commit(tx);
 	}
 	/* Make sure it's not dirty before we finish destroying it. */
-	if (txg_wait_synced(dd->dd_pool, 0) != 0){
-		dmu_objset_close(os);
-		return (EIO);
-	}
+	txg_wait_synced(dd->dd_pool, 0);
 
 	dmu_objset_close(os);
 	if (err != ESRCH)
@@ -2668,7 +2665,7 @@ int
 dsl_dataset_set_quota(const char *dsname, uint64_t quota)
 {
 	dsl_dataset_t *ds;
-	int err;
+	int err = 0;
 
 	err = dsl_dataset_open(dsname, DS_MODE_STANDARD, FTAG, &ds);
 	if (err)
@@ -2679,11 +2676,10 @@ dsl_dataset_set_quota(const char *dsname, uint64_t quota)
 		 * If someone removes a file, then tries to set the quota, we
 		 * want to make sure the file freeing takes effect.
 		 */
-		err = txg_wait_open(ds->ds_dir->dd_pool, 0);
-		if (!err)
-			err = dsl_sync_task_do(ds->ds_dir->dd_pool,
-			    dsl_dataset_set_quota_check,
-			    dsl_dataset_set_quota_sync, ds, &quota, 0);
+		txg_wait_open(ds->ds_dir->dd_pool, 0);
+		err = dsl_sync_task_do(ds->ds_dir->dd_pool,
+			dsl_dataset_set_quota_check,
+			dsl_dataset_set_quota_sync, ds, &quota, 0);
 	}
 	dsl_dataset_close(ds, DS_MODE_STANDARD, FTAG);
 	return (err);

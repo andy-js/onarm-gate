@@ -20,7 +20,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -77,6 +77,7 @@ PKGDIRS=	../libcrle \
 		../elfdump \
 		../elfedit \
 		../elfedit/modules \
+		../elfwrap \
 		../crle \
 		../dump \
 		../lari \
@@ -151,10 +152,9 @@ package_dep_:	FRC
 			$(ROOT)/usr/include/sys/auxv_SPARC.h \
 			$(ROOT)/usr/include/sys/auxv_386.h \
 			$(ROOT)/usr/include/sys/link.h \
+			$(ROOT)/usr/include/sys/machelf.h \
 			$(ROOT)/usr/include/sys/note.h \
 			$(ROOT)/usr/include/sys/systeminfo.h
-		@ cd $(SRC)/uts/$(M32)/sys; pwd; $(MAKE) \
-			$(ROOT)/usr/include/sys/machelf.h
 		@ cd ../tools/$(MACH); pwd; $(MAKE) sgsmsg piglatin
 		@ cd ..; pwd; $(MAKE) _msg_sgsmsg
 		@ cd ..; pwd; $(MAKE) native-add

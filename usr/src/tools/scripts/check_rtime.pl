@@ -129,6 +129,7 @@ $SkipUndefDirs = qr{
 	/lib/mdb/ |			# mdb modules have callbacks
 	/lib/fm/fmd/plugins/ |		# fmd modules have callbacks
 	/lib/fm/fmd/schemes/ |		# fmd schemes have callbacks
+	/lib/scsi/plugins/ |		# scsi plugins have callbacks
 	/i86pc/lib/mtst/		# mtst modules have callbacks
 }x;
 
@@ -1018,12 +1019,7 @@ sub ProcSymSort {
 		my $new_addr = $fields[2]; 
 		my $new_name = $fields[9]; 
 
-		if ($new_name =~ /^\$dtrace/) {
-			# Ignore DTrace USDT probe symbols, based on their name.
-			# A better solution would be for 'ld' to exclude them
-		        # from the object, but we don't have that ability yet.
-			next;
-		} elsif ($new_addr eq $last_addr) {
+		if ($new_addr eq $last_addr) {
 			push @dups, $new_name;
 		} else {
 			ProcSymSortOutMsg($RefTtl, $RelPath, $secname,

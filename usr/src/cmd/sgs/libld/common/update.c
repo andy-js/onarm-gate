@@ -38,6 +38,9 @@
  * displacement calculations on the program headers and sections headers,
  * and generate any new output section information.
  */
+
+#define	ELF_TARGET_AMD64
+
 #include	<stdio.h>
 #include	<string.h>
 #include	<unistd.h>
@@ -185,7 +188,7 @@ update_osym(Ofl_desc *ofl)
 	Word		bssndx, etext_ndx, edata_ndx = 0, end_ndx, start_ndx;
 	Word		end_abs = 0, etext_abs = 0, edata_abs;
 	Word		tlsbssndx = 0, sunwbssndx = 0, sunwdata1ndx;
-#if	defined(__x86) && defined(_ELF64)
+#if	defined(_ELF64)
 	Word		lbssndx = 0;
 	Addr		lbssaddr = 0;
 #endif
@@ -218,7 +221,7 @@ update_osym(Ofl_desc *ofl)
 	Word		hashval;	/* value of hash function */
 	Wk_desc		*wkp;
 	List		weak = {NULL, NULL};
-	Word		flags = ofl->ofl_flags;
+	ofl_flag_t	flags = ofl->ofl_flags;
 	Word		dtflags_1 = ofl->ofl_dtflags_1;
 	Versym		*versym;
 	Gottable	*gottable;	/* used for display got debugging */
@@ -512,7 +515,7 @@ update_osym(Ofl_desc *ofl)
 			etext = (Addr)0;
 			etext_ndx = SHN_ABS;
 			etext_abs = 1;
-			if (ofl->ofl_flags & FLG_OF_VERBOSE)
+			if (flags & FLG_OF_VERBOSE)
 				eprintf(ofl->ofl_lml, ERR_WARNING,
 				    MSG_INTL(MSG_UPD_NOREADSEG));
 		}
@@ -522,7 +525,7 @@ update_osym(Ofl_desc *ofl)
 			edata = (Addr)0;
 			edata_ndx = SHN_ABS;
 			edata_abs = 1;
-			if (ofl->ofl_flags & FLG_OF_VERBOSE)
+			if (flags & FLG_OF_VERBOSE)
 				eprintf(ofl->ofl_lml, ERR_WARNING,
 				    MSG_INTL(MSG_UPD_NORDWRSEG));
 		}
@@ -648,17 +651,13 @@ update_osym(Ofl_desc *ofl)
 			sdp = ifl->ifl_oldndx[lndx];
 			sym = sdp->sd_sym;
 
-#if	defined(__sparc)
 			/*
 			 * Assign a got offset if necessary.
 			 */
-			if (ld_assign_got(ofl, sdp) == S_ERROR)
+			if ((ld_targ.t_mr.mr_assign_got != NULL) &&
+			    (*ld_targ.t_mr.mr_assign_got)(ofl, sdp) == S_ERROR)
 				return ((Addr)S_ERROR);
-#elif	defined(__x86) || defined(__arm)
-/* nothing to do */
-#else
-#error Unknown architecture!
-#endif
+
 			if (DBG_ENABLED) {
 				for (LIST_TRAVERSE(&sdp->sd_GOTndxs,
 				    lnp2, gnp)) {
@@ -782,7 +781,7 @@ update_osym(Ofl_desc *ofl)
 
 				sym->st_shndx = sunwdata1ndx;
 				sdp->sd_isc = ofl->ofl_issunwdata1;
-				if (ofl->ofl_flags & FLG_OF_RELOBJ) {
+				if (flags & FLG_OF_RELOBJ) {
 					sym->st_value = sunwdata1addr;
 				} else {
 					sym->st_value = laddr;
@@ -902,11 +901,12 @@ update_osym(Ofl_desc *ofl)
 		bssndx = elf_ndxscn(osp->os_scn);
 	}
 
-#if	(defined(__i386) || defined(__amd64)) && defined(_ELF64)
+#if	defined(_ELF64)
 	/*
-	 * Assign .lbss information for use with updating LCOMMON symbols.
+	 * For amd64 target, assign .lbss information for use
+	 * with updating LCOMMON symbols.
 	 */
-	if (ofl->ofl_islbss) {
+	if ((ld_targ.t_m.m_mach == EM_AMD64) && ofl->ofl_islbss) {
 		osp = ofl->ofl_islbss->is_osdesc;
 
 		lbssaddr = osp->os_shdr->sh_addr +
@@ -1030,7 +1030,7 @@ update_osym(Ofl_desc *ofl)
 				sdp->sd_flags |= FLG_SY_COMMEXP;
 
 			} else if ((sdp->sd_psyminfo != (Psym_info *)NULL) &&
-			    (ofl->ofl_flags & FLG_OF_SHAROBJ) &&
+			    (flags & FLG_OF_SHAROBJ) &&
 			    (ELF_ST_BIND(symptr->st_info) != STB_LOCAL)) {
 				restore = 1;
 				sdp->sd_shndx = sunwbssndx;
@@ -1068,8 +1068,9 @@ update_osym(Ofl_desc *ofl)
 				 */
 				symptr->st_value -= ofl->ofl_tlsphdr->p_vaddr;
 			}
-#if	(defined(__i386) || defined(__amd64)) && defined(_ELF64)
-		} else if ((sdp->sd_flags & FLG_SY_SPECSEC) &&
+#if	defined(_ELF64)
+		} else if ((ld_targ.t_m.m_mach == EM_AMD64) &&
+		    (sdp->sd_flags & FLG_SY_SPECSEC) &&
 		    ((sdp->sd_shndx = symptr->st_shndx) ==
 		    SHN_X86_64_LCOMMON) &&
 		    ((local || !(flags & FLG_OF_RELOBJ)))) {
@@ -1130,14 +1131,9 @@ update_osym(Ofl_desc *ofl)
 		/*
 		 * Assign a got offset if necessary.
 		 */
-#if	defined(__sparc)
-		if (ld_assign_got(ofl, sdp) == S_ERROR)
+		if ((ld_targ.t_mr.mr_assign_got != NULL) &&
+		    (*ld_targ.t_mr.mr_assign_got)(ofl, sdp) == S_ERROR)
 			return ((Addr)S_ERROR);
-#elif	defined(__x86) || defined(__arm)
-/* nothing to do */
-#else
-#error Unknown architecture!
-#endif
 
 		if (DBG_ENABLED) {
 			for (LIST_TRAVERSE(&sdp->sd_GOTndxs, lnp2, gnp)) {
@@ -1696,7 +1692,8 @@ update_osym(Ofl_desc *ofl)
 		    (ELF_ST_TYPE(sym->st_info) == STT_FUNC) &&
 		    !(flags & FLG_OF_BFLAG)) {
 			if (sap->sa_PLTndx)
-				sym->st_value = ld_calc_plt_addr(sdp, ofl);
+				sym->st_value =
+				    (*ld_targ.t_mr.mr_calc_plt_addr)(sdp, ofl);
 		}
 
 		/*
@@ -1838,7 +1835,8 @@ update_osym(Ofl_desc *ofl)
 	/*
 	 * Now display GOT debugging information if required.
 	 */
-	DBG_CALL(Dbg_got_display(ofl, 0, 0));
+	DBG_CALL(Dbg_got_display(ofl, 0, 0,
+	    ld_targ.t_m.m_got_xnumber, ld_targ.t_m.m_got_entsize));
 
 	/*
 	 * Update the section headers information. sh_info is
@@ -1960,6 +1958,9 @@ update_osym(Ofl_desc *ofl)
 
 /*
  * Build the dynamic section.
+ *
+ * This routine must be maintained in parallel with make_dynamic()
+ * in sections.c
  */
 static int
 update_odynamic(Ofl_desc *ofl)
@@ -1972,8 +1973,26 @@ update_odynamic(Ofl_desc *ofl)
 	Dyn		*dyn;
 	Str_tbl		*dynstr;
 	size_t		stoff;
-	Word		flags = ofl->ofl_flags;
+	ofl_flag_t	flags = ofl->ofl_flags;
+	int		not_relobj = !(flags & FLG_OF_RELOBJ);
 	Word		cnt;
+
+
+	/*
+	 * A relocatable object with a dynamic section is possible, though
+	 * rare. One use for this feature is to produce drivers
+	 * for the kernel, loaded by krtld.
+	 *
+	 * Only a limited subset of DT_ entries apply to relocatable
+	 * objects:
+	 *
+	 *	DT_NEEDED
+	 *	DT_RUNPATH/DT_RPATH
+	 *	DT_FLAGS
+	 *	DT_FLAGS1
+	 *	DT_SUNW_STRPAD
+	 *	DT_LDMACH
+	 */
 
 	dynstr = ofl->ofl_dynstrtab;
 	ofl->ofl_osdynamic->os_shdr->sh_link =
@@ -1991,7 +2010,7 @@ update_odynamic(Ofl_desc *ofl)
 		 * Create and set up the DT_POSFLAG_1 entry here if required.
 		 */
 		if ((ifl->ifl_flags & (FLG_IF_LAZYLD|FLG_IF_GRPPRM)) &&
-		    (ifl->ifl_flags & (FLG_IF_NEEDED))) {
+		    (ifl->ifl_flags & (FLG_IF_NEEDED)) && not_relobj) {
 			dyn->d_tag = DT_POSFLAG_1;
 			if (ifl->ifl_flags & FLG_IF_LAZYLD)
 				dyn->d_un.d_val = DF_P1_LAZYLOAD;
@@ -2013,53 +2032,59 @@ update_odynamic(Ofl_desc *ofl)
 		dyn++;
 	}
 
-	if (ofl->ofl_dtsfltrs != NULL) {
-		Dfltr_desc	*dftp;
-		Aliste		idx;
+	if (not_relobj) {
+		if (ofl->ofl_dtsfltrs != NULL) {
+			Dfltr_desc	*dftp;
+			Aliste		idx;
 
-		for (ALIST_TRAVERSE(ofl->ofl_dtsfltrs, idx, dftp)) {
-			if (dftp->dft_flag == FLG_SY_AUXFLTR)
-				dyn->d_tag = DT_SUNW_AUXILIARY;
-			else
-				dyn->d_tag = DT_SUNW_FILTER;
+			for (ALIST_TRAVERSE(ofl->ofl_dtsfltrs, idx, dftp)) {
+				if (dftp->dft_flag == FLG_SY_AUXFLTR)
+					dyn->d_tag = DT_SUNW_AUXILIARY;
+				else
+					dyn->d_tag = DT_SUNW_FILTER;
 
-			(void) st_setstring(dynstr, dftp->dft_str, &stoff);
+				(void) st_setstring(dynstr, dftp->dft_str,
+				    &stoff);
+				dyn->d_un.d_val = stoff;
+				dftp->dft_ndx = (Half)(((uintptr_t)dyn -
+				    (uintptr_t)_dyn) / sizeof (Dyn));
+				dyn++;
+			}
+		}
+		if (((sdp = ld_sym_find(MSG_ORIG(MSG_SYM_INIT_U),
+		    SYM_NOHASH, 0, ofl)) != NULL) &&
+		    (sdp->sd_ref == REF_REL_NEED) &&
+		    (sdp->sd_sym->st_shndx != SHN_UNDEF)) {
+			dyn->d_tag = DT_INIT;
+			dyn->d_un.d_ptr = sdp->sd_sym->st_value;
+			dyn++;
+		}
+		if (((sdp = ld_sym_find(MSG_ORIG(MSG_SYM_FINI_U),
+		    SYM_NOHASH, 0, ofl)) != NULL) &&
+		    (sdp->sd_ref == REF_REL_NEED) &&
+		    (sdp->sd_sym->st_shndx != SHN_UNDEF)) {
+			dyn->d_tag = DT_FINI;
+			dyn->d_un.d_ptr = sdp->sd_sym->st_value;
+			dyn++;
+		}
+		if (ofl->ofl_soname) {
+			dyn->d_tag = DT_SONAME;
+			(void) st_setstring(dynstr, ofl->ofl_soname, &stoff);
 			dyn->d_un.d_val = stoff;
-			dftp->dft_ndx = (Half)(((uintptr_t)dyn -
-			    (uintptr_t)_dyn) / sizeof (Dyn));
+			dyn++;
+		}
+		if (ofl->ofl_filtees) {
+			if (flags & FLG_OF_AUX) {
+				dyn->d_tag = DT_AUXILIARY;
+			} else {
+				dyn->d_tag = DT_FILTER;
+			}
+			(void) st_setstring(dynstr, ofl->ofl_filtees, &stoff);
+			dyn->d_un.d_val = stoff;
 			dyn++;
 		}
 	}
-	if (((sdp = ld_sym_find(MSG_ORIG(MSG_SYM_INIT_U),
-	    SYM_NOHASH, 0, ofl)) != NULL) && (sdp->sd_ref == REF_REL_NEED) &&
-	    (sdp->sd_sym->st_shndx != SHN_UNDEF)) {
-		dyn->d_tag = DT_INIT;
-		dyn->d_un.d_ptr = sdp->sd_sym->st_value;
-		dyn++;
-	}
-	if (((sdp = ld_sym_find(MSG_ORIG(MSG_SYM_FINI_U),
-	    SYM_NOHASH, 0, ofl)) != NULL) && (sdp->sd_ref == REF_REL_NEED) &&
-	    (sdp->sd_sym->st_shndx != SHN_UNDEF)) {
-		dyn->d_tag = DT_FINI;
-		dyn->d_un.d_ptr = sdp->sd_sym->st_value;
-		dyn++;
-	}
-	if (ofl->ofl_soname) {
-		dyn->d_tag = DT_SONAME;
-		(void) st_setstring(dynstr, ofl->ofl_soname, &stoff);
-		dyn->d_un.d_val = stoff;
-		dyn++;
-	}
-	if (ofl->ofl_filtees) {
-		if (flags & FLG_OF_AUX) {
-			dyn->d_tag = DT_AUXILIARY;
-		} else {
-			dyn->d_tag = DT_FILTER;
-		}
-		(void) st_setstring(dynstr, ofl->ofl_filtees, &stoff);
-		dyn->d_un.d_val = stoff;
-		dyn++;
-	}
+
 	if (ofl->ofl_rpath) {
 		(void) st_setstring(dynstr, ofl->ofl_rpath, &stoff);
 		dyn->d_tag = DT_RUNPATH;
@@ -2069,29 +2094,26 @@ update_odynamic(Ofl_desc *ofl)
 		dyn->d_un.d_val = stoff;
 		dyn++;
 	}
-	if (ofl->ofl_config) {
-		dyn->d_tag = DT_CONFIG;
-		(void) st_setstring(dynstr, ofl->ofl_config, &stoff);
-		dyn->d_un.d_val = stoff;
-		dyn++;
-	}
-	if (ofl->ofl_depaudit) {
-		dyn->d_tag = DT_DEPAUDIT;
-		(void) st_setstring(dynstr, ofl->ofl_depaudit, &stoff);
-		dyn->d_un.d_val = stoff;
-		dyn++;
-	}
-	if (ofl->ofl_audit) {
-		dyn->d_tag = DT_AUDIT;
-		(void) st_setstring(dynstr, ofl->ofl_audit, &stoff);
-		dyn->d_un.d_val = stoff;
-		dyn++;
-	}
 
-	/*
-	 * The following DT_* entries do not apply to relocatable objects.
-	 */
-	if (!(flags & FLG_OF_RELOBJ)) {
+	if (not_relobj) {
+		if (ofl->ofl_config) {
+			dyn->d_tag = DT_CONFIG;
+			(void) st_setstring(dynstr, ofl->ofl_config, &stoff);
+			dyn->d_un.d_val = stoff;
+			dyn++;
+		}
+		if (ofl->ofl_depaudit) {
+			dyn->d_tag = DT_DEPAUDIT;
+			(void) st_setstring(dynstr, ofl->ofl_depaudit, &stoff);
+			dyn->d_un.d_val = stoff;
+			dyn++;
+		}
+		if (ofl->ofl_audit) {
+			dyn->d_tag = DT_AUDIT;
+			(void) st_setstring(dynstr, ofl->ofl_audit, &stoff);
+			dyn->d_un.d_val = stoff;
+			dyn++;
+		}
 
 		dyn->d_tag = DT_HASH;
 		dyn->d_un.d_ptr = ofl->ofl_oshash->os_shdr->sh_addr;
@@ -2227,8 +2249,8 @@ update_odynamic(Ofl_desc *ofl)
 			dyn++;
 		}
 
-		if ((ofl->ofl_flags & FLG_OF_COMREL) && ofl->ofl_relocrelcnt) {
-			dyn->d_tag = M_REL_DT_COUNT;
+		if ((flags & FLG_OF_COMREL) && ofl->ofl_relocrelcnt) {
+			dyn->d_tag = ld_targ.t_m.m_rel_dt_count;
 			dyn->d_un.d_val = ofl->ofl_relocrelcnt;
 			dyn++;
 		}
@@ -2285,7 +2307,7 @@ update_odynamic(Ofl_desc *ofl)
 			dyn->d_un.d_ptr = shdr->sh_size;
 			dyn++;
 			dyn->d_tag = DT_PLTREL;
-			dyn->d_un.d_ptr = M_REL_DT_TYPE;
+			dyn->d_un.d_ptr = ld_targ.t_m.m_rel_dt_type;
 			dyn++;
 			dyn->d_tag = DT_JMPREL;
 			dyn->d_un.d_ptr = shdr->sh_addr;
@@ -2297,23 +2319,24 @@ update_odynamic(Ofl_desc *ofl)
 			dyn->d_tag = DT_PLTPAD;
 			if (ofl->ofl_pltcnt) {
 				dyn->d_un.d_ptr = shdr->sh_addr +
-				    M_PLT_RESERVSZ +
-				    ofl->ofl_pltcnt * M_PLT_ENTSIZE;
+				    ld_targ.t_m.m_plt_reservsz +
+				    ofl->ofl_pltcnt * ld_targ.t_m.m_plt_entsize;
 			} else
 				dyn->d_un.d_ptr = shdr->sh_addr;
 			dyn++;
 			dyn->d_tag = DT_PLTPADSZ;
-			dyn->d_un.d_val = ofl->ofl_pltpad * M_PLT_ENTSIZE;
+			dyn->d_un.d_val = ofl->ofl_pltpad *
+			    ld_targ.t_m.m_plt_entsize;
 			dyn++;
 		}
 		if (ofl->ofl_relocsz) {
-			dyn->d_tag = M_REL_DT_TYPE;
+			dyn->d_tag = ld_targ.t_m.m_rel_dt_type;
 			dyn->d_un.d_ptr = ofl->ofl_osrelhead->os_shdr->sh_addr;
 			dyn++;
-			dyn->d_tag = M_REL_DT_SIZE;
+			dyn->d_tag = ld_targ.t_m.m_rel_dt_size;
 			dyn->d_un.d_ptr = ofl->ofl_relocsz;
 			dyn++;
-			dyn->d_tag = M_REL_DT_ENT;
+			dyn->d_tag = ld_targ.t_m.m_rel_dt_ent;
 			if (ofl->ofl_osrelhead->os_shdr->sh_type == SHT_REL)
 				dyn->d_un.d_ptr = sizeof (Rel);
 			else
@@ -2353,7 +2376,7 @@ update_odynamic(Ofl_desc *ofl)
 				if ((sdp = ofl->ofl_regsyms[ndx]) == 0)
 					continue;
 
-				dyn->d_tag = M_DT_REGISTER;
+				dyn->d_tag = ld_targ.t_m.m_dt_register;
 				dyn->d_un.d_val = sdp->sd_symndx;
 				dyn++;
 			}
@@ -2386,13 +2409,14 @@ update_odynamic(Ofl_desc *ofl)
 			dyn->d_un.d_val = ofl->ofl_oscap->os_shdr->sh_addr;
 			dyn++;
 		}
+
+		if (flags & FLG_OF_SYMBOLIC) {
+			dyn->d_tag = DT_SYMBOLIC;
+			dyn->d_un.d_val = 0;
+			dyn++;
+		}
 	}
 
-	if (flags & FLG_OF_SYMBOLIC) {
-		dyn->d_tag = DT_SYMBOLIC;
-		dyn->d_un.d_val = 0;
-		dyn++;
-	}
 	dyn->d_tag = DT_FLAGS;
 	dyn->d_un.d_val = ofl->ofl_dtflags;
 	dyn++;
@@ -2416,7 +2440,11 @@ update_odynamic(Ofl_desc *ofl)
 	dyn->d_un.d_val = DYNSTR_EXTRA_PAD;
 	dyn++;
 
-	ld_mach_update_odynamic(ofl, &dyn);
+	dyn->d_tag = DT_SUNW_LDMACH;
+	dyn->d_un.d_val = ld_sunw_ldmach();
+	dyn++;
+
+	(*ld_targ.t_mr.mr_mach_update_odynamic)(ofl, &dyn);
 
 	for (cnt = 1 + DYNAMIC_EXTRA_ELTS; cnt--; dyn++) {
 		dyn->d_tag = DT_NULL;
@@ -2799,15 +2827,15 @@ update_oehdr(Ofl_desc * ofl)
 	 * Note. it may be necessary to update the `e_flags' field in the
 	 * machine dependent section.
 	 */
-	ehdr->e_ident[EI_DATA] = M_DATA;
+	ehdr->e_ident[EI_DATA] = ld_targ.t_m.m_data;
 	ehdr->e_machine = ofl->ofl_dehdr->e_machine;
 	ehdr->e_flags = ofl->ofl_dehdr->e_flags;
 	ehdr->e_version = ofl->ofl_dehdr->e_version;
 
-	if (ehdr->e_machine != M_MACH) {
-		if (ehdr->e_machine != M_MACHPLUS)
+	if (ehdr->e_machine != ld_targ.t_m.m_mach) {
+		if (ehdr->e_machine != ld_targ.t_m.m_machplus)
 			return (S_ERROR);
-		if ((ehdr->e_flags & M_FLAGSPLUS) == 0)
+		if ((ehdr->e_flags & ld_targ.t_m.m_flagsplus) == 0)
 			return (S_ERROR);
 	}
 
@@ -2890,7 +2918,7 @@ update_move(Ofl_desc *ofl)
 {
 	Word		ndx = 0;
 	Is_desc *	isp;
-	Word		flags = ofl->ofl_flags;
+	ofl_flag_t	flags = ofl->ofl_flags;
 	Move *		mv1, * mv2;
 	Listnode *	lnp1;
 	Psym_info *	psym;
@@ -2928,7 +2956,7 @@ update_move(Ofl_desc *ofl)
 		if (psym->psym_symd->sd_flags & FLG_SY_PAREXPN) {
 			const char	*s;
 
-			if (ofl->ofl_flags & FLG_OF_STATIC)
+			if (flags & FLG_OF_STATIC)
 				s = MSG_INTL(MSG_PSYM_EXPREASON1);
 			else if (ofl->ofl_flags1 & FLG_OF1_NOPARTI)
 				s = MSG_INTL(MSG_PSYM_EXPREASON2);
@@ -2968,7 +2996,7 @@ update_move(Ofl_desc *ofl)
 			DBG_CALL(Dbg_move_entry1(ofl->ofl_lml, 0, mv2, sdp));
 
 			*mv1 = *mv2;
-			if ((ofl->ofl_flags & FLG_OF_RELOBJ) == 0) {
+			if ((flags & FLG_OF_RELOBJ) == 0) {
 				if (ELF_ST_BIND(sym->st_info) == STB_LOCAL) {
 					Half	symbssndx = ofl->ofl_isbss->
 					    is_osdesc->os_scnsymndx;
@@ -3196,7 +3224,8 @@ ld_update_outfile(Ofl_desc *ofl)
 	Shdr		*hshdr;
 	Phdr		*_phdr = 0;
 	Word		phdrsz = (ehdr->e_phnum * ehdr->e_phentsize), shscnndx;
-	Word		flags = ofl->ofl_flags, ehdrsz = ehdr->e_ehsize;
+	ofl_flag_t	flags = ofl->ofl_flags;
+	Word		ehdrsz = ehdr->e_ehsize;
 	Boolean		nobits;
 	Off		offset;
 	Aliste		idx;
@@ -3289,7 +3318,7 @@ ld_update_outfile(Ofl_desc *ofl)
 				phdr->p_vaddr = shdr->sh_addr;
 				phdr->p_offset = shdr->sh_offset;
 				phdr->p_filesz = shdr->sh_size;
-				phdr->p_flags = M_DATASEG_PERM;
+				phdr->p_flags = ld_targ.t_m.m_dataseg_perm;
 
 				DBG_CALL(Dbg_seg_entry(ofl, segndx, sgp));
 				ofl->ofl_phdr[phdrndx++] = *phdr;
@@ -3303,8 +3332,9 @@ ld_update_outfile(Ofl_desc *ofl)
 		 * information for the .eh_frame output section will have been
 		 * figured out by now.
 		 */
-#if	(defined(__i386) || defined(__amd64)) && defined(_ELF64)
-		if (phdr->p_type == PT_SUNW_UNWIND) {
+#if	defined(_ELF64)
+		if ((ld_targ.t_m.m_mach == EM_AMD64) &&
+		    (phdr->p_type == PT_SUNW_UNWIND)) {
 			Shdr	    *shdr;
 
 			if (ofl->ofl_unwindhdr == 0)
@@ -3384,7 +3414,7 @@ ld_update_outfile(Ofl_desc *ofl)
 		 * Segments are only created for dynamic objects, thus this
 		 * checking can be skipped when building a relocatable object.
 		 */
-		if (!(ofl->ofl_flags & FLG_OF_RELOBJ) &&
+		if (!(flags & FLG_OF_RELOBJ) &&
 		    (sgp->sg_flags & FLG_SG_EMPTY)) {
 			int	i;
 			Addr	v_e;

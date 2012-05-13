@@ -885,6 +885,7 @@ fcnname/**/_info:							\
 	NO_UNLOAD_STUB(doorfs, door_ki_open,		nomod_einval);
 	NO_UNLOAD_STUB(doorfs, door_ki_lookup,		nomod_zero);
 	WSTUB(doorfs, door_ki_upcall,			nomod_einval);
+	WSTUB(doorfs, door_ki_upcall_cred,		nomod_einval);
 	WSTUB(doorfs, door_ki_hold,			nomod_zero);
 	WSTUB(doorfs, door_ki_rele,			nomod_zero);
 	WSTUB(doorfs, door_ki_info,			nomod_einval);
@@ -1055,6 +1056,15 @@ fcnname/**/_info:							\
 	NO_UNLOAD_STUB(tnf, tnf_struct_tag_1,	nomod_zero);
 	NO_UNLOAD_STUB(tnf, tnf_allocate,	nomod_zero);
 	END_MODULE(tnf);
+#endif
+
+/*
+ * Stubs for i86hvm bootstraping
+ */
+#ifndef HVM_BOOTSTRAP
+	MODULE(hvm_bootstrap,misc);
+	NO_UNLOAD_STUB(hvm_bootstrap, hvmboot_rootconf, nomod_zero);
+	END_MODULE(hvm_bootstrap);
 #endif
 
 /*

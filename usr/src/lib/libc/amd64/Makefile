@@ -124,6 +124,8 @@ GENOBJS=			\
 	memcpy.o		\
 	memset.o		\
 	new_list.o		\
+	proc64_id.o		\
+	proc64_support.o	\
 	setjmp.o		\
 	siginfolst.o		\
 	siglongjmp.o		\
@@ -747,7 +749,6 @@ THREADSOBJS=			\
 	pthr_mutex.o		\
 	pthr_rwlock.o		\
 	pthread.o		\
-	rtsched.o		\
 	rwlock.o		\
 	scalls.o		\
 	sema.o			\
@@ -922,8 +923,6 @@ CFLAGS64 += -xinline=
 THREAD_DEBUG =
 $(NOT_RELEASE_BUILD)THREAD_DEBUG = -DTHREAD_DEBUG
 
-CFLAGS64 += $(THREAD_DEBUG)
-
 ALTPICS= $(TRACEOBJS:%=pics/%)
 
 $(DYNLIB) := PICS += $(ROOTFS_LIBDIR64)/libc_i18n.a
@@ -931,7 +930,7 @@ $(DYNLIB) := BUILD.SO = $(LD) -o $@ -G $(DYNFLAGS) $(PICS) $(ALTPICS)
 
 MAPFILES =	../port/mapfile-vers mapfile-vers
 
-CPPFLAGS=	-D_REENTRANT -D$(MACH64) -D__$(MACH64) \
+CPPFLAGS=	-D_REENTRANT -D$(MACH64) -D__$(MACH64) $(THREAD_DEBUG) \
 		-I. -I$(LIBCBASE)/inc -I../inc $(CPPFLAGS.master) -I/usr/include
 ASFLAGS=	$(AS_PICFLAGS) -P -D__STDC__ -D_ASM $(CPPFLAGS) \
 		$(amd64_AS_XARCH)
@@ -940,6 +939,9 @@ ASFLAGS=	$(AS_PICFLAGS) -P -D__STDC__ -D_ASM $(CPPFLAGS) \
 # /usr/bin/ksh is ksh93 or not
 include ../../../Makefile.ksh93switch
 CPPFLAGS += -DWORDEXP_KSH93=$(ON_BUILD_KSH93_AS_BINKSH)
+
+# proc64_id.o is built with defines in $(SRC)/uts/intel/sys/x86_archext.h
+pics/proc64_id.o	:= CFLAGS64 += -I$(SRC)/uts/intel
 
 # Inform the run-time linker about libc specialized initialization
 RTLDINFO =	-z rtldinfo=tls_rtldinfo
@@ -1026,9 +1028,9 @@ TIL=				\
 	pthr_rwlock.o		\
 	pthread.o		\
 	rand.o			\
-	rtsched.o		\
 	rwlock.o		\
 	scalls.o		\
+	sched.o			\
 	sema.o			\
 	sigaction.o		\
 	sigev_thread.o		\

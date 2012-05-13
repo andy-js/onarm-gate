@@ -18,6 +18,7 @@
 #
 # CDDL HEADER END
 #
+# Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
 #
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
@@ -69,7 +70,8 @@ C99MODE=	$(C99_ENABLE)
 LDLIBS += -lsocket -lnsl -lc -lkrb5
 
 # normal warnings...
-CFLAGS	+=	$(CCVERBOSE) 
+CFLAGS	+=	$(CCVERBOSE)
+$(__GNUC)CFLAGS += -_gcc=-Wno-pointer-sign
 
 CPPFLAGS += -D__EXTENSIONS__ -D_REENTRANT -DMIA \
 	-I$(SRCDIR) -I.. -I$(SRC)/uts/common

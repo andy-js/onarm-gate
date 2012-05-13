@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -97,6 +97,7 @@ extern "C" {
 #define	DCU_CV	INT64_C(0x0001000000000000) /* virt cacheability when DM=0   */
 #define	DCU_CP	INT64_C(0x0002000000000000) /* phys cacheable when DM,IM=0   */
 #define	DCU_CACHE (DCU_IC|DCU_DC|DCU_WE|DCU_SPE|DCU_HPE|DCU_PE)
+#define	DCU_IPS_MASK	INT64_C(0x0030000000000000)
 
 /*
  * bit shifts for the prefetch enable bit
@@ -178,6 +179,7 @@ extern "C" {
 #define	ASI_PC_SNP_TAG		0x33	/* Pcache Snoop Tag Register */
 #define	ASI_L2_DATA		0x6B	/* L2 cache Data Diagnostic Access */
 #define	ASI_L2_TAG		0x6C	/* L2 cache Tag Diagnostic Access */
+#define	ASI_L2CACHE_CTRL	0x6D	/* L2 cache Control Register */
 
 /*
  * Bits of Cheetah Asynchronous Fault Status Register
@@ -643,6 +645,9 @@ extern "C" {
 #define	PN_L2_WAY_INCR		0x80000	/* l2-ec-way = <20:19> */
 #define	PN_L2_WAY_LIM		INT64_C(0x200000)
 #define	PN_L2_WAY_SHIFT		19
+#define	PN_L2_WAY_MASK		(3ULL << PN_L2_WAY_SHIFT) /* <20:19> */
+#define	PN_L2_HW_ECC_SHIFT	22 /* Set to force HW ECC generation */
+#define	PN_L2_SPLIT_EN_SHIFT	2 /* L2_Cache_Ctrl<2> = L2_split_en */
 
 #define	PN_L3_SIZE		0x2000000
 #define	PN_L3_LINESIZE		64
@@ -650,9 +655,12 @@ extern "C" {
 #define	PN_L3_SET_SIZE		(PN_L3_SIZE / PN_L3_NWAYS)
 #define	PN_L3_MAX_SET		(PN_L3_SIZE - PN_L3_SET_SIZE)
 #define	PN_L3_WAY_SHIFT		23
+#define	PN_L3_HW_ECC_SHIFT	25	/* Set to force HW ECC generation */
 #define	PN_L3_TAG_RD_MASK	0x7fffc0	/* ec_tag = PA<22:6>  */
 #define	PN_L3_WAY_INCR		0x800000	/* ec_way = <24:23> */
+#define	PN_L3_WAY_MASK		(3ULL << PN_L3_WAY_SHIFT) /* <24:23> */
 #define	PN_L3_WAY_LIM		INT64_C(0x2000000)
+#define	PN_L3_SPLIT_EN_SHIFT	30	/* L3_Cache_Ctrl<30> = L3_split_en */
 
 /* Pcache Defines */
 #define	PN_PCACHE_ADDR_MASK	0x1c0		/* PC_addr = <8:6> */

@@ -61,16 +61,15 @@ SUBDIRS-common= \
 	../cmd/sgs/libconv		\
 	../cmd/sgs/libdl	.WAIT
 
-$(CLOSED_BUILD)SUBDIRS += \
+$(CLOSED_BUILD)SUBDIRS-common += \
 	$(CLOSED)/lib/libc_i18n
 
 SUBDIRS-common += \
 	libc			.WAIT
 
-$(ARM_BLD)SUBDIRS-common	+=	\
+$(ARM_BLD)SUBDIRS-common +=	\
 	libm				\
-	libgcc				\
-	.WAIT
+	libgcc			.WAIT
 
 SUBDIRS-common	+=			\
 	../cmd/sgs/libelf	.WAIT	\
@@ -249,7 +248,9 @@ SUBDIRS-common += \
 	libipmi		\
 	libexacct/demo	\
 	libvscan	\
-	smbsrv
+	smbsrv		\
+	scsi		\
+	$($(MACH)_SUBDIRS)
 
 sparc_SUBDIRS= .WAIT	\
 	efcode		\
@@ -271,7 +272,6 @@ arm_SUBDIRS	=			\
 	../cmd/sgs/libld .WAIT		\
 	../cmd/sgs/rtld			\
 	libz
-
 
 SUBDIRS		= $(SUBDIRS-common) $($(MACH)_SUBDIRS)
 SUBDIRS_ALL	= $(SUBDIRS-common) $($(MACH)_SUBDIRS)
@@ -471,6 +471,7 @@ HDRSUBDIRS=		\
 	libidmap	\
 	libvscan	\
 	smbsrv		\
+	scsi		\
 	$($(MACH)_HDRSUBDIRS)
 
 $(CLOSED_BUILD)HDRSUBDIRS += \
@@ -548,7 +549,7 @@ libdevinfo:	libnvpair libsec
 libdhcpagent:	libsocket libdhcputil libuuid libdlpi
 libdhcpsvc:	libinetutil
 libdhcputil:	libnsl libgen libinetutil libdlpi
-libdladm:	libdevinfo libinetutil libsocket librcm libkstat
+libdladm:	libdevinfo libinetutil libsocket
 libdll: 	libast
 libdlpi:	libinetutil libdladm
 libdtrace:	libproc libgen libctf
@@ -569,7 +570,7 @@ sasl_plugins:	pkcs11 libgss libsocket libsasl
 libsctp:	libsocket
 libshell:	libast libcmd libdll libsocket libsecdb
 libsip:		libmd5
-libsmbfs:	libsocket libnsl libkrb5 libmapid
+libsmbfs:	libsocket libnsl libkrb5
 libsocket:	libnsl
 libldap5:	libsasl libsocket libnsl libmd
 libsldap:	libldap5 libtsol
@@ -605,6 +606,7 @@ libtsalarm:	libpcp
 smbsrv:		libsocket libnsl libmd libxnet libpthread librt \
 		libshare libidmap pkcs11 libsqlite
 libvscan:	libscf
+scsi:		libnvpair
 
 libpam:		libbsm
 libraidcfg:	libcfgadm

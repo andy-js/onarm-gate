@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -33,11 +33,11 @@
 /*
  * Dump an elf file.
  */
-#include	<machdep.h>
 #include	<sys/elf_386.h>
 #include	<sys/elf_amd64.h>
 #include	<sys/elf_SPARC.h>
 #include 	<sys/elf_ARM.h>
+#include	<_libelf.h>
 #include	<dwarf.h>
 #include	<stdio.h>
 #include	<unistd.h>
@@ -1529,8 +1529,8 @@ output_symbol(SYMTBL_STATE *state, Word symndx, Word info, Word disp_symndx,
 	    (sym->st_shndx >= state->shnum)) {
 		(void) fprintf(stderr,
 		    MSG_INTL(MSG_ERR_BADSYM5), state->file,
-		    state->secname, demangle(symname, state->flags),
-		    sym->st_shndx);
+		    state->secname, EC_WORD(symndx),
+		    demangle(symname, state->flags), sym->st_shndx);
 	}
 
 	/*
@@ -1580,13 +1580,15 @@ output_symbol(SYMTBL_STATE *state, Word symndx, Word info, Word disp_symndx,
 		    ((tshdr->sh_flags & SHF_TLS) == 0)) {
 			(void) fprintf(stderr,
 			    MSG_INTL(MSG_ERR_BADSYM3), state->file,
-			    state->secname, demangle(symname, state->flags));
+			    state->secname, EC_WORD(symndx),
+			    demangle(symname, state->flags));
 		}
 	} else if ((type != STT_SECTION) && sym->st_size &&
 	    tshdr && (tshdr->sh_flags & SHF_TLS)) {
 		(void) fprintf(stderr,
 		    MSG_INTL(MSG_ERR_BADSYM4), state->file,
-		    state->secname, demangle(symname, state->flags));
+		    state->secname, EC_WORD(symndx),
+		    demangle(symname, state->flags));
 	}
 
 	/*
@@ -1614,7 +1616,8 @@ output_symbol(SYMTBL_STATE *state, Word symndx, Word info, Word disp_symndx,
 		if (((v + sym->st_size) > tshdr->sh_size)) {
 			(void) fprintf(stderr,
 			    MSG_INTL(MSG_ERR_BADSYM6), state->file,
-			    state->secname, demangle(symname, state->flags),
+			    state->secname, EC_WORD(symndx),
+			    demangle(symname, state->flags),
 			    EC_WORD(shndx), EC_XWORD(tshdr->sh_size),
 			    EC_XWORD(sym->st_value), EC_XWORD(sym->st_size));
 		}
@@ -1635,8 +1638,8 @@ output_symbol(SYMTBL_STATE *state, Word symndx, Word info, Word disp_symndx,
 		if ((symndx < info) && (bind != STB_LOCAL)) {
 			(void) fprintf(stderr,
 			    MSG_INTL(MSG_ERR_BADSYM7), state->file,
-			    state->secname, demangle(symname, state->flags),
-			    EC_XWORD(info));
+			    state->secname, EC_WORD(symndx),
+			    demangle(symname, state->flags), EC_XWORD(info));
 
 		} else if ((symndx >= info) && (bind == STB_LOCAL) &&
 		    ((sym->st_shndx != SHN_UNDEF) ||
@@ -1644,8 +1647,8 @@ output_symbol(SYMTBL_STATE *state, Word symndx, Word info, Word disp_symndx,
 		    (sym->st_size != 0) || (sym->st_value != 0))) {
 			(void) fprintf(stderr,
 			    MSG_INTL(MSG_ERR_BADSYM8), state->file,
-			    state->secname, demangle(symname, state->flags),
-			    EC_XWORD(info));
+			    state->secname, EC_WORD(symndx),
+			    demangle(symname, state->flags), EC_XWORD(info));
 		}
 	}
 
@@ -1903,6 +1906,7 @@ reloc(Cache *cache, Word shnum, Ehdr *ehdr, const char *file,
 
 		for (relndx = 0; relndx < relnum; relndx++,
 		    rels = (void *)((char *)rels + relsize)) {
+			Half		mach = ehdr->e_machine;
 			char		section[BUFSIZ];
 			const char	*symname;
 			Word		symndx, reltype;
@@ -1916,11 +1920,11 @@ reloc(Cache *cache, Word shnum, Ehdr *ehdr, const char *file,
 			if (type == SHT_RELA) {
 				rela = (Rela *)rels;
 				symndx = ELF_R_SYM(rela->r_info);
-				reltype = ELF_R_TYPE(rela->r_info);
+				reltype = ELF_R_TYPE(rela->r_info, mach);
 			} else {
 				rel = (Rel *)rels;
 				symndx = ELF_R_SYM(rel->r_info);
-				reltype = ELF_R_TYPE(rel->r_info);
+				reltype = ELF_R_TYPE(rel->r_info, mach);
 			}
 
 			symname = relsymname(cache, _cache, strsec, symndx,
@@ -1932,7 +1936,6 @@ reloc(Cache *cache, Word shnum, Ehdr *ehdr, const char *file,
 			 * relocations.
 			 */
 			if (symndx == 0) {
-				Half	mach = ehdr->e_machine;
 				int	badrel = 0;
 
 				if ((mach == EM_SPARC) ||
@@ -2030,9 +2033,27 @@ dyn_test(dyn_test_t test_type, Word sh_type, Cache *sec_cache, Dyn *dyn,
 	 * the section in the file.
 	 */
 	if (sec_cache == NULL) {
+		const char *name;
+
+		/*
+		 * Supply section names instead of section types for
+		 * things that reference progbits so that the error
+		 * message will make more sense.
+		 */
+		switch (dyn->d_tag) {
+		case DT_INIT:
+			name = MSG_ORIG(MSG_ELF_INIT);
+			break;
+		case DT_FINI:
+			name = MSG_ORIG(MSG_ELF_FINI);
+			break;
+		default:
+			name = conv_sec_type(ehdr->e_machine, sh_type,
+			    0, &buf1);
+			break;
+		}
 		(void) fprintf(stderr, MSG_INTL(MSG_ERR_DYNNOBCKSEC), file,
-		    conv_sec_type(ehdr->e_machine, sh_type, 0, &buf1),
-		    conv_dyn_tag(dyn->d_tag, ehdr->e_machine, 0, &buf2));
+		    name, conv_dyn_tag(dyn->d_tag, ehdr->e_machine, 0, &buf2));
 		return;
 	}
 
@@ -2075,12 +2096,64 @@ dyn_test(dyn_test_t test_type, Word sh_type, Cache *sec_cache, Dyn *dyn,
 
 
 /*
+ * There are some DT_ entries that have corresponding symbols
+ * (e.g. DT_INIT and _init). It is expected that these items will
+ * both have the same value if both are present. This routine
+ * examines the well known symbol tables for such symbols and
+ * issues warnings for any that don't match.
+ *
+ * entry:
+ *	dyn - Dyn entry to be tested
+ *	symname - Name of symbol that corresponds to dyn
+ *	symtab_cache, dynsym_cache, ldynsym_cache - Symbol tables to check
+ *	cache - Cache of all section headers
+ *	shnum - # of sections in cache
+ *	ehdr - ELF header for file
+ *	file - Name of file
+ */
+
+static void
+dyn_symtest(Dyn *dyn, const char *symname, Cache *symtab_cache,
+    Cache *dynsym_cache, Cache *ldynsym_cache, Cache *cache,
+    Word shnum, Ehdr *ehdr, const char *file)
+{
+	Conv_inv_buf_t	buf;
+	int		i;
+	Sym		*sym;
+	Cache		*_cache;
+
+	for (i = 0; i < 3; i++) {
+		switch (i) {
+		case 0:
+			_cache = symtab_cache;
+			break;
+		case 1:
+			_cache = dynsym_cache;
+			break;
+		case 2:
+			_cache = ldynsym_cache;
+			break;
+		}
+
+		if ((_cache != NULL) &&
+		    symlookup(symname, cache, shnum, &sym, _cache, file) &&
+		    (sym->st_value != dyn->d_un.d_val))
+			(void) fprintf(stderr, MSG_INTL(MSG_ERR_DYNSYMVAL),
+			    file, _cache->c_name,
+			    conv_dyn_tag(dyn->d_tag, ehdr->e_machine, 0, &buf),
+			    symname, EC_ADDR(sym->st_value));
+	}
+}
+
+
+/*
  * Search for and process a .dynamic section.
  */
 static void
 dynamic(Cache *cache, Word shnum, Ehdr *ehdr, const char *file)
 {
 	struct {
+		Cache	*symtab;
 		Cache	*dynstr;
 		Cache	*dynsym;
 		Cache	*hash;
@@ -2179,6 +2252,7 @@ dynamic(Cache *cache, Word shnum, Ehdr *ehdr, const char *file)
 			if (sec._sec_field == NULL) \
 				sec._sec_field = _cache; \
 				break
+		GRAB(SHT_SYMTAB,	symtab);
 		GRAB(SHT_DYNSYM,	dynsym);
 		GRAB(SHT_FINI_ARRAY,	fini_array);
 		GRAB(SHT_HASH,		hash);
@@ -2262,6 +2336,7 @@ dynamic(Cache *cache, Word shnum, Ehdr *ehdr, const char *file)
 
 		for (ndx = 0; ndx < numdyn; dyn++, ndx++) {
 			union {
+				Conv_inv_buf_t		inv;
 				Conv_dyn_flag_buf_t	flag;
 				Conv_dyn_flag1_buf_t	flag1;
 				Conv_dyn_posflag1_buf_t	posflag1;
@@ -2360,6 +2435,11 @@ dynamic(Cache *cache, Word shnum, Ehdr *ehdr, const char *file)
 				name = MSG_INTL(MSG_STR_DEPRECATED);
 				break;
 
+			case DT_SUNW_LDMACH:
+				name = conv_ehdr_mach((Half)dyn->d_un.d_val, 0,
+				    &c_buf.inv);
+				break;
+
 			/*
 			 * Cases below this point are strictly sanity checking,
 			 * and do not generate a name string. The TEST_ macros
@@ -2377,6 +2457,9 @@ dynamic(Cache *cache, Word shnum, Ehdr *ehdr, const char *file)
 				    sec._sec_field, dyn, dynsec_cnt, ehdr, file)
 
 			case DT_FINI:
+				dyn_symtest(dyn, MSG_ORIG(MSG_SYM_FINI),
+				    sec.symtab, sec.dynsym, sec.sunw_ldynsym,
+				    cache, shnum, ehdr, file);
 				TEST_ADDR(SHT_PROGBITS, fini);
 				break;
 
@@ -2393,6 +2476,9 @@ dynamic(Cache *cache, Word shnum, Ehdr *ehdr, const char *file)
 				break;
 
 			case DT_INIT:
+				dyn_symtest(dyn, MSG_ORIG(MSG_SYM_INIT),
+				    sec.symtab, sec.dynsym, sec.sunw_ldynsym,
+				    cache, shnum, ehdr, file);
 				TEST_ADDR(SHT_PROGBITS, init);
 				break;
 
@@ -2638,7 +2724,8 @@ move(Cache *cache, Word shnum, const char *file, uint_t flags)
 			    (cache[shndx].c_shdr)->sh_type == SHT_NOBITS))) {
 				(void) fprintf(stderr,
 				    MSG_INTL(MSG_ERR_BADSYM2), file,
-				    _cache->c_name, demangle(symname, flags));
+				    _cache->c_name, EC_WORD(symndx),
+				    demangle(symname, flags));
 			}
 
 			(void) snprintf(index, MAXNDXSIZE,
@@ -3123,6 +3210,7 @@ got(Cache *cache, Word shnum, Ehdr *ehdr, const char *file, uint_t flags)
 	char		*gotdata;
 	Sym		*gotsym;
 	Xword		gotsymaddr;
+	uint_t		sys_encoding;
 
 	/*
 	 * First, find the got.
@@ -3259,12 +3347,14 @@ got(Cache *cache, Word shnum, Ehdr *ehdr, const char *file, uint_t flags)
 			if (type == SHT_RELA) {
 				rela = (Rela *)rels;
 				symndx = ELF_R_SYM(rela->r_info);
-				reltype = ELF_R_TYPE(rela->r_info);
+				reltype = ELF_R_TYPE(rela->r_info,
+				    ehdr->e_machine);
 				offset = rela->r_offset;
 			} else {
 				rel = (Rel *)rels;
 				symndx = ELF_R_SYM(rel->r_info);
-				reltype = ELF_R_TYPE(rel->r_info);
+				reltype = ELF_R_TYPE(rel->r_info,
+				    ehdr->e_machine);
 				offset = rel->r_offset;
 			}
 
@@ -3295,7 +3385,7 @@ got(Cache *cache, Word shnum, Ehdr *ehdr, const char *file, uint_t flags)
 		}
 	}
 
-	if (symlookup(MSG_ORIG(MSG_GOT_SYM), cache, shnum, &gotsym, symtab,
+	if (symlookup(MSG_ORIG(MSG_SYM_GOT), cache, shnum, &gotsym, symtab,
 	    file))
 		gotsymaddr = gotsym->st_value;
 	else
@@ -3305,6 +3395,7 @@ got(Cache *cache, Word shnum, Ehdr *ehdr, const char *file, uint_t flags)
 	dbg_print(0, MSG_INTL(MSG_ELF_SCN_GOT), gotcache->c_name);
 	Elf_got_title(0);
 
+	sys_encoding = _elf_sys_encoding();
 	for (gotndx = 0; gotndx < gotents; gotndx++) {
 		Got_info	*gip;
 		Sword		gindex;
@@ -3324,6 +3415,7 @@ got(Cache *cache, Word shnum, Ehdr *ehdr, const char *file, uint_t flags)
 			gotentry = *((Xword *)(gotdata) + gotndx);
 
 		Elf_got_entry(0, gindex, gaddr, gotentry, ehdr->e_machine,
+		    ehdr->e_ident[EI_DATA], sys_encoding,
 		    gip->g_reltype, gip->g_rel, gip->g_symname);
 	}
 	free(gottable);

@@ -28,9 +28,6 @@
 
 # Message file for cmd/sgs/libld - ARM specific.
 
-@ MSG_REL_NOREG		"relocation error: REGISTER relocation not supported \
-			 on ARM architecture"
-
 @ MSG_REL_FORCEPLT	"file %s: input %s: symbol %s: off:0x%x: use %s \
 			relocation type instead of %s"
 

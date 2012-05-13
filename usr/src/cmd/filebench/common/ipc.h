@@ -35,6 +35,7 @@
 #include "threadflow.h"
 #include "fileset.h"
 #include "flowop.h"
+#include "fb_random.h"
 #include "filebench.h"
 
 #ifdef	__cplusplus
@@ -50,21 +51,22 @@ extern "C" {
 #define	FILEBENCH_NFILESETS FILEBENCH_MEMSIZE
 #define	FILEBENCH_NFILESETENTRIES (1024 * 1024)
 #define	FILEBENCH_NPROCFLOWS FILEBENCH_MEMSIZE
-#define	FILEBENCH_NTHREADFLOWS 64 * FILEBENCH_MEMSIZE
-#define	FILEBENCH_NFLOWOPS 64 * FILEBENCH_MEMSIZE
+#define	FILEBENCH_NTHREADFLOWS (64 * FILEBENCH_MEMSIZE)
+#define	FILEBENCH_NFLOWOPS (64 * FILEBENCH_MEMSIZE)
 #define	FILEBENCH_NVARS FILEBENCH_MEMSIZE
-#define	FILEBENCH_FILESETPATHMEMORY FILEBENCH_NFILESETENTRIES*FSE_MAXPATHLEN
-#define	FILEBENCH_STRINGMEMORY FILEBENCH_NVARS * 128
+#define	FILEBENCH_NRANDDISTS (FILEBENCH_MEMSIZE/4)
+#define	FILEBENCH_FILESETPATHMEMORY (FILEBENCH_NFILESETENTRIES*FSE_MAXPATHLEN)
+#define	FILEBENCH_STRINGMEMORY (FILEBENCH_NVARS * 128)
 #define	FILEBENCH_MAXBITMAP FILEBENCH_NFILESETENTRIES
 
 #define	FILEBENCH_PROCFLOW	0
 #define	FILEBENCH_THREADFLOW	1
 #define	FILEBENCH_FLOWOP	2
-#define	FILEBENCH_INTEGER	3
-#define	FILEBENCH_STRING	4
-#define	FILEBENCH_VARIABLE	5
-#define	FILEBENCH_FILESET	6
-#define	FILEBENCH_FILESETENTRY	7
+#define	FILEBENCH_AVD		3
+#define	FILEBENCH_VARIABLE	4
+#define	FILEBENCH_FILESET	5
+#define	FILEBENCH_FILESETENTRY	6
+#define	FILEBENCH_RANDDIST	7
 #define	FILEBENCH_TYPES		8
 
 #define	FILEBENCH_NSEMS 128
@@ -83,21 +85,22 @@ typedef struct filebench_shm {
 	pthread_mutex_t threadflow_lock;
 	pthread_mutex_t flowop_lock;
 	pthread_mutex_t msg_lock;
-	pthread_mutex_t malloc_lock;
-	pthread_mutex_t ism_lock;
+	pthread_mutex_t shm_malloc_lock;
+	pthread_mutex_t shm_ism_lock;
 	pthread_rwlock_t run_lock;
 	pthread_rwlock_t flowop_find_lock;
 
-	char		*string_ptr;
-	char		*path_ptr;
+	char		*shm_string_ptr;
+	char		*shm_path_ptr;
 	fileset_t	*filesetlist;
 	flowop_t	*flowoplist;
 	procflow_t	*proclist;
 	var_t		*var_list;
 	var_t		*var_dyn_list;
+	randdist_t	*shm_rand_list;
 	int		debug_level;
 	hrtime_t	epoch;
-	hrtime_t	starttime;
+	hrtime_t	shm_starttime;
 	int		bequiet;
 	key_t		semkey;
 	int		seminit;
@@ -120,21 +123,22 @@ typedef struct filebench_shm {
 	int		f_abort;
 	int		shm_rmode;
 	int		shm_1st_err;
+	int		shm_bitmap[FILEBENCH_TYPES][FILEBENCH_MAXBITMAP];
+	int		shm_lastbitmapindex[FILEBENCH_TYPES];
 
-	int		marker;
+	int		shm_marker;
 
-	fileset_t	fileset[FILEBENCH_NFILESETS];
-	filesetentry_t	filesetentry[FILEBENCH_NFILESETENTRIES];
-	char		filesetpaths[FILEBENCH_FILESETPATHMEMORY];
-	procflow_t	procflow[FILEBENCH_NPROCFLOWS];
-	threadflow_t	threadflow[FILEBENCH_NTHREADFLOWS];
-	flowop_t	flowop[FILEBENCH_NFLOWOPS];
-	var_t		var[FILEBENCH_NVARS];
-	vinteger_t	integer_ptrs[FILEBENCH_NVARS];
-	char		*string_ptrs[FILEBENCH_NVARS];
-	char		strings[FILEBENCH_STRINGMEMORY];
+	fileset_t	shm_fileset[FILEBENCH_NFILESETS];
+	filesetentry_t	shm_filesetentry[FILEBENCH_NFILESETENTRIES];
+	char		shm_filesetpaths[FILEBENCH_FILESETPATHMEMORY];
+	procflow_t	shm_procflow[FILEBENCH_NPROCFLOWS];
+	threadflow_t	shm_threadflow[FILEBENCH_NTHREADFLOWS];
+	flowop_t	shm_flowop[FILEBENCH_NFLOWOPS];
+	var_t		shm_var[FILEBENCH_NVARS];
+	randdist_t	shm_randdist[FILEBENCH_NRANDDISTS];
+	struct avd	shm_avd_ptrs[FILEBENCH_NVARS * 2];
+	char		shm_strings[FILEBENCH_STRINGMEMORY];
 	char		semids[FILEBENCH_NSEMS];
-	int		bitmap[FILEBENCH_TYPES][FILEBENCH_MAXBITMAP];
 } filebench_shm_t;
 
 extern char *shmpath;

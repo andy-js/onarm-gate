@@ -21,6 +21,8 @@
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
+# Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+#
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
@@ -40,7 +42,9 @@ ROOTLIBDIR64 =	$(ROOT)/usr/lib/fs/smbfs/$(MACH64)
 LIBSRCS = $(LIBOBJS:%.o=$(SRCDIR)/%.c)
 
 LIBS =		$(DYNLIB)
-LDLIBS +=	-lshare -lscf -lumem -luuid -lc -lxml2 -lsmbfs
+LIBUMEM =	-lumem
+$(ARM_BLD)LIBUMEM =
+LDLIBS +=	-lshare -lscf $(LIBUMEM) -luuid -lc -lxml2 -lsmbfs
 
 CFLAGS +=	$(CCVERBOSE)
 CPPFLAGS +=	-D_REENTRANT -I/usr/include/libxml2 -I$(SRCDIR)/../common \

@@ -212,6 +212,8 @@ typedef struct _kmf_handle {
 #define	KMF_PLUGIN_PATH "/usr/lib/security/"
 #elif defined(__i386)
 #define	KMF_PLUGIN_PATH "/usr/lib/security/"
+#elif defined(__arm)
+#define	KMF_PLUGIN_PATH "/usr/lib/security/"
 #elif defined(__amd64)
 #define	KMF_PLUGIN_PATH "/usr/lib/security/amd64/"
 #endif

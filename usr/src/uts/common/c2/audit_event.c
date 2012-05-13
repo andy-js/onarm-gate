@@ -84,7 +84,6 @@
 int	au_naevent;
 MODDRV_DEPENDS_ON("fs/sockfs");
 
-static au_event_t	aui_null(au_event_t);
 static au_event_t	aui_open(au_event_t);
 static au_event_t	aui_fsat(au_event_t);
 static au_event_t	aui_msgsys(au_event_t);
@@ -104,7 +103,6 @@ static au_event_t	aui_doorfs(au_event_t);
 static au_event_t	aui_privsys(au_event_t);
 static au_event_t	aui_forksys(au_event_t);
 
-static void	aus_null(struct t_audit_data *);
 static void	aus_open(struct t_audit_data *);
 static void	aus_acl(struct t_audit_data *);
 static void	aus_acct(struct t_audit_data *);
@@ -149,14 +147,10 @@ static void	aus_xmknod(struct t_audit_data *);
 static void	aus_setregid(struct t_audit_data *);
 static void	aus_setreuid(struct t_audit_data *);
 
-static void	auf_null(struct t_audit_data *, int, rval_t *);
 static void	auf_mknod(struct t_audit_data *, int, rval_t *);
 static void	auf_msgsys(struct t_audit_data *, int, rval_t *);
 static void	auf_semsys(struct t_audit_data *, int, rval_t *);
 static void	auf_shmsys(struct t_audit_data *, int, rval_t *);
-#if 0
-static void	auf_open(struct t_audit_data *, int, rval_t *);
-#endif
 static void	auf_xmknod(struct t_audit_data *, int, rval_t *);
 static void	auf_read(struct t_audit_data *, int, rval_t *);
 static void	auf_write(struct t_audit_data *, int, rval_t *);
@@ -186,6 +180,10 @@ static void	aus_socket(struct t_audit_data *);
  * to audit event IDs. In several cases it is necessary to map a single system
  * call to several events.
  */
+
+#define	aui_null	NULL	/* NULL initialize function */
+#define	aus_null	NULL	/* NULL start function */
+#define	auf_null	NULL	/* NULL finish function */
 
 struct audit_s2e audit_s2e[] =
 {
@@ -734,12 +732,6 @@ aui_null,	AUE_UMOUNT2,	aus_umount2,	/* 255 umount2 */
 
 uint_t num_syscall = sizeof (audit_s2e) / sizeof (struct audit_s2e);
 
-/* null start function */
-/*ARGSUSED*/
-static void
-aus_null(struct t_audit_data *tad)
-{
-}
 
 /* acct start function */
 /*ARGSUSED*/
@@ -908,19 +900,6 @@ aus_fchmod(struct t_audit_data *tad)
 	releasef(fd);
 }
 
-/* null function */
-/*ARGSUSED*/
-static void
-auf_null(struct t_audit_data *tad, int error, rval_t *rval)
-{
-}
-
-/* null function */
-static au_event_t
-aui_null(au_event_t e)
-{
-	return (e);
-}
 
 /* convert open to appropriate event */
 static au_event_t

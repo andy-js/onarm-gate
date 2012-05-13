@@ -39,7 +39,7 @@
 #include <stdlib.h>
 #include <libelf.h>
 #include <sgs.h>
-#include <machdep.h>
+#include <_machelf.h>
 #include <string_table.h>
 #include <sys/avl.h>
 #include <alist.h>
@@ -134,9 +134,11 @@ typedef struct {
 	Gotndx		gt_gndx;
 } Gottable;
 
+
 /*
  * Output file processing structure
  */
+typedef Lword ofl_flag_t;
 struct ofl_desc {
 	char		*ofl_sgsid;	/* link-editor identification */
 	const char	*ofl_name;	/* full file name */
@@ -181,7 +183,7 @@ struct ofl_desc {
 	List		ofl_rtldinfo;	/* list of rtldinfo syms */
 	List		ofl_osgroups;	/* list of output GROUP sections */
 	List		ofl_ostlsseg;	/* pointer to sections in TLS segment */
-#if	defined(__x86) && defined(_ELF64)
+#if	defined(_ELF64)			/* for amd64 target only */
 	List		ofl_unwind;	/* list of unwind output sections */
 	Os_desc		*ofl_unwindhdr;	/* Unwind hdr */
 #endif
@@ -191,8 +193,8 @@ struct ofl_desc {
 	Word		ofl_regsymcnt;	/* no. of output register symbols */
 	Word		ofl_lregsymcnt;	/* no. of local register symbols */
 	Sym_desc	*ofl_dtracesym;	/* ld -zdtrace= */
-	Lword		ofl_flags;	/* various state bits, args etc. */
-	Lword		ofl_flags1;	/*	more flags */
+	ofl_flag_t	ofl_flags;	/* various state bits, args etc. */
+	ofl_flag_t	ofl_flags1;	/*	more flags */
 	Xword		ofl_segorigin;	/* segment origin (start) */
 	void		*ofl_entry;	/* entry point (-e and Sym_desc *) */
 	char		*ofl_filtees;	/* shared objects we are a filter for */
@@ -405,14 +407,6 @@ struct ofl_desc {
  */
 #define	OFL_DO_RELOC(_ofl) (((_ofl)->ofl_flags & FLG_OF_RELOBJ) || \
 	!((_ofl)->ofl_dtflags_1 & DF_1_NORELOC))
-
-/*
- * Determine whether relocation processing needs to swap the
- * data being relocated.
- */
-#define	OFL_SWAP_RELOC_DATA(_ofl, _rel) \
-	((((_ofl)->ofl_flags1 & FLG_OF1_ENCDIFF) != 0) && \
-	((_rel)->rel_osdesc->os_shdr->sh_type == SHT_PROGBITS))
 
 /*
  * Relocation (active & output) processing structure - transparent to common
@@ -1082,7 +1076,7 @@ typedef struct ar_desc {
 	Ar_aux		*ad_aux;	/* auxiliary symbol information */
 	dev_t		ad_stdev;	/* device id and inode number for */
 	ino_t		ad_stino;	/*	multiple inclusion checks */
-	Word		ad_flags;	/* archive specific cmd line flags */
+	ofl_flag_t	ad_flags;	/* archive specific cmd line flags */
 } Ar_desc;
 
 /*
@@ -1100,6 +1094,7 @@ typedef struct ar_desc {
 #define	ld_create_outfile	ld64_create_outfile
 #define	ld_ent_setup		ld64_ent_setup
 #define	ld_init_strings		ld64_init_strings
+#define	ld_init_target		ld64_init_target
 #define	ld_make_sections	ld64_make_sections
 #define	ld_main			ld64_main
 #define	ld_ofl_cleanup		ld64_ofl_cleanup
@@ -1114,6 +1109,7 @@ typedef struct ar_desc {
 #define	ld_create_outfile	ld32_create_outfile
 #define	ld_ent_setup		ld32_ent_setup
 #define	ld_init_strings		ld32_init_strings
+#define	ld_init_target		ld32_init_target
 #define	ld_make_sections	ld32_make_sections
 #define	ld_main			ld32_main
 #define	ld_ofl_cleanup		ld32_ofl_cleanup
@@ -1125,12 +1121,13 @@ typedef struct ar_desc {
 
 #endif
 
-extern int		ld32_main(int, char **);
-extern int		ld64_main(int, char **);
+extern int		ld32_main(int, char **, Half);
+extern int		ld64_main(int, char **, Half);
 
 extern uintptr_t	ld_create_outfile(Ofl_desc *);
 extern uintptr_t	ld_ent_setup(Ofl_desc *, Xword);
 extern uintptr_t	ld_init_strings(Ofl_desc *);
+extern int		ld_init_target(Lm_list *, Half mach);
 extern uintptr_t	ld_make_sections(Ofl_desc *);
 extern void		ld_ofl_cleanup(Ofl_desc *);
 extern Ifl_desc		*ld_process_open(const char *, const char *, int *,

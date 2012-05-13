@@ -334,7 +334,7 @@ vnext_poll(femarg_t *vf, short events, int anyyet, short *reventsp,
 
 /* ARGSUSED */
 int
-vnext_dump(femarg_t *vf, caddr_t addr, int lbdn, int dblks,
+vnext_dump(femarg_t *vf, caddr_t addr, offset_t lbdn, offset_t dblks,
 	caller_context_t *ct)
 {
 	return (ENOTSUP);
@@ -358,7 +358,7 @@ vnext_pageio(femarg_t *vf, struct page *pp, u_offset_t io_off,
 
 /* ARGSUSED */
 int
-vnext_dumpctl(femarg_t *vf, int action, int *blkp, caller_context_t *ct)
+vnext_dumpctl(femarg_t *vf, int action, offset_t *blkp, caller_context_t *ct)
 {
 	return (ENOTSUP);
 }

@@ -618,6 +618,7 @@ static sd_disk_config_t sd_disk_table[] = {
 	{ "IBM     FAStT",	SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "IBM     1814",	SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "IBM     1814-200",	SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
+	{ "IBM     1818",	SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "LSI     INF",	SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "ENGENIO INF",	SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "SGI     TP",		SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
@@ -696,6 +697,7 @@ static sd_disk_config_t sd_disk_table[] = {
 		SD_CONF_BSET_DISKSORT_DISABLED|
 		SD_CONF_BSET_LUN_RESET_ENABLED,
 		&pirus_properties },
+	{ "SUN     STK6580_6780", SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "STK     OPENstorage", SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "STK     OpenStorage", SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
 	{ "STK     BladeCtlr",	SD_CONF_BSET_NRR_COUNT, &lsi_oem_properties },
@@ -9649,15 +9651,17 @@ sd_ready_and_valid(struct sd_lun *un)
 		mutex_enter(SD_MUTEX(un));
 
 		if (err != 0) {
-			scsi_log(SD_DEVINFO(un), sd_label, CE_WARN,
-			    "offline or reservation conflict\n");
 			mutex_exit(SD_MUTEX(un));
 			cmlb_invalidate(un->un_cmlbhandle,
 			    (void *)SD_PATH_DIRECT);
 			mutex_enter(SD_MUTEX(un));
 			if (err == EACCES) {
+				scsi_log(SD_DEVINFO(un), sd_label, CE_WARN,
+				    "reservation conflict\n");
 				rval = SD_RESERVED_BY_OTHERS;
 			} else {
+				scsi_log(SD_DEVINFO(un), sd_label, CE_WARN,
+				    "drive offline\n");
 				rval = SD_NOT_READY_VALID;
 			}
 			goto done;
@@ -14945,10 +14949,16 @@ sdintr(struct scsi_pkt *pktp)
 					    xp->xb_sense_resid;
 				}
 				if (xp->xb_pkt_flags & SD_XB_USCSICMD) {
-					xp->xb_sense_resid =
-					    (int)(((struct uscsi_cmd *)
-					    (xp->xb_pktinfo))->
-					    uscsi_rqlen) - actual_len;
+					if ((((struct uscsi_cmd *)
+					    (xp->xb_pktinfo))->uscsi_rqlen) >
+					    actual_len) {
+						xp->xb_sense_resid =
+						    (((struct uscsi_cmd *)
+						    (xp->xb_pktinfo))->
+						    uscsi_rqlen) - actual_len;
+					} else {
+						xp->xb_sense_resid = 0;
+					}
 				}
 				bcopy(&asp->sts_sensedata, xp->xb_sense_data,
 				    SENSE_LENGTH);
@@ -15519,8 +15529,14 @@ sd_handle_auto_request_sense(struct sd_lun *un, struct buf *bp,
 			actual_len = SENSE_LENGTH - xp->xb_sense_resid;
 		}
 		if (xp->xb_pkt_flags & SD_XB_USCSICMD) {
-			xp->xb_sense_resid = (int)(((struct uscsi_cmd *)
-			    (xp->xb_pktinfo))->uscsi_rqlen) - actual_len;
+			if ((((struct uscsi_cmd *)
+			    (xp->xb_pktinfo))->uscsi_rqlen) > actual_len) {
+				xp->xb_sense_resid = (((struct uscsi_cmd *)
+				    (xp->xb_pktinfo))->uscsi_rqlen) -
+				    actual_len;
+			} else {
+				xp->xb_sense_resid = 0;
+			}
 		}
 		bcopy(&asp->sts_sensedata, xp->xb_sense_data, SENSE_LENGTH);
 	}

@@ -927,9 +927,8 @@ dmu_offset_next(objset_t *os, objid_t object, boolean_t hole, uint64_t *off)
 	}
 	if (i != TXG_SIZE) {
 		dnode_rele(dn, FTAG);
-		err = txg_wait_synced(dmu_objset_pool(os), 0);
-		if (err == 0)
-			err = dnode_hold(os->os, object, FTAG, &dn);
+		txg_wait_synced(dmu_objset_pool(os), 0);
+		err = dnode_hold(os->os, object, FTAG, &dn);
 		if (err)
 			return (err);
 	}

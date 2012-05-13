@@ -29,27 +29,11 @@
 ##
 
 abi
-brand
 hal
-libbrand
-libelfsign
-libidmap
-libiscsitgt
-libkmf
-libldap5
-libnisdb
-libsctp
-libshare
-libshell
-libsldap
-libsmbfs
-libtnf
 libtnfctl
 libtnfprobe
 libumem
-libzonecfg
 lvm
 policykit
-print
 smbsrv
 udapl

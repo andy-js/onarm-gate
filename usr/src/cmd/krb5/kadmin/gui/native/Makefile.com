@@ -18,6 +18,7 @@
 #
 # CDDL HEADER END
 #
+# Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
 #
 # Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
@@ -46,6 +47,9 @@ CPPFLAGS += -I../ -I$(SRC)/lib/krb5 \
 	-I$(SRC)/lib/gss_mechs/mech_krb5/krb5/error_tables \
 	-I$(SRC)/uts/common/gssapi/mechs/krb5/include \
 	-I$(JAVA_ROOT)/include -I$(JAVA_ROOT)/include/solaris
+
+# Supress warnings when building with gcc
+$(__GNUC)CPPFLAGS += -_gcc=-Wno-sequence-point
 
 LDLIBS += $(KMECHLIB) -L$(ROOT)/$(KERBLIBDIR) -lkadm5clnt -lsocket -lc
 DYNFLAGS += $(KRUNPATH)

@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -406,18 +406,18 @@ typedef struct vfssw {
  * number requires a change in sys/modctl.h.
  */
 
-typedef struct vfsdef_v4 {
+typedef struct vfsdef_v5 {
 	int		def_version;	/* structure version, must be first */
 	char		*name;		/* filesystem type name */
 	int		(*init) (int, char *);	/* init routine */
 	int		flags;		/* filesystem flags */
 	mntopts_t	*optproto;	/* mount options table prototype */
-} vfsdef_v4;
+} vfsdef_v5;
 
-typedef struct vfsdef_v4 vfsdef_t;
+typedef struct vfsdef_v5 vfsdef_t;
 
 enum {
-	VFSDEF_VERSION = 4
+	VFSDEF_VERSION = 5
 };
 
 /*
@@ -478,6 +478,7 @@ void	vfs_remove(struct vfs *);
 /* VFS feature routines */
 void	vfs_set_feature(vfs_t *, vfs_feature_t);
 int	vfs_has_feature(vfs_t *, vfs_feature_t);
+void	vfs_propagate_features(vfs_t *, vfs_t *);
 
 /* The following functions are not for general use by filesystems */
 

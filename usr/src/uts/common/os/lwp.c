@@ -351,12 +351,15 @@ grow:
 		t->t_bind_cpu = binding = PBIND_NONE;
 		t->t_cpupart = oldpart = &cp_default;
 		t->t_bind_pset = PS_NONE;
+		t->t_bindflag = (uchar_t)default_binding_mode;
 	} else {
 		binding = curthread->t_bind_cpu;
 		t->t_bind_cpu = binding;
 		oldpart = t->t_cpupart;
 		t->t_cpupart = curthread->t_cpupart;
 		t->t_bind_pset = curthread->t_bind_pset;
+		t->t_bindflag = curthread->t_bindflag |
+		    (uchar_t)default_binding_mode;
 	}
 
 	/*
@@ -415,6 +418,11 @@ grow:
 		if (p != curproc || curthread->t_cid != cid) {
 			err = CL_ENTERCLASS(t, cid, NULL, NULL, bufp);
 			t->t_pri = pri;	/* CL_ENTERCLASS may have changed it */
+			/*
+			 * We don't call schedctl_set_cidpri(t) here
+			 * because the schedctl data is not yet set
+			 * up for the newly-created lwp.
+			 */
 		} else {
 			t->t_clfuncs = &(sclass[cid].cl_funcs->thread);
 			err = CL_FORK(curthread, t, bufp);
