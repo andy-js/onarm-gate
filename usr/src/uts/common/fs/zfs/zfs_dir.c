@@ -60,7 +60,8 @@
 #include <sys/zfs_fuid.h>
 #include <sys/dnlc.h>
 #include <sys/extdirent.h>
-#include <zfs_types.h>
+
+#include "zfs_types.h"
 
 /*
  * zfs_match_find() is used by zfs_dirent_lock() to peform zap lookups
@@ -79,7 +80,7 @@ zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, char *name, boolean_t exact,
 		char *buf = NULL;
 
 		if (rpnp) {
-			buf = rpnp->pn_path;
+			buf = rpnp->pn_buf;
 			bufsz = rpnp->pn_bufsize;
 		}
 		if (exact)
@@ -88,13 +89,12 @@ zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, char *name, boolean_t exact,
 		 * In the non-mixed case we only expect there would ever
 		 * be one match, but we need to use the normalizing lookup.
 		 */
-		error = zap_lookup_norm(zfsvfs->z_os, dzp->z_id, name,
-		    sizeof (*zoid), 1, zoid, mt, buf, bufsz, &conflict);
-		if (deflags)
+		error = zap_lookup_norm(zfsvfs->z_os, dzp->z_id, name, 8, 1,
+		    zoid, mt, buf, bufsz, &conflict);
+		if (!error && deflags)
 			*deflags = conflict ? ED_CASE_CONFLICT : 0;
 	} else {
-		error = zap_lookup(zfsvfs->z_os, dzp->z_id, name,
-		    sizeof (*zoid), 1, zoid);
+		error = zap_lookup(zfsvfs->z_os, dzp->z_id, name, 8, 1, zoid);
 	}
 	*zoid = ZFS_DIRENT_OBJ(*zoid);
 
@@ -309,7 +309,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 			zfs_dirent_unlock(dl);
 			return (EEXIST);
 		}
-		error = zfs_zget(zfsvfs, (objid_t)zoid, zpp);
+		error = zfs_zget(zfsvfs, zoid, zpp);
 		if (error) {
 			zfs_dirent_unlock(dl);
 			return (error);
@@ -407,14 +407,14 @@ zfs_dirlook(znode_t *dzp, char *name, vnode_t **vpp, int flags,
 		rpnp = NULL;
 	}
 
-	if ((flags & FIGNORECASE) && rpnp)
-		(void) strlcpy(rpnp->pn_path, name, rpnp->pn_bufsize);
+	if ((flags & FIGNORECASE) && rpnp && !error)
+		(void) strlcpy(rpnp->pn_buf, name, rpnp->pn_bufsize);
 
 	return (error);
 }
 
 static char *
-zfs_unlinked_hexname(char namebuf[17], objid_t x)
+zfs_unlinked_hexname(char namebuf[17], uint64_t x)
 {
 	char *name = &namebuf[16];
 	const char digits[16] = "0123456789abcdef";
@@ -453,8 +453,7 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	ASSERT3U(zp->z_phys->zp_links, ==, 0);
 
 	error = zap_add(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
-	    zfs_unlinked_hexname(obj_name, zp->z_id), sizeof (zp->z_id), 1,
-	    &zp->z_id, tx);
+	    zfs_unlinked_hexname(obj_name, zp->z_id), 8, 1, &zp->z_id, tx);
 	ASSERT3U(error, ==, 0);
 }
 
@@ -537,7 +536,7 @@ zfs_purgedir(znode_t *dzp)
 	    (error = zap_cursor_retrieve(&zc, &zap)) == 0;
 	    zap_cursor_advance(&zc)) {
 		error = zfs_zget(zfsvfs,
-		    (objid_t)ZFS_DIRENT_OBJ(zap.za_first_integer), &xzp);
+		    ZFS_DIRENT_OBJ(zap.za_first_integer), &xzp);
 		if (error) {
 			skipped += 1;
 			continue;
@@ -583,9 +582,7 @@ zfs_rmnode(znode_t *zp)
 	znode_t		*xzp = NULL;
 	char		obj_name[17];
 	dmu_tx_t	*tx;
-#ifndef ZFS_COMPACT
-	objid_t		acl_obj;
-#endif	/* ZFS_COMPACT */
+	uint64_t	acl_obj;
 	int		error;
 
 	ASSERT(ZTOV(zp)->v_count == 0);
@@ -685,7 +682,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 {
 	znode_t *dzp = dl->dl_dzp;
 	vnode_t *vp = ZTOV(zp);
-	objid_t value;
+	uint64_t value;
 	int zp_is_dir = (vp->v_type == VDIR);
 	int error;
 
@@ -713,9 +710,9 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	zfs_time_stamper_locked(dzp, CONTENT_MODIFIED, tx);
 	mutex_exit(&dzp->z_lock);
 
-	value = (objid_t)zfs_dirent(zp);
+	value = zfs_dirent(zp);
 	error = zap_add(zp->z_zfsvfs->z_os, dzp->z_id, dl->dl_name,
-	    sizeof (value), 1, &value, tx);
+	    8, 1, &value, tx);
 	ASSERT(error == 0);
 
 	dnlc_update(ZTOV(dzp), dl->dl_name, vp);

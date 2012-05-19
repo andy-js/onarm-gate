@@ -39,7 +39,8 @@
 #include <sys/bplist.h>
 #include <sys/dsl_synctask.h>
 #include <sys/zfs_context.h>
-#include <zfs_types.h>
+
+#include "zfs_types.h"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -67,16 +68,22 @@ typedef void dsl_dataset_evict_func_t(struct dsl_dataset *, void *);
  */
 #define	DS_FLAG_UNIQUE_ACCURATE	(1ULL<<2)
 
+/*
+ * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
+ * name lookups should be performed case-insensitively.
+ */
+#define	DS_FLAG_CI_DATASET	(1ULL<<16)
+
 typedef struct dsl_dataset_phys {
-	objid_t ds_dir_obj;
-	objid_t ds_prev_snap_obj;
-	txg_t ds_prev_snap_txg;
-	objid_t ds_next_snap_obj;
-	objid_t ds_snapnames_zapobj;	/* zap obj of snaps; ==0 for snaps */
-	numchildren_t ds_num_children;	/* clone/snap children; ==0 for head */
+	uint64_t ds_dir_obj;
+	uint64_t ds_prev_snap_obj;
+	uint64_t ds_prev_snap_txg;
+	uint64_t ds_next_snap_obj;
+	uint64_t ds_snapnames_zapobj;	/* zap obj of snaps; ==0 for snaps */
+	uint64_t ds_num_children;	/* clone/snap children; ==0 for head */
 	uint64_t ds_creation_time;	/* seconds since 1970 */
-	txg_t ds_creation_txg;
-	objid_t ds_deadlist_obj;
+	uint64_t ds_creation_txg;
+	uint64_t ds_deadlist_obj;
 	uint64_t ds_used_bytes;
 	uint64_t ds_compressed_bytes;
 	uint64_t ds_uncompressed_bytes;
@@ -100,7 +107,7 @@ typedef struct dsl_dataset {
 	struct dsl_dir *ds_dir;
 	dsl_dataset_phys_t *ds_phys;
 	dmu_buf_t *ds_dbuf;
-	objid_t ds_object;
+	uint64_t ds_object;
 	uint64_t ds_fsid_guid;
 
 	/* only used in syncing context: */
@@ -123,7 +130,7 @@ typedef struct dsl_dataset {
 	uint64_t ds_open_refcount;
 
 	/* no locking; only for making guesses */
-	txg_t ds_trysnap_txg;
+	uint64_t ds_trysnap_txg;
 
 	/* for objset_open() */
 	kmutex_t ds_opening_lock;
@@ -145,16 +152,17 @@ int dsl_dataset_open_spa(spa_t *spa, const char *name, int mode,
     void *tag, dsl_dataset_t **dsp);
 int dsl_dataset_open(const char *name, int mode, void *tag,
     dsl_dataset_t **dsp);
-int dsl_dataset_open_obj(struct dsl_pool *dp, objid_t dsobj,
+int dsl_dataset_open_obj(struct dsl_pool *dp, uint64_t dsobj,
     const char *tail, int mode, void *tag, dsl_dataset_t **);
 void dsl_dataset_name(dsl_dataset_t *ds, char *name);
 void dsl_dataset_close(dsl_dataset_t *ds, int mode, void *tag);
 void dsl_dataset_downgrade(dsl_dataset_t *ds, int oldmode, int newmode);
 boolean_t dsl_dataset_tryupgrade(dsl_dataset_t *ds, int oldmode, int newmode);
-objid_t dsl_dataset_create_sync_impl(dsl_dir_t *dd, dsl_dataset_t *origin,
-    dmu_tx_t *tx);
-objid_t dsl_dataset_create_sync(dsl_dir_t *pds,
-    const char *lastname, dsl_dataset_t *origin, cred_t *, dmu_tx_t *);
+uint64_t dsl_dataset_create_sync_impl(dsl_dir_t *dd, dsl_dataset_t *origin,
+    uint64_t flags, dmu_tx_t *tx);
+uint64_t dsl_dataset_create_sync(dsl_dir_t *pds,
+    const char *lastname, dsl_dataset_t *origin, uint64_t flags,
+    cred_t *, dmu_tx_t *);
 int dsl_dataset_destroy(dsl_dataset_t *ds, void *tag);
 int dsl_snapshots_destroy(char *fsname, char *snapname);
 dsl_checkfunc_t dsl_dataset_destroy_check;
@@ -183,21 +191,21 @@ void dsl_dataset_sync(dsl_dataset_t *os, zio_t *zio, dmu_tx_t *tx);
 void dsl_dataset_block_born(dsl_dataset_t *ds, blkptr_t *bp, dmu_tx_t *tx);
 void dsl_dataset_block_kill(dsl_dataset_t *ds, blkptr_t *bp, zio_t *pio,
     dmu_tx_t *tx);
-int dsl_dataset_block_freeable(dsl_dataset_t *ds, txg_t blk_birth);
-txg_t dsl_dataset_prev_snap_txg(dsl_dataset_t *ds);
+int dsl_dataset_block_freeable(dsl_dataset_t *ds, uint64_t blk_birth);
+uint64_t dsl_dataset_prev_snap_txg(dsl_dataset_t *ds);
 
 void dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx);
 void dsl_dataset_stats(dsl_dataset_t *os, nvlist_t *nv);
 void dsl_dataset_fast_stat(dsl_dataset_t *ds, dmu_objset_stats_t *stat);
 void dsl_dataset_space(dsl_dataset_t *ds,
     uint64_t *refdbytesp, uint64_t *availbytesp,
-    objid_t *usedobjsp, objid_t *availobjsp);
+    uint64_t *usedobjsp, uint64_t *availobjsp);
 uint64_t dsl_dataset_fsid_guid(dsl_dataset_t *ds);
 
-void dsl_dataset_create_root(struct dsl_pool *dp, objid_t *ddobjp,
+void dsl_dataset_create_root(struct dsl_pool *dp, uint64_t *ddobjp,
     dmu_tx_t *tx);
 
-int dsl_dsobj_to_dsname(char *pname, objid_t obj, char *buf);
+int dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf);
 
 int dsl_dataset_check_quota(dsl_dataset_t *ds, boolean_t check_quota,
     uint64_t asize, uint64_t inflight, uint64_t *used,
@@ -206,6 +214,7 @@ int dsl_dataset_set_quota(const char *dsname, uint64_t quota);
 void dsl_dataset_set_quota_sync(void *arg1, void *arg2, cred_t *cr,
     dmu_tx_t *tx);
 int dsl_dataset_set_reservation(const char *dsname, uint64_t reservation);
+void dsl_dataset_set_flags(dsl_dataset_t *ds, uint64_t flags);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_ds(ds, fmt, ...) do { \

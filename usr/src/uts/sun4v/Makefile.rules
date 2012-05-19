@@ -69,10 +69,6 @@ $(OBJS_DIR)/%.o:		$(UTSBASE)/sun4v/promif/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
 
-$(OBJS_DIR)/%.o:		$(UTSBASE)/sun4v/io/bmc/%.c
-	$(COMPILE.c) -o $@ $<
-	$(CTFCONVERT_O)
-
 $(OBJS_DIR)/%.o:		$(UTSBASE)/sun4v/io/px/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
@@ -135,6 +131,9 @@ $(OBJS_DIR)/%.o:		$(UTSBASE)/sun4v/io/n2rng/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
 
+$(OBJS_DIR)/%.o:                $(UTSBASE)/sun4v/io/%.s
+	$(COMPILE.s) -o $@ $<
+
 $(OBJS_DIR)/%.o:                $(UTSBASE)/sun4v/io/n2rng/%.s
 	$(COMPILE.s) -o $@ $<
 
@@ -165,8 +164,8 @@ $(LINTS_DIR)/%.ln:		$(UTSBASE)/sun4v/cpu/%.s
 $(LINTS_DIR)/%.ln:		$(UTSBASE)/sun4v/io/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))
 
-$(LINTS_DIR)/%.ln:		$(UTSBASE)/sun4v/io/bmc/%.c
-	@($(LHEAD) $(LINT.c) $< $(LTAIL))
+$(LINTS_DIR)/%.ln:		$(UTSBASE)/sun4v/io/%.s
+	@($(LHEAD) $(LINT.s) $< $(LTAIL))
 
 $(LINTS_DIR)/%.ln:		$(UTSBASE)/sun4v/io/px/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))

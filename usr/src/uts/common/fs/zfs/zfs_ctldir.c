@@ -80,11 +80,13 @@
 #include <sys/dmu.h>
 #include <sys/dsl_deleg.h>
 #include <sys/mount.h>
-#include <zfs_types.h>
+#include <sys/sunddi.h>
+
+#include "zfs_types.h"
 
 typedef struct zfsctl_node {
 	gfs_dir_t	zc_gfs_private;
-	objid_t		zc_id;
+	uint64_t	zc_id;
 	timestruc_t	zc_cmtime;	/* ctime and mtime, always the same */
 } zfsctl_node_t;
 
@@ -124,7 +126,7 @@ static const fs_operation_def_t zfsctl_tops_snapdir[];
 static const fs_operation_def_t zfsctl_tops_snapshot[];
 
 static vnode_t *zfsctl_mknode_snapdir(vnode_t *);
-static vnode_t *zfsctl_snapshot_mknode(vnode_t *, objid_t objset);
+static vnode_t *zfsctl_snapshot_mknode(vnode_t *, uint64_t objset);
 static int zfsctl_unmount_snap(zfs_snapentry_t *, int, cred_t *);
 
 static gfs_opsvec_t zfsctl_opsvec[] = {
@@ -320,7 +322,7 @@ zfsctl_common_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 {
 	zfsvfs_t	*zfsvfs = vp->v_vfsp->vfs_data;
 	zfsctl_node_t	*zcp = vp->v_data;
-	objid_t		object = zcp->zc_id;
+	uint64_t	object = zcp->zc_id;
 	zfid_short_t	*zfid;
 	int		i;
 
@@ -404,7 +406,8 @@ zfsctl_root_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, pathname_t *pnp,
 	if (strcmp(nm, "..") == 0) {
 		err = VFS_ROOT(dvp->v_vfsp, vpp);
 	} else {
-		err = gfs_dir_lookup(dvp, nm, vpp, cr);
+		err = gfs_vop_lookup(dvp, nm, vpp, pnp, flags, rdir,
+		    cr, ct, direntflags, realpnp);
 	}
 
 	ZFS_EXIT(zfsvfs);
@@ -532,20 +535,36 @@ zfsctl_snapdir_rename(vnode_t *sdvp, char *snm, vnode_t *tdvp, char *tnm,
 {
 	zfsctl_snapdir_t *sdp = sdvp->v_data;
 	zfs_snapentry_t search, *sep;
+	zfsvfs_t *zfsvfs;
 	avl_index_t where;
 	char from[MAXNAMELEN], to[MAXNAMELEN];
+	char real[MAXNAMELEN];
 	int err;
 
+	zfsvfs = sdvp->v_vfsp->vfs_data;
+	ZFS_ENTER(zfsvfs);
+
+	if ((flags & FIGNORECASE) || zfsvfs->z_case == ZFS_CASE_INSENSITIVE) {
+		err = dmu_snapshot_realname(zfsvfs->z_os, snm, real,
+		    MAXNAMELEN, NULL);
+		if (err == 0) {
+			snm = real;
+		} else if (err != ENOTSUP) {
+			ZFS_EXIT(zfsvfs);
+			return (err);
+		}
+	}
+
+	ZFS_EXIT(zfsvfs);
+
 	err = zfsctl_snapshot_zname(sdvp, snm, MAXNAMELEN, from);
+	if (!err)
+		err = zfsctl_snapshot_zname(tdvp, tnm, MAXNAMELEN, to);
+	if (!err)
+		err = zfs_secpolicy_rename_perms(from, to, cr);
 	if (err)
 		return (err);
 
-	err = zfsctl_snapshot_zname(tdvp, tnm, MAXNAMELEN, to);
-	if (err)
-		return (err);
-
-	if (err = zfs_secpolicy_rename_perms(from, to, cr))
-		return (err);
 	/*
 	 * Cannot move snapshots out of the snapdir.
 	 */
@@ -580,14 +599,32 @@ zfsctl_snapdir_remove(vnode_t *dvp, char *name, vnode_t *cwd, cred_t *cr,
 	zfsctl_snapdir_t *sdp = dvp->v_data;
 	zfs_snapentry_t *sep;
 	zfs_snapentry_t search;
+	zfsvfs_t *zfsvfs;
 	char snapname[MAXNAMELEN];
+	char real[MAXNAMELEN];
 	int err;
 
-	err = zfsctl_snapshot_zname(dvp, name, MAXNAMELEN, snapname);
-	if (err)
-		return (err);
+	zfsvfs = dvp->v_vfsp->vfs_data;
+	ZFS_ENTER(zfsvfs);
 
-	if (err = zfs_secpolicy_destroy_perms(snapname, cr))
+	if ((flags & FIGNORECASE) || zfsvfs->z_case == ZFS_CASE_INSENSITIVE) {
+
+		err = dmu_snapshot_realname(zfsvfs->z_os, name, real,
+		    MAXNAMELEN, NULL);
+		if (err == 0) {
+			name = real;
+		} else if (err != ENOTSUP) {
+			ZFS_EXIT(zfsvfs);
+			return (err);
+		}
+	}
+
+	ZFS_EXIT(zfsvfs);
+
+	err = zfsctl_snapshot_zname(dvp, name, MAXNAMELEN, snapname);
+	if (!err)
+		err = zfs_secpolicy_destroy_perms(snapname, cr);
+	if (err)
 		return (err);
 
 	mutex_enter(&sdp->sd_lock);
@@ -656,6 +693,7 @@ zfsctl_snapdir_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, pathname_t *pnp,
 	zfsctl_snapdir_t *sdp = dvp->v_data;
 	objset_t *snap;
 	char snapname[MAXNAMELEN];
+	char real[MAXNAMELEN];
 	char *mountpoint;
 	zfs_snapentry_t *sep, search;
 	struct mounta margs;
@@ -686,6 +724,24 @@ zfsctl_snapdir_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, pathname_t *pnp,
 		return (ENOENT);
 
 	ZFS_ENTER(zfsvfs);
+
+	if (flags & FIGNORECASE) {
+		boolean_t conflict = B_FALSE;
+
+		err = dmu_snapshot_realname(zfsvfs->z_os, nm, real,
+		    MAXNAMELEN, &conflict);
+		if (err == 0) {
+			nm = real;
+		} else if (err != ENOTSUP) {
+			ZFS_EXIT(zfsvfs);
+			return (err);
+		}
+		if (realpnp)
+			(void) strlcpy(realpnp->pn_buf, nm,
+			    realpnp->pn_bufsize);
+		if (conflict && direntflags)
+			*direntflags = ED_CASE_CONFLICT;
+	}
 
 	mutex_enter(&sdp->sd_lock);
 	search.se_name = (char *)nm;
@@ -922,7 +978,7 @@ static const fs_operation_def_t zfsctl_tops_snapdir[] = {
  * vfs_t's ontop of.
  */
 static vnode_t *
-zfsctl_snapshot_mknode(vnode_t *pvp, objid_t objset)
+zfsctl_snapshot_mknode(vnode_t *pvp, uint64_t objset)
 {
 	vnode_t *vp;
 	zfsctl_node_t *zcp;
@@ -943,7 +999,7 @@ zfsctl_snapshot_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 	zfs_snapentry_t *sep, *next;
 	vnode_t *dvp;
 
-	VERIFY(gfs_dir_lookup(vp, "..", &dvp, cr) == 0);
+	VERIFY(gfs_dir_lookup(vp, "..", &dvp, cr, 0, NULL, NULL) == 0);
 	sdp = dvp->v_data;
 
 	mutex_enter(&sdp->sd_lock);
@@ -993,7 +1049,7 @@ static const fs_operation_def_t zfsctl_tops_snapshot[] = {
 };
 
 int
-zfsctl_lookup_objset(vfs_t *vfsp, objid_t objsetid, zfsvfs_t **zfsvfsp)
+zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp)
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 	vnode_t *dvp, *vp;

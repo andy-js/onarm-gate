@@ -72,7 +72,7 @@ dump_bytes(struct backuparg *ba, void *buf, int len)
 }
 
 static int
-dump_free(struct backuparg *ba, objid_t object, uint64_t offset,
+dump_free(struct backuparg *ba, uint64_t object, uint64_t offset,
     uint64_t length)
 {
 	/* write a FREE record */
@@ -89,7 +89,7 @@ dump_free(struct backuparg *ba, objid_t object, uint64_t offset,
 
 static int
 dump_data(struct backuparg *ba, dmu_object_type_t type,
-    objid_t object, uint64_t offset, int blksz, void *data)
+    uint64_t object, uint64_t offset, int blksz, void *data)
 {
 	/* write a DATA record */
 	bzero(ba->drr, sizeof (dmu_replay_record_t));
@@ -107,7 +107,7 @@ dump_data(struct backuparg *ba, dmu_object_type_t type,
 }
 
 static int
-dump_freeobjects(struct backuparg *ba, objid_t firstobj, objid_t numobjs)
+dump_freeobjects(struct backuparg *ba, uint64_t firstobj, uint64_t numobjs)
 {
 	/* write a FREEOBJECTS record */
 	bzero(ba->drr, sizeof (dmu_replay_record_t));
@@ -121,7 +121,7 @@ dump_freeobjects(struct backuparg *ba, objid_t firstobj, objid_t numobjs)
 }
 
 static int
-dump_dnode(struct backuparg *ba, objid_t object, dnode_phys_t *dnp)
+dump_dnode(struct backuparg *ba, uint64_t object, dnode_phys_t *dnp)
 {
 	if (dnp == NULL || dnp->dn_type == DMU_OT_NONE)
 		return (dump_freeobjects(ba, object, 1));
@@ -161,7 +161,7 @@ static int
 backup_cb(traverse_blk_cache_t *bc, spa_t *spa, void *arg)
 {
 	struct backuparg *ba = arg;
-	objid_t object = bc->bc_bookmark.zb_object;
+	uint64_t object = bc->bc_bookmark.zb_object;
 	int level = bc->bc_bookmark.zb_level;
 	uint64_t blkid = bc->bc_bookmark.zb_blkid;
 	blkptr_t *bp = bc->bc_blkptr.blk_birth ? &bc->bc_blkptr : NULL;
@@ -176,7 +176,7 @@ backup_cb(traverse_blk_cache_t *bc, spa_t *spa, void *arg)
 
 	if (bp == NULL && object == 0) {
 		uint64_t span = BP_SPAN(bc->bc_dnode, level);
-		objid_t dnobj = (blkid * span) >> DNODE_SHIFT;
+		uint64_t dnobj = (blkid * span) >> DNODE_SHIFT;
 		err = dump_freeobjects(ba, dnobj, span >> DNODE_SHIFT);
 	} else if (bp == NULL) {
 		uint64_t span = BP_SPAN(bc->bc_dnode, level);
@@ -187,7 +187,7 @@ backup_cb(traverse_blk_cache_t *bc, spa_t *spa, void *arg)
 		int blksz = BP_GET_LSIZE(bp);
 
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
-			objid_t dnobj =
+			uint64_t dnobj =
 			    (blkid << (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
 			err = dump_dnode(ba, dnobj, blk+i);
 			if (err)
@@ -234,7 +234,7 @@ dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 	dmu_replay_record_t *drr;
 	struct backuparg ba;
 	int err;
-	txg_t fromtxg = 0;
+	uint64_t fromtxg = 0;
 
 	/* tosnap must be a snapshot */
 	if (ds->ds_phys->ds_next_snap_obj == 0)
@@ -274,6 +274,9 @@ dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 	if (fromorigin)
 		drr->drr_u.drr_begin.drr_flags |= DRR_FLAG_CLONE;
 	drr->drr_u.drr_begin.drr_toguid = ds->ds_phys->ds_guid;
+	if (ds->ds_phys->ds_flags & DS_FLAG_CI_DATASET)
+		drr->drr_u.drr_begin.drr_flags |= DRR_FLAG_CI_DATA;
+
 	if (fromds)
 		drr->drr_u.drr_begin.drr_fromguid = fromds->ds_phys->ds_guid;
 	dsl_dataset_name(ds, drr->drr_u.drr_begin.drr_toname);
@@ -327,12 +330,13 @@ struct recvbeginsyncarg {
 	dmu_objset_type_t type;
 	void *tag;
 	boolean_t force;
+	uint64_t dsflags;
 	char clonelastname[MAXNAMELEN];
 	dsl_dataset_t *ds; /* the ds to recv into; returned from the syncfunc */
 };
 
 static dsl_dataset_t *
-recv_full_sync_impl(dsl_pool_t *dp, objid_t dsobj, dmu_objset_type_t type,
+recv_full_sync_impl(dsl_pool_t *dp, uint64_t dsobj, dmu_objset_type_t type,
     cred_t *cr, dmu_tx_t *tx)
 {
 	dsl_dataset_t *ds;
@@ -344,9 +348,6 @@ recv_full_sync_impl(dsl_pool_t *dp, objid_t dsobj, dmu_objset_type_t type,
 		(void) dmu_objset_create_impl(dp->dp_spa,
 		    ds, &ds->ds_phys->ds_bp, type, tx);
 	}
-
-	dmu_buf_will_dirty(ds->ds_dbuf, tx);
-	ds->ds_phys->ds_flags |= DS_FLAG_INCONSISTENT;
 
 	spa_history_internal_log(LOG_DS_REPLAY_FULL_SYNC,
 	    ds->ds_dir->dd_pool->dp_spa, tx, cr, "dataset = %" PRIuOBJID,
@@ -362,11 +363,11 @@ recv_full_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	dsl_dir_t *dd = arg1;
 	struct recvbeginsyncarg *rbsa = arg2;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	objid_t val;
+	uint64_t val;
 	int err;
 
 	err = zap_lookup(mos, dd->dd_phys->dd_child_dir_zapobj,
-	    strrchr(rbsa->tofs, '/') + 1, sizeof (val), 1, &val);
+	    strrchr(rbsa->tofs, '/') + 1, sizeof (uint64_t), 1, &val);
 
 	if (err != ENOENT)
 		return (err ? err : EEXIST);
@@ -389,10 +390,13 @@ recv_full_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 {
 	dsl_dir_t *dd = arg1;
 	struct recvbeginsyncarg *rbsa = arg2;
-	objid_t dsobj;
+	uint64_t dsobj;
+	uint64_t flags = DS_FLAG_INCONSISTENT;
+
+	flags |= rbsa->dsflags;
 
 	dsobj = dsl_dataset_create_sync(dd, strrchr(rbsa->tofs, '/') + 1,
-	    rbsa->origin, cr, tx);
+	    rbsa->origin, flags, cr, tx);
 
 	rbsa->ds = recv_full_sync_impl(dd->dd_pool, dsobj,
 	    rbsa->origin ? DMU_OST_NONE : rbsa->type, cr, tx);
@@ -436,7 +440,10 @@ recv_full_existing_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	dsl_dataset_t *ds = arg1;
 	struct recvbeginsyncarg *rbsa = arg2;
 	dsl_dir_t *dd = ds->ds_dir;
-	objid_t dsobj;
+	uint64_t dsobj;
+	uint64_t flags = DS_FLAG_INCONSISTENT;
+
+	flags |= rbsa->dsflags;
 
 	/*
 	 * NB: caller must provide an extra hold on the dsl_dir_t, so it
@@ -445,7 +452,7 @@ recv_full_existing_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	 */
 	dsl_dataset_destroy_sync(ds, rbsa->tag, cr, tx);
 
-	dsobj = dsl_dataset_create_sync_impl(dd, rbsa->origin, tx);
+	dsobj = dsl_dataset_create_sync_impl(dd, rbsa->origin, flags, tx);
 
 	rbsa->ds = recv_full_sync_impl(dd->dd_pool, dsobj,
 	    rbsa->origin ? DMU_OST_NONE : rbsa->type, cr, tx);
@@ -458,7 +465,7 @@ recv_incremental_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	dsl_dataset_t *ds = arg1;
 	struct recvbeginsyncarg *rbsa = arg2;
 	int err;
-	objid_t val;
+	uint64_t val;
 
 	/* must not have any changes since most recent snapshot */
 	if (!rbsa->force && dsl_dataset_modified_since_lastsnap(ds))
@@ -475,7 +482,7 @@ recv_incremental_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	/* temporary clone name must not exist */
 	err = zap_lookup(ds->ds_dir->dd_pool->dp_meta_objset,
 	    ds->ds_dir->dd_phys->dd_child_dir_zapobj,
-	    rbsa->clonelastname, sizeof (val), 1, &val);
+	    rbsa->clonelastname, 8, 1, &val);
 	if (err == 0)
 		return (EEXIST);
 	if (err != ENOENT)
@@ -483,8 +490,7 @@ recv_incremental_check(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	/* new snapshot name must not exist */
 	err = zap_lookup(ds->ds_dir->dd_pool->dp_meta_objset,
-	    ds->ds_phys->ds_snapnames_zapobj, rbsa->tosnap,
-	    sizeof (val), 1, &val);
+	    ds->ds_phys->ds_snapnames_zapobj, rbsa->tosnap, 8, 1, &val);
 	if (err == 0)
 		return (EEXIST);
 	if (err != ENOENT)
@@ -500,13 +506,16 @@ recv_online_incremental_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	struct recvbeginsyncarg *rbsa = arg2;
 	dsl_pool_t *dp = ohds->ds_dir->dd_pool;
 	dsl_dataset_t *ods, *cds;
-	objid_t dsobj;
+	uint64_t dsobj;
+	uint64_t flags = DS_FLAG_INCONSISTENT;
+
+	flags |= rbsa->dsflags;
 
 	/* create the temporary clone */
 	VERIFY(0 == dsl_dataset_open_obj(dp, ohds->ds_phys->ds_prev_snap_obj,
 	    NULL, DS_MODE_STANDARD, FTAG, &ods));
 	dsobj = dsl_dataset_create_sync(ohds->ds_dir,
-	    rbsa->clonelastname, ods, cr, tx);
+	    rbsa->clonelastname, ods, flags, cr, tx);
 	dsl_dataset_close(ods, DS_MODE_STANDARD, FTAG);
 
 	/* open the temporary clone */
@@ -516,9 +525,6 @@ recv_online_incremental_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	/* copy the refquota from the target fs to the clone */
 	if (ohds->ds_quota > 0)
 		dsl_dataset_set_quota_sync(cds, &ohds->ds_quota, cr, tx);
-
-	dmu_buf_will_dirty(cds->ds_dbuf, tx);
-	cds->ds_phys->ds_flags |= DS_FLAG_INCONSISTENT;
 
 	rbsa->ds = cds;
 
@@ -569,6 +575,7 @@ dmu_recv_begin(char *tofs, char *tosnap, struct drr_begin *drrb,
 	rbsa.fromguid = drrb->drr_fromguid;
 	rbsa.type = drrb->drr_type;
 	rbsa.tag = FTAG;
+	rbsa.dsflags = 0;
 	version = drrb->drr_version;
 	flags = drrb->drr_flags;
 
@@ -583,6 +590,9 @@ dmu_recv_begin(char *tofs, char *tosnap, struct drr_begin *drrb,
 	    rbsa.type >= DMU_OST_NUMTYPES ||
 	    ((flags & DRR_FLAG_CLONE) && origin == NULL))
 		return (EINVAL);
+
+	if (flags & DRR_FLAG_CI_DATA)
+		rbsa.dsflags = DS_FLAG_CI_DATASET;
 
 	bzero(drc, sizeof (dmu_recv_cookie_t));
 	drc->drc_drrb = drrb;
@@ -747,7 +757,6 @@ backup_byteswap(dmu_replay_record_t *drr)
 {
 #define	DO64(X) (drr->drr_u.X = BSWAP_64(drr->drr_u.X))
 #define	DO32(X) (drr->drr_u.X = BSWAP_32(drr->drr_u.X))
-#define	DOOBJID(obj) DO64(obj)
 	drr->drr_type = BSWAP_32(drr->drr_type);
 	drr->drr_payloadlen = BSWAP_32(drr->drr_payloadlen);
 	switch (drr->drr_type) {
@@ -761,7 +770,7 @@ backup_byteswap(dmu_replay_record_t *drr)
 		DO64(drr_begin.drr_fromguid);
 		break;
 	case DRR_OBJECT:
-		DOOBJID(drr_object.drr_object);
+		DO64(drr_object.drr_object);
 		/* DO64(drr_object.drr_allocation_txg); */
 		DO32(drr_object.drr_type);
 		DO32(drr_object.drr_bonustype);
@@ -769,17 +778,17 @@ backup_byteswap(dmu_replay_record_t *drr)
 		DO32(drr_object.drr_bonuslen);
 		break;
 	case DRR_FREEOBJECTS:
-		DOOBJID(drr_freeobjects.drr_firstobj);
-		DOOBJID(drr_freeobjects.drr_numobjs);
+		DO64(drr_freeobjects.drr_firstobj);
+		DO64(drr_freeobjects.drr_numobjs);
 		break;
 	case DRR_WRITE:
-		DOOBJID(drr_write.drr_object);
+		DO64(drr_write.drr_object);
 		DO32(drr_write.drr_type);
 		DO64(drr_write.drr_offset);
 		DO64(drr_write.drr_length);
 		break;
 	case DRR_FREE:
-		DOOBJID(drr_free.drr_object);
+		DO64(drr_free.drr_object);
 		DO64(drr_free.drr_offset);
 		DO64(drr_free.drr_length);
 		break;
@@ -792,7 +801,6 @@ backup_byteswap(dmu_replay_record_t *drr)
 	}
 #undef DO64
 #undef DO32
-#undef DOOBJID
 }
 #endif	/* ZFS_COMPACT */
 
@@ -887,7 +895,7 @@ static int
 restore_freeobjects(struct restorearg *ra, objset_t *os,
     struct drr_freeobjects *drrfo)
 {
-	objid_t obj;
+	uint64_t obj;
 
 	if (drrfo->drr_firstobj + drrfo->drr_numobjs < drrfo->drr_firstobj)
 		return (EINVAL);
@@ -1120,11 +1128,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
 			 * value, because the stored checksum is of
 			 * everything before the DRR_END record.
 			 */
-			if (drre.drr_checksum.zc_word[0] != 0 &&
-			    !ZIO_CHECKSUM_EQUAL(drre.drr_checksum, pcksum)) {
+			if (!ZIO_CHECKSUM_EQUAL(drre.drr_checksum, pcksum))
 				ra.err = ECKSUM;
-				goto out;
-			}
 			goto out;
 		}
 		default:
@@ -1133,6 +1138,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
 		}
 		pcksum = ra.cksum;
 	}
+	ASSERT(ra.err != 0);
 
 out:
 	dmu_objset_close(os);
@@ -1143,6 +1149,7 @@ out:
 		 * leave it in the restoring state.
 		 */
 		txg_wait_synced(drc->drc_real_ds->ds_dir->dd_pool, 0);
+		dmu_recv_abort_cleanup(drc);
 	}
 
 	kmem_free(ra.buf, ra.bufsize);
@@ -1205,7 +1212,7 @@ dmu_recv_end(dmu_recv_cookie_t *drc)
 	}
 
 	if (drc->drc_logical_ds != drc->drc_real_ds) {
-		if (dsl_dataset_tryupgrade(drc->drc_logical_ds,
+		if (err == 0 && dsl_dataset_tryupgrade(drc->drc_logical_ds,
 		    DS_MODE_STANDARD, DS_MODE_EXCLUSIVE)) {
 			lmode = DS_MODE_EXCLUSIVE;
 			err = dsl_dataset_clone_swap(drc->drc_real_ds,

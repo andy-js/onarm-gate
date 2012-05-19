@@ -58,7 +58,8 @@ sparc_SUBDIRS= \
 	SUNWerid \
 	SUNWfruid \
 	SUNWfruip.u \
-	SUNWfps  \
+	SUNWfsr \
+	SUNWfsu \
 	SUNWhmd    \
 	SUNWhmdu   \
 	SUNWidn.u \
@@ -130,6 +131,7 @@ i386_SUBDIRS= \
 	SUNWkvm.i \
 	SUNWlxr \
 	SUNWlxu \
+	SUNWmegasas \
 	SUNWmv88sx \
 	SUNWnge \
 	SUNWnvsata \
@@ -152,8 +154,7 @@ i386_SUBDIRS= \
 i386_XMODS= \
 	BRCMbnx \
 	SUNWadpu320 \
-	SUNWlsimega \
-	SUNWmegasas \
+	SUNWlsimega
 
 COMMON_SUBDIRS= \
 	SUNW1394h \

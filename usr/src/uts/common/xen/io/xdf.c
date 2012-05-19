@@ -420,7 +420,8 @@ xdf_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	 * we will adjust minor nodes after we are connected w/ backend
 	 */
 	cmlb_alloc_handle(&vdp->xdf_vd_lbl);
-	if (cmlb_attach(devi, &xdf_lb_ops, DTYPE_DIRECT, 0, 1, DDI_NT_BLOCK,
+	if (cmlb_attach(devi, &xdf_lb_ops, DTYPE_DIRECT, 0, 1,
+	    DDI_NT_BLOCK_XVMD,
 #if defined(XPV_HVM_DRIVER)
 	    CMLB_CREATE_ALTSLICE_VTOC_16_DTYPE_DIRECT |
 	    CMLB_INTERNAL_MINOR_NODES,
@@ -606,6 +607,7 @@ xdf_suspend(dev_info_t *devi)
 	if ((st == XD_INIT) || (st == XD_READY)) {
 #ifdef XPV_HVM_DRIVER
 		ec_unbind_evtchn(vdp->xdf_evtchn);
+		xvdi_free_evtchn(devi);
 #else /* !XPV_HVM_DRIVER */
 		(void) ddi_remove_intr(devi, 0, NULL);
 #endif /* !XPV_HVM_DRIVER */
@@ -1944,7 +1946,8 @@ xdf_post_connect(xdf_t *vdp)
 		/* re-init cmlb w/ latest info we got from backend */
 		if (cmlb_attach(devi, &xdf_lb_ops,
 		    XD_IS_CD(vdp) ? DTYPE_RODIRECT : DTYPE_DIRECT,
-		    XD_IS_RM(vdp), 1, DDI_NT_BLOCK,
+		    XD_IS_RM(vdp), 1,
+		    XD_IS_CD(vdp) ? DDI_NT_CD_XVMD : DDI_NT_BLOCK_XVMD,
 #if defined(XPV_HVM_DRIVER)
 		    CMLB_CREATE_ALTSLICE_VTOC_16_DTYPE_DIRECT |
 		    CMLB_INTERNAL_MINOR_NODES,
