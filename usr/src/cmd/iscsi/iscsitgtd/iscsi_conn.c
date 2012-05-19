@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -387,6 +387,7 @@ conn_process(void *v)
 	 * who have alligence to this connection and free them as well.
 	 */
 	(void) pthread_mutex_lock(&c->c_mutex);
+	(void) pthread_mutex_lock(&c->c_state_mutex);
 
 	for (i = 0, cmd = c->c_cmd_head; cmd; i++)
 		cmd = cmd->c_next; /* debug count of lost ttt's */
@@ -425,6 +426,7 @@ conn_process(void *v)
 		umem_cache_free(iscsi_cmd_cache, cmd);
 		cmd = n;
 	}
+	(void) pthread_mutex_unlock(&c->c_state_mutex);
 	(void) pthread_mutex_unlock(&c->c_mutex);
 
 	if (i) {
@@ -493,15 +495,12 @@ iscsi_conn_pkt(iscsi_conn_t *c, iscsi_rsp_hdr_t *in)
 	case ISCSI_OP_NOOP_IN:
 		in->statsn	= htonl(c->c_statsn);
 		/*
-		 * Only bump the STATSN value if this packet is in response to
-		 * an initiator's ping. Section 10.19.1 of RFC3720 specifies
-		 * that the value must be 0xffffffff when responding to an
-		 * initiator. So, if the value is the reserved ITT value then
-		 * this packet was generated in reponse to an initiator ping.
-		 * Otherwise, we timed out on the connection and are requesting
-		 * a ping.
+		 * RFC 3720 section 10.19. specifies:
+		 * - ITT is different from 0xffffffff in NOP-In when responding
+		 *    to incomming NOP-Out; and set to 0xffffffff otherwise
+		 * - StatSN is not advanced for ITT set to 0xffffffff
 		 */
-		if (((iscsi_nop_in_hdr_t *)in)->ttt == ISCSI_RSVD_TASK_TAG)
+		if (((iscsi_nop_in_hdr_t *)in)->itt != ISCSI_RSVD_TASK_TAG)
 			c->c_statsn++;
 		break;
 	}

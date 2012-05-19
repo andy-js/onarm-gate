@@ -19,7 +19,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 #
@@ -33,7 +33,7 @@ ROOTFS_PROG= $(PROG)
 
 include ../Makefile.cmd
 
-LDLIBS2			= -lbsm -lscf
+LDLIBS2			= -lbsm
 LINT_PROG		= lint_PROG
 $(ARM_BLD)LDLIBS2	=
 $(ARM_BLD)LINT_PROG	=
@@ -59,7 +59,7 @@ install: all $(ROOTSBINPROG)
 
 clean:
 
-lint:	$(LINT_PROG)
+lint:	lint_PROG
 $(ARM_BLD)	$(LINT.c) $(PROG)_$(MACH).c $(LDLIBS)
 
 include ../Makefile.targ

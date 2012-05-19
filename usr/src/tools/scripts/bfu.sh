@@ -750,6 +750,18 @@ update_mptconf_i386()
 	fi
 }
 
+# update x86 etc/mach file after xVM_uppc is added,
+# which makes xpv_psm a non-default psm module
+update_etc_mach_i386()
+{
+	etc_mach=$rootprefix/etc/mach
+	test -f $etc_mach || return
+	grep -w "xpv_psm" $etc_mach > /dev/null 2>&1
+	if [ $? -ne 0 ] ; then
+	    echo 'xpv_psm' >> $etc_mach
+	fi
+}
+
 update_policy_conf() {
 	# update /etc/security/policy.conf with the default
 	# Solaris crypt(3c) policy.
@@ -1269,6 +1281,10 @@ smf_obsolete_methods="
 	lib/svc/method/aggregation
 	lib/svc/method/datalink
 	lib/svc/method/datalink-init
+	lib/svc/method/svc-kdc
+	lib/svc/method/svc-kdc.master
+	lib/svc/method/svc-kdc.slave
+	lib/svc/share/krb_include.sh
 "
 
 smf_cleanup () {
@@ -1612,6 +1628,26 @@ archive_file_exists()
 
 	$ZCAT $cpiodir/${archive}${ZFIX} | cpio -it 2>/dev/null | \
 	    egrep -s "$file"
+}
+
+#
+# extract one or more files from an archive into a temporary directory
+# provided by the caller.  The caller is responsible for checking to
+# to see whether the desired file or files were extracted
+#
+# $1 - archive
+# $2 - temporary dir
+# remaining args: file(s) to be extracted.
+#
+archive_file_peek() {
+	compressed_archive=`pwd`/$1
+	tdir=$2
+	shift
+	shift
+	if [ ! -d $tdir ] ; then
+		return
+	fi
+	(cd $tdir; $ZCAT $compressed_archive | cpio -idmucB $* 2>&1 )
 }
 
 #
@@ -2218,6 +2254,27 @@ if [ $diskless = no ]; then
 	[[ -f $root/etc/system ]] || \
 	    fail "$root/etc/system not found; nonglobal zone target not allowed"
 
+	rootfstype=`df -n $root | awk '{print $3}'`
+
+	if [ "$rootfstype" = "zfs" ]; then
+		archive_has_zfs_root_support=no
+		mkdir /tmp/zfschk.$$
+		archive_file_peek generic.lib /tmp/zfschk.$$ \
+		    "lib/svc/share/fs_include.sh"
+		if [ -f /tmp/zfschk.$$/lib/svc/share/fs_include.sh ] ; then
+			if grep '^readswapdev' \
+			     /tmp/zfschk.$$/lib/svc/share/fs_include.sh \
+			     >/dev/null 2>&1 ; then
+				archive_has_zfs_root_support=yes
+			fi
+		fi
+		rm -fr /tmp/zfschk.$$
+
+		if [ "$archive_has_zfs_root_support" = "no" ] ; then
+			fail "Cannot bfu a system with zfs root to an archive with no zfs root support"
+		fi
+	fi
+
 	# Make sure we extract the sun4u-us3 libc_psr.so.1
 	if [ -d $root/platform/sun4u -a \
 	   ! -d $root/platform/sun4u-us3 ]
@@ -2298,7 +2355,11 @@ if [ $diskless = no ]; then
 			fi
 		done
 	fi
-	rootslice=`df -k $root | nawk 'NR > 1 { print $1 }' | sed s/dsk/rdsk/`
+	if [ "$rootfstype" = "ufs" ] ; then
+		rootslice=`df -k $root | nawk 'NR > 1 { print $1 }' | \
+		    sed s/dsk/rdsk/`
+	fi
+
 	print "Loading $cpiodir on $root"
 else
 	usrroot=$2
@@ -4693,6 +4754,10 @@ setup_pboot()
 			cp $NEWBOOTBLK $BOOTBLK
 		fi
 	fi
+	#
+	# This function will never be called when upgrading a zfs root,
+	# so it's safe to assume a value for rootslice here.
+	#
 	if [[ "$rootslice" = /dev/rdsk/* ]]; then
 		print "Installing boot block."
 		( cd $PBOOTDIR ;
@@ -4824,7 +4889,19 @@ check_system_type()
 get_rootdev_list()
 {
 	if [ -f $rootprefix/etc/lu/GRUB_slice ]; then
-		grep '^PHYS_SLICE' $rootprefix/etc/lu/GRUB_slice | cut -d= -f2
+		dev=`grep '^PHYS_SLICE' $rootprefix/etc/lu/GRUB_slice |
+		    cut -d= -f2`
+		if [ "$rootfstype" = "zfs" ]; then
+			fstyp -a "$dev" | grep 'path: ' | grep -v phys_path: | 
+			    cut -d"'" -f2 | sed 's+/dsk/+/rdsk/+'
+		else
+			echo "$dev"
+		fi
+		return
+	elif [ "$rootfstype" = "zfs" ]; then
+		rootpool=`df -k ${rootprefix:-/} | tail +2 | cut -d/ -f1`
+		rootdevlist=`zpool iostat -v "$rootpool" | tail +5 |
+		    grep -v mirror | sed -n -e '/--/q' -e p | awk '{print $1}'`
 	else
 		metadev=`grep -v "^#" $rootprefix/etc/vfstab | \
 			grep "[	 ]/[ 	]" | nawk '{print $2}'`
@@ -4836,11 +4913,11 @@ get_rootdev_list()
 			grep -v "^$metavol[         ]" |\
 			nawk '{print $4}' | sed -e "s#/dev/rdsk/##"`
 		fi
-		for rootdev in $rootdevlist
-		do
-			echo /dev/rdsk/$rootdev
-		done
 	fi
+	for rootdev in $rootdevlist
+	do
+		echo /dev/rdsk/$rootdev
+	done
 }
 
 #
@@ -5120,6 +5197,12 @@ install_failsafe()
 	fi
 }
 
+#
+# setup_grub_menu is only called when upgrading from a system
+# with a dca boot.  This cannot happen on systems with zfs root,
+# so this function need not take care of the case where the root
+# file system type is zfs
+#
 setup_grub_menu()
 {
 	MENU=$rootprefix/boot/grub/menu.lst
@@ -7199,19 +7282,28 @@ mondo_loop() {
 	# End of pre-archive extraction hacks.
 
 	if [ $diskless = no -a $zone = global ]; then
-		print "Extracting ufs modules for boot block ... \c" | \
-			tee -a $EXTRACT_LOG
 		# extract both /platform and /usr/platform bootblks
 		# for compatibility with older bootblk delivery
+		print "Extracting platform $rootfstype modules for boot " \
+		    "block ... \c" | tee -a $EXTRACT_LOG
 		do_extraction $cpiodir/$karch.root$ZFIX \
-			'platform/'$karch'/lib/fs/ufs/*' | \
+			'platform/'$karch'/lib/fs/'$rootfstype'/*' | \
 			tee -a $EXTRACT_LOG
+		print "Extracting usr/platform $rootfstype modules for boot " \
+		    "block ... \c" | tee -a $EXTRACT_LOG
 		do_extraction $cpiodir/$karch.usr$ZFIX \
-			'usr/platform/'$karch'/lib/fs/ufs/*' | \
+			'usr/platform/'$karch'/lib/fs/'$rootfstype'/*' | \
 			tee -a $EXTRACT_LOG
 		case $target_isa in
 		    sparc)
-			if [[ "$rootslice" = /dev/rdsk/* ]]; then
+			if [[ "$rootfstype" = zfs ]]; then
+				cd $usr/platform/$karch/lib/fs/zfs
+				get_rootdev_list | while read physlice
+				do
+					print "Installing bootblk on $physlice."
+                                        installboot -F zfs ./bootblk $physlice
+                                done
+			elif [[ "$rootslice" = /dev/rdsk/* ]]; then
 				print "Installing boot block on $rootslice."
 				cd $usr/platform/$karch/lib/fs/ufs
 				installboot ./bootblk $rootslice
@@ -7226,6 +7318,7 @@ mondo_loop() {
 			fi
 			;;
 		    i386)
+			$rootprefix/boot/solaris/bin/update_grub -R $root
 			;;
 		    *)
 			;;	# unknown ISA
@@ -7548,7 +7641,8 @@ mondo_loop() {
 			nsmb:*			nsmb*
 		EOF
 
-		if [ $target_isa = i386 ] && [[ $rootslice = /dev/rdsk/* || \
+		if [ $target_isa = i386 ] && [[ $rootfstype = zfs || \
+		    $rootslice = /dev/rdsk/* || \
 		    $rootslice = /dev/md/rdsk/* ]]; then
 			check_boot_env
 		fi
@@ -7557,7 +7651,7 @@ mondo_loop() {
 		# update boot archives for new boot sparc
                 #
                 if [ $newboot_sparc = yes ] && \
-		    [[ $rootslice = /dev/rdsk/* ||
+		    [[ $rootfstype = zfs || $rootslice = /dev/rdsk/* ||
 			$rootslice = /dev/md/rdsk/* ]]; then
 				build_boot_archive
                                 install_sparc_failsafe
@@ -7653,6 +7747,8 @@ mondo_loop() {
 
 	if [ $target_isa = i386 ]; then
 	    update_mptconf_i386
+
+	    update_etc_mach_i386
 	fi
 
 	if [ $zone != global ]; then

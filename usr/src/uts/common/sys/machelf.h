@@ -20,6 +20,8 @@
  */
 
 /*
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */

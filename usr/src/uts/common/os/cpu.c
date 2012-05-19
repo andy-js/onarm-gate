@@ -82,14 +82,12 @@ extern char *cpu_fru_fmri(cpu_t *cp);
 
 static void cpu_add_active_internal(cpu_t *cp);
 static void cpu_remove_active(cpu_t *cp);
-
-static int cpu_state_change_hooks(int, cpu_setup_t, cpu_setup_t);
-
 #ifndef KSTAT_DISABLE
 static void cpu_info_kstat_create(cpu_t *cp);
 static void cpu_info_kstat_destroy(cpu_t *cp);
 static void cpu_stats_kstat_create(cpu_t *cp);
 static void cpu_stats_kstat_destroy(cpu_t *cp);
+
 static int cpu_sys_stats_ks_update(kstat_t *ksp, int rw);
 static int cpu_vm_stats_ks_update(kstat_t *ksp, int rw);
 static int cpu_stat_ks_update(kstat_t *ksp, int rw);
@@ -101,6 +99,7 @@ static int cpu_stat_ks_update(kstat_t *ksp, int rw);
 #define cpu_create_intrstat(cp)
 #define cpu_delete_intrstat(cp)
 #endif /* !KSTAT_DISABLE */
+static int cpu_state_change_hooks(int, cpu_setup_t, cpu_setup_t);
 
 /*
  * cpu_lock protects ncpus, ncpus_online, cpu_flag, cpu_list, cpu_active,
@@ -535,7 +534,7 @@ thread_nomigrate(void)
 
 again:
 	kpreempt_disable();
-	cp = CPU_GLOBAL;
+	cp = CPU;
 
 	/*
 	 * A highlevel interrupt must not modify t_nomigrate or
@@ -678,7 +677,7 @@ thread_allowmigrate(void)
 {
 	kthread_id_t t = curthread;
 
-	ASSERT(t->t_weakbound_cpu == CPU_GLOBAL ||
+	ASSERT(t->t_weakbound_cpu == CPU ||
 	    (t->t_nomigrate < 0 && t->t_preempt > 0) ||
 	    CPU_ON_INTR(CPU) || t->t_flag & T_INTR_THREAD ||
 	    getpil() >= DISP_LEVEL);
@@ -854,7 +853,7 @@ cpu_pause_alloc(cpu_t *cp)
 	t = thread_create(NULL, 0, cpu_pause, (void *)cpun,
 	    0, &p0, TS_STOPPED, v.v_nglobpris - 1);
 	thread_lock(t);
-	t->t_bound_cpu = CPU_SELF(cp);
+	t->t_bound_cpu = cp;
 	t->t_disp_queue = cp->cpu_disp;
 	t->t_affinitycnt = 1;
 	t->t_preempt = 1;
@@ -888,7 +887,7 @@ cpu_pause_free(cpu_t *cp)
 		return;
 	}
 	thread_lock(t);
-	t->t_cpu = CPU_GLOBAL;	/* disp gets upset if last cpu is quiesced. */
+	t->t_cpu = CPU;		/* disp gets upset if last cpu is quiesced. */
 	t->t_bound_cpu = NULL;	/* Must un-bind; cpu may not be running. */
 	t->t_pri = v.v_nglobpris - 1;
 	ASSERT(safe_list[cpun] == PAUSE_IDLE);
@@ -1008,7 +1007,7 @@ pause_cpus(cpu_t *off_cp)
 	 * This is so that it won't be necessary to rechoose a CPU
 	 * when done.
 	 */
-	if (CPU_GLOBAL == off_cp)
+	if (CPU == off_cp)
 		cpu_id = off_cp->cpu_next_part->cpu_id;
 	else
 		cpu_id = CPU->cpu_id;

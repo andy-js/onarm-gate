@@ -38,13 +38,12 @@
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
-#include <zfs_types.h>
+
+#include "zfs_types.h"
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
-#define	spa_config_load_arch(nvlist)		1
 
 /*
  * Forward references that lots of things need.
@@ -89,9 +88,7 @@ struct dsl_pool;
  * of COWing a giant block to modify one byte would become excessive.
  */
 #define	SPA_MINBLOCKSHIFT	9
-#ifndef SPA_MAXBLOCKSHIFT
 #define	SPA_MAXBLOCKSHIFT	17
-#endif	/* SPA_MAXBLOCKSHIFT */
 #define	SPA_MINBLOCKSIZE	(1ULL << SPA_MINBLOCKSHIFT)
 #define	SPA_MAXBLOCKSIZE	(1ULL << SPA_MAXBLOCKSHIFT)
 
@@ -112,11 +109,8 @@ struct dsl_pool;
  * All SPA data is represented by 128-bit data virtual addresses (DVAs).
  * The members of the dva_t should be considered opaque outside the SPA.
  */
-#ifndef DVAWORDLEN
-#define	DVAWORDLEN		2
-#endif	/* DVAWORDLEN */
 typedef struct dva {
-	uint64_t	dva_word[DVAWORDLEN];
+	uint64_t	dva_word[2];
 } dva_t;
 
 /*
@@ -196,7 +190,7 @@ typedef struct blkptr {
 #ifndef ZFS_COMPACT
 	uint64_t	blk_pad[3];	/* Extra space for the future	*/
 #endif	/* ZFS_COMPACT */
-	txg_t		blk_birth;	/* transaction group at birth	*/
+	uint64_t	blk_birth;	/* transaction group at birth	*/
 	objid_t		blk_fill;	/* fill count			*/
 	zio_cksum_t	blk_cksum;	/* 256-bit checksum		*/
 } blkptr_t;
@@ -352,6 +346,10 @@ extern int spa_get_stats(const char *pool, nvlist_t **config,
     char *altroot, size_t buflen);
 extern int spa_create(const char *pool, nvlist_t *config, nvlist_t *props,
     const char *history_str);
+extern void spa_check_rootconf(char *devpath, char **the_dev_p,
+    nvlist_t **the_conf_p, uint64_t *the_txg_p);
+extern boolean_t spa_rootdev_validate(nvlist_t *nv);
+extern int spa_import_rootpool(char *devpath);
 extern int spa_import(const char *pool, nvlist_t *config, nvlist_t *props);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
 extern int spa_destroy(char *pool);
@@ -404,11 +402,11 @@ extern void spa_l2cache_space_update(vdev_t *vd, int64_t space, int64_t alloc);
 extern int spa_scrub(spa_t *spa, pool_scrub_type_t type, boolean_t force);
 extern void spa_scrub_suspend(spa_t *spa);
 extern void spa_scrub_resume(spa_t *spa);
-extern void spa_scrub_restart(spa_t *spa, txg_t txg);
+extern void spa_scrub_restart(spa_t *spa, uint64_t txg);
 
 /* spa syncing */
-extern void spa_sync(spa_t *spa, txg_t txg); /* only for DMU use */
-extern int spa_sync_allpools(void);
+extern void spa_sync(spa_t *spa, uint64_t txg); /* only for DMU use */
+extern void spa_sync_allpools(void);
 
 /*
  * SPA configuration functions in spa_config.c
@@ -417,17 +415,15 @@ extern int spa_sync_allpools(void);
 #define	SPA_CONFIG_UPDATE_POOL	0
 #define	SPA_CONFIG_UPDATE_VDEVS	1
 
-#define	SPA_WAIT	1
-#define	SPA_NOWAIT	2
-
 extern void spa_config_sync(void);
 extern void spa_config_check(const char *, const char *);
 extern void spa_config_load(void);
 extern nvlist_t *spa_all_configs(uint64_t *);
 extern void spa_config_set(spa_t *spa, nvlist_t *config);
-extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, txg_t txg,
+extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg,
     int getstats);
-extern int spa_config_update(spa_t *spa, int what);
+extern void spa_config_update(spa_t *spa, int what);
+extern void spa_config_update_common(spa_t *spa, int what, boolean_t isroot);
 
 /*
  * Miscellaneous SPA routines in spa_misc.c
@@ -438,8 +434,6 @@ extern spa_t *spa_lookup(const char *name);
 extern spa_t *spa_add(const char *name, const char *altroot);
 extern void spa_remove(spa_t *spa);
 extern spa_t *spa_next(spa_t *prev);
-extern void spa_errorlist_remove(spa_t *spa);
-extern spa_t *spa_errorlist_next(spa_t *prev);
 
 /* Refcount functions */
 extern void spa_open_ref(spa_t *spa, void *tag);
@@ -447,14 +441,13 @@ extern void spa_close(spa_t *spa, void *tag);
 extern boolean_t spa_refcount_zero(spa_t *spa);
 
 /* Pool configuration lock */
-extern int spa_config_enter(spa_t *spa, krw_t rw, void *tag, int spa_how);
+extern void spa_config_enter(spa_t *spa, krw_t rw, void *tag);
 extern void spa_config_exit(spa_t *spa, void *tag);
 extern boolean_t spa_config_held(spa_t *spa, krw_t rw);
-extern void spa_config_abort(spa_t *spa);
 
 /* Pool vdev add/remove lock */
-extern txg_t spa_vdev_enter(spa_t *spa);
-extern int spa_vdev_exit(spa_t *spa, vdev_t *vd, txg_t txg, int error);
+extern uint64_t spa_vdev_enter(spa_t *spa);
+extern int spa_vdev_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error);
 
 /* Accessor functions */
 extern krwlock_t *spa_traverse_rwlock(spa_t *spa);
@@ -466,12 +459,11 @@ extern void spa_altroot(spa_t *, char *, size_t);
 extern int spa_sync_pass(spa_t *spa);
 extern char *spa_name(spa_t *spa);
 extern uint64_t spa_guid(spa_t *spa);
-extern txg_t spa_last_synced_txg(spa_t *spa);
-extern txg_t spa_first_txg(spa_t *spa);
+extern uint64_t spa_last_synced_txg(spa_t *spa);
+extern uint64_t spa_first_txg(spa_t *spa);
 extern uint64_t spa_version(spa_t *spa);
 extern int spa_state(spa_t *spa);
-extern txg_t spa_freeze_txg(spa_t *spa);
-struct metaslab_class;
+extern uint64_t spa_freeze_txg(spa_t *spa);
 extern uint64_t spa_get_alloc(spa_t *spa);
 extern uint64_t spa_get_space(spa_t *spa);
 extern uint64_t spa_get_dspace(spa_t *spa);
@@ -489,8 +481,8 @@ extern void spa_strfree(char *);
 extern uint64_t spa_get_random(uint64_t range);
 extern void sprintf_blkptr(char *buf, int len, const blkptr_t *bp);
 extern void spa_freeze(spa_t *spa);
-extern int spa_upgrade(spa_t *spa, uint64_t version);
-extern int spa_evict_all(void);
+extern void spa_upgrade(spa_t *spa, uint64_t version);
+extern void spa_evict_all(void);
 extern vdev_t *spa_lookup_by_guid(spa_t *spa, uint64_t guid);
 extern boolean_t spa_has_spare(spa_t *, uint64_t guid);
 extern uint64_t bp_get_dasize(spa_t *spa, const blkptr_t *bp);
@@ -533,7 +525,7 @@ extern uint64_t spa_get_errlog_size(spa_t *spa);
 extern int spa_get_errlog(spa_t *spa, void *uaddr, size_t *count);
 extern void spa_errlog_rotate(spa_t *spa);
 extern void spa_errlog_drain(spa_t *spa);
-extern void spa_errlog_sync(spa_t *spa, txg_t txg);
+extern void spa_errlog_sync(spa_t *spa, uint64_t txg);
 extern void spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub);
 
 /* vdev cache */
@@ -547,7 +539,8 @@ extern void vdev_cache_stat_fini(void);
 
 /* Initialization and termination */
 extern void spa_init(int flags);
-extern int spa_fini(void);
+extern void spa_fini(void);
+extern void spa_boot_init();
 
 /* properties */
 extern int spa_prop_set(spa_t *spa, nvlist_t *nvp);

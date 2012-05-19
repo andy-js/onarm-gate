@@ -33,6 +33,26 @@ enum idmap_id_type {
 };
 typedef enum idmap_id_type idmap_id_type;
 
+enum idmap_map_type {
+	IDMAP_MAP_TYPE_UNKNOWN = 0,
+	IDMAP_MAP_TYPE_DS_AD = 0 + 1,
+	IDMAP_MAP_TYPE_DS_NLDAP = 0 + 2,
+	IDMAP_MAP_TYPE_RULE_BASED = 0 + 3,
+	IDMAP_MAP_TYPE_EPHEMERAL = 0 + 4,
+	IDMAP_MAP_TYPE_LOCAL_SID = 0 + 5,
+	IDMAP_MAP_TYPE_KNOWN_SID = 0 + 6
+};
+typedef enum idmap_map_type idmap_map_type;
+
+enum idmap_map_src {
+	IDMAP_MAP_SRC_UNKNOWN = 0,
+	IDMAP_MAP_SRC_NEW = 0 + 1,
+	IDMAP_MAP_SRC_CACHE = 0 + 2,
+	IDMAP_MAP_SRC_HARD_CODED = 0 + 3,
+	IDMAP_MAP_SRC_ALGORITHMIC = 0 + 4
+};
+typedef enum idmap_map_src idmap_map_src;
+
 struct idmap_sid {
 	char *prefix;
 	uint32_t rid;
@@ -50,52 +70,6 @@ struct idmap_id {
 	} idmap_id_u;
 };
 typedef struct idmap_id idmap_id;
-
-struct idmap_id_res {
-	idmap_retcode retcode;
-	idmap_id id;
-	int direction;
-};
-typedef struct idmap_id_res idmap_id_res;
-
-struct idmap_ids_res {
-	idmap_retcode retcode;
-	struct {
-		u_int ids_len;
-		idmap_id_res *ids_val;
-	} ids;
-};
-typedef struct idmap_ids_res idmap_ids_res;
-#define	IDMAP_REQ_FLG_NO_NEW_ID_ALLOC 0x00000001
-#define	IDMAP_REQ_FLG_VALIDATE 0x00000002
-#define	IDMAP_REQ_FLG_NO_NAMESERVICE 0x00000004
-
-struct idmap_mapping {
-	int32_t flag;
-	int direction;
-	idmap_id id1;
-	idmap_utf8str id1domain;
-	idmap_utf8str id1name;
-	idmap_id id2;
-	idmap_utf8str id2domain;
-	idmap_utf8str id2name;
-};
-typedef struct idmap_mapping idmap_mapping;
-
-struct idmap_mappings_res {
-	idmap_retcode retcode;
-	uint64_t lastrowid;
-	struct {
-		u_int mappings_len;
-		idmap_mapping *mappings_val;
-	} mappings;
-};
-typedef struct idmap_mappings_res idmap_mappings_res;
-
-typedef struct {
-	u_int idmap_mapping_batch_len;
-	idmap_mapping *idmap_mapping_batch_val;
-} idmap_mapping_batch;
 
 struct idmap_namerule {
 	bool_t is_user;
@@ -117,6 +91,78 @@ struct idmap_namerules_res {
 	} rules;
 };
 typedef struct idmap_namerules_res idmap_namerules_res;
+
+struct idmap_how_ds_based {
+	idmap_utf8str dn;
+	idmap_utf8str attr;
+	idmap_utf8str value;
+};
+typedef struct idmap_how_ds_based idmap_how_ds_based;
+
+struct idmap_how {
+	idmap_map_type map_type;
+	union {
+		idmap_how_ds_based ad;
+		idmap_how_ds_based nldap;
+		idmap_namerule rule;
+	} idmap_how_u;
+};
+typedef struct idmap_how idmap_how;
+
+struct idmap_info {
+	idmap_map_src src;
+	idmap_how how;
+};
+typedef struct idmap_info idmap_info;
+
+struct idmap_id_res {
+	idmap_retcode retcode;
+	idmap_id id;
+	int direction;
+	idmap_info info;
+};
+typedef struct idmap_id_res idmap_id_res;
+
+struct idmap_ids_res {
+	idmap_retcode retcode;
+	struct {
+		u_int ids_len;
+		idmap_id_res *ids_val;
+	} ids;
+};
+typedef struct idmap_ids_res idmap_ids_res;
+#define	IDMAP_REQ_FLG_NO_NEW_ID_ALLOC 0x00000001
+#define	IDMAP_REQ_FLG_VALIDATE 0x00000002
+#define	IDMAP_REQ_FLG_NO_NAMESERVICE 0x00000004
+#define	IDMAP_REQ_FLG_MAPPING_INFO 0x00000008
+
+struct idmap_mapping {
+	int32_t flag;
+	int direction;
+	idmap_id id1;
+	idmap_utf8str id1domain;
+	idmap_utf8str id1name;
+	idmap_id id2;
+	idmap_utf8str id2domain;
+	idmap_utf8str id2name;
+	idmap_info info;
+};
+typedef struct idmap_mapping idmap_mapping;
+
+typedef struct {
+	u_int idmap_mapping_batch_len;
+	idmap_mapping *idmap_mapping_batch_val;
+} idmap_mapping_batch;
+
+struct idmap_mappings_res {
+	idmap_retcode retcode;
+	uint64_t lastrowid;
+	struct {
+		u_int mappings_len;
+		idmap_mapping *mappings_val;
+	} mappings;
+};
+typedef struct idmap_mappings_res idmap_mappings_res;
 
 struct idmap_update_res {
 	idmap_retcode retcode;
@@ -150,6 +196,7 @@ typedef struct {
 struct idmap_list_mappings_1_argument {
 	int64_t lastrowid;
 	uint64_t limit;
+	int32_t flag;
 };
 typedef struct idmap_list_mappings_1_argument idmap_list_mappings_1_argument;
 
@@ -171,8 +218,8 @@ extern  bool_t idmap_null_1_svc(void *, struct svc_req *);
 extern  enum clnt_stat idmap_get_mapped_ids_1(idmap_mapping_batch , idmap_ids_res *, CLIENT *);
 extern  bool_t idmap_get_mapped_ids_1_svc(idmap_mapping_batch , idmap_ids_res *, struct svc_req *);
 #define	IDMAP_LIST_MAPPINGS	2
-extern  enum clnt_stat idmap_list_mappings_1(int64_t , uint64_t , idmap_mappings_res *, CLIENT *);
-extern  bool_t idmap_list_mappings_1_svc(int64_t , uint64_t , idmap_mappings_res *, struct svc_req *);
+extern  enum clnt_stat idmap_list_mappings_1(int64_t , uint64_t , int32_t , idmap_mappings_res *, CLIENT *);
+extern  bool_t idmap_list_mappings_1_svc(int64_t , uint64_t , int32_t , idmap_mappings_res *, struct svc_req *);
 #define	IDMAP_LIST_NAMERULES	3
 extern  enum clnt_stat idmap_list_namerules_1(idmap_namerule , uint64_t , uint64_t , idmap_namerules_res *, CLIENT *);
 extern  bool_t idmap_list_namerules_1_svc(idmap_namerule , uint64_t , uint64_t , idmap_namerules_res *, struct svc_req *);
@@ -212,15 +259,20 @@ extern int idmap_prog_1_freeresult();
 extern  bool_t xdr_idmap_utf8str(XDR *, idmap_utf8str*);
 extern  bool_t xdr_idmap_retcode(XDR *, idmap_retcode*);
 extern  bool_t xdr_idmap_id_type(XDR *, idmap_id_type*);
+extern  bool_t xdr_idmap_map_type(XDR *, idmap_map_type*);
+extern  bool_t xdr_idmap_map_src(XDR *, idmap_map_src*);
 extern  bool_t xdr_idmap_sid(XDR *, idmap_sid*);
 extern  bool_t xdr_idmap_id(XDR *, idmap_id*);
+extern  bool_t xdr_idmap_namerule(XDR *, idmap_namerule*);
+extern  bool_t xdr_idmap_namerules_res(XDR *, idmap_namerules_res*);
+extern  bool_t xdr_idmap_how_ds_based(XDR *, idmap_how_ds_based*);
+extern  bool_t xdr_idmap_how(XDR *, idmap_how*);
+extern  bool_t xdr_idmap_info(XDR *, idmap_info*);
 extern  bool_t xdr_idmap_id_res(XDR *, idmap_id_res*);
 extern  bool_t xdr_idmap_ids_res(XDR *, idmap_ids_res*);
 extern  bool_t xdr_idmap_mapping(XDR *, idmap_mapping*);
-extern  bool_t xdr_idmap_mappings_res(XDR *, idmap_mappings_res*);
 extern  bool_t xdr_idmap_mapping_batch(XDR *, idmap_mapping_batch*);
-extern  bool_t xdr_idmap_namerule(XDR *, idmap_namerule*);
-extern  bool_t xdr_idmap_namerules_res(XDR *, idmap_namerules_res*);
+extern  bool_t xdr_idmap_mappings_res(XDR *, idmap_mappings_res*);
 extern  bool_t xdr_idmap_update_res(XDR *, idmap_update_res*);
 extern  bool_t xdr_idmap_opnum(XDR *, idmap_opnum*);
 extern  bool_t xdr_idmap_update_op(XDR *, idmap_update_op*);
@@ -232,15 +284,20 @@ extern  bool_t xdr_idmap_list_namerules_1_argument(XDR *, idmap_list_namerules_1
 extern bool_t xdr_idmap_utf8str();
 extern bool_t xdr_idmap_retcode();
 extern bool_t xdr_idmap_id_type();
+extern bool_t xdr_idmap_map_type();
+extern bool_t xdr_idmap_map_src();
 extern bool_t xdr_idmap_sid();
 extern bool_t xdr_idmap_id();
+extern bool_t xdr_idmap_namerule();
+extern bool_t xdr_idmap_namerules_res();
+extern bool_t xdr_idmap_how_ds_based();
+extern bool_t xdr_idmap_how();
+extern bool_t xdr_idmap_info();
 extern bool_t xdr_idmap_id_res();
 extern bool_t xdr_idmap_ids_res();
 extern bool_t xdr_idmap_mapping();
-extern bool_t xdr_idmap_mappings_res();
 extern bool_t xdr_idmap_mapping_batch();
-extern bool_t xdr_idmap_namerule();
-extern bool_t xdr_idmap_namerules_res();
+extern bool_t xdr_idmap_mappings_res();
 extern bool_t xdr_idmap_update_res();
 extern bool_t xdr_idmap_opnum();
 extern bool_t xdr_idmap_update_op();

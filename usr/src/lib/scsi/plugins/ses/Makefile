@@ -28,7 +28,8 @@
 SUBDIRS = 			\
 	libses			\
 	ses2			\
-	SUN-StorageTek-J4400
+	SUN-Storage-J4400	\
+	SUN-ST-J4500
 
 .KEEP_STATE:
 

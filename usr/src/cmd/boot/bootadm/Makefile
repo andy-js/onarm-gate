@@ -19,7 +19,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -37,7 +37,7 @@ include ../Makefile.com
 
 .KEEP_STATE:
 
-LDLIBS +=	-lnvpair
+LDLIBS +=	-lnvpair -lgen -ladm -lefi
 
 # Writing into string literals is incorrect.  We need to match gcc's
 # behavior, which causes us to take SIGSEGV on such a write.

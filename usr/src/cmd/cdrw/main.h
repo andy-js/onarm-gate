@@ -85,6 +85,9 @@ typedef enum {DBUS_CONNECTION, HAL_CONTEXT, HAL_PAIRED,
 #define	LEADOUT		5	/* erases the leadout of the media */
 #define	CLEAR		1	/* same as fast, used for fixing media */
 
+#define	HAL_RDSK_PROP	"block.solaris.raw_device"
+#define	HAL_SYMDEV_PROP	"storage.solaris.legacy.symdev"
+
 int setup_target(int flag);
 
 #ifndef DISABLE_HAL

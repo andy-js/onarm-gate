@@ -1050,6 +1050,9 @@ typedef struct raid_vol0_settings {
 #define	MPI_RAIDVOL0_SETTING_OFFLINE_ON_SMART		0x0002
 #define	MPI_RAIDVOL0_SETTING_AUTO_CONFIGURE		0x0004
 #define	MPI_RAIDVOL0_SETTING_PRIORITY_RESYNC		0x0008
+#define	MPI_RAIDVOL0_SETTING_MASK_METADATA_SIZE		0x00C0
+#define	MPI_RAIDVOL0_SETTING_64MB_METADATA_SIZE		0x0000
+#define	MPI_RAIDVOL0_SETTING_512MB_METADATA_SIZE	0x0040
 #define	MPI_RAIDVOL0_SETTING_USE_PRODUCT_ID_SUFFIX	0x0010
 #define	MPI_RAIDVOL0_SETTING_USE_DEFAULTS		0x8000
 
@@ -1164,6 +1167,36 @@ typedef struct config_page_raid_phys_disk_0 {
 
 #define	MPI_RAIDPHYSDISKPAGE0_PAGEVERSION		0x00
 
+typedef struct raid_phys_disk1_path {
+	uint8_t			PhysDiskID;
+	uint8_t			PhysDiskBus;
+	uint16_t		Reserved1;
+	uint64_t		WWID;
+	uint64_t		OwnerWWID;
+	uint8_t			OwnerIdentifier;
+	uint8_t			Reserved2;
+	uint16_t		Flags;
+} raid_phys_disk1_path_t;
+
+/* RAID Physical Disk Page 1 Flags field defines */
+
+#define	MPI_RAID_PHYSDISK1_FLAG_BROKEN		0x0002
+#define	MPI_RAID_PHYSDISK1_FLAG_INVALID		0x0001
+
+#ifndef	MPI_RAID_PHYS_DISK1_PATH_MAX
+#define	MPI_RAID_PHYS_DISK1_PATH_MAX		1
+#endif
+
+typedef struct config_page_raid_phys_disk_1 {
+	config_page_header_t	Header;
+	uint8_t			NumPhysDiskPaths;
+	uint8_t			PhysDiskNum;
+	uint16_t		Reserved2;
+	uint32_t		Reserved1;
+	raid_phys_disk1_path_t	Path[MPI_RAID_PHYS_DISK1_PATH_MAX];
+} config_page_raid_phys_disk_1_t;
+
+#define	MPI_RAIDPHYSDISKPAGE1_PAGEVERSION		0x01
 /*
  * LAN Config Pages
  */
@@ -1327,6 +1360,12 @@ typedef struct config_page_sas_io_unit_2 {
 
 #define	MPI_SAS_IOUNIT2_FLAGS_DISABLE_PERSISTENT_MAPPINGS	0x01
 
+#define	MPI_SAS_IOUNIT2_FLAGS_MASK_PHYS_MAP_MODE		0x0E
+#define	MPI_SAS_IOUNIT2_FLAGS_SHIFT_PHYS_MAP_MODE		1
+#define	MPI_SAS_IOUNIT2_FLAGS_NO_PHYS_MAP			0x00
+#define	MPI_SAS_IOUNIT2_FLAGS_DIRECT_ATTACH_PHYS_MAP		0x01
+#define	MPI_SAS_IOUNIT2_FLAGS_ENCLOSURE_SLOT_PHYS_MAP		0x02
+#define	MPI_SAS_IOUNIT2_FLAGS_HOST_ASSIGNED_PHYS_MAP		0x07
 
 typedef struct config_page_sas_io_unit_3 {
 	config_extended_page_header_t		Header;

@@ -681,6 +681,13 @@ xnf_attach(dev_info_t *devinfo, ddi_attach_cmd_t cmd)
 
 	xnfp->xnf_rx_hvcopy = xnf_hvcopy_peer_status(devinfo) && xnf_rx_hvcopy;
 #ifdef XPV_HVM_DRIVER
+	/*
+	 * Report our version to dom0.
+	 */
+	if (xenbus_printf(XBT_NULL, "hvmpv/xnf", "version", "%d",
+	    HVMPV_XNF_VERS))
+		cmn_err(CE_WARN, "xnf: couldn't write version\n");
+
 	if (!xnfp->xnf_rx_hvcopy) {
 		cmn_err(CE_WARN, "The xnf driver requires a dom0 that "
 		    "supports 'feature-rx-copy'");
@@ -778,6 +785,7 @@ failure_2:
 	xvdi_remove_event_handler(devinfo, XS_OE_STATE);
 #ifdef XPV_HVM_DRIVER
 	ec_unbind_evtchn(xnfp->xnf_evtchn);
+	xvdi_free_evtchn(devinfo);
 #else
 	ddi_remove_intr(devinfo, 0, xnfp->xnf_icookie);
 #endif
@@ -816,6 +824,7 @@ xnf_detach(dev_info_t *devinfo, ddi_detach_cmd_t cmd)
 	case DDI_SUSPEND:
 #ifdef XPV_HVM_DRIVER
 		ec_unbind_evtchn(xnfp->xnf_evtchn);
+		xvdi_free_evtchn(devinfo);
 #else
 		ddi_remove_intr(devinfo, 0, xnfp->xnf_icookie);
 #endif
@@ -874,6 +883,7 @@ xnf_detach(dev_info_t *devinfo, ddi_detach_cmd_t cmd)
 	/* Remove the interrupt */
 #ifdef XPV_HVM_DRIVER
 	ec_unbind_evtchn(xnfp->xnf_evtchn);
+	xvdi_free_evtchn(devinfo);
 #else
 	ddi_remove_intr(devinfo, 0, xnfp->xnf_icookie);
 #endif

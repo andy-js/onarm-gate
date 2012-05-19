@@ -20,7 +20,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -135,6 +135,11 @@ MEMTEST_OBJS	+= memtest.o memtest_asm.o \
 			memtest_vf.o
 
 #
+#			sun4v /dev/bmc
+#
+BMC_OBJS	= bmc_fe.o bmc_vc.o
+
+#
 #			sun4v virtual devices
 #
 QCN_OBJS	= qcn.o
@@ -142,7 +147,8 @@ VNEX_OBJS	= vnex.o
 CNEX_OBJS	= cnex.o
 GLVC_OBJS	= glvc.o glvc_hcall.o
 MDESC_OBJS	= mdesc.o
-LDC_OBJS	= ldc.o vio_util.o vdsk_common.o vgen_stats.o vnet_common.o
+LDC_OBJS	= ldc.o ldc_shm.o vio_util.o vdsk_common.o vgen_stats.o \
+			vnet_common.o
 NTWDT_OBJS	= ntwdt.o
 VLDC_OBJS	= vldc.o
 VCC_OBJS	= vcc.o
@@ -158,6 +164,7 @@ DS_SNMP_OBJS	= ds_snmp.o
 #
 BOOTDEV_OBJS	+= bootdev.o
 DR_CPU_OBJS	+= dr_cpu.o
+DR_IO_OBJS	+= dr_io.o
 DRCTL_OBJS	= drctl.o drctl_impl.o dr_util.o
 DS_OBJS		= ds.o
 FAULT_ISO_OBJS	= fault_iso.o

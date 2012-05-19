@@ -71,10 +71,10 @@ ipmi_sdr_get_info(ipmi_handle_t *ihp)
 
 	sip = rsp->ic_data;
 
-	sip->isi_record_count = LE_16(sip->isi_record_count);
-	sip->isi_free_space = LE_16(sip->isi_free_space);
-	sip->isi_add_ts = LE_32(sip->isi_add_ts);
-	sip->isi_erase_ts = LE_32(sip->isi_erase_ts);
+	sip->isi_record_count = LE_IN16(&sip->isi_record_count);
+	sip->isi_free_space = LE_IN16(&sip->isi_free_space);
+	sip->isi_add_ts = LE_IN32(&sip->isi_add_ts);
+	sip->isi_erase_ts = LE_IN32(&sip->isi_erase_ts);
 
 	return (sip);
 }
@@ -187,11 +187,11 @@ ipmi_sdr_refresh(ipmi_handle_t *ihp)
 				name = csp->is_cs_idstring;
 
 				csp->is_cs_assert_mask =
-				    LE_16(csp->is_cs_assert_mask);
+				    LE_IN16(&csp->is_cs_assert_mask);
 				csp->is_cs_deassert_mask =
-				    LE_16(csp->is_cs_deassert_mask);
+				    LE_IN16(&csp->is_cs_deassert_mask);
 				csp->is_cs_reading_mask =
-				    LE_16(csp->is_cs_reading_mask);
+				    LE_IN16(&csp->is_cs_reading_mask);
 				break;
 			}
 
@@ -205,11 +205,11 @@ ipmi_sdr_refresh(ipmi_handle_t *ihp)
 				name = csp->is_fs_idstring;
 
 				csp->is_fs_assert_mask =
-				    LE_16(csp->is_fs_assert_mask);
+				    LE_IN16(&csp->is_fs_assert_mask);
 				csp->is_fs_deassert_mask =
-				    LE_16(csp->is_fs_deassert_mask);
+				    LE_IN16(&csp->is_fs_deassert_mask);
 				csp->is_fs_reading_mask =
-				    LE_16(csp->is_fs_reading_mask);
+				    LE_IN16(&csp->is_fs_reading_mask);
 				break;
 			}
 
@@ -241,7 +241,8 @@ ipmi_sdr_refresh(ipmi_handle_t *ihp)
 				    (ipmi_sdr_management_confirmation_t *)
 				    sdr->is_record;
 				name = NULL;
-				mcp->is_mc_product = LE_16(mcp->is_mc_product);
+				mcp->is_mc_product =
+				    LE_IN16(&mcp->is_mc_product);
 				break;
 			}
 
@@ -265,9 +266,24 @@ ipmi_sdr_refresh(ipmi_handle_t *ihp)
 			    NULL) {
 				ipmi_free(ihp, ent->isc_sdr);
 				ipmi_free(ihp, ent);
+				return (-1);
 			}
 
 			ipmi_decode_string(type, namelen, name, ent->isc_name);
+		}
+
+		/*
+		 * This should never happen.  It means that the SP has returned
+		 * a SDR record twice, with the same name and ID.  This has
+		 * been observed on service processors that don't correctly
+		 * return SDR_LAST during iteration, so assume we've looped in
+		 * the SDR and return gracefully.
+		 */
+		if (ipmi_hash_lookup(ihp->ih_sdr_cache, ent) != NULL) {
+			ipmi_free(ihp, ent->isc_sdr);
+			ipmi_free(ihp, ent->isc_name);
+			ipmi_free(ihp, ent);
+			break;
 		}
 
 		ipmi_hash_insert(ihp->ih_sdr_cache, ent);
@@ -308,7 +324,22 @@ ipmi_sdr_hash_compare(const void *a, const void *b)
 	if (ap->isc_name == NULL || bp->isc_name == NULL)
 		return (-1);
 
-	return (strcmp(ap->isc_name, bp->isc_name));
+	if (strcmp(ap->isc_name, bp->isc_name) != 0)
+		return (-1);
+
+	/*
+	 * While it is strange for a service processor to report multiple
+	 * entries with the same name, we allow it by treating the (name, id)
+	 * as the unique identifier.  When looking up by name, the SDR pointer
+	 * is NULL, and we return the first matching name.
+	 */
+	if (ap->isc_sdr == NULL || bp->isc_sdr == NULL)
+		return (0);
+
+	if (ap->isc_sdr->is_id == bp->isc_sdr->is_id)
+		return (0);
+	else
+		return (-1);
 }
 
 int
@@ -420,6 +451,7 @@ ipmi_sdr_lookup(ipmi_handle_t *ihp, const char *idstr)
 		return (NULL);
 
 	search.isc_name = (char *)idstr;
+	search.isc_sdr = NULL;
 	if ((ent = ipmi_hash_lookup(ihp->ih_sdr_cache, &search)) == NULL) {
 		(void) ipmi_set_error(ihp, EIPMI_NOT_PRESENT, NULL);
 		return (NULL);

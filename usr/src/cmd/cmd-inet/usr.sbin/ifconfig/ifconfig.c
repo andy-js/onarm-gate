@@ -2902,7 +2902,7 @@ ifstatus(const char *ifname)
 			(void) printf(" metric %d", lifr.lifr_metric);
 	}
 	if (ioctl(s, SIOCGLIFMTU, (caddr_t)&lifr) >= 0)
-		(void) printf(" mtu %d", lifr.lifr_metric);
+		(void) printf(" mtu %u", lifr.lifr_mtu);
 
 	/* don't print index or zone when in compatibility mode */
 	if (!v4compat) {

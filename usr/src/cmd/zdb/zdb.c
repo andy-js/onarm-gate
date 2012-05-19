@@ -101,7 +101,7 @@ usage(void)
 	    "dataset [object...]\n"
 	    "       %s -C [pool]\n"
 	    "       %s -l dev\n"
-	    "       %s -R vdev:offset:size:flags\n"
+	    "       %s -R pool:vdev:offset:size:flags\n"
 	    "       %s [-p path_to_vdev_dir]\n"
 	    "       %s -e pool | GUID | devid ...\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
@@ -1141,7 +1141,6 @@ dump_object(objset_t *os, objid_t object, int verbosity, int *print_header)
 static char *objset_types[DMU_OST_NUMTYPES] = {
 	"NONE", "META", "ZPL", "ZVOL", "OTHER", "ANY" };
 
-/*ARGSUSED*/
 static void
 dump_dir(objset_t *os)
 {

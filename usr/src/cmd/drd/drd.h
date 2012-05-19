@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -61,6 +61,10 @@ typedef struct {
 	int (*cpu_config_notify)(drctl_rsrc_t *rsrcs, int nrsrc);
 	int (*cpu_unconfig_request)(drctl_rsrc_t *rsrcs, int nrsrc);
 	int (*cpu_unconfig_notify)(drctl_rsrc_t *rsrcs, int nrsrc);
+	int (*io_config_request)(drctl_rsrc_t *rsrc, int nrsrc);
+	int (*io_config_notify)(drctl_rsrc_t *rsrc, int nrsrc);
+	int (*io_unconfig_request)(drctl_rsrc_t *rsrc, int nrsrc);
+	int (*io_unconfig_notify)(drctl_rsrc_t *rsrc, int nrsrc);
 } drd_backend_t;
 
 extern drd_backend_t drd_rcm_backend;

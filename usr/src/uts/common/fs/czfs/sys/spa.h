@@ -39,7 +39,6 @@ extern "C" {
 #endif
 
 #define	BP_SHOULD_BYTESWAP(bp)	0
-#define	SPA_MAXBLOCKSHIFT	16
 #define	DVAWORDLEN		1
 #define	SPA_BLKPTRSHIFT		6
 #define	SPA_DVAS_PER_BP		2

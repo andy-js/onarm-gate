@@ -330,7 +330,6 @@ extern	const char *demangle(const char *);
 	    conv_reloc_type_static(M_MACH, (rtype), 0), (file), \
 	    ((sym) ? demangle(sym) : MSG_INTL(MSG_STR_UNKNOWN))))
 
-
 #endif	/* _KERNEL */
 
 #ifdef	__cplusplus

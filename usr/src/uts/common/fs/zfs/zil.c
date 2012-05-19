@@ -610,7 +610,7 @@ zil_flush_vdevs(zilog_t *zilog)
 	if (avl_numnodes(t) == 0)
 		return;
 
-	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
+	spa_config_enter(spa, RW_READER, FTAG);
 
 	zio = zio_root(spa, NULL, NULL,
 	    ZIO_FLAG_CONFIG_HELD | ZIO_FLAG_CANFAIL);

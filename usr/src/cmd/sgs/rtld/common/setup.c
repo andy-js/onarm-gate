@@ -115,9 +115,9 @@ preload(const char *str, Rt_map *lmp)
 		 */
 		if (rtld_flags & RT_FL_SECURE)
 			rtld_flags2 |= RT_FL2_FTL2WARN;
-		if ((pnp = expand_paths(clmp, ptr, PN_SER_EXTLOAD, 0)) != 0)
+		if ((pnp = expand_paths(clmp, ptr, PN_FLG_EXTLOAD, 0)) != 0)
 			nlmp = load_one(&lml_main, ALIST_OFF_DATA, pnp, clmp,
-			    MODE(lmp), flags, 0);
+			    MODE(lmp), flags, 0, NULL);
 		if (pnp)
 			remove_pnode(pnp);
 		if (rtld_flags & RT_FL_SECURE)
@@ -358,7 +358,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 	 */
 	if ((rlmp = elf_new_lm(&lml_rtld, _rtldname, rtldname, dyn_ptr, ld_base,
 	    (ulong_t)&_etext, ALIST_OFF_DATA, (ulong_t)(eaddr - ld_base), 0,
-	    ld_base, (ulong_t)(eaddr - ld_base), mmaps, 2)) == 0) {
+	    ld_base, (ulong_t)(eaddr - ld_base), mmaps, 2, NULL)) == 0) {
 		return (0);
 	}
 
@@ -429,7 +429,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 		 * Map in object.
 		 */
 		if ((mlmp = (ftp->fct_map_so)(&lml_main, ALIST_OFF_DATA,
-		    execname, argvname, fd)) == 0)
+		    execname, argvname, fd, NULL)) == 0)
 			return (0);
 
 		/*
@@ -642,7 +642,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 			if ((mlmp = elf_new_lm(&lml_main, execname, argvname,
 			    dyn, (Addr)ehdr, etext, ALIST_OFF_DATA, memsize,
 			    entry, (ulong_t)ehdr, memsize, mmaps,
-			    mmapcnt)) == 0) {
+			    mmapcnt, NULL)) == 0) {
 				return (0);
 			}
 			if (tlsphdr &&
@@ -918,7 +918,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 					return (0);
 				rtld_flags2 |= RT_FL2_FTL2WARN;
 				(void) audit_setup(mlmp, auditors,
-				    PN_SER_EXTLOAD);
+				    PN_FLG_EXTLOAD, NULL);
 				rtld_flags2 &= ~RT_FL2_FTL2WARN;
 			}
 		}
@@ -941,7 +941,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 				return (0);
 
 			auditors->ad_name = AUDITORS(mlmp)->ad_name;
-			if (audit_setup(mlmp, auditors, 0) == 0)
+			if (audit_setup(mlmp, auditors, 0, NULL) == 0)
 				return (0);
 			lml_main.lm_tflags |= auditors->ad_flags;
 
@@ -955,7 +955,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 			/*
 			 * Establish any local auditing.
 			 */
-			if (audit_setup(mlmp, AUDITORS(mlmp), 0) == 0)
+			if (audit_setup(mlmp, AUDITORS(mlmp), 0, NULL) == 0)
 				return (0);
 
 			FLAGS1(mlmp) |= AUDITORS(mlmp)->ad_flags;
@@ -989,7 +989,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 	/*
 	 * Load all dependent (needed) objects.
 	 */
-	if (analyze_lmc(&lml_main, ALIST_OFF_DATA, mlmp) == 0)
+	if (analyze_lmc(&lml_main, ALIST_OFF_DATA, mlmp, NULL) == 0)
 		return (0);
 
 	/*
@@ -1010,7 +1010,8 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 
 		DBG_CALL(Dbg_util_nl(&lml_main, DBG_NL_STD));
 
-		if (relocate_lmc(&lml_main, ALIST_OFF_DATA, mlmp, mlmp) == 0)
+		if (relocate_lmc(&lml_main, ALIST_OFF_DATA, mlmp,
+		    mlmp, NULL) == 0)
 			return (0);
 
 		/*
@@ -1156,6 +1157,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 
 	DBG_CALL(Dbg_util_call_main(mlmp));
 
+	rtld_flags |= RT_FL_OPERATION;
 	leave(LIST(mlmp));
 
 	return (mlmp);

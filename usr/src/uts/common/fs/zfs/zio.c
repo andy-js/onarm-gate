@@ -401,8 +401,7 @@ zio_create(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
 	if (pio == NULL) {
 		if (type != ZIO_TYPE_NULL &&
 		    !(flags & ZIO_FLAG_CONFIG_HELD)) {
-			(void) spa_config_enter(spa, RW_READER, zio,
-			    SPA_WAIT);
+			spa_config_enter(spa, RW_READER, zio);
 			zio->io_flags |= ZIO_FLAG_CONFIG_GRABBED;
 		}
 		zio->io_root = zio;
@@ -416,8 +415,7 @@ zio_create(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
 		    !(pio->io_flags & ZIO_FLAG_CONFIG_GRABBED) &&
 		    !(pio->io_flags & ZIO_FLAG_CONFIG_HELD)) {
 			pio->io_flags |= ZIO_FLAG_CONFIG_GRABBED;
-			(void) spa_config_enter(spa, RW_READER, pio,
-			    SPA_WAIT);
+			spa_config_enter(spa, RW_READER, pio);
 		}
 		if (stage < ZIO_STAGE_READY)
 			pio->io_children_notready++;
@@ -2070,7 +2068,7 @@ zio_alloc_blk(spa_t *spa, uint64_t size, blkptr_t *new_bp, blkptr_t *old_bp,
 {
 	int error;
 
-	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
+	spa_config_enter(spa, RW_READER, FTAG);
 
 	if (zio_zil_fail_shift && zio_io_should_fail(zio_zil_fail_shift)) {
 		spa_config_exit(spa, FTAG);
@@ -2113,7 +2111,7 @@ zio_free_blk(spa_t *spa, blkptr_t *bp, txg_t txg)
 {
 	ASSERT(!BP_IS_GANG(bp));
 
-	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
+	spa_config_enter(spa, RW_READER, FTAG);
 
 	metaslab_free(spa, bp, txg, B_FALSE);
 

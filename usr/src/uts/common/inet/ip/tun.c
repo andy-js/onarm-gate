@@ -1113,7 +1113,7 @@ tun_add_stat(queue_t *q)
 		atp->tun_stats = tun_stat;
 		mutex_exit(&tuns->tuns_global_lock);
 		tun_statinit(tun_stat, q->q_qinfo->qi_minfo->mi_idname,
-			atp->tun_netstack->netstack_stackid);
+		    atp->tun_netstack->netstack_stackid);
 	} else {
 		mutex_exit(&tuns->tuns_global_lock);
 	}
@@ -1416,7 +1416,7 @@ tun_wput_dlpi_other(queue_t *q, mblk_t *mp)
 				/* Adjust headers. */
 				if (atp->tun_encap_lim >= 0) {
 					atp->tun_ip6h.ip6_nxt =
-						IPPROTO_DSTOPTS;
+					    IPPROTO_DSTOPTS;
 					atp->tun_telopt =
 					    tun_limit_init_upper_v4;
 					atp->tun_telopt.tel_telopt.
@@ -1441,7 +1441,7 @@ tun_wput_dlpi_other(queue_t *q, mblk_t *mp)
 				ASSERT(lvers == TUN_L_V6);
 				if (atp->tun_encap_lim >= 0) {
 					atp->tun_ip6h.ip6_nxt =
-						IPPROTO_DSTOPTS;
+					    IPPROTO_DSTOPTS;
 					atp->tun_telopt =
 					    tun_limit_init_upper_v6;
 					atp->tun_telopt.tel_telopt.
@@ -1714,7 +1714,7 @@ tun_sparam(queue_t *q, mblk_t *mp)
 	if (((atp->tun_flags & (TUN_AUTOMATIC | TUN_U_V4)) ==
 	    (TUN_AUTOMATIC | TUN_U_V4)) ||
 	    ((atp->tun_flags & (TUN_6TO4 | TUN_U_V4)) ==
-		(TUN_6TO4 | TUN_U_V4))) {
+	    (TUN_6TO4 | TUN_U_V4))) {
 		uerr = EINVAL;
 		goto nak;
 	}
@@ -2035,7 +2035,7 @@ tun_ioctl(queue_t *q, mblk_t *mp)
 			mutex_enter(&atp->tun_itp->itp_lock);
 			if (!(atp->tun_itp->itp_flags & ITPF_P_TUNNEL) &&
 			    (atp->tun_policy_index >=
-				atp->tun_itp->itp_next_policy_index)) {
+			    atp->tun_itp->itp_next_policy_index)) {
 				ipsec_req_t *ipsr;
 
 				/*
@@ -2160,13 +2160,13 @@ tun_ioctl(queue_t *q, mblk_t *mp)
 		if ((*rr_addr == INADDR_ANY) || (!CLASSD(*rr_addr))) {
 			tun1dbg(("tun_ioctl: 6to4 Relay Router = %s\n",
 			    inet_ntop(AF_INET, rr_addr, buf,
-				sizeof (buf))));
+			    sizeof (buf))));
 			tuns->tuns_relay_rtr_addr_v4 = *rr_addr;
 		} else {
 			tun1dbg(("tun_ioctl: Invalid 6to4 Relay Router " \
 			    "address (%s)\n",
 			    inet_ntop(AF_INET, rr_addr, buf,
-				sizeof (buf))));
+			    sizeof (buf))));
 			uerr = EINVAL;
 			goto nak;
 		}
@@ -2417,10 +2417,10 @@ tun_wproc_mdata(queue_t *q, mblk_t *mp)
 
 	ASSERT((atp->tun_flags & TUN_L_V6) ?
 	    (mp->b_wptr - mp->b_rptr >= atp->tun_extra_offset +
-		sizeof (ip6_t)) :
+	    sizeof (ip6_t)) :
 	    ((atp->tun_flags & TUN_L_V4) ?
-		(mp->b_wptr - mp->b_rptr >= atp->tun_extra_offset +
-		    sizeof (ipha_t)) : 1));
+	    (mp->b_wptr - mp->b_rptr >= atp->tun_extra_offset +
+	    sizeof (ipha_t)) : 1));
 
 	if (!canputnext(q)) {
 		atomic_add_32(&atp->tun_xmtretry, 1);
@@ -2661,7 +2661,7 @@ tun_set_sec_simple(tun_t *atp, ipsec_req_t *ipsr)
 		goto recover_bail;
 	}
 	if (insert_actual_policies(itp, actp, nact,
-		atp->tun_flags & TUN_UPPER_MASK, ns)) {
+	    atp->tun_flags & TUN_UPPER_MASK, ns)) {
 		rw_exit(&itp->itp_policy->iph_lock);
 		/*
 		 * Adjust MTU and make sure the DL side knows what's up.
@@ -2673,7 +2673,8 @@ tun_set_sec_simple(tun_t *atp, ipsec_req_t *ipsr)
 		 * IRE_DB_REQ again.  We will resynch from scratch, but have
 		 * the tun_ipsec_overhead taken into account.
 		 */
-		tun_send_ire_req(atp->tun_wq);
+		if (atp->tun_flags & TUN_DST)
+			tun_send_ire_req(atp->tun_wq);
 		old_policy = B_FALSE;	/* Blank out inactive - we succeeded */
 		/* Copy ipsec_req_t for subsequent SIOGTUNPARAM ops. */
 		atp->tun_secinfo = *ipsr;
@@ -2760,8 +2761,8 @@ tun_send_ire_req(queue_t *q)
 
 	tun1dbg(("tun_send_ire_req: requesting ire for %s",
 	    (lvers == TUN_L_V4 ?
-		inet_ntop(AF_INET, &ire->ire_addr, addrstr, INET6_ADDRSTRLEN) :
-		inet_ntop(AF_INET6, &ire->ire_addr_v6, addrstr,
+	    inet_ntop(AF_INET, &ire->ire_addr, addrstr, INET6_ADDRSTRLEN) :
+	    inet_ntop(AF_INET6, &ire->ire_addr_v6, addrstr,
 	    INET6_ADDRSTRLEN))));
 
 	atp->tun_ire_lastreq = lbolt;
@@ -2865,7 +2866,7 @@ tun_rput_tpi(queue_t *q, mblk_t *mp)
 			if (atp->tun_flags & TUN_DST) {
 				atp->tun_extra_offset =
 				    MAX(ire->ire_ll_hdr_length,
-					TUN_LINK_EXTRA_OFF);
+				    TUN_LINK_EXTRA_OFF);
 				(void) tun_update_link_mtu(q,
 				    ire->ire_max_frag, B_FALSE);
 			}
@@ -3106,7 +3107,7 @@ tun_rdata_v6(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 		ASSERT(IN6_ARE_ADDR_EQUAL(&v6dst, &atp->tun_laddr));
 
 		if (!ipsec_tun_inbound(ipsec_mp, &data_mp, atp->tun_itp, NULL,
-			ip6h, NULL, outer_ip6h, 0, atp->tun_netstack)) {
+		    ip6h, NULL, outer_ip6h, 0, atp->tun_netstack)) {
 			data_mp = NULL;
 			ipsec_mp = NULL;
 			atomic_add_32(&atp->tun_InErrors, 1);
@@ -3142,9 +3143,9 @@ tun_rdata_v6(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 			tun0dbg(("tun_rdata_v6: %s src (%s) != tun_faddr " \
 			    "(%s)\n", tun_who(q, buf),
 			    inet_ntop(AF_INET6, &v6src, buf1,
-				sizeof (buf1)),
+			    sizeof (buf1)),
 			    inet_ntop(AF_INET6, &atp->tun_faddr, buf2,
-				sizeof (buf2))));
+			    sizeof (buf2))));
 			for (nmp = data_mp; nmp != NULL; nmp = nmp->b_next)
 				atomic_add_32(&atp->tun_InErrors, 1);
 			goto drop;
@@ -3229,7 +3230,7 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 
 		/* NOTE:  ipsec_tun_inbound() always frees ipsec_mp. */
 		if (!ipsec_tun_inbound(ipsec_mp, &data_mp, atp->tun_itp,
-			inner_iph, NULL, iph, NULL, 0, atp->tun_netstack)) {
+		    inner_iph, NULL, iph, NULL, 0, atp->tun_netstack)) {
 			data_mp = NULL;
 			atomic_add_32(&atp->tun_InErrors, 1);
 			goto drop;
@@ -3262,7 +3263,7 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 
 		/* NOTE:  ipsec_tun_inbound() always frees ipsec_mp. */
 		if (!ipsec_tun_inbound(ipsec_mp, &data_mp, atp->tun_itp, NULL,
-			ip6h, iph, NULL, 0, atp->tun_netstack)) {
+		    ip6h, iph, NULL, 0, atp->tun_netstack)) {
 			data_mp = NULL;
 			atomic_add_32(&atp->tun_InErrors, 1);
 			goto drop;
@@ -3304,7 +3305,7 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 				    " dest (%s)\n",
 				    tun_who(q, buf),
 				    inet_ntop(AF_INET, &v4dst,
-					buf1, sizeof (buf1))));
+				    buf1, sizeof (buf1))));
 				for (nmp = data_mp; nmp != NULL;
 				    nmp = nmp->b_next) {
 					atomic_add_32(&atp->tun_InErrors, 1);
@@ -3356,7 +3357,7 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 				tun0dbg(("tun_rdata_v4: %s tun: invalid " \
 				    "IPv6 dest (%s)\n", tun_who(q, buf),
 				    inet_ntop(AF_INET6, &ip6h->ip6_dst, buf1,
-					sizeof (buf1))));
+				    sizeof (buf1))));
 				atomic_add_32(&atp->tun_InErrors, 1);
 				goto drop;
 			}
@@ -3368,7 +3369,7 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 				tun0dbg(("tun_rdata_v4: %s tun: invalid " \
 				    "IPv4 dest (%s)\n", tun_who(q, buf),
 				    inet_ntop(AF_INET, &v4dst, buf1,
-					sizeof (buf1))));
+				    sizeof (buf1))));
 				for (nmp = data_mp; nmp != NULL;
 				    nmp = nmp->b_next) {
 					atomic_add_32(&atp->tun_InErrors, 1);
@@ -3387,9 +3388,9 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 				    "portion of 6to4 IPv6 dest (%s) does not" \
 				    " equal IPv4 dest (%s)\n", tun_who(q, buf),
 				    inet_ntop(AF_INET, &v4addr,
-					buf1, sizeof (buf1)),
+				    buf1, sizeof (buf1)),
 				    inet_ntop(AF_INET, &v4dst,
-					buf2, sizeof (buf2))));
+				    buf2, sizeof (buf2))));
 				for (nmp = data_mp; nmp != NULL;
 				    nmp = nmp->b_next) {
 					atomic_add_32(&atp->tun_InErrors, 1);
@@ -3415,9 +3416,9 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 					    "(%s)\n",
 					    tun_who(q, buf),
 					    inet_ntop(AF_INET, &v4addr,
-						buf1, sizeof (buf1)),
+					    buf1, sizeof (buf1)),
 					    inet_ntop(AF_INET, &v4src,
-						buf2, sizeof (buf2))));
+					    buf2, sizeof (buf2))));
 					for (nmp = data_mp; nmp != NULL;
 					    nmp = nmp->b_next) {
 						atomic_add_32(
@@ -3452,10 +3453,10 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 					    "dropping packet from IPv4 src "
 					    "%s\n", tun_who(q, buf),
 					    inet_ntop(AF_INET,
-						&tuns->tuns_relay_rtr_addr_v4,
-						buf1, sizeof (buf1)),
+					    &tuns->tuns_relay_rtr_addr_v4,
+					    buf1, sizeof (buf1)),
 					    inet_ntop(AF_INET, &v4src, buf2,
-						sizeof (buf2))));
+					    sizeof (buf2))));
 					for (nmp = data_mp; nmp != NULL;
 					    nmp = nmp->b_next) {
 						atomic_add_32(
@@ -3480,9 +3481,9 @@ tun_rdata_v4(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp)
 			tun0dbg(("tun_rdata_v4: %s src (%s) != tun_faddr " \
 			    "(%s)\n", tun_who(q, buf),
 			    inet_ntop(AF_INET6, &v4mapped_src,
-				buf1, sizeof (buf1)),
+			    buf1, sizeof (buf1)),
 			    inet_ntop(AF_INET6, &atp->tun_faddr,
-				buf2, sizeof (buf2))));
+			    buf2, sizeof (buf2))));
 			/* XXX - should this be per-frag? */
 			for (nmp = data_mp; nmp != NULL; nmp = nmp->b_next)
 				atomic_add_32(&atp->tun_InErrors, 1);
@@ -3646,7 +3647,7 @@ icmp_ricmp_err_v4_v4(queue_t *q, mblk_t *mp, mblk_t *ipsec_mp)
 	 * ipsec_tun_inbound() always frees ipsec_mp.
 	 */
 	if (!ipsec_tun_inbound(ipsec_mp, &mp, atp->tun_itp, inner_ipha, NULL,
-		outer_ipha, NULL, -outer_hlen, atp->tun_netstack)) {
+	    outer_ipha, NULL, -outer_hlen, atp->tun_netstack)) {
 		/* Callee did all of the freeing */
 		return;
 	}
@@ -3803,7 +3804,7 @@ icmp_ricmp_err_v4_v6(queue_t *q, mblk_t *mp, mblk_t *ipsec_mp, icmp6_t *icmph)
 	 * ipsec_tun_inbound() always frees ipsec_mp.
 	 */
 	if (!ipsec_tun_inbound(ipsec_mp, &mp, atp->tun_itp, ipha, NULL, NULL,
-		ip6, -outer_hlen, atp->tun_netstack))
+	    ip6, -outer_hlen, atp->tun_netstack))
 		/* Callee did all of the freeing */
 		return;
 	ASSERT(mp == orig_mp);
@@ -3960,7 +3961,7 @@ icmp_ricmp_err_v6_v6(queue_t *q, mblk_t *mp, mblk_t *ipsec_mp, icmp6_t *icmph)
 	 * ipsec_tun_inbound() always frees ipsec_mp.
 	 */
 	if (!ipsec_tun_inbound(ipsec_mp, &mp, atp->tun_itp, NULL, inner_ip6,
-		NULL, ip6, -outer_hlen, atp->tun_netstack))
+	    NULL, ip6, -outer_hlen, atp->tun_netstack))
 		/* Callee did all of the freeing */
 		return;
 	ASSERT(mp == orig_mp);
@@ -4169,7 +4170,7 @@ icmp_ricmp_err_v6_v4(queue_t *q, mblk_t *mp, mblk_t *ipsec_mp)
 	 * ipsec_tun_inbound() always frees ipsec_mp.
 	 */
 	if (!ipsec_tun_inbound(ipsec_mp, &mp, atp->tun_itp, NULL, ip6h,
-		outer_ipha, NULL, -outer_hlen, atp->tun_netstack))
+	    outer_ipha, NULL, -outer_hlen, atp->tun_netstack))
 		/* Callee did all of the freeing */
 		return;
 	ASSERT(mp == orig_mp);
@@ -4301,8 +4302,8 @@ tun_icmp_too_big_v4(queue_t *q, ipha_t *ipha, uint16_t mtu, mblk_t *mp)
 	icmph_t icmp;
 
 	tun2dbg(("tun_icmp_too_big_v4: mtu %u src %08x dst %08x len %d\n",
-		(uint_t)mtu, ipha->ipha_src, ipha->ipha_dst,
-		ipha->ipha_length));
+	    (uint_t)mtu, ipha->ipha_src, ipha->ipha_dst,
+	    ipha->ipha_length));
 
 	icmp.icmph_type = ICMP_DEST_UNREACHABLE;
 	icmp.icmph_code = ICMP_FRAGMENTATION_NEEDED;
@@ -4529,7 +4530,7 @@ tun_rdata(queue_t *q, mblk_t *ipsec_mp, mblk_t *data_mp, tun_t *atp,
 
 	if (lvers != TUN_L_V4 && lvers != TUN_L_V6) {
 		tun0dbg(("tun_rproc: %s no lower version\n",
-			    tun_who(q, buf)));
+		    tun_who(q, buf)));
 		atomic_add_32(&atp->tun_InErrors, 1);
 		freemsg(MESSAGE);
 		error = EIO;
@@ -4546,7 +4547,7 @@ bail:
 		/* only record non flow control problems */
 		if (error != EBUSY) {
 			tun0dbg(("tun_rproc: %s error encounterd %d\n",
-				    tun_who(q, buf), error));
+			    tun_who(q, buf), error));
 		}
 	}
 
@@ -4807,7 +4808,7 @@ tun_wdata_v4(queue_t *q, mblk_t *mp)
 		 */
 		bcopy(&atp->tun_ip6h, mp->b_rptr, hdrlen);
 		ip6->ip6_plen = htons(ntohs(inner_ipha->ipha_length) + hdrlen -
-			sizeof (ip6_t));
+		    sizeof (ip6_t));
 
 		break;
 	default:
@@ -5029,7 +5030,7 @@ tun_wputnext_v6(queue_t *q, mblk_t *mp)
 		if (mp->b_wptr - mp->b_rptr <
 		    hdrlen + sizeof (ip6_t) + IPV6_TUN_ENCAP_OPT_LEN) {
 			if (!pullupmsg(mp, hdrlen + sizeof (ip6_t) +
-				IPV6_TUN_ENCAP_OPT_LEN)) {
+			    IPV6_TUN_ENCAP_OPT_LEN)) {
 				atomic_add_32(&atp->tun_OutErrors, 1);
 				freemsg(mp);
 				return (0);	/* silently fail */
@@ -5065,8 +5066,8 @@ tun_wputnext_v6(queue_t *q, mblk_t *mp)
 				if (encap_limit >= 0) {
 					encap_opt = (struct ip6_opt_tunnel *)
 					    ((char *)outer_ip6 +
-						sizeof (ip6_t) +
-						sizeof (struct ip6_dest));
+					    sizeof (ip6_t) +
+					    sizeof (struct ip6_dest));
 					encap_opt->ip6ot_encap_limit =
 					    (uint8_t)encap_limit;
 				}
@@ -5318,7 +5319,7 @@ tun_wdata_v6(queue_t *q, mblk_t *mp)
 				tun0dbg(("tun_wdata_v6: %s Multicast dst not" \
 				    " allowed : %s\n", tun_who(q, buf),
 				    inet_ntop(AF_INET6, &ip6h->ip6_src,
-					buf2, sizeof (buf2))));
+				    buf2, sizeof (buf2))));
 				atomic_add_32(&atp->tun_OutErrors, 1);
 				goto drop;
 			}
@@ -5335,7 +5336,7 @@ tun_wdata_v6(queue_t *q, mblk_t *mp)
 				tun0dbg(("tun_wdata_v6: %s tun: invalid " \
 				    "IPv6 src (%s)\n", tun_who(q, buf),
 				    inet_ntop(AF_INET6, &ip6h->ip6_src,
-					buf1, sizeof (buf1))));
+				    buf1, sizeof (buf1))));
 				atomic_add_32(&atp->tun_OutErrors, 1);
 				goto drop;
 			}
@@ -5388,10 +5389,10 @@ tun_wdata_v6(queue_t *q, mblk_t *mp)
 					    "dropping packet with IPv6 dst "
 					    "%s\n", tun_who(q, buf),
 					    inet_ntop(AF_INET,
-						&tuns->tuns_relay_rtr_addr_v4,
-						buf1, sizeof (buf1)),
+					    &tuns->tuns_relay_rtr_addr_v4,
+					    buf1, sizeof (buf1)),
 					    inet_ntop(AF_INET6, &ip6h->ip6_dst,
-						buf2, sizeof (buf2))));
+					    buf2, sizeof (buf2))));
 					atomic_add_32(&atp->tun_OutDiscard, 1);
 					goto drop;
 				}
@@ -5427,7 +5428,7 @@ tun_wdata_v6(queue_t *q, mblk_t *mp)
 		    "%s\n", tun_who(q, buf),
 		    inet_ntop(AF_INET, &ipha->ipha_src, buf1, sizeof (buf1)),
 		    inet_ntop(AF_INET, &ipha->ipha_dst,
-			buf2, sizeof (buf2))));
+		    buf2, sizeof (buf2))));
 
 		break;
 	case TUN_L_V6:
@@ -5470,7 +5471,7 @@ tun_wdata_v6(queue_t *q, mblk_t *mp)
 		if (encap_limit >= 0) {
 			encap_opt = (struct ip6_opt_tunnel *)
 			    ((char *)outer_ip6 + sizeof (ip6_t) +
-				sizeof (struct ip6_dest));
+			    sizeof (struct ip6_dest));
 			encap_opt->ip6ot_encap_limit = (uint8_t)encap_limit;
 		}
 

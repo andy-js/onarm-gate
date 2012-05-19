@@ -35,9 +35,9 @@
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
-#include <zfs_types.h>
-#include <zfs_prop.h>
 
+#include "zfs_types.h"
+#include "zfs_prop.h"
 #include "zfs_deleg.h"
 
 #if defined(_KERNEL)
@@ -104,8 +104,16 @@ zfs_prop_init(void)
 	static zprop_index_t acl_inherit_table[] = {
 		{ "discard",	ZFS_ACL_DISCARD },
 		{ "noallow",	ZFS_ACL_NOALLOW },
-		{ "secure",	ZFS_ACL_SECURE },
+		{ "restricted",	ZFS_ACL_RESTRICTED },
 		{ "passthrough", ZFS_ACL_PASSTHROUGH },
+		{ "secure",	ZFS_ACL_RESTRICTED }, /* bkwrd compatability */
+		{ NULL }
+	};
+
+	static zprop_index_t case_table[] = {
+		{ "sensitive",		ZFS_CASE_SENSITIVE },
+		{ "insensitive",	ZFS_CASE_INSENSITIVE },
+		{ "mixed",		ZFS_CASE_MIXED },
 		{ NULL }
 	};
 #endif	/* ZFS_COMPACT */
@@ -131,13 +139,6 @@ zfs_prop_init(void)
 		{ "formKC",	U8_TEXTPREP_NFKC },
 		{ "formC",	U8_TEXTPREP_NFC },
 		{ "formKD",	U8_TEXTPREP_NFKD },
-		{ NULL }
-	};
-
-	static zprop_index_t case_table[] = {
-		{ "sensitive",		ZFS_CASE_SENSITIVE },
-		{ "insensitive",	ZFS_CASE_INSENSITIVE },
-		{ "mixed",		ZFS_CASE_MIXED },
 		{ NULL }
 	};
 #endif	/* ZFS_COMPACT */
@@ -179,13 +180,10 @@ zfs_prop_init(void)
 	register_index(ZFS_PROP_ACLMODE, "aclmode", ZFS_ACL_GROUPMASK,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | groupmask | passthrough", "ACLMODE", acl_mode_table);
-	register_index(ZFS_PROP_ACLINHERIT, "aclinherit", ZFS_ACL_SECURE,
+	register_index(ZFS_PROP_ACLINHERIT, "aclinherit", ZFS_ACL_RESTRICTED,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
-	    "discard | noallow | secure | passthrough", "ACLINHERIT",
-	    acl_inherit_table);
-	register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN",
-	    boolean_table);
+	    "discard | noallow | restricted | passthrough",
+	    "ACLINHERIT", acl_inherit_table);
 #else
 	    "on | off | lzjb", "COMPRESS", compress_table);
 	register_hidden(ZFS_PROP_SNAPDIR,  "snapdir", PROP_TYPE_NUMBER,
@@ -221,6 +219,11 @@ zfs_prop_init(void)
 	register_index(ZFS_PROP_XATTR, "xattr", 1, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "XATTR",
 	    boolean_table);
+#ifndef ZFS_COMPACT
+	register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN",
+	    boolean_table);
+#endif
 	register_index(ZFS_PROP_NBMAND, "nbmand", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "NBMAND",
 	    boolean_table);

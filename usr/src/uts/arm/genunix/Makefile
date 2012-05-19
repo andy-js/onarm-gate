@@ -90,6 +90,7 @@ IPCTF_TARGET	= $(IPCTF)
 $(PATCH_BUILD)IPCTF_TARGET =
 
 CPPFLAGS	+= -I$(SRC)/common
+CPPFLAGS	+= -I$(SRC)/common/zfs -I$(SRC)/uts/common/fs/zfs
 
 #
 #	Default build targets.

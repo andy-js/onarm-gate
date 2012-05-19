@@ -39,6 +39,7 @@ extern "C" {
  * For index types (e.g. compression and checksum), we want the numeric value
  * in the kernel, but the string value in userland.
  */
+
 typedef uint64_t			objid_t;
 typedef uint64_t			txg_t;
 typedef uint64_t			numchildren_t;

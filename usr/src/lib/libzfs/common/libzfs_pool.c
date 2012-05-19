@@ -47,8 +47,8 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zio.h>
 #include <strings.h>
-#include <zfs_types.h>
 
+#include "zfs_types.h"
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
@@ -542,7 +542,7 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
  * Validate the given pool name, optionally putting an extended error message in
  * 'buf'.
  */
-static boolean_t
+boolean_t
 zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 {
 	namecheck_err_t why;
@@ -562,8 +562,9 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	    strncmp(pool, "raidz", 5) == 0 ||
 	    strncmp(pool, "spare", 5) == 0 ||
 	    strcmp(pool, "log") == 0)) {
-		zfs_error_aux(hdl,
-		    dgettext(TEXT_DOMAIN, "name is reserved"));
+		if (hdl != NULL)
+			zfs_error_aux(hdl,
+			    dgettext(TEXT_DOMAIN, "name is reserved"));
 		return (B_FALSE);
 	}
 
@@ -698,7 +699,6 @@ zpool_open_silent(libzfs_handle_t *hdl, const char *pool, zpool_handle_t **ret)
 	return (0);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Similar to zpool_open_canfail(), but refuses to open pools in the faulted
  * state.
@@ -720,7 +720,6 @@ zpool_open(libzfs_handle_t *hdl, const char *pool)
 
 	return (zhp);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Close the handle.  Simply frees the memory associated with the handle.
@@ -2676,3 +2675,113 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	return (0);
 }
 #endif	/* NO_SUPPORT_EFI */
+
+static boolean_t
+supported_dump_vdev_type(libzfs_handle_t *hdl, nvlist_t *config, char *errbuf)
+{
+	char *type;
+	nvlist_t **child;
+	uint_t children, c;
+
+	verify(nvlist_lookup_string(config, ZPOOL_CONFIG_TYPE, &type) == 0);
+	if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 ||
+	    strcmp(type, VDEV_TYPE_FILE) == 0 ||
+	    strcmp(type, VDEV_TYPE_LOG) == 0 ||
+	    strcmp(type, VDEV_TYPE_MISSING) == 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "vdev type '%s' is not supported"), type);
+		(void) zfs_error(hdl, EZFS_VDEVNOTSUP, errbuf);
+		return (B_FALSE);
+	}
+	if (nvlist_lookup_nvlist_array(config, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++) {
+			if (!supported_dump_vdev_type(hdl, child[c], errbuf))
+				return (B_FALSE);
+		}
+	}
+	return (B_TRUE);
+}
+
+/*
+ * check if this zvol is allowable for use as a dump device; zero if
+ * it is, > 0 if it isn't, < 0 if it isn't a zvol
+ */
+int
+zvol_check_dump_config(char *arg)
+{
+	zpool_handle_t *zhp = NULL;
+	nvlist_t *config, *nvroot;
+	char *p, *volname;
+	nvlist_t **top;
+	uint_t toplevels;
+	libzfs_handle_t *hdl;
+	char errbuf[1024];
+	char poolname[ZPOOL_MAXNAMELEN];
+	int pathlen = strlen(ZVOL_FULL_DEV_DIR);
+	int ret = 1;
+
+	if (strncmp(arg, ZVOL_FULL_DEV_DIR, pathlen)) {
+		return (-1);
+	}
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "dump is not supported on device '%s'"), arg);
+
+	if ((hdl = libzfs_init()) == NULL)
+		return (1);
+	libzfs_print_on_error(hdl, B_TRUE);
+
+	volname = arg + pathlen;
+
+	/* check the configuration of the pool */
+	if ((p = strchr(volname, '/')) == NULL) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "malformed dataset name"));
+		(void) zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+		return (1);
+	} else if (p - volname >= ZFS_MAXNAMELEN) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "dataset name is too long"));
+		(void) zfs_error(hdl, EZFS_NAMETOOLONG, errbuf);
+		return (1);
+	} else {
+		(void) strncpy(poolname, volname, p - volname);
+		poolname[p - volname] = '\0';
+	}
+
+	if ((zhp = zpool_open(hdl, poolname)) == NULL) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "could not open pool '%s'"), poolname);
+		(void) zfs_error(hdl, EZFS_OPENFAILED, errbuf);
+		goto out;
+	}
+	config = zpool_get_config(zhp, NULL);
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvroot) != 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "could not obtain vdev configuration for  '%s'"), poolname);
+		(void) zfs_error(hdl, EZFS_INVALCONFIG, errbuf);
+		goto out;
+	}
+
+	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &top, &toplevels) == 0);
+	if (toplevels != 1) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "'%s' has multiple top level vdevs"), poolname);
+		(void) zfs_error(hdl, EZFS_DEVOVERFLOW, errbuf);
+		goto out;
+	}
+
+	if (!supported_dump_vdev_type(hdl, top[0], errbuf)) {
+		goto out;
+	}
+	ret = 0;
+
+out:
+	if (zhp)
+		zpool_close(zhp);
+	libzfs_fini(hdl);
+	return (ret);
+}

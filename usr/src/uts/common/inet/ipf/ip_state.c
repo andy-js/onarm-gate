@@ -1477,12 +1477,10 @@ u_int flags;
 	     is != NULL;
 	     is = is->is_hnext) {
 #if defined(_NETWORK_EXTENSION)
-		if (bcmp(&ipsp->is_src, &is->is_src,
+		if (fr_matchstates(ipsp, is) == 1)
 #else
-		if (bcmp(&ips.is_src, &is->is_src,
-#endif /* _NETWORK_EXTENSION */
-			 offsetof(struct ipstate, is_ps) -
-			 offsetof(struct ipstate, is_src)) == 0)
+		if (fr_matchstates(&ips, is) == 1)
+#endif
 			break;
 	}
 	

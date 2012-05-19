@@ -19,7 +19,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 #
@@ -247,6 +247,7 @@ $(OBJS_DIR)/%.o:		$(UTSBASE)/intel/kdi/$(SUBARCH_DIR)/%.s
 $(OBJS_DIR)/%.o:		$(UTSBASE)/intel/czfs/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
+
 #
 # krtld compiled into unix
 #
@@ -279,6 +280,7 @@ $(OBJS_DIR)/%.o:	$(SRC)/common/util/$(SUBARCH_DIR)/%.c
 	$(COMPILE.c) $(KRTLD_INC_PATH) $(KRTLD_CPPFLAGS) -o $@ $<
 	$(CTFCONVERT_O)
 
+
 #
 #	Section 1b: Lint `object' build rules.
 #
@@ -296,6 +298,9 @@ $(LINTS_DIR)/%.ln:		$(UTSBASE)/intel/dtrace/%.c
 
 $(LINTS_DIR)/%.ln:		$(UTSBASE)/intel/dtrace/%.s
 	@($(LHEAD) $(LINT.s) $< $(LTAIL))
+
+$(LINTS_DIR)/%.ln:		$(UTSBASE)/intel/zfs/%.c
+	@($(LHEAD) $(LINT.c) $< $(LTAIL))
 
 $(LINTS_DIR)/%.ln:		$(UTSBASE)/intel/fs/proc/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))

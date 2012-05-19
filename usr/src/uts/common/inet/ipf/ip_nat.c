@@ -1803,6 +1803,8 @@ ipf_stack_t *ifs;
 
 	nat_calc_chksum_diffs(nat);
 
+	nat_calc_chksum_diffs(nat);
+
 	if (getlock) {
 		WRITE_ENTER(&ifs->ifs_ipf_nat);
 	}

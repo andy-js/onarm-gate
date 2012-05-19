@@ -17,6 +17,11 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
+/*
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <shared.h>
 #include <term.h>
@@ -211,73 +216,6 @@ grub_vprintf (const char *format, int *dataptr)
 }
 
 #ifndef STAGE1_5
-static int
-grub_vsprintf (char *buffer, const char *format, int *dataptr)
-{
-  /* XXX hohmuth
-     ugly hack -- should unify with printf() */
-  char c, *ptr, str[16];
-  char *bp = buffer;
-  int len = 0;
-
-  while ((c = *format++) != 0)
-    {
-      if (c != '%') {
-	if (buffer)
-	  *bp++ = c; /* putchar(c); */
-        len++;
-      } else {
-	switch (c = *(format++))
-	  {
-	  case 'd': case 'u': case 'x':
-	    *convert_to_ascii (str, c, *((unsigned long *) dataptr++)) = 0;
-
-	    ptr = str;
-
-	    while (*ptr) {
-	      if (buffer)
-	        *bp++ = *(ptr++); /* putchar(*(ptr++)); */
-              else
-	        ptr++;
-              len++;
-            }
-	    break;
-
-	  case 'c':
-            if (buffer)
-              *bp++ = (*(dataptr++))&0xff;
-            else
-              dataptr++;
-            len++;
-	    /* putchar((*(dataptr++))&0xff); */
-	    break;
-
-	  case 's':
-	    ptr = (char *) (*(dataptr++));
-
-	    while ((c = *ptr++) != 0) {
-              if (buffer)
-	        *bp++ = c; /* putchar(c); */
-              len++;
-            }
-	    break;
-	  }
-       }
-    }
-
-  *bp = 0;
-  return (len);
-}
-
-int
-grub_sprintf (char *buffer, const char *format, ...)
-{
-  int *dataptr = (int *) &format;
-  dataptr++;
-
-  return (grub_vsprintf (buffer, format, dataptr));
-}
-
 void
 init_page (void)
 {
@@ -943,6 +881,76 @@ safe_parse_maxint (char **str_ptr, int *myint_ptr)
 }
 #endif /* STAGE1_5 */
 
+#if !defined(STAGE1_5) || defined(FSYS_ZFS)
+static int
+grub_vsprintf (char *buffer, const char *format, int *dataptr)
+{
+  /* XXX hohmuth
+     ugly hack -- should unify with printf() */
+  char c, *ptr, str[16];
+  char *bp = buffer;
+  int len = 0;
+
+  while ((c = *format++) != 0)
+    {
+      if (c != '%') {
+	if (buffer)
+	  *bp++ = c; /* putchar(c); */
+        len++;
+      } else {
+	switch (c = *(format++))
+	  {
+	  case 'd': case 'u': case 'x':
+	    *convert_to_ascii (str, c, *((unsigned long *) dataptr++)) = 0;
+
+	    ptr = str;
+
+	    while (*ptr) {
+	      if (buffer)
+	        *bp++ = *(ptr++); /* putchar(*(ptr++)); */
+              else
+	        ptr++;
+              len++;
+            }
+	    break;
+
+	  case 'c':
+            if (buffer)
+              *bp++ = (*(dataptr++))&0xff;
+            else
+              dataptr++;
+            len++;
+	    /* putchar((*(dataptr++))&0xff); */
+	    break;
+
+	  case 's':
+	    ptr = (char *) (*(dataptr++));
+
+	    while ((c = *ptr++) != 0) {
+              if (buffer)
+	        *bp++ = c; /* putchar(c); */
+              len++;
+            }
+	    break;
+	  }
+       }
+    }
+
+  *bp = 0;
+  return (len);
+}
+
+int
+grub_sprintf (char *buffer, const char *format, ...)
+{
+  int *dataptr = (int *) &format;
+  dataptr++;
+
+  return (grub_vsprintf (buffer, format, dataptr));
+}
+
+#endif /* !defined(STAGE1_5) || defined(FSYS_ZFS) */
+
 void
 noisy_printf (const char *format,...)
 {
@@ -1248,6 +1256,17 @@ grub_strstr (const char *s1, const char *s2)
 
   return 0;
 }
+
+int
+grub_strlen (const char *str)
+{
+  int len = 0;
+
+  while (*str++)
+    len++;
+
+  return len;
+}
 #endif /* !defined(STAGE1_5) || defined(FSYS_ZFS) */
 
 #ifndef STAGE1_5
@@ -1265,15 +1284,12 @@ nul_terminate (char *str)
   return ch;
 }
 
-int
-grub_strlen (const char *str)
+char *
+grub_strchr (char *str, char c)
 {
-  int len = 0;
+  for (; *str && (*str != c); str++);
 
-  while (*str++)
-    len++;
-
-  return len;
+  return (*str ? str : NULL);
 }
 #endif /* ! STAGE1_5 */
 

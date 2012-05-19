@@ -124,6 +124,7 @@ CHKHDRS=			\
 	bitmap.h		\
 	bitset.h		\
 	bl.h			\
+	bmc_cmd.h		\
 	bmc_intf.h		\
 	bofi.h			\
 	bofi_impl.h		\
@@ -407,6 +408,9 @@ CHKHDRS=			\
 	nbmlock.h		\
 	ndifm.h		\
 	ndi_impldefs.h		\
+	net80211.h		\
+	net80211_crypto.h	\
+	net80211_proto.h	\
 	netconfig.h		\
 	neti.h			\
 	netstack.h		\

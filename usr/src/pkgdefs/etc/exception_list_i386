@@ -627,6 +627,10 @@ usr/lib/devfsadm/linkmod/SUNW_ieee1394_link.so	i386
 usr/include/sys/1394/ieee1212.h		i386
 usr/include/sys/1394/t1394.h		i386
 usr/include/sys/1394/id1394.h		i386
+# Private net80211 headers
+usr/include/sys/net80211.h		i386
+usr/include/sys/net80211_proto.h	i386
+usr/include/sys/net80211_crypto.h	i386
 #
 # PPPoE files not delivered to customers.
 usr/include/net/pppoe.h			i386
@@ -843,6 +847,7 @@ usr/lib/amd64/llib-lshell.ln		      i386
 #
 # bmc (IPMI) interfaces shared within ON.
 #
+usr/include/sys/bmc_cmd.h		i386
 usr/include/sys/bmc_intf.h		i386
 #
 # These files are used by the iSCSI Target which is in this consolidation
@@ -974,7 +979,6 @@ usr/include/smbsrv/ntaccess.h		i386
 usr/include/smbsrv/nterror.h		i386
 usr/include/smbsrv/ntifs.h		i386
 usr/include/smbsrv/ntlocale.h		i386
-usr/include/smbsrv/ntsid.h		i386
 usr/include/smbsrv/ntstatus.h		i386
 usr/include/smbsrv/oem.h		i386
 usr/include/smbsrv/samlib.h		i386
@@ -988,8 +992,10 @@ usr/include/smbsrv/smb_idmap.h		i386
 usr/include/smbsrv/smb_incl.h		i386
 usr/include/smbsrv/smb_ioctl.h		i386
 usr/include/smbsrv/smb_kproto.h		i386
+usr/include/smbsrv/smb_kstat.h		i386
 usr/include/smbsrv/smb_ktypes.h		i386
 usr/include/smbsrv/smb_privilege.h	i386
+usr/include/smbsrv/smb_sid.h		i386
 usr/include/smbsrv/smb_token.h		i386
 usr/include/smbsrv/smb_vops.h		i386
 usr/include/smbsrv/smb_winpipe.h	i386

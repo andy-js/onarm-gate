@@ -69,8 +69,8 @@
 #include <sys/zvol.h>
 #include <sharefs/share.h>
 #include <sys/dmu_objset.h>
-#include <zfs_types.h>
 
+#include "zfs_types.h"
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
@@ -507,12 +507,9 @@ zfs_secpolicy_promote(zfs_cmd_t *zc, cred_t *cr)
 
 	if (error == 0) {
 		dsl_dataset_t *pclone = NULL;
-		dsl_dir_t *dd = clone->os->os_dsl_dataset->ds_dir;
-		spa_t *spa = dd->dd_pool->dp_spa;
+		dsl_dir_t *dd;
+		dd = clone->os->os_dsl_dataset->ds_dir;
 
-		if (spa_state(spa) == POOL_STATE_IO_FAILURE &&
-		    spa_get_failmode(spa) == ZIO_FAILURE_MODE_ABORT)
-			return (EIO);
 		rw_enter(&dd->dd_pool->dp_config_rwlock, RW_READER);
 		error = dsl_dataset_open_obj(dd->dd_pool,
 		    dd->dd_phys->dd_origin_obj, NULL,
@@ -928,7 +925,7 @@ zfs_ioc_pool_upgrade(zfs_cmd_t *zc)
 		return (EINVAL);
 	}
 
-	error = spa_upgrade(spa, zc->zc_cookie);
+	spa_upgrade(spa, zc->zc_cookie);
 	spa_close(spa, FTAG);
 
 	return (error);
@@ -999,8 +996,8 @@ zfs_ioc_vdev_add(zfs_cmd_t *zc)
 {
 	spa_t *spa;
 	int error;
-	nvlist_t *config, **l2cache;
-	uint_t nl2cache;
+	nvlist_t *config, **l2cache, **spares;
+	uint_t nl2cache = 0, nspares = 0;
 
 	error = spa_open(zc->zc_name, &spa, FTAG);
 	if (error != 0)
@@ -1011,13 +1008,20 @@ zfs_ioc_vdev_add(zfs_cmd_t *zc)
 	(void) nvlist_lookup_nvlist_array(config, ZPOOL_CONFIG_L2CACHE,
 	    &l2cache, &nl2cache);
 
+	(void) nvlist_lookup_nvlist_array(config, ZPOOL_CONFIG_SPARES,
+	    &spares, &nspares);
+
 	/*
 	 * A root pool with concatenated devices is not supported.
-	 * Thus, can not add a device to a root pool with one device.
-	 * Allow for l2cache devices to be added.
+	 * Thus, can not add a device to a root pool.
+	 *
+	 * Intent log device can not be added to a rootpool because
+	 * during mountroot, zil is replayed, a seperated log device
+	 * can not be accessed during the mountroot time.
+	 *
+	 * l2cache and spare devices are ok to be added to a rootpool.
 	 */
-	if (spa->spa_root_vdev->vdev_children == 1 && spa->spa_bootfs != 0 &&
-	    nl2cache == 0) {
+	if (spa->spa_bootfs != 0 && nl2cache == 0 && nspares == 0) {
 		spa_close(spa, FTAG);
 		return (EDOM);
 	}
@@ -1177,7 +1181,9 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
 	objset_t *os = NULL;
 	int error;
 	nvlist_t *nv;
+#ifdef MNTFS_DISABLE
 	vfs_t *vfs_p;
+#endif
 
 	if ((error = zfs_os_open_retry(zc->zc_name, &os)) != 0)
 		return (error);
@@ -1410,9 +1416,6 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 				return (error);
 			continue;
 		}
-
-		if (zfs_prop_readonly(prop))
-			return (EINVAL);
 
 		if ((error = zfs_secpolicy_setprop(name, prop, CRED())) != 0)
 			return (error);
@@ -1966,6 +1969,7 @@ zfs_ioc_create(zfs_cmd_t *zc)
 
 	default:
 		cbfunc = NULL;
+		break;
 	}
 	if (strchr(zc->zc_name, '@') ||
 	    strchr(zc->zc_name, '%'))
@@ -2087,6 +2091,7 @@ zfs_ioc_create(zfs_cmd_t *zc)
 		error = dmu_objset_create(zc->zc_name, type, NULL, cbfunc,
 		    &zct);
 		nvlist_free(zct.zct_zplprops);
+
 	}
 
 	/*
@@ -2096,7 +2101,6 @@ zfs_ioc_create(zfs_cmd_t *zc)
 		if ((error = zfs_set_prop_nvlist(zc->zc_name, nvprops)) != 0)
 			(void) dmu_objset_destroy(zc->zc_name);
 	}
-
 	nvlist_free(nvprops);
 	return (error);
 }
@@ -2592,7 +2596,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 {
 	spa_t *spa;
 	vdev_t *vd;
-	txg_t txg;
+	uint64_t txg;
 	int error;
 
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
@@ -2609,10 +2613,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 		}
 	}
 
-	if ((txg = spa_vdev_enter(spa)) == TXG_INVAL) {
-		spa_close(spa, FTAG);
-		return (EIO);
-	}
+	txg = spa_vdev_enter(spa);
 
 	if (zc->zc_guid == 0) {
 		vd = NULL;
@@ -2641,11 +2642,11 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 
 	vdev_clear(spa, vd, B_TRUE);
 
-	error = spa_vdev_exit(spa, NULL, txg, 0);
+	(void) spa_vdev_exit(spa, NULL, txg, 0);
 
 	spa_close(spa, FTAG);
 
-	return (error);
+	return (0);
 }
 
 /*
@@ -2998,7 +2999,7 @@ static struct cb_ops zfs_cb_ops = {
 	zvol_close,	/* close */
 	zvol_strategy,	/* strategy */
 	nodev,		/* print */
-	nodev,		/* dump */
+	zvol_dump,	/* dump */
 	zvol_read,	/* read */
 	zvol_write,	/* write */
 	zfsdev_ioctl,	/* ioctl */
@@ -3066,7 +3067,7 @@ MODDRV_ENTRY_INIT(void)
 	if ((error = mod_install(&modlinkage)) != 0) {
 		zvol_fini();
 		zfs_fini();
-		(void) spa_fini();
+		spa_fini();
 		return (error);
 	}
 
@@ -3094,12 +3095,7 @@ MODDRV_ENTRY_FINI(void)
 
 	zvol_fini();
 	zfs_fini();
-	if ((error = spa_fini()) != 0) {
-		zfs_init();
-		zvol_init();
-		(void) mod_install(&modlinkage);
-		return (error);
-	}
+	spa_fini();
 	if (zfs_nfsshare_inited)
 		(void) ddi_modclose(nfs_mod);
 	if (zfs_smbshare_inited)

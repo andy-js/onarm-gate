@@ -224,8 +224,8 @@ spa_config_lock_destroy(spa_config_lock_t *scl)
 	refcount_destroy(&scl->scl_count);
 }
 
-int
-spa_config_enter(spa_t *spa, krw_t rw, void *tag, int spa_how)
+void
+spa_config_enter(spa_t *spa, krw_t rw, void *tag)
 {
 	spa_config_lock_t *scl = &spa->spa_config_lock;
 
@@ -236,22 +236,14 @@ spa_config_enter(spa_t *spa, krw_t rw, void *tag, int spa_how)
 			cv_wait(&scl->scl_cv, &scl->scl_lock);
 	} else {
 		while (!refcount_is_zero(&scl->scl_count) &&
-		    scl->scl_writer != curthread) {
-			if (spa_state(spa) == POOL_STATE_IO_FAILURE &&
-			    spa_get_failmode(spa) == ZIO_FAILURE_MODE_ABORT &&
-			    spa_how == SPA_NOWAIT){
-				mutex_exit(&scl->scl_lock);
-				return (EIO);
-			}
+		    scl->scl_writer != curthread)
 			cv_wait(&scl->scl_cv, &scl->scl_lock);
-		}
 		scl->scl_writer = curthread;
 	}
 
 	(void) refcount_add(&scl->scl_count, tag);
 
 	mutex_exit(&scl->scl_lock);
-	return (0);
 }
 
 void
@@ -779,11 +771,7 @@ spa_vdev_enter(spa_t *spa)
 	 */
 	spa_scrub_suspend(spa);
 
-	if ((spa_config_enter(spa, RW_WRITER, spa, SPA_NOWAIT)) == EIO) {
-		spa_scrub_resume(spa);
-		mutex_exit(&spa_namespace_lock);
-		return (TXG_INVAL);
-	}
+	spa_config_enter(spa, RW_WRITER, spa);
 
 	return (spa_last_synced_txg(spa) + 1);
 }
@@ -871,11 +859,7 @@ spa_rename(const char *name, const char *newname)
 		return (err);
 	}
 
-	if ((err = spa_config_enter(spa, RW_WRITER, FTAG, SPA_NOWAIT)) != 0 ) {
-		spa_close(spa, FTAG);
-		mutex_exit(&spa_namespace_lock);
-		return (err);
-	}
+	spa_config_enter(spa, RW_WRITER, FTAG);
 
 	avl_remove(&spa_namespace_avl, spa);
 	spa_strfree(spa->spa_name);
@@ -1027,7 +1011,7 @@ spa_freeze(spa_t *spa)
 {
 	txg_t freeze_txg = 0;
 
-	(void) spa_config_enter(spa, RW_WRITER, FTAG, SPA_WAIT);
+	spa_config_enter(spa, RW_WRITER, FTAG);
 	if (spa->spa_freeze_txg == TXG_MAX) {
 		freeze_txg = spa_last_synced_txg(spa) + TXG_SIZE;
 		spa->spa_freeze_txg = freeze_txg;
@@ -1230,7 +1214,7 @@ bp_get_dasize(spa_t *spa, const blkptr_t *bp)
 	if (!spa->spa_deflate)
 		return (BP_GET_ASIZE(bp));
 
-	(void) spa_config_enter(spa, RW_READER, FTAG, SPA_WAIT);
+	spa_config_enter(spa, RW_READER, FTAG);
 	for (i = 0; i < SPA_DVAS_PER_BP; i++) {
 		vdev_t *vd =
 		    vdev_lookup_top(spa, DVA_GET_VDEV(&bp->blk_dva[i]));
@@ -1298,6 +1282,12 @@ spa_busy(void)
 }
 
 void
+spa_boot_init()
+{
+	spa_config_load();
+}
+
+void
 spa_init(int mode)
 {
 	mutex_init(&spa_namespace_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1333,12 +1323,10 @@ spa_init(int mode)
 	spa_config_load();
 }
 
-int
+void
 spa_fini(void)
 {
-	int err;
-	if ((err = spa_evict_all()) != 0)
-		return (err);
+	spa_evict_all();
 
 	vdev_cache_stat_fini();
 	zil_fini();
@@ -1359,8 +1347,6 @@ spa_fini(void)
 	avl_destroy(&spa_l2cache_avl);
 	mutex_destroy(&spa_l2cache_lock);
 #endif	/* ZFS_NO_L2ARC */
-
-	return (0);
 }
 
 /*

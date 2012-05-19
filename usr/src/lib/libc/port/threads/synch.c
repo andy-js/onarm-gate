@@ -2538,21 +2538,21 @@ lmutex_unlock(mutex_t *mp)
  * deferred while locks acquired by these functions are held.
  */
 void
-__libc_sig_mutex_lock(mutex_t *mp)
+sig_mutex_lock(mutex_t *mp)
 {
 	sigoff(curthread);
 	(void) _private_mutex_lock(mp);
 }
 
 void
-__libc_sig_mutex_unlock(mutex_t *mp)
+sig_mutex_unlock(mutex_t *mp)
 {
 	(void) _private_mutex_unlock(mp);
 	sigon(curthread);
 }
 
 int
-__libc_sig_mutex_trylock(mutex_t *mp)
+sig_mutex_trylock(mutex_t *mp)
 {
 	int error;
 
@@ -2574,9 +2574,9 @@ sig_cond_wait(cond_t *cv, mutex_t *mp)
 	_private_testcancel();
 	error = __cond_wait(cv, mp);
 	if (error == EINTR && curthread->ul_cursig) {
-		__libc_sig_mutex_unlock(mp);
+		sig_mutex_unlock(mp);
 		/* take the deferred signal here */
-		__libc_sig_mutex_lock(mp);
+		sig_mutex_lock(mp);
 	}
 	_private_testcancel();
 	return (error);
@@ -2594,9 +2594,9 @@ sig_cond_reltimedwait(cond_t *cv, mutex_t *mp, const timespec_t *ts)
 	_private_testcancel();
 	error = __cond_reltimedwait(cv, mp, ts);
 	if (error == EINTR && curthread->ul_cursig) {
-		__libc_sig_mutex_unlock(mp);
+		sig_mutex_unlock(mp);
 		/* take the deferred signal here */
-		__libc_sig_mutex_lock(mp);
+		sig_mutex_lock(mp);
 	}
 	_private_testcancel();
 	return (error);

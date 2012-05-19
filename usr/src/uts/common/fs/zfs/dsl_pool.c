@@ -40,7 +40,8 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/fs/zfs.h>
-#include <zfs_types.h>
+
+#include "zfs_types.h"
 
 int zfs_no_write_throttle = 0;
 uint64_t zfs_write_limit_override = 0;

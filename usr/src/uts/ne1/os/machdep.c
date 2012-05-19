@@ -170,8 +170,6 @@ int klustsize = 56 * 1024;
  */
 int vac;
 
-static boolean_t	is_nfsdump(void);
-
 void stop_other_cpus();
 void debug_enter(char *);
 
@@ -658,16 +656,13 @@ panic_idle(struct regs *rp)
 {
 	cpu_t		*cp = CPU;
 	processorid_t	cpuid = cp->cpu_id;
-	boolean_t	nfsdump;
 	int		result, i;
 
 	wdt_stop(cpuid);
 
-	nfsdump = is_nfsdump();
-
 	CPUSET_ATOMIC_XADD(panic_idle_enter, cpuid, result);
 
-	if (cpuid == panic_start_cpu || (nfsdump && result != 0)) {
+	if (cpuid == panic_start_cpu) {
 		/* We must handle interrupt for system dump over NFS. */
 		return;
 	}
@@ -685,32 +680,6 @@ panic_idle(struct regs *rp)
 	(void) setjmp(&curthread->t_pcb);
 
 	SYNC_BARRIER();
-
-	if (nfsdump) {
-		int	base;
-
-		/*
-		 * If dump device is on NFS, CPUs other than panic CPU should
-		 * switch to master kernel L1PT.
-		 */
-		hat_switch(kas.a_hat);
-
-		/* Enable interrupt for system dump over NFS. */
-		while (panic_dump_start == 0);
-
-		kpreempt_disable();
-		base = cp->cpu_base_spl;
-		cp->cpu_base_spl = 0;
-		(void)spl0();
-		SYNC_BARRIER();
-
-		/* Wait for the end of system dump. */
-		while (panic_dump_end == 0);
-
-		cp->cpu_base_spl = base;
-		splx(ipltospl(CLOCK_LEVEL));
-		kpreempt_enable();
-	}
 
 	cp->cpu_flags |= CPU_QUIESCED;
 
@@ -1041,23 +1010,3 @@ arm_gettick(void)
 	return (scucnt_gethrtimeunscaled());
 }
 
-/*
- * static boolean_t
- * is_nfsdump(void)
- *	Determine whether an NFS file is configured as dump device.
- */
-static boolean_t
-is_nfsdump(void)
-{
-	extern dumpdev_t	*dump_dumpdev;
-
-	if (dump_dumpdev == NULL && dumpvp != NULL) {
-		vnodeops_t	*vnop = vn_getops(dumpvp);
-
-		if (vnop != NULL && strncmp(vnop->vnop_name, "nfs", 3) == 0) {
-			return B_TRUE;
-		}
-	}
-
-	return B_FALSE;
-}

@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -44,7 +44,6 @@
 #include <sys/memlist.h>
 #include <sys/dumphdr.h>
 #include <sys/dumpadm.h>
-#include <sys/dumpdev.h>
 #include <sys/ksyms.h>
 #include <sys/compress.h>
 #include <sys/stream.h>
@@ -67,6 +66,7 @@
 #include <sys/vtoc.h>
 #include <sys/errorq.h>
 #include <sys/fm/util.h>
+#include <sys/fs/zfs.h>
 
 #include <vm/hat.h>
 #include <vm/as.h>
@@ -104,15 +104,6 @@ static size_t	dumpbuf_limit = 1UL << 23;	/* 8MB */
 static size_t	dump_iosize;	/* device's best transfer size, if any */
 static uint64_t	dumpbuf_thresh = 1ULL << 30;	/* 1GB */
 static ulong_t	dumpbuf_mult = 8;
-
-/*
- * Special dump device for panic dump.
- * If dumpdev is set, dumpvp is ignored and dump image is dumped into
- * dumpdev device.
- * Note that dumpdev is ignored on live dump.
- */
-dumpdev_t	*dump_dumpdev;
-static size_t	dump_dumpdevsz;
 
 /*
  * The dump i/o buffer must be at least one page, at most xfer_size bytes, and
@@ -283,6 +274,17 @@ dumpinit(vnode_t *vp, char *name, int justchecking)
 				dump_iosize = dki.dki_maxtransfer * blk_size;
 				dumpbuf_resize();
 			}
+			/*
+			 * If we are working with a zvol then call into
+			 * it to dumpify itself.
+			 */
+			if (strcmp(dki.dki_dname, ZVOL_DRIVER) == 0) {
+				if ((error = VOP_IOCTL(cdev_vp,
+				    DKIOCDUMPINIT, NULL, FKIOCTL, kcred,
+				    NULL, NULL)) != 0) {
+					dumpfini();
+				}
+			}
 
 			(void) VOP_CLOSE(cdev_vp, FREAD | FWRITE, 1, 0,
 			    kcred, NULL);
@@ -293,15 +295,42 @@ dumpinit(vnode_t *vp, char *name, int justchecking)
 
 	cmn_err(CE_CONT, "?dump on %s size %llu MB\n", name, dumpvp_size >> 20);
 
-	return (0);
+	return (error);
 }
 
 void
 dumpfini(void)
 {
+	vattr_t vattr;
+	boolean_t is_zfs = B_FALSE;
+	vnode_t *cdev_vp;
 	ASSERT(MUTEX_HELD(&dump_lock));
 
 	kmem_free(dumppath, strlen(dumppath) + 1);
+
+	/*
+	 * Determine if we are using zvols for our dump device
+	 */
+	vattr.va_mask = AT_RDEV;
+	if (VOP_GETATTR(dumpvp, &vattr, 0, kcred, NULL) == 0) {
+		is_zfs = (getmajor(vattr.va_rdev) ==
+		    ddi_name_to_major(ZFS_DRIVER)) ? B_TRUE : B_FALSE;
+	}
+
+	/*
+	 * If we have a zvol dump device then we call into zfs so
+	 * that it may have a chance to cleanup.
+	 */
+	if (is_zfs &&
+	    (cdev_vp = makespecvp(VTOS(dumpvp)->s_dev, VCHR)) != NULL) {
+		if (VOP_OPEN(&cdev_vp, FREAD | FWRITE, kcred, NULL) == 0) {
+			(void) VOP_IOCTL(cdev_vp, DKIOCDUMPFINI, NULL, FKIOCTL,
+			    kcred, NULL, NULL);
+			(void) VOP_CLOSE(cdev_vp, FREAD | FWRITE, 1, 0,
+			    kcred, NULL);
+		}
+		VN_RELE(cdev_vp);
+	}
 
 	(void) VOP_CLOSE(dumpvp, FREAD | FWRITE, 1, (offset_t)0, kcred, NULL);
 
@@ -349,19 +378,9 @@ dumpvp_flush(void)
 	if (dumpvp_off + size > dumpvp_limit) {
 		dump_ioerr = ENOSPC;
 	} else if (size != 0) {
-		if (panicstr) {
-			dumpdev_t	*ddp = dump_dumpdev;
-
-			if (ddp) {
-				err = DUMPDEV_DUMP(ddp, dumpbuf_start,
-						   dumpvp_off, size);
-			}
-			else {
-				err = VOP_DUMP(dumpvp, dumpbuf_start,
-					       lbtodb(dumpvp_off), btod(size),
-					       NULL);
-			}
-		}
+		if (panicstr)
+			err = VOP_DUMP(dumpvp, dumpbuf_start,
+			    lbtodb(dumpvp_off), btod(size), NULL);
 		else
 			err = vn_rdwr(UIO_WRITE, dumpvp, dumpbuf_start, size,
 			    dumpvp_off, UIO_SYSSPACE, 0, dumpvp_limit,
@@ -485,12 +504,9 @@ dump_ereports(void)
 {
 	u_offset_t dumpvp_start;
 	erpt_dump_t ed;
-	dumpdev_t	*ddp;
 
-	ddp = (panicstr) ? dump_dumpdev : NULL;
-	if (ddp == NULL && (dumpvp == NULL || dumphdr == NULL)) {
+	if (dumpvp == NULL || dumphdr == NULL)
 		return;
-	}
 
 	dumpbuf_cur = dumpbuf_start;
 	dumpvp_limit = dumpvp_size - (DUMP_OFFSET + DUMP_LOGSIZE);
@@ -519,14 +535,9 @@ dump_messages(void)
 	mblk_t *mctl, *mdata;
 	queue_t *q, *qlast;
 	u_offset_t dumpvp_start;
-	dumpdev_t	*ddp;
 
-	ddp = (panicstr) ? dump_dumpdev : NULL;
-
-	if (ddp == NULL &&
-	    (dumpvp == NULL || dumphdr == NULL || log_consq == NULL)) {
+	if (dumpvp == NULL || dumphdr == NULL || log_consq == NULL)
 		return;
-	}
 
 	dumpbuf_cur = dumpbuf_start;
 	dumpvp_limit = dumpvp_size - DUMP_OFFSET;
@@ -593,78 +604,6 @@ dump_pagecopy(void *src, void *dst)
 	no_trap();
 }
 
-#ifdef	DUMP_ALL_CURPROC
-
-static void
-dump_all_curproc(void)
-{
-	int	cpuid, dumped = 0;
-	pid_t	i, npids = 0;
-
-	if (panicstr) {
-		/*
-		 * This is a  panic dump.
-		 * We try to dump all current processes on all CPUs.
-		 */
-		mutex_enter(&cpu_lock);
-		for (cpuid = 0; cpuid < NCPU; cpuid++) {
-			cpu_t		*cp = cpu[cpuid];
-			proc_t		*procp;
-			kthread_t	*tp;
-
-			if (cp == NULL ||
-			    (cp->cpu_flags & (CPU_EXISTS|CPU_ENABLE)) == 0) {
-				continue;
-			}
-
-			if ((tp = cp->cpu_thread) == NULL) {
-				continue;
-			}
-
-			/*
-			 * If interrupt thread is on this CPU, detect
-			 * interrupted thread. Note that we can't detect
-			 * if this thread is unpinned.
-			 */
-			while (tp->t_flag & T_INTR_THREAD) {
-				if ((tp = tp->t_intr) == NULL) {
-					break;
-				}
-			}
-			if (tp == NULL) {
-				continue;
-			}
-
-			if ((procp = tp->t_procp) == &p0) {
-				continue;
-			}
-
-			/* Choose this process to be dumped. */
-			dump_pids[npids++] = procp->p_pid;
-		}
-		mutex_exit(&cpu_lock);
-	}
-	else {
-		/*
-		 * This is a live dump. We try to dump current process on
-		 * this CPU.
-		 */
-		dump_pids[npids++] = curthread->t_procp->p_pid;
-	}
-
-	for (i = 0; i < npids; i++) {
-		if (dump_process(dump_pids[i]) == 0) {
-			dumphdr->dump_flags |= DF_CURPROC;
-			dumped = 1;
-		}
-	}
-	if (!dumped) {
-		dumphdr->dump_flags |= DF_KERNEL;
-	}
-}
-
-#endif	/* DUMP_ALL_CURPROC */
-
 /*
  * Dump the system.
  */
@@ -681,41 +620,23 @@ dumpsys(void)
 	proc_t *p;
 	pid_t npids, pidx;
 	char *content;
-	dumpdev_t	*ddp;
-	char	*devname;
 
-	ddp = (panicstr) ? dump_dumpdev : NULL;
-	if (ddp == NULL && (dumpvp == NULL || dumphdr == NULL)) {
+	if (dumpvp == NULL || dumphdr == NULL) {
 		uprintf("skipping system dump - no dump device configured\n");
 		return;
 	}
 	dumpbuf_cur = dumpbuf_start;
 
-	if (ddp) {
-		int	err;
+	/*
+	 * Calculate the starting block for dump.  If we're dumping on a
+	 * swap device, start 1/5 of the way in; otherwise, start at the
+	 * beginning.  And never use the first page -- it may be a disk label.
+	 */
+	if (dumpvp->v_flag & VISSWAP)
+		dumphdr->dump_start = P2ROUNDUP(dumpvp_size / 5, DUMP_OFFSET);
+	else
+		dumphdr->dump_start = DUMP_OFFSET;
 
-		dumpvp_size = dump_dumpdevsz;
-		if ((err = DUMPDEV_OPEN(ddp, &dumphdr->dump_start)) != 0) {
-			uprintf("skipping system dump - "
-				"DUMPDEV_OPEN() failed: %d\n", err);
-			return;
-		}
-	}
-	else {
-		/*
-		 * Calculate the starting block for dump.
-		 * If we're dumping on a swap device, start 1/5 of the way in;
-		 * otherwise, start at the beginning.  And never use the first
-		 * page -- it may be a disk label.
-		 */
-		if (dumpvp->v_flag & VISSWAP) {
-			dumphdr->dump_start =
-				P2ROUNDUP(dumpvp_size / 5, DUMP_OFFSET);
-		}
-		else {
-			dumphdr->dump_start = DUMP_OFFSET;
-		}
-	}
 	dumphdr->dump_flags = DF_VALID | DF_COMPLETE | DF_LIVE;
 	dumphdr->dump_crashtime = gethrestime_sec();
 	dumphdr->dump_npages = 0;
@@ -723,16 +644,10 @@ dumpsys(void)
 	bzero(dump_bitmap, BT_SIZEOFMAP(dump_bitmapsize));
 	dump_timeleft = dump_timeout;
 
-	devname = dumppath;
 	if (panicstr) {
 		dumphdr->dump_flags &= ~DF_LIVE;
-		if (ddp != NULL) {
-			devname = (char *)ddp->dd_name;
-		}
-		else {
-			(void) VOP_DUMPCTL(dumpvp, DUMP_FREE, NULL, NULL);
-			(void) VOP_DUMPCTL(dumpvp, DUMP_ALLOC, NULL, NULL);
-		}
+		(void) VOP_DUMPCTL(dumpvp, DUMP_FREE, NULL, NULL);
+		(void) VOP_DUMPCTL(dumpvp, DUMP_ALLOC, NULL, NULL);
 		(void) vsnprintf(dumphdr->dump_panicstring, DUMP_PANICSIZE,
 		    panicstr, panicargs);
 	}
@@ -743,7 +658,7 @@ dumpsys(void)
 		content = "kernel + curproc";
 	else
 		content = "kernel";
-	uprintf("dumping to %s, offset %lld, content: %s\n", devname,
+	uprintf("dumping to %s, offset %lld, content: %s\n", dumppath,
 	    dumphdr->dump_start, content);
 
 	/*
@@ -792,13 +707,6 @@ dumpsys(void)
 		dumphdr->dump_flags |= DF_ALL;
 
 	} else if (dump_conflags & DUMP_CURPROC) {
-#ifdef	DUMP_ALL_CURPROC
-
-		/* All work will be done by dump_all_curproc(). */
-		dump_all_curproc();
-
-#else	/* !DUMP_ALL_CURPROC */
-
 		/*
 		 * Determine which pid is to be dumped.  If we're panicking, we
 		 * dump the process associated with panic_thread (if any).  If
@@ -822,7 +730,6 @@ dumpsys(void)
 		else
 			dumphdr->dump_flags |= DF_KERNEL;
 
-#endif	/* DUMP_ALL_CURPROC */
 	} else {
 		dumphdr->dump_flags |= DF_KERNEL;
 	}
@@ -917,10 +824,6 @@ dumpsys(void)
 		dump_messages();
 	}
 
-	if (ddp) {
-		DUMPDEV_CLOSE(ddp);
-	}
-
 	delay(2 * hz);	/* let people see the 'done' message */
 	dump_timeleft = 0;
 	dump_ioerr = 0;
@@ -940,66 +843,28 @@ dump_resize()
 }
 
 /*
- * int
- * dumpdev_install(dumpdev_t *ddp)
- *	Install dump device.
- *	If dumpdev is installed, dumpvp will be ignored on panic dump.
+ * This function allows for dynamic resizing of a dump area. It assumes that
+ * the underlying device has update its appropriate size(9P).
  */
 int
-dumpdev_install(dumpdev_t *ddp)
+dumpvp_resize()
 {
-	int	err = 0;
-	size_t	size;
+	int error;
+	vattr_t vattr;
 
 	mutex_enter(&dump_lock);
-
-	if (dump_dumpdev) {
-		err = EBUSY;
-		goto out;
+	vattr.va_mask = AT_SIZE;
+	if ((error = VOP_GETATTR(dumpvp, &vattr, 0, kcred, NULL)) != 0) {
+		mutex_exit(&dump_lock);
+		return (error);
 	}
 
-	dumphdr_init();
-
-	/* Check size of dump device. */
-	if ((err = DUMPDEV_SIZE(ddp, &size)) != 0) {
-		goto out;
-	}
-	if (size == 0) {
-		/* Determine suitable size. */
-		size = ptob(dump_bitmapsize) + DUMP_LOGSIZE + DUMP_ERPTSIZE +
-			DUMP_OFFSET * 2;
-		size = P2ROUNDUP(size, DUMP_OFFSET);
-	}
-	if (size < DUMP_LOGSIZE * 2 + DUMP_ERPTSIZE) {
-		err = ENOSPC;
-		goto out;
+	if (error == 0 && vattr.va_size < 2 * DUMP_LOGSIZE + DUMP_ERPTSIZE) {
+		mutex_exit(&dump_lock);
+		return (ENOSPC);
 	}
 
-	ASSERT(IS_P2ALIGNED(size, DUMP_OFFSET));
-	dump_dumpdev = ddp;
-	dump_dumpdevsz = size;
-	dump_iosize = 0;
-
- out:
+	dumpvp_size = vattr.va_size & -DUMP_OFFSET;
 	mutex_exit(&dump_lock);
-	return err;
-}
-
-/*
- * void
- * dumpdev_uninstall(dumpdev_t *ddp)
- *	Uninstall dump device.
- *	Do nothing if the specified device is not installed.
- */
-void
-dumpdev_uninstall(dumpdev_t *ddp)
-{
-	mutex_enter(&dump_lock);
-
-	if (dump_dumpdev == ddp) {
-		dump_dumpdev = NULL;
-		dump_dumpdevsz = 0;
-	}
-
-	mutex_exit(&dump_lock);
+	return (0);
 }

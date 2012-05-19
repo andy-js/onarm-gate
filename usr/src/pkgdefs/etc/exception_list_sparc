@@ -633,6 +633,10 @@ usr/platform/sun4u/include/sys/fcode.h		sparc
 usr/include/net/pppoe.h			sparc
 usr/include/net/sppptun.h		sparc
 usr/include/net/wpa.h			sparc
+# Private net80211 headers
+usr/include/sys/net80211.h		sparc
+usr/include/sys/net80211_proto.h	sparc
+usr/include/sys/net80211_crypto.h	sparc
 #
 # User<->kernel interface used by cfgadm/USB only
 #
@@ -917,6 +921,7 @@ usr/lib/sparcv9/llib-lshell.ln  	      sparc
 #
 # bmc (IPMI) interfaces shared within ON.
 #
+usr/include/sys/bmc_cmd.h		sparc
 usr/include/sys/bmc_intf.h		sparc
 #
 # This file is used in ON to build DSCP clients.  It is not for customers.
@@ -1060,7 +1065,6 @@ usr/include/smbsrv/ntaccess.h		sparc
 usr/include/smbsrv/nterror.h		sparc
 usr/include/smbsrv/ntifs.h		sparc
 usr/include/smbsrv/ntlocale.h		sparc
-usr/include/smbsrv/ntsid.h		sparc
 usr/include/smbsrv/ntstatus.h		sparc
 usr/include/smbsrv/oem.h		sparc
 usr/include/smbsrv/samlib.h		sparc
@@ -1074,8 +1078,10 @@ usr/include/smbsrv/smb_idmap.h		sparc
 usr/include/smbsrv/smb_incl.h		sparc
 usr/include/smbsrv/smb_ioctl.h		sparc
 usr/include/smbsrv/smb_kproto.h		sparc
+usr/include/smbsrv/smb_kstat.h		sparc
 usr/include/smbsrv/smb_ktypes.h		sparc
 usr/include/smbsrv/smb_privilege.h	sparc
+usr/include/smbsrv/smb_sid.h		sparc
 usr/include/smbsrv/smb_token.h		sparc
 usr/include/smbsrv/smb_vops.h		sparc
 usr/include/smbsrv/smb_winpipe.h	sparc
