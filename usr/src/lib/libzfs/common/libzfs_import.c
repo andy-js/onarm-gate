@@ -61,7 +61,6 @@
 #include "libzfs.h"
 #include "libzfs_impl.h"
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Intermediate structures used to gather configuration information.
  */
@@ -713,7 +712,6 @@ error:
 
 	return (NULL);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Return the offset of the given label.
@@ -779,7 +777,6 @@ zpool_read_label(int fd, nvlist_t **config)
 	return (0);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Given a list of directories to search, find all pools stored on disk.  This
  * includes partial pools which are not available to import.  If no args are
@@ -1041,8 +1038,6 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 	nvlist_free(raw);
 	return (pools);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
-
 
 boolean_t
 find_guid(nvlist_t *nv, uint64_t guid)
@@ -1071,7 +1066,6 @@ typedef struct aux_cbdata {
 	zpool_handle_t	*cb_zhp;
 } aux_cbdata_t;
 
-#ifndef ZFS_CMD_MINIMUMSET
 static int
 find_aux(zpool_handle_t *zhp, void *data)
 {
@@ -1260,4 +1254,3 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 	*inuse = ret;
 	return (0);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */

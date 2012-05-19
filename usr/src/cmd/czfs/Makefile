@@ -29,9 +29,7 @@
 #
 
 PROG=		czfs
-PROG_MIN=	czfs_min
 OBJS=		zfs_main.o zfs_iter.o
-OBJS_MIN=	zfs_main_min.o zfs_iter_min.o
 SRCS=		$(OBJS:%.o=../zfs/%.c)
 POFILES=	$(OBJS:%.o=%.po)
 POFILE=		czfs.po
@@ -54,7 +52,7 @@ C99LMODE=	-Xc99=%all
 CFLAGS += -I../../uts/common/fs/czfs -I./
 CPPFLAGS += -D_LARGEFILE64_SOURCE=1 -D_REENTRANT
 
-CLOBBERFILES = $(POFILE) $(POFILES:../zfs/%=%) $(PROG_MIN)
+CLOBBERFILES = $(POFILE) $(POFILES:../zfs/%=%)
 
 $(ARM_BLD)CPPFLAGS += -DMNTFS_DISABLE
 
@@ -65,13 +63,12 @@ LINTFLAGS64 += -xerroff=E_NAME_DEF_NOT_USED2
 ROOTUSRSBINLINKS = $(PROG:%=$(ROOTUSRSBIN)/%)
 USRLIBFSTYPELINKS = $(LINKPROGS:%=$(USRLIBFSTYPE)/%)
 ROOTETCFSTYPELINKS = $(LINKPROGS:%=$(ROOTETCFSTYPE)/%)
-ROOTSBINPROG_MIN= $(PROG_MIN:%=$(ROOTSBIN)/%)
 
 .KEEP_STATE:
 
 .PARALLEL:
 
-all: $(PROG) $(PROG_MIN)
+all: $(PROG)
 
 %.po: ../zfs/%.c
 	$(CPPFORPO) $< > $(<:../zfs/%=%).i
@@ -86,19 +83,15 @@ $(PROG): $(OBJS)
 	$(LINK.c) -o $@ $(OBJS) $(LDLIBS)
 	$(POST_PROCESS)
 
-$(PROG_MIN): $(OBJS_MIN)
-	$(LINK.c) -o $@ $(OBJS_MIN) $(LDLIBS)
-	$(POST_PROCESS)
-
 install: all $(ROOTSBINPROG) $(ROOTUSRSBINLINKS) $(USRLIBFSTYPELINKS) \
-	$(ROOTETCFSTYPELINKS) $(ROOTSBINPROG_MIN)
+	$(ROOTETCFSTYPELINKS)
 
 $(POFILE): $(POFILES)
 	$(RM) $@
 	cat $(POFILES) > $@
 
 clean:
-	$(RM) $(OBJS) $(OBJS_MIN)
+	$(RM) $(OBJS)
 
 lint:	lint_SRCS
 
@@ -119,12 +112,6 @@ FRC:
 %.o: ../zfs/%.c
 	$(COMPILE.c) -c -o $@	\
 	$(OUTPUT_OPTION) -DZFS_COMPACT $< $(CTFCONVERT_HOOK) 
-	$(POST_PROCESS_O)
-
-%_min.o: ../zfs/%.c
-	$(COMPILE.c) -c -o $@	\
-	$(OUTPUT_OPTION) -DZFS_COMPACT -DZFS_CMD_MINIMUMSET $< \
-	$(CTFCONVERT_HOOK)
 	$(POST_PROCESS_O)
 
 include ../Makefile.targ

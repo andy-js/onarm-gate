@@ -592,7 +592,6 @@ zfs_is_shared(zfs_handle_t *zhp)
 	return (rc ? B_TRUE : B_FALSE);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 int
 zfs_share(zfs_handle_t *zhp)
 {
@@ -610,7 +609,6 @@ zfs_unshare(zfs_handle_t *zhp)
 
 	return (zfs_unshareall(zhp));
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Check to see if the filesystem is currently shared.
@@ -1217,7 +1215,6 @@ zfs_unshare_iscsi(zfs_handle_t *zhp)
 	return (0);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 typedef struct mount_cbdata {
 	zfs_handle_t	**cb_datasets;
 	int 		cb_used;
@@ -1356,8 +1353,6 @@ out:
 
 	return (ret);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
-
 
 static int
 zvol_cb(const char *dataset, void *data)
@@ -1389,7 +1384,6 @@ mountpoint_compare(const void *a, const void *b)
 	return (strcmp(mountb, mounta));
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Unshare and unmount all datasets within the given pool.  We don't want to
  * rely on traversing the DSL to discover the filesystems within the pool,
@@ -1532,4 +1526,3 @@ out:
 
 	return (ret);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */

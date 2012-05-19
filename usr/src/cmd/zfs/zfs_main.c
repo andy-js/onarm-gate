@@ -84,7 +84,6 @@ static int zfs_do_promote(int argc, char **argv);
 static int zfs_do_allow(int argc, char **argv);
 static int zfs_do_unallow(int argc, char **argv);
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -123,14 +122,11 @@ typedef enum {
 	HELP_ALLOW,
 	HELP_UNALLOW
 } zfs_help_t;
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 typedef struct zfs_command {
 	const char	*name;
 	int		(*func)(int argc, char **argv);
-#ifndef ZFS_CMD_MINIMUMSET
 	zfs_help_t	usage;
-#endif	/* ZFS_CMD_MINIMUMSET */
 } zfs_command_t;
 
 /*
@@ -142,7 +138,6 @@ typedef struct zfs_command {
  * message.  An empty command (one with a NULL name) indicates an empty line in
  * the generic usage message.
  */
-#ifndef ZFS_CMD_MINIMUMSET
 static zfs_command_t command_table[] = {
 	{ "create",	zfs_do_create,		HELP_CREATE		},
 	{ "destroy",	zfs_do_destroy,		HELP_DESTROY		},
@@ -174,18 +169,11 @@ static zfs_command_t command_table[] = {
 	{ "unallow",	zfs_do_unallow,		HELP_UNALLOW		},
 #endif	/* ZFS_COMPACT */
 };
-#else
-static zfs_command_t command_table[] = {
-	{ "mount",      zfs_do_mount            },
-	{ "unmount",    zfs_do_unmount          },
-};
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
 
 zfs_command_t *current_command;
 
-#ifndef ZFS_CMD_MINIMUMSET
 static const char *
 get_usage(zfs_help_t idx)
 {
@@ -275,7 +263,6 @@ get_usage(zfs_help_t idx)
 	abort();
 	/* NOTREACHED */
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Utility function to guarantee malloc() success.
@@ -293,7 +280,6 @@ safe_malloc(size_t size)
 	return (data);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Callback routine that will print out information for each of
  * the properties.
@@ -324,7 +310,6 @@ usage_prop_cb(int prop, void *cb)
 
 	return (ZPROP_CONT);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Display usage message.  If we're inside a command, display only the usage for
@@ -334,7 +319,6 @@ usage_prop_cb(int prop, void *cb)
 static void
 usage(boolean_t requested)
 {
-#ifndef ZFS_CMD_MINIMUMSET
 	int i;
 	boolean_t show_properties = B_FALSE;
 	boolean_t show_permissions = B_FALSE;
@@ -423,12 +407,10 @@ usage(boolean_t requested)
 		(void) printf("dumping core by request\n");
 		abort();
 	}
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 	exit(requested ? 0 : 2);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * zfs clone [-p] <snap> <fs | vol>
  *
@@ -2838,7 +2820,6 @@ zfs_do_unallow(int argc, char **argv)
 	return (error);
 }
 #endif	/* ZFS_COMPACT */
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 typedef struct get_all_cbdata {
 	zfs_handle_t	**cb_handles;
@@ -3444,7 +3425,6 @@ zfs_do_mount(int argc, char **argv)
 	return (share_mount(OP_MOUNT, argc, argv));
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * zfs share -a [nfs | iscsi | smb]
  * zfs share filesystem
@@ -3456,7 +3436,6 @@ zfs_do_share(int argc, char **argv)
 {
 	return (share_mount(OP_SHARE, argc, argv));
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 typedef struct unshare_unmount_node {
 	zfs_handle_t	*un_zhp;
@@ -3940,7 +3919,6 @@ zfs_do_unmount(int argc, char **argv)
 	return (unshare_unmount(OP_MOUNT, argc, argv));
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * zfs unshare -a
  * zfs unshare filesystem
@@ -3952,7 +3930,6 @@ zfs_do_unshare(int argc, char **argv)
 {
 	return (unshare_unmount(OP_SHARE, argc, argv));
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Called when invoked as /etc/fs/zfs/mount.  Do the mount if the mountpoint is
@@ -3989,10 +3966,8 @@ manual_mount(int argc, char **argv)
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
-#ifndef ZFS_CMD_MINIMUMSET
 			(void) fprintf(stderr, gettext("usage: mount [-o opts] "
 			    "<path>\n"));
-#endif	/* ZFS_CMD_MINIMUMSET */
 			return (2);
 		}
 	}
@@ -4010,9 +3985,7 @@ manual_mount(int argc, char **argv)
 			    gettext("missing mountpoint argument\n"));
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
-#ifndef ZFS_CMD_MINIMUMSET
 		(void) fprintf(stderr, "usage: mount <dataset> <mountpoint>\n");
-#endif	/* ZFS_CMD_MINIMUMSET */
 		return (2);
 	}
 
@@ -4071,10 +4044,8 @@ manual_unmount(int argc, char **argv)
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
-#ifndef ZFS_CMD_MINIMUMSET
 			(void) fprintf(stderr, gettext("usage: unmount [-f] "
 			    "<path>\n"));
-#endif	/* ZFS_CMD_MINIMUMSET */
 			return (2);
 		}
 	}
@@ -4089,16 +4060,13 @@ manual_unmount(int argc, char **argv)
 			    "argument\n"));
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
-#ifndef ZFS_CMD_MINIMUMSET
 		(void) fprintf(stderr, gettext("usage: unmount [-f] <path>\n"));
-#endif	/* ZFS_CMD_MINIMUMSET */
 		return (2);
 	}
 
 	return (unshare_unmount_path(OP_MOUNT, argv[0], flags, B_TRUE));
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 static int
 volcheck(zpool_handle_t *zhp, void *data)
 {
@@ -4119,7 +4087,6 @@ do_volcheck(boolean_t isinit)
 {
 	return (zpool_iter(g_zfs, volcheck, &isinit) ? 1 : 0);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 static int
 find_command_idx(char *command, int *idx)
@@ -4157,10 +4124,8 @@ main(int argc, char **argv)
 		return (1);
 	}
 
-#ifndef ZFS_CMD_MINIMUMSET
 	zpool_set_history_str(ZFS_MODULE, argc, argv, history_str);
 	verify(zpool_stage_history(g_zfs, history_str) == 0);
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
@@ -4196,7 +4161,6 @@ main(int argc, char **argv)
 		if (strcmp(cmdname, "umount") == 0)
 			cmdname = "unmount";
 
-#ifndef ZFS_CMD_MINIMUMSET
 		/*
 		 * The 'recv' command is an alias for 'receive'
 		 */
@@ -4217,7 +4181,6 @@ main(int argc, char **argv)
 			return (do_volcheck(B_TRUE));
 		else if (strcmp(cmdname, "volfini") == 0)
 			return (do_volcheck(B_FALSE));
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 		/*
 		 * Run the appropriate command.
@@ -4240,7 +4203,6 @@ main(int argc, char **argv)
 
 	libzfs_fini(g_zfs);
 
-#ifndef ZFS_CMD_MINIMUMSET
 	/*
 	 * The 'ZFS_ABORT' environment variable causes us to dump core on exit
 	 * for the purposes of running ::findleaks.
@@ -4249,7 +4211,6 @@ main(int argc, char **argv)
 		(void) printf("dumping core by request\n");
 		abort();
 	}
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 	return (ret);
 }

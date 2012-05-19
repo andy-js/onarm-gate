@@ -93,7 +93,6 @@ zpool_get_all_props(zpool_handle_t *zhp)
 	return (0);
 }
 
-#ifndef	ZFS_CMD_MINIMUMSET
 static int
 zpool_props_refresh(zpool_handle_t *zhp)
 {
@@ -133,7 +132,6 @@ zpool_get_prop_string(zpool_handle_t *zhp, zpool_prop_t prop,
 
 	return (value);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 uint64_t
 zpool_get_prop_int(zpool_handle_t *zhp, zpool_prop_t prop, zprop_source_t *src)
@@ -161,7 +159,6 @@ zpool_get_prop_int(zpool_handle_t *zhp, zpool_prop_t prop, zprop_source_t *src)
 	return (value);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Map VDEV STATE to printed strings.
  */
@@ -271,7 +268,6 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
 
 	return (0);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 /*
  * Check if the bootfs name has the same pool name as it is set to.
@@ -292,7 +288,6 @@ bootfs_name_valid(const char *pool, char *bootfs)
 	return (B_FALSE);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Given an nvlist of zpool properties to be set, validate that they are
  * correct, and parse any numeric properties (index, boolean, etc) if they are
@@ -535,8 +530,6 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
 
 	return (0);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
-
 
 /*
  * Validate the given pool name, optionally putting an extended error message in
@@ -745,8 +738,6 @@ zpool_get_name(zpool_handle_t *zhp)
 	return (zhp->zpool_name);
 }
 
-
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Return the state of the pool (ACTIVE or UNAVAILABLE)
  */
@@ -2286,7 +2277,6 @@ zpool_upgrade(zpool_handle_t *zhp, uint64_t new_version)
 		    zhp->zpool_name));
 	return (0);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 void
 zpool_set_history_str(const char *subcommand, int argc, char **argv,
@@ -2325,7 +2315,6 @@ zpool_stage_history(libzfs_handle_t *hdl, const char *history_str)
 	return (0);
 }
 
-#ifndef ZFS_CMD_MINIMUMSET
 /*
  * Perform ioctl to get some command history of a pool.
  *
@@ -2508,7 +2497,6 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	}
 	free(mntpnt);
 }
-#endif	/* ZFS_CMD_MINIMUMSET */
 
 #ifndef NO_SUPPORT_EFI
 #define	RDISK_ROOT	"/dev/rdsk"

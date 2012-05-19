@@ -45,9 +45,7 @@ lint :=		TARGET= lint
 MSGFILES =	`$(GREP) -l gettext ../libzfs/$(HDRDIR)/*.[ch]`
 POFILE =	libczfs.po
 
-MIN = -DZFS_CMD_MINIMUMSET
 MACROS = LIBRARY=libczfs.a
-MINMACROS = LIBRARY=libczfs_min.a LIBZFSFLAGS=$(MIN)
 
 .KEEP_STATE:
 
@@ -59,7 +57,6 @@ _msg: $(MSGDOMAINPOFILE)
 
 $(SUBDIRS): FRC
 	@cd $@; pwd; $(MAKE) $(TARGET) $(MACROS)
-	@cd $@; pwd; $(MAKE) $(TARGET) $(MINMACROS)
 
 FRC:
 
