@@ -176,12 +176,10 @@ static int	hat_debug;
  */
 struct hatstats	hatstat;
 
-#ifndef	LPG_DISABLE
 uint_t	mmu_page_sizes;
 
 /* How many page sizes the users can see */
 uint_t	mmu_exported_page_sizes;
-#endif	/* !LPG_DISABLE */
 
 /* Use static hat for kernel */
 hat_t		hat_kas;
@@ -628,11 +626,9 @@ hat_bootparam(char *param, uint32_t def, uint32_t min, uint32_t max)
 void
 hat_mmu_init(void)
 {
-#ifndef	LPG_DISABLE
 	/* Currently, only 4K page is supported for normal mapping */
 	mmu_page_sizes = 1;
 	mmu_exported_page_sizes = 1;
-#endif	/* !LPG_DISABLE */
 }
 
 /*
@@ -2550,7 +2546,6 @@ hat_memload_region(struct hat *hat, caddr_t addr, struct page *pp,
 	hat_memload(hat, addr, pp, attr, flags);
 }
 
-#ifndef	LPG_DISABLE
 /*
  * void
  * hat_memload_array(hat_t *hat, caddr_t addr, size_t len, page_t **pages,
@@ -2741,7 +2736,6 @@ hat_memload_array_region(struct hat *hat, caddr_t addr, size_t len,
 {
 	hat_memload_array(hat, addr, len, pps, attr, flags);
 }
-#endif	/* !LPG_DISABLE */
 
 #define	VALID_DEVLOAD_FLAGS	(HAT_LOAD|HAT_LOAD_NOCONSIST|HAT_LOAD_LOCK)
 
@@ -4049,8 +4043,6 @@ hat_pageunload(struct page *pp, uint_t forceflag)
 	return 0;
 }
 
-#ifndef	LPG_DISABLE
-
 /*
  * void
  * hat_page_demote(page_t *pp)
@@ -4228,8 +4220,6 @@ hat_page_demote(page_t *pp)
 	}
 	hment_exit(rootpp);
 }
-
-#endif	/* !LPG_DISABLE */
 
 /*
  * uint_t

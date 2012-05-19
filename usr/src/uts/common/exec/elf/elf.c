@@ -1131,9 +1131,7 @@ mapelfexec(
 	off_t offset;
 	int hsize = ehdr->e_phentsize;
 	caddr_t mintmp = (caddr_t)-1;
-#ifndef	LPG_DISABLE
 	extern int use_brk_lpg;
-#endif	/* !LPG_DISABLE */
 
 	if (ehdr->e_type == ET_DYN) {
 		/*

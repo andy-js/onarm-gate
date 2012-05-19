@@ -1662,9 +1662,7 @@ exec_args(execa_t *uap, uarg_t *args, intpdata_t *intp, void **auxvpp)
 	char *usrstack;
 	rctl_entity_p_t e;
 	struct as *as;
-#ifndef	LPG_DISABLE
 	extern int use_stk_lpg;
-#endif	/* !LPG_DISABLE */
 	size_t sp_slew;
 
 	args->from_model = p->p_model;

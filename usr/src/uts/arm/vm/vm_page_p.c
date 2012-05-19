@@ -107,7 +107,6 @@ hw_pagesize_t hw_page_array[] = {
 		/* 4K page */
 		MMU_PAGESIZE, MMU_PAGESHIFT, 0, MMU_PAGESIZE >> MMU_PAGESHIFT
 	},
-#ifndef	LPG_DISABLE
 	{
 		/* 64K page */
 		MMU_PAGESIZE_LARGE, MMU_PAGESHIFT_LARGE, 0,
@@ -123,7 +122,6 @@ hw_pagesize_t hw_page_array[] = {
 		MMU_PAGESIZE_SPSECTION, MMU_PAGESHIFT_SPSECTION, 0,
 		MMU_PAGESIZE_SPSECTION >> MMU_PAGESHIFT
 	},
-#endif	/* !LPG_DISABLE */
 	{0, 0, 0, 0}
 };
 

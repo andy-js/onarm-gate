@@ -108,12 +108,6 @@ extern int pse_shift;			/* log2(pse_table_size) */
 	((((uintptr_t)(pp) >> pse_shift) ^ ((uintptr_t)(pp))) >> 7) &	\
 	(pse_table_size - 1)].pad_mutex
 
-#ifdef	LPG_DISABLE
-
-#define	PAGE_SZC_MUTEX(_pp)	(NULL)
-
-#else	/* !LPG_DISABLE */
-
 #define	PSZC_MTX_TABLE_SIZE	128
 #define	PSZC_MTX_TABLE_SHIFT	7
 
@@ -124,8 +118,6 @@ static pad_mutex_t	pszc_mutex[PSZC_MTX_TABLE_SIZE];
 		((uintptr_t)(_pp) >> (PSZC_MTX_TABLE_SHIFT << 1)) ^ \
 		((uintptr_t)(_pp) >> (3 * PSZC_MTX_TABLE_SHIFT))) & \
 		(PSZC_MTX_TABLE_SIZE - 1))].pad_mutex
-
-#endif	/* LPG_DISABLE */
 
 /*
  * The vph_mutex[] array  holds the mutexes to protect the vnode chains,
@@ -1024,7 +1016,6 @@ again:
 	goto again;
 }
 
-#ifndef	LPG_DISABLE
 int
 page_szc_lock_assert(page_t *pp)
 {
@@ -1033,7 +1024,6 @@ page_szc_lock_assert(page_t *pp)
 
 	return (MUTEX_HELD(mtx));
 }
-#endif	/* !LPG_DISABLE */
 
 /*
  * memseg locking

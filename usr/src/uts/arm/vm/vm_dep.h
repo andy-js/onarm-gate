@@ -405,12 +405,10 @@ extern cpu_t		*cpu_boot;
 #define	FPC_MUTEX(mnode, i)	(&fpc_mutex[i][mnode])
 #define	CPC_MUTEX(mnode, i)	(&cpc_mutex[i][mnode])
 
-#if	defined(DEBUG) && !defined(LPG_DISABLE)
+#if defined(DEBUG)
 #define	CHK_LPG(pp, szc)	chk_lpg(pp, szc)
 extern void	chk_lpg(page_t *, uchar_t);
-#else	/* !(DEBUG && !LPG_DISABLE) */
-#define	CHK_LPG(pp, szc)
-#endif	/* defined(DEBUG) && !defined(LPG_DISABLE) */
+#endif /* defined(DEBUG) */
 
 /*
  * For ARM each larger page is 16 times the size of the previous size page.
@@ -441,13 +439,8 @@ extern void	chk_lpg(page_t *, uchar_t);
 /*
  * cpu/mmu-dependent vm variables
  */
-#ifdef	LPG_DISABLE
-#define	mmu_page_sizes			(1)
-#define	mmu_exported_page_sizes		(1)
-#else	/* !LPG_DISABLE */
 extern uint_t mmu_page_sizes;
 extern uint_t mmu_exported_page_sizes;
-#endif	/* LPG_DISABLE */
 
 #define	mmu_legacy_page_sizes	mmu_exported_page_sizes
 
@@ -476,20 +469,8 @@ typedef	short	hpmctr_t;
  */
 #define	PGI_RELOCONLY	0		/* opposite of PG_NORELOC */
 #define	PGI_NOCAGE	0		/* cage is disabled */
-#ifdef	LPG_DISABLE
-#define	PGI_PGCPHIPRI	0		/* page_get_contig_page pri alloc */
-#else	/* !LPG_DISABLE */
 #define	PGI_PGCPHIPRI	0x040000	/* page_get_contig_page pri alloc */
-#endif	/* LPG_DISABLE */
 #define	PGI_PGCPSZC0	0		/* relocate base pagesize page */
-
-/*
- * Disable page relocation if there is only one locality group and
- * large page is disabled.
- */
-#if	defined(LGROUP_SINGLE) && defined(LPG_DISABLE)
-#define	PGRELOC_DISABLE		1
-#endif	/* defined(LGROUP_SINGLE) && defined(LPG_DISABLE) */
 
 /*
  * hash as and addr to get a bin.

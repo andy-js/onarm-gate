@@ -74,12 +74,10 @@ static int	swap_getapage(struct vnode *vp, u_offset_t off, size_t len,
     uint_t *protp, page_t **plarr, size_t plsz,
     struct seg *seg, caddr_t addr, enum seg_rw rw, struct cred *cr);
 
-#ifndef	LPG_DISABLE
 int	swap_getconpage(struct vnode *vp, u_offset_t off, size_t len,
     uint_t *protp, page_t **plarr, size_t plsz, page_t *conpp,
     uint_t *pszc, spgcnt_t *nreloc, struct seg *seg, caddr_t addr,
     enum seg_rw rw, struct cred *cr);
-#endif	/* !LPG_DISABLE */
 
 static int 	swap_putapage(struct vnode *vp, page_t *pp, u_offset_t *off,
     size_t *lenp, int flags, struct cred *cr);
@@ -309,8 +307,6 @@ again:
 	return (err);
 }
 
-#ifndef	LPG_DISABLE
-
 /*
  * Called from large page anon routines only! This is an ugly hack where
  * the anon layer directly calls into swapfs with a preallocated large page.
@@ -450,8 +446,6 @@ swap_getconpage(
 	pl[1] = NULL;
 	return (err);
 }
-
-#endif	/* !LPG_DISABLE */
 
 /* Async putpage klustering stuff */
 int sw_pending_size;

@@ -43,44 +43,10 @@
 extern "C" {
 #endif	/* __cplusplus */
 
-#ifdef	LPG_DISABLE
-
-/*
- * SZC_EVAL() evaluates page size code value.
- * It always returns zero that means PAGESIZE.
- */
-#define	SZC_EVAL(szc)		(0)
-
-/* Verify that page size code is zero. */
-#define	SZC_ASSERT(szc)		ASSERT((szc) == 0)
-
-/* Verify that the given condition is true when LPG_DISABLE is defined. */
-#define	LPG_DISABLE_ASSERT(ex)	ASSERT(ex)
-
-/*
- * LPG_EVAL() evaluates value which should be zero if large page is disabled.
- * It always returns zero.
- */
-#define	LPG_EVAL(flag)		(0)
-
-/*
- * Override large page macros defined in vm/seg_kmem.h.
- */
-#undef	SEGKMEM_USE_LARGEPAGES
-#define	SEGKMEM_USE_LARGEPAGES		(0)
-
-#undef	IS_KMEM_VA_LARGEPAGE
-#define	IS_KMEM_VA_LARGEPAGE(vaddr)	(0)
-
-#else	/* LPG_DISABLE */
-
 #define	SZC_EVAL(szc)		(szc)
 #define	SZC_ASSERT(szc)		((void)0)
 #define	LPG_DISABLE_ASSERT(ex)	((void)0)
 #define	LPG_EVAL(flag)		(flag)
-
-#endif	/* LPG_DISABLE */
-
 
 #ifdef	__cplusplus
 }

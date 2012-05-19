@@ -464,12 +464,6 @@ option boolean PAGE_RETIRE_DISABLE
 	description:	"Disable Page Retire mechanism.";
 }
 
-option boolean LPG_DISABLE
-{
-	default:	true;
-	description:	"If true, disable all large page related features.";
-}
-
 #
 # Disable brand mechanism
 #

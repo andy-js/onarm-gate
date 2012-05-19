@@ -816,9 +816,7 @@ startup_vm(void)
 {
 	struct segmap_crargs a;
 	pgcnt_t pages_left;
-#ifndef	LPG_DISABLE
 	extern int use_brk_lpg, use_stk_lpg;
-#endif	/* !LPG_DISABLE */
 
 	PRM_POINT("startup_vm() starting...");
 
@@ -859,11 +857,9 @@ startup_vm(void)
 	cmn_err(CE_CONT, "?mem = %luK (0x%lx)\n",
 	    physinstalled << (MMU_PAGESHIFT - 10), ptob(physinstalled));
 
-#ifndef	LPG_DISABLE
 	/* Disable automatic large pages. */
 	use_brk_lpg = 0;
 	use_stk_lpg = 0;
-#endif	/* !LPG_DISABLE */
 
 	/*
 	 * Initialize the segkp segment type.

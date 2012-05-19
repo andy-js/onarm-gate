@@ -228,16 +228,6 @@ static kmutex_t	*ctr_mutex[NPC_MUTEX];
 #define	INVALID_COLOR 0xffffffff
 #define	INVALID_MASK  0xffffffff
 
-#ifdef	LPG_DISABLE
-
-/*
- * Define wrapper macros here to eliminate unused code.
- */
-#define	page_freelist_coalesce(mnode, szc, color, ceq_mask, mtype, pfnhi) \
-	(NULL)
-
-#endif	/* LPG_DISABLE */
-
 /*
  * Local functions prototypes.
  */
@@ -1273,7 +1263,7 @@ cleanup:
 	return (rc);
 }
 
-#if	defined(DEBUG) && !defined(LPG_DISABLE)
+#if defined(DEBUG)
 /*
  * confirm pp is a large page corresponding to szc
  */
@@ -1318,7 +1308,7 @@ chk_lpg(page_t *pp, uchar_t szc)
 		pp = pp->p_next;
 	}
 }
-#endif	/* defined(DEBUG) && !defined(LPG_DISABLE) */
+#endif /* defined(DEBUG) */
 
 void
 page_freelist_lock(int mnode)
@@ -1539,8 +1529,6 @@ page_list_noreloc_startup(page_t *pp)
 }
 #endif
 
-#ifndef	PGRELOC_DISABLE
-
 void
 page_list_add_pages(page_t *pp, int flags)
 {
@@ -1586,10 +1574,6 @@ page_list_add_pages(page_t *pp, int flags)
 	}
 }
 
-#endif	/* !PGRELOC_DISABLE */
-
-#ifndef	LPG_DISABLE
-
 /*
  * During boot, need to demote a large page to base
  * pagesize pages for seg_kmem for use in boot_alloc()
@@ -1609,9 +1593,6 @@ page_boot_demote(page_t *pp)
 	ASSERT(PP_ISAGED(pp));
 	ASSERT(pp->p_szc == 0);
 }
-
-#endif	/* !LPG_DISABLE */
-
 
 /*
  * Take a particular page off of whatever freelist the page
@@ -1738,8 +1719,6 @@ try_again:
 #endif
 }
 
-#ifndef	PGRELOC_DISABLE
-
 void
 page_list_sub_pages(page_t *pp, uint_t szc)
 {
@@ -1817,8 +1796,6 @@ try_again:
 #endif
 }
 
-#endif	/* !PGRELOC_DISABLE */
-
 /*
  * Add the page to the front of a linked list of pages
  * using the p_next & p_prev pointers for the list.
@@ -1863,8 +1840,6 @@ mach_page_sub(page_t **ppp, page_t *pp)
 	}
 	pp->p_prev = pp->p_next = pp;		/* make pp a list of one */
 }
-
-#ifndef	LPG_DISABLE
 
 /*
  * Routine fsflush uses to gradually coalesce the free list into larger pages.
@@ -2649,8 +2624,6 @@ page_freelist_split(uchar_t szc, uint_t color, int mnode, int mtype,
 	return (ret_pp);
 }
 
-#endif	/* !LPG_DISABLE */
-
 /*
  * Helper routine used only by the freelist code to lock
  * a page. If the page is a large page then it succeeds in
@@ -3048,8 +3021,6 @@ bin_empty_1:
 
 	return (NULL);
 }
-
-#ifndef	PGRELOC_DISABLE
 
 /*
  * Returns the count of free pages for 'pp' with size code 'szc'.
@@ -3646,8 +3617,6 @@ page_get_contig_pages(int mnode, uint_t bin, int mtype, uchar_t szc,
 	return (NULL);
 }
 
-#endif	/* !PGRELOC_DISABLE */
-
 #if defined(__i386) || defined(__amd64)
 /*
  * Determine the likelihood of finding/coalescing a szc page.
@@ -3800,7 +3769,6 @@ pgretry:
 		ASSERT(pp == NULL);
 	}
 
-#ifndef	PGRELOC_DISABLE
 	/*
 	 * when the cage is off chances are page_get_contig_pages() will fail
 	 * to lock a large page chunk therefore when the cage is off it's not
@@ -3821,7 +3789,6 @@ pgretry:
 	if (!(flags & PG_LOCAL) && pgcplimitsearch &&
 	    page_get_func == page_get_contig_pages)
 		SETPGCPFAILCNT(szc);
-#endif	/* !PGRELOC_DISABLE */
 
 	VM_STAT_ADD(vmm_vmstats.pgf_allocfailed[szc]);
 	return (NULL);
@@ -4063,8 +4030,6 @@ bin_empty_1:
 	VM_STAT_ADD(vmm_vmstats.pgmc_allocfailed);
 	return (NULL);
 }
-
-#ifndef	PGRELOC_DISABLE
 
 #ifdef DEBUG
 #define	REPL_PAGE_STATS
@@ -4369,10 +4334,6 @@ page_get_replacement_page(page_t *orig_like_pp, struct lgrp *lgrp_target,
 	}
 }
 
-#endif	/* !PGRELOC_DISABLE */
-
-#ifndef	LPG_DISABLE
-
 /*
  * demote a free large page to it's constituent pages
  */
@@ -4396,8 +4357,6 @@ page_demote_free_pages(page_t *pp)
 	page_freelist_unlock(mnode);
 	ASSERT(pp->p_szc == 0);
 }
-
-#endif	/* !LPG_DISABLE */
 
 /*
  * Factor in colorequiv to check additional 'equivalent' bins.

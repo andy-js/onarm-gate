@@ -360,30 +360,7 @@ static void page_capture_init();
 #endif	/* PAGE_RETIRE_DISABLE */
 int page_capture_take_action(page_t *, uint_t, void *);
 
-#ifdef	LPG_DISABLE
-
-/*
- * Define wrapper functions and macros here to eliminate unused code.
- */
-static inline int
-__page_try_demote_pages(page_t *pp)
-{
-	ASSERT(PAGE_EXCL(pp));
-	SZC_ASSERT(pp->p_szc);
-	VM_STAT_ADD(pagecnt.pc_try_demote_pages[0]);
-	VM_STAT_ADD(pagecnt.pc_try_demote_pages[1]);
-	return (1);
-}
-
-#define	page_try_demote_pages(pp)	__page_try_demote_pages(pp)
-#define	page_list_add_pages(pp, flags)	((void)0)
-#define	page_demote_vp_pages(pp)	((void)0)
-
-#else	/* !LPG_DISABLE */
-
 static void page_demote_vp_pages(page_t *);
-
-#endif	/* LPG_DISABLE */
 
 /*
  * vm subsystem related initialization
@@ -1056,8 +1033,6 @@ page_exists(vnode_t *vp, u_offset_t off)
 	return (pp);
 }
 
-#ifndef	LPG_DISABLE
-
 /*
  * Determine if physically contiguous pages exist for [vp, off] - [vp, off +
  * page_size(szc)) range.  if they exist and ppa is not NULL fill ppa array
@@ -1328,8 +1303,6 @@ page_exists_forreal(vnode_t *vp, u_offset_t off, uint_t *szc)
 	mutex_exit(phm);
 	return (rc);
 }
-
-#endif	/* !LPG_DISABLE */
 
 /* wakeup threads waiting for pages in page_create_get_something() */
 void
@@ -2013,8 +1986,6 @@ page_create(vnode_t *vp, u_offset_t off, size_t bytes, uint_t flags)
 	return (page_create_va(vp, off, bytes, flags, &kseg, random_vaddr));
 }
 
-#ifndef	LPG_DISABLE
-
 #ifdef DEBUG
 uint32_t pg_alloc_pgs_mtbf = 0;
 #endif
@@ -2370,8 +2341,6 @@ page_create_va_large(vnode_t *vp, u_offset_t off, size_t bytes, uint_t flags,
 	VM_STAT_ADD(page_create_large_cnt[0]);
 	return (rootpp);
 }
-
-#endif	/* !LPG_DISABLE */
 
 page_t *
 page_create_va(vnode_t *vp, u_offset_t off, size_t bytes, uint_t flags,
@@ -2922,8 +2891,6 @@ page_free_at_startup(page_t *pp)
 	freemem += 1;
 }
 
-#ifndef	LPG_DISABLE
-
 void
 page_free_pages(page_t *pp)
 {
@@ -2972,8 +2939,6 @@ page_free_pages(page_t *pp)
 	page_list_add_pages(rootpp, 0);
 	page_create_putback(pgcnt);
 }
-
-#endif	/* !LPG_DISABLE */
 
 int free_pages = 1;
 
@@ -3275,8 +3240,6 @@ page_destroy(page_t *pp, int dontfree)
 	}
 }
 
-#ifndef	LPG_DISABLE
-
 void
 page_destroy_pages(page_t *pp)
 {
@@ -3333,8 +3296,6 @@ page_destroy_pages(page_t *pp)
 	page_list_add_pages(rootpp, 0);
 	page_create_putback(pgcnt);
 }
-
-#endif	/* !LPG_DISABLE */
 
 /*
  * Similar to page_destroy(), but destroys pages which are
@@ -4631,8 +4592,6 @@ top:
 	}
 }
 
-#ifndef	PGRELOC_DISABLE
-
 /*
  * Replace the page "old" with the page "new" on the page hash and vnode lists
  *
@@ -5222,8 +5181,6 @@ page_relocate_cage(page_t **target, page_t **replacement)
 	return (result);
 }
 
-#endif	/* !PGRELOC_DISABLE */
-
 /*
  * Release the page lock on a page, place on cachelist
  * tail if no longer mapped. Caller can let us know if
@@ -5264,8 +5221,6 @@ page_release(page_t *pp, int checkmod)
 	}
 	return (status);
 }
-
-#ifndef	LPG_DISABLE
 
 /*
  * Given a constituent page, try to demote the large page on the freelist.
@@ -5503,10 +5458,6 @@ page_demote_vp_pages(page_t *pp)
 	}
 	ASSERT(pp->p_szc == 0);
 }
-
-#endif	/* !LPG_DISABLE */
-
-#ifndef	PGRELOC_DISABLE
 
 /*
  * Mark any existing pages for migration in the given range
@@ -5855,8 +5806,6 @@ next:
 		npages -= page_cnt;
 	}
 }
-
-#endif	/* !PGRELOC_DISABLE */
 
 ulong_t mem_waiters 	= 0;
 ulong_t	max_count 	= 20;

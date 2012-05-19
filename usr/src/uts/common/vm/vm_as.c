@@ -2699,8 +2699,6 @@ as_pagereclaim(struct as *as, struct page **pp, caddr_t addr,
 	SEGOP_PAGELOCK(seg, raddr, rsize, &pp, L_PAGERECLAIM, rw);
 }
 
-#ifndef	LPG_DISABLE
-
 #define	MAXPAGEFLIP	4
 #define	MAXPAGEFLIPSIZ	MAXPAGEFLIP*PAGESIZE
 
@@ -3181,8 +3179,6 @@ again:
 	AS_LOCK_EXIT(as, &as->a_lock);
 	return (error);
 }
-
-#endif	/* !LPG_DISABLE */
 
 /*
  * Setup all of the uninitialized watched pages that we can.

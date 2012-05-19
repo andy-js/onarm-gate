@@ -108,13 +108,10 @@ ulong_t fsf_cycles;	/* number of runs refelected in fsf_total */
  * data used to determine when we can coalesce consecutive free pages
  * into larger pages.
  */
-#ifndef	LPG_DISABLE
 #define	MAX_PAGESIZES	32
 static ulong_t		fsf_npgsz;
 static pgcnt_t		fsf_pgcnt[MAX_PAGESIZES];
 static pgcnt_t		fsf_mask[MAX_PAGESIZES];
-#endif	/* !LPG_DISABLE */
-
 
 /*
  * Scan page_t's and issue I/O's for modified pages.
@@ -189,7 +186,6 @@ fsflush_do_pages()
 		 */
 		if (PP_ISFREE(pp)) {
 			SZC_ASSERT(pp->p_szc);
-#ifndef	LPG_DISABLE
 			/*
 			 * skip pages with a file system identity or that
 			 * are already maximum size
@@ -235,7 +231,6 @@ fsflush_do_pages()
 			++ncoalesce;
 			(void) page_promote_size(coal_page, coal_szc);
 			coal_page = NULL;
-#endif	/* !LPG_DISABLE */
 			continue;
 		} else {
 			coal_page = NULL;
@@ -368,7 +363,6 @@ fsflush()
 	mutex_init(&fsflush_lock, NULL, MUTEX_DEFAULT, NULL);
 	sema_init(&fsflush_sema, 0, NULL, SEMA_DEFAULT, NULL);
 
-#ifndef	LPG_DISABLE
 	/*
 	 * Setup page coalescing.
 	 */
@@ -379,7 +373,6 @@ fsflush()
 		    page_get_pagesize(ix + 1) / page_get_pagesize(ix);
 		fsf_mask[ix] = page_get_pagecnt(ix + 1) - 1;
 	}
-#endif	/* !LPG_DISABLE */
 
 	autoup = v.v_autoup * hz;
 	icount = v.v_autoup / tune.t_fsflushr;

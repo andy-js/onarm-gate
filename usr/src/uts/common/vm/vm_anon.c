@@ -997,9 +997,6 @@ anon_decref(struct anon *ap)
 	}
 }
 
-
-#ifndef	LPG_DISABLE
-
 /*
  * check an_refcnt of the root anon slot (anon_index argument is aligned at
  * seg->s_szc level) to determine whether COW processing is required.
@@ -1231,9 +1228,6 @@ anon_decref_pages(
 	}
 }
 
-#endif	/* !LPG_DISABLE */
-
-
 /*
  * Duplicate references to size bytes worth of anon pages.
  * Used when duplicating a segment that contains private anon pages.
@@ -1276,8 +1270,6 @@ anon_dup(struct anon_hdr *old, ulong_t old_idx, struct anon_hdr *new,
 		npages--;
 	}
 }
-
-#ifndef	LPG_DISABLE
 
 /*
  * Just like anon_dup but also guarantees there are no holes (unallocated anon
@@ -1491,8 +1483,6 @@ anon_fill_cow_holes(
 	return (err);
 }
 
-#endif	/* !LPG_DISABLE */
-
 /*
  * Free a group of "size" anon pages, size in bytes,
  * and clear out the pointers to the anon entries.
@@ -1525,8 +1515,6 @@ anon_free(struct anon_hdr *ahp, ulong_t index, size_t size)
 		npages--;
 	}
 }
-
-#ifndef	LPG_DISABLE
 
 void
 anon_free_pages(
@@ -1577,8 +1565,6 @@ anon_free_pages(
 		npages -= pgcnt;
 	}
 }
-
-#endif	/* !LPG_DISABLE */
 
 /*
  * Make anonymous pages discardable
@@ -1831,7 +1817,6 @@ anon_getpage(
 	return (err);
 }
 
-#ifndef	LPG_DISABLE
 /*
  * Creates or returns kept pages to the segment driver.  returns -1 if a large
  * page cannot be allocated. returns -2 if some other process has allocated a
@@ -2254,8 +2239,6 @@ io_err:
 	VM_STAT_ADD(anonvmstats.getpages[29]);
 	goto docow;
 }
-#endif	/* !LPG_DISABLE */
-
 
 /*
  * Turn a reference to an object or shared anon page
@@ -2412,8 +2395,6 @@ out:
 	page_unlock(opp);
 	return ((page_t *)NULL);
 }
-
-#ifndef	LPG_DISABLE
 
 int
 anon_map_privatepages(
@@ -2668,8 +2649,6 @@ anon_map_privatepages(
 	return (0);
 }
 
-#endif	/* !LPG_DISABLE */
-
 /*
  * Allocate a private zero-filled anon page.
  */
@@ -2712,8 +2691,6 @@ anon_zero(struct seg *seg, caddr_t addr, struct anon **app, struct cred *cred)
 	hat_setrefmod(pp);	/* mark as modified so pageout writes back */
 	return (pp);
 }
-
-#ifndef	LPG_DISABLE
 
 /*
  * Allocate array of private zero-filled anon pages for empty slots
@@ -3229,8 +3206,6 @@ anon_shmap_free_pages(struct anon_map *amp, ulong_t sidx, size_t len)
 		anon_free_pages(ahp, sidx, pages << PAGESHIFT, amp->a_szc);
 	}
 }
-
-#endif	/* !LPG_DISABLE */
 
 /*
  * Allocate and initialize an anon_map structure for seg

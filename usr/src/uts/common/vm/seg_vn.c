@@ -197,8 +197,6 @@ static void segvn_sunlock_anonpages(page_t *, int);
 
 static struct kmem_cache *segvn_cache;
 
-#ifndef	LPG_DISABLE
-
 static void	segvn_setvnode_mpss(vnode_t *);
 static faultcode_t segvn_fault_vnodepages(struct hat *, struct seg *, caddr_t,
     caddr_t, enum fault_type, enum seg_rw, caddr_t, caddr_t, int);
@@ -214,7 +212,6 @@ static int segvn_claim_pages(struct seg *, struct vpage *, u_offset_t,
     ulong_t, uint_t);
 
 static struct kmem_cache **segvn_szc_cache;
-#endif	/* !LPG_DISABLE */
 
 #ifdef VM_STATS
 static struct segvnvmstats_str {
@@ -296,7 +293,6 @@ svntr_cache_constructor(void *buf, void *cdrarg, int kmflags)
 int noexec_user_stack = 0;
 int noexec_user_stack_log = 1;
 
-#ifndef	LPG_DISABLE
 int segvn_lpg_disable = 0;
 uint_t segvn_maxpgszc = 0;
 
@@ -314,7 +310,6 @@ ulong_t segvn_faultvnmpss_align_err3;
 ulong_t segvn_faultvnmpss_align_err4;
 ulong_t segvn_faultvnmpss_align_err5;
 ulong_t	segvn_vmpss_pageio_deadlk_err;
-#endif	/* !LPG_DISABLE */
 
 #ifdef	__arm
 #define	SEGVN_REGION_DISABLE	1	/* Disable shared region */
@@ -449,18 +444,15 @@ segvn_page_is_immutable(page_t *pp)
 void
 segvn_init(void)
 {
-#ifndef	LPG_DISABLE
 	uint_t maxszc;
 	uint_t szc;
 	size_t pgsz;
-#endif	/* !LPG_DISABLE */
 
 	segvn_cache = kmem_cache_create("segvn_cache",
 	    sizeof (struct segvn_data), 0,
 	    segvn_cache_constructor, segvn_cache_destructor, NULL,
 	    NULL, NULL, 0);
 
-#ifndef	LPG_DISABLE
 	if (segvn_lpg_disable == 0) {
 		szc = maxszc = page_num_pagesizes() - 1;
 		if (szc == 0) {
@@ -496,7 +488,6 @@ segvn_init(void)
 		    page_get_pagecnt(szc) * sizeof (page_t *), 0,
 		    NULL, NULL, NULL, NULL, NULL, KMC_NODEBUG);
 	}
-#endif	/* !LPG_DISABLE */
 
 #ifndef	SEGVN_REGION_DISABLE
 	if (segvn_use_regions && !hat_supported(HAT_SHARED_REGIONS, NULL))
@@ -542,8 +533,6 @@ segvn_init(void)
 #endif
 }
 
-#ifndef	LPG_DISABLE
-
 #define	SEGVN_PAGEIO	((void *)0x1)
 #define	SEGVN_NOPAGEIO	((void *)0x2)
 
@@ -578,8 +567,6 @@ segvn_setvnode_mpss(vnode_t *vp)
 		mutex_exit(&vp->v_lock);
 	}
 }
-
-#endif	/* !LPG_DISABLE */
 
 int
 segvn_create(struct seg *seg, void *argsp)
@@ -621,9 +608,6 @@ segvn_create(struct seg *seg, void *argsp)
 	if (a->type == MAP_SHARED)
 		a->flags &= ~MAP_NORESERVE;
 
-#ifdef	LPG_DISABLE
-	a->szc = 0;
-#else	/* !LPG_DISABLE */
 	if (a->szc != 0) {
 		if (segvn_lpg_disable != 0 || (a->szc == AS_MAP_NO_LPOOB) ||
 		    (a->amp != NULL && a->type == MAP_PRIVATE) ||
@@ -658,7 +642,6 @@ segvn_create(struct seg *seg, void *argsp)
 			}
 		}
 	}
-#endif	/* LPG_DISABLE */
 
 	/*
 	 * If segment may need private pages, reserve them now.
@@ -3278,8 +3261,6 @@ out:
 	return (FC_MAKE_ERR(err));
 }
 
-#ifndef	LPG_DISABLE
-
 /*
  * relocate a bunch of smaller targ pages into one large repl page. all targ
  * pages must be complete pages smaller than replacement pages.
@@ -5137,8 +5118,6 @@ error:
 	return (err);
 }
 
-#endif	/* !LPG_DISABLE */
-
 int fltadvice = 1;	/* set to free behind pages for sequential access */
 
 /*
@@ -5297,7 +5276,6 @@ top:
 		goto top;
 	}
 
-#ifndef	LPG_DISABLE
 	/*
 	 * We can't allow the long term use of softlocks for vmpss segments,
 	 * because in some file truncation cases we should be able to demote
@@ -5360,7 +5338,6 @@ top:
 			goto top;
 		}
 	}
-#endif	/* !LPG_DISABLE */
 
 	/*
 	 * Check to see if we need to allocate an anon_map structure.
@@ -6293,7 +6270,6 @@ segvn_setprot(struct seg *seg, caddr_t addr, size_t len, uint_t prot)
 static int
 segvn_setpagesize(struct seg *seg, caddr_t addr, size_t len, uint_t szc)
 {
-#ifndef	LPG_DISABLE
 	struct segvn_data *svd = (struct segvn_data *)seg->s_data;
 	struct segvn_data *nsvd;
 	struct anon_map *amp = svd->amp;
@@ -6555,12 +6531,9 @@ segvn_setpagesize(struct seg *seg, caddr_t addr, size_t len, uint_t szc)
 	}
 
 	seg->s_szc = szc;
-#endif	/* !LPG_DISABLE */
 
 	return (0);
 }
-
-#ifndef	LPG_DISABLE
 
 static int
 segvn_clrszc(struct seg *seg)
@@ -6763,8 +6736,6 @@ segvn_claim_pages(
 	return (err);
 }
 
-#endif	/* !LPG_DISABLE */
-
 /*
  * Returns right (upper address) segment if split occurred.
  * If the address is equal to the beginning or end of its segment it returns
@@ -6905,8 +6876,6 @@ segvn_split_seg(struct seg *seg, caddr_t addr)
 
 	return (nseg);
 }
-
-#ifndef	LPG_DISABLE
 
 /*
  * called on memory operations (unmap, setprot, setpagesize) for a subset
@@ -7056,8 +7025,6 @@ segvn_demote_range(
 
 	return (0);
 }
-
-#endif	/* !LPG_DISABLE */
 
 static int
 segvn_checkprot(struct seg *seg, caddr_t addr, size_t len, uint_t prot)

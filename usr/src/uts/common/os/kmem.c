@@ -2502,9 +2502,7 @@ kmem_init(void)
 {
 	kmem_cache_t *cp;
 	int old_kmem_flags = kmem_flags;
-#ifndef	LPG_DISABLE
 	int use_large_pages = 0;
-#endif	/* !LPG_DISABLE */
 	size_t maxverify, minfirewall;
 
 	kstat_init();
@@ -2598,13 +2596,11 @@ kmem_init(void)
 	if (kmem_minfirewall == 0)
 		kmem_minfirewall = minfirewall;
 
-#ifndef	LPG_DISABLE
 	/*
 	 * give segkmem a chance to figure out if we are using large pages
 	 * for the kernel heap
 	 */
 	use_large_pages = segkmem_lpsetup();
-#endif	/* !LPG_DISABLE */
 
 	/*
 	 * To protect against corruption, we keep the actual number of callers

@@ -63,13 +63,11 @@
 #include <vm/seg_dev.h>
 #include <vm/seg_vn.h>
 
-#ifndef	LPG_DISABLE
 int use_brk_lpg = 1;
 int use_stk_lpg = 1;
 
 static int brk_lpg(caddr_t nva);
 static int grow_lpg(caddr_t sp);
-#endif	/* LPG_DISABLE */
 
 int
 brk(caddr_t nva)
@@ -92,7 +90,6 @@ brk(caddr_t nva)
 	return ((error != 0 ? set_errno(error) : 0));
 }
 
-#ifndef	LPG_DISABLE
 /*
  * Algorithm: call arch-specific map_pgsz to get best page size to use,
  * then call brk_internal().
@@ -165,7 +162,6 @@ brk_lpg(caddr_t nva)
 	ASSERT(err == 0);
 	return (err);		/* should always be 0 */
 }
-#endif	/* !LPG_DISABLE */
 
 /*
  * Returns 0 on success.
@@ -338,7 +334,6 @@ grow(caddr_t sp)
 	return ((err == 0 ? 1 : 0));
 }
 
-#ifndef	LPG_DISABLE
 /*
  * Algorithm: call arch-specific map_pgsz to get best page size to use,
  * then call grow_internal().
@@ -408,7 +403,6 @@ grow_lpg(caddr_t sp)
 	ASSERT(err == 0);
 	return (err);		/* should always be 0 */
 }
-#endif	/* !LPG_DISABLE */
 
 /*
  * This routine assumes that the stack grows downward.
