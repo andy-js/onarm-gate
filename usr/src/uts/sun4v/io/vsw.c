@@ -119,6 +119,8 @@ void vsw_mac_rx(vsw_t *vswp, mac_resource_handle_t mrh,
 extern void vsw_setup_switching_timeout(void *arg);
 extern void vsw_stop_switching_timeout(vsw_t *vswp);
 extern int vsw_setup_switching(vsw_t *);
+extern void vsw_switch_frame_nop(vsw_t *vswp, mblk_t *mp, int caller,
+    vsw_port_t *port, mac_resource_handle_t mrh);
 extern int vsw_add_mcst(vsw_t *, uint8_t, uint64_t, void *);
 extern int vsw_del_mcst(vsw_t *, uint8_t, uint64_t, void *);
 extern void vsw_del_mcst_vsw(vsw_t *);
@@ -168,6 +170,9 @@ boolean_t vsw_ldc_txthr_enabled = B_TRUE;	/* LDC Tx thread enabled */
 uint32_t	vsw_fdb_nchains = 8;	/* # of chains in fdb hash table */
 uint32_t	vsw_vlan_nchains = 4;	/* # of chains in vlan id hash table */
 uint32_t	vsw_ethermtu = 1500;	/* mtu of the device */
+
+/* sw timeout for boot delay only, in milliseconds */
+int vsw_setup_switching_boot_delay = 100 * MILLISEC;
 
 /* delay in usec to wait for all references on a fdb entry to be dropped */
 uint32_t vsw_fdbe_refcnt_delay = 10;
@@ -516,10 +521,10 @@ vsw_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 	ddi_set_driver_private(dip, (caddr_t)vswp);
 
 	mutex_init(&vswp->hw_lock, NULL, MUTEX_DRIVER, NULL);
-	mutex_init(&vswp->mac_lock, NULL, MUTEX_DRIVER, NULL);
 	mutex_init(&vswp->mca_lock, NULL, MUTEX_DRIVER, NULL);
 	mutex_init(&vswp->swtmout_lock, NULL, MUTEX_DRIVER, NULL);
 	rw_init(&vswp->if_lockrw, NULL, RW_DRIVER, NULL);
+	rw_init(&vswp->mac_rwlock, NULL, RW_DRIVER, NULL);
 	rw_init(&vswp->mfdbrw, NULL, RW_DRIVER, NULL);
 	rw_init(&vswp->plist.lockrw, NULL, RW_DRIVER, NULL);
 
@@ -572,26 +577,25 @@ vsw_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 	}
 
 	/*
+	 * The null switching function is set to avoid panic until
+	 * switch mode is setup.
+	 */
+	vswp->vsw_switch_frame = vsw_switch_frame_nop;
+
+	/*
 	 * Setup the required switching mode,
 	 * based on the mdprops that we read earlier.
+	 * schedule a short timeout (0.1 sec) for the first time
+	 * setup and avoid calling mac_open() directly here,
+	 * others are regular timeout 3 secs.
 	 */
-	rv = vsw_setup_switching(vswp);
-	if (rv == EAGAIN) {
-		/*
-		 * Unable to setup switching mode;
-		 * as the error is EAGAIN, schedule a timeout to retry.
-		 */
-		mutex_enter(&vswp->swtmout_lock);
+	mutex_enter(&vswp->swtmout_lock);
 
-		vswp->swtmout_enabled = B_TRUE;
-		vswp->swtmout_id =
-		    timeout(vsw_setup_switching_timeout, vswp,
-		    (vsw_setup_switching_delay * drv_usectohz(MICROSEC)));
+	vswp->swtmout_enabled = B_TRUE;
+	vswp->swtmout_id = timeout(vsw_setup_switching_timeout, vswp,
+	    drv_usectohz(vsw_setup_switching_boot_delay));
 
-		mutex_exit(&vswp->swtmout_lock);
-	} else if (rv != 0) {
-		goto vsw_attach_fail;
-	}
+	mutex_exit(&vswp->swtmout_lock);
 
 	progress |= PROG_swmode;
 
@@ -642,10 +646,10 @@ vsw_attach_fail:
 	if (progress & PROG_swmode) {
 		vsw_stop_switching_timeout(vswp);
 		vsw_hio_cleanup(vswp);
-		mutex_enter(&vswp->mac_lock);
+		WRITE_ENTER(&vswp->mac_rwlock);
 		vsw_mac_detach(vswp);
 		vsw_mac_close(vswp);
-		mutex_exit(&vswp->mac_lock);
+		RW_EXIT(&vswp->mac_rwlock);
 	}
 
 	if (progress & PROG_taskq)
@@ -670,10 +674,10 @@ vsw_attach_fail:
 	if (progress & PROG_locks) {
 		rw_destroy(&vswp->plist.lockrw);
 		rw_destroy(&vswp->mfdbrw);
+		rw_destroy(&vswp->mac_rwlock);
 		rw_destroy(&vswp->if_lockrw);
 		mutex_destroy(&vswp->swtmout_lock);
 		mutex_destroy(&vswp->mca_lock);
-		mutex_destroy(&vswp->mac_lock);
 		mutex_destroy(&vswp->hw_lock);
 	}
 
@@ -720,12 +724,12 @@ vsw_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	vsw_mdeg_unregister(vswp);
 
 	/* remove mac layer callback */
-	mutex_enter(&vswp->mac_lock);
+	WRITE_ENTER(&vswp->mac_rwlock);
 	if ((vswp->mh != NULL) && (vswp->mrh != NULL)) {
 		mac_rx_remove(vswp->mh, vswp->mrh, B_TRUE);
 		vswp->mrh = NULL;
 	}
-	mutex_exit(&vswp->mac_lock);
+	RW_EXIT(&vswp->mac_rwlock);
 
 	if (vsw_detach_ports(vswp) != 0) {
 		cmn_err(CE_WARN, "!vsw%d: Unable to unconfigure ports",
@@ -744,14 +748,14 @@ vsw_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 	 * Now that the ports have been deleted, stop and close
 	 * the physical device.
 	 */
-	mutex_enter(&vswp->mac_lock);
+	WRITE_ENTER(&vswp->mac_rwlock);
 
 	vsw_mac_detach(vswp);
 	vsw_mac_close(vswp);
 
-	mutex_exit(&vswp->mac_lock);
+	RW_EXIT(&vswp->mac_rwlock);
 
-	mutex_destroy(&vswp->mac_lock);
+	rw_destroy(&vswp->mac_rwlock);
 	mutex_destroy(&vswp->swtmout_lock);
 
 	/*
@@ -1088,16 +1092,16 @@ vsw_m_stat(void *arg, uint_t stat, uint64_t *val)
 
 	D1(vswp, "%s: enter", __func__);
 
-	mutex_enter(&vswp->mac_lock);
+	WRITE_ENTER(&vswp->mac_rwlock);
 	if (vswp->mh == NULL) {
-		mutex_exit(&vswp->mac_lock);
+		RW_EXIT(&vswp->mac_rwlock);
 		return (EINVAL);
 	}
 
 	/* return stats from underlying device */
 	*val = mac_stat_get(vswp->mh, stat);
 
-	mutex_exit(&vswp->mac_lock);
+	RW_EXIT(&vswp->mac_rwlock);
 
 	return (0);
 }
@@ -1217,14 +1221,14 @@ vsw_m_multicst(void *arg, boolean_t add, const uint8_t *mca)
 			 * Call into the underlying driver to program the
 			 * address into HW.
 			 */
-			mutex_enter(&vswp->mac_lock);
+			WRITE_ENTER(&vswp->mac_rwlock);
 			if (vswp->mh != NULL) {
 				ret = mac_multicst_add(vswp->mh, mca);
 				if (ret != 0) {
 					cmn_err(CE_NOTE, "!vsw%d: unable to "
 					    "add multicast address",
 					    vswp->instance);
-					mutex_exit(&vswp->mac_lock);
+					RW_EXIT(&vswp->mac_rwlock);
 					(void) vsw_del_mcst(vswp,
 					    VSW_LOCALDEV, addr, NULL);
 					kmem_free(mcst_p, sizeof (*mcst_p));
@@ -1232,7 +1236,7 @@ vsw_m_multicst(void *arg, boolean_t add, const uint8_t *mca)
 				}
 				mcst_p->mac_added = B_TRUE;
 			}
-			mutex_exit(&vswp->mac_lock);
+			RW_EXIT(&vswp->mac_rwlock);
 
 			mutex_enter(&vswp->mca_lock);
 			mcst_p->nextp = vswp->mcap;
@@ -1258,12 +1262,12 @@ vsw_m_multicst(void *arg, boolean_t add, const uint8_t *mca)
 		mcst_p = vsw_del_addr(VSW_LOCALDEV, vswp, addr);
 		ASSERT(mcst_p != NULL);
 
-		mutex_enter(&vswp->mac_lock);
+		WRITE_ENTER(&vswp->mac_rwlock);
 		if (vswp->mh != NULL && mcst_p->mac_added) {
 			(void) mac_multicst_remove(vswp->mh, mca);
 			mcst_p->mac_added = B_FALSE;
 		}
-		mutex_exit(&vswp->mac_lock);
+		RW_EXIT(&vswp->mac_rwlock);
 		kmem_free(mcst_p, sizeof (*mcst_p));
 	}
 
@@ -2053,12 +2057,12 @@ vsw_update_md_prop(vsw_t *vswp, md_t *mdp, mde_cookie_t node)
 		/*
 		 * Stop, detach and close the old device..
 		 */
-		mutex_enter(&vswp->mac_lock);
+		WRITE_ENTER(&vswp->mac_rwlock);
 
 		vsw_mac_detach(vswp);
 		vsw_mac_close(vswp);
 
-		mutex_exit(&vswp->mac_lock);
+		RW_EXIT(&vswp->mac_rwlock);
 
 		/*
 		 * Update phys name.

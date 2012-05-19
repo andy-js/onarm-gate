@@ -260,6 +260,8 @@ struct zio {
 
 	/* Stuff for the vdev stack */
 	vdev_t		*io_vd;
+	vdev_t		**io_failed_vds;
+	uint64_t	io_failed_vds_count;
 	void		*io_vsd;
 	uint64_t	io_offset;
 	uint64_t	io_deadline;
@@ -392,6 +394,7 @@ extern int zio_inject_list_next(int *id, char *name, size_t buflen,
 extern int zio_clear_fault(int id);
 extern int zio_handle_fault_injection(zio_t *zio, int error);
 extern int zio_handle_device_injection(vdev_t *vd, int error);
+extern int zio_handle_label_injection(zio_t *zio, int error);
 
 #ifdef	__cplusplus
 }

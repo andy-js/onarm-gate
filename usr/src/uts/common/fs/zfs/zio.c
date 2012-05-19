@@ -38,7 +38,8 @@
 #include <sys/zio_impl.h>
 #include <sys/zio_compress.h>
 #include <sys/zio_checksum.h>
-#include <zfs_types.h>
+
+#include "zfs_types.h"
 
 /*
  * ==========================================================================
@@ -349,7 +350,7 @@ zio_clear_transform_stack(zio_t *zio)
  * ==========================================================================
  */
 static zio_t *
-zio_create(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
+zio_create(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     void *data, uint64_t size, zio_done_func_t *done, void *private,
     zio_type_t type, int priority, int flags, uint8_t stage, uint32_t pipeline)
 {
@@ -482,7 +483,7 @@ zio_read(zio_t *pio, spa_t *spa, blkptr_t *bp, void *data,
 	 * If the user has specified that we allow I/Os to continue
 	 * then attempt to satisfy the read.
 	 */
-	if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_WAIT)
+	if (spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE)
 		ZIO_ENTER(spa);
 
 	zio = zio_create(pio, spa, bp->blk_birth, bp, data, size, done, private,
@@ -502,7 +503,7 @@ zio_read(zio_t *pio, spa_t *spa, blkptr_t *bp, void *data,
 
 zio_t *
 zio_write(zio_t *pio, spa_t *spa, int checksum, int compress, int ncopies,
-    txg_t txg, blkptr_t *bp, void *data, uint64_t size,
+    uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *ready, zio_done_func_t *done, void *private, int priority,
     int flags, zbookmark_t *zb)
 {
@@ -546,7 +547,7 @@ zio_write(zio_t *pio, spa_t *spa, int checksum, int compress, int ncopies,
 
 zio_t *
 zio_rewrite(zio_t *pio, spa_t *spa, int checksum,
-    txg_t txg, blkptr_t *bp, void *data, uint64_t size,
+    uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *done, void *private, int priority, int flags,
     zbookmark_t *zb)
 {
@@ -578,7 +579,7 @@ zio_write_allocate_ready(zio_t *zio)
 
 static zio_t *
 zio_write_allocate(zio_t *pio, spa_t *spa, int checksum,
-    txg_t txg, blkptr_t *bp, void *data, uint64_t size,
+    uint64_t txg, blkptr_t *bp, void *data, uint64_t size,
     zio_done_func_t *done, void *private, int priority, int flags)
 {
 	zio_t *zio;
@@ -600,7 +601,7 @@ zio_write_allocate(zio_t *pio, spa_t *spa, int checksum,
 }
 
 zio_t *
-zio_free(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
+zio_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private)
 {
 	zio_t *zio;
@@ -623,7 +624,7 @@ zio_free(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
 }
 
 zio_t *
-zio_claim(zio_t *pio, spa_t *spa, txg_t txg, blkptr_t *bp,
+zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     zio_done_func_t *done, void *private)
 {
 	zio_t *zio;
@@ -814,6 +815,20 @@ zio_vdev_child_io(zio_t *zio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
  * Initiate I/O, either sync or async
  * ==========================================================================
  */
+static void
+zio_destroy(zio_t *zio)
+{
+	mutex_destroy(&zio->io_lock);
+	cv_destroy(&zio->io_cv);
+	if (zio->io_failed_vds != NULL) {
+		kmem_free(zio->io_failed_vds,
+		    zio->io_failed_vds_count * sizeof (vdev_t *));
+		zio->io_failed_vds = NULL;
+		zio->io_failed_vds_count = 0;
+	}
+	kmem_cache_free(zio_cache, zio);
+}
+
 int
 zio_wait(zio_t *zio)
 {
@@ -831,9 +846,7 @@ zio_wait(zio_t *zio)
 	mutex_exit(&zio->io_lock);
 
 	error = zio->io_error;
-	mutex_destroy(&zio->io_lock);
-	cv_destroy(&zio->io_cv);
-	kmem_cache_free(zio_cache, zio);
+	zio_destroy(zio);
 
 	return (error);
 }
@@ -847,15 +860,15 @@ zio_nowait(zio_t *zio)
 void
 zio_interrupt(zio_t *zio)
 {
-	taskq_t *tq = zio->io_spa->spa_zio_intr_taskq[zio->io_type];
-	(void) taskq_dispatch(tq, (task_func_t *)zio_execute, zio, TQ_SLEEP);
+	(void) taskq_dispatch(zio->io_spa->spa_zio_intr_taskq[zio->io_type],
+	    (task_func_t *)zio_execute, zio, TQ_SLEEP);
 }
 
 static int
 zio_issue_async(zio_t *zio)
 {
-	taskq_t *tq = zio->io_spa->spa_zio_issue_taskq[zio->io_type];
-	(void) taskq_dispatch(tq, (task_func_t *)zio_execute, zio, TQ_SLEEP);
+	(void) taskq_dispatch(zio->io_spa->spa_zio_issue_taskq[zio->io_type],
+	    (task_func_t *)zio_execute, zio, TQ_SLEEP);
 
 	return (ZIO_PIPELINE_STOP);
 }
@@ -882,13 +895,44 @@ zio_wait_for_children(zio_t *zio, uint32_t stage, uint64_t *countp)
 }
 
 static void
+zio_add_failed_vdev(zio_t *pio, zio_t *zio)
+{
+	uint64_t oldcount = pio->io_failed_vds_count;
+	vdev_t **new_vds;
+	int i;
+
+	ASSERT(MUTEX_HELD(&pio->io_lock));
+
+	if (zio->io_vd == NULL)
+		return;
+
+	for (i = 0; i < oldcount; i++) {
+		if (pio->io_failed_vds[i] == zio->io_vd)
+			return;
+	}
+
+	new_vds = kmem_zalloc((oldcount + 1) * sizeof (vdev_t *), KM_SLEEP);
+	if (pio->io_failed_vds != NULL) {
+		bcopy(pio->io_failed_vds, new_vds,
+		    oldcount * sizeof (vdev_t *));
+		kmem_free(pio->io_failed_vds, oldcount * sizeof (vdev_t *));
+	}
+	pio->io_failed_vds = new_vds;
+	pio->io_failed_vds[oldcount] = zio->io_vd;
+	pio->io_failed_vds_count++;
+}
+
+static void
 zio_notify_parent(zio_t *zio, uint32_t stage, uint64_t *countp)
 {
 	zio_t *pio = zio->io_parent;
 
 	mutex_enter(&pio->io_lock);
-	if (pio->io_error == 0 && !(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE))
+	if (pio->io_error == 0 && !(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE)) {
 		pio->io_error = zio->io_error;
+		if (zio->io_error && zio->io_error != ENOTSUP)
+			zio_add_failed_vdev(pio, zio);
+	}
 	ASSERT3U(*countp, >, 0);
 	if (--*countp == 0 && pio->io_stalled == stage) {
 		pio->io_stalled = 0;
@@ -1105,26 +1149,48 @@ zio_vdev_suspend_io(zio_t *zio)
 	 */
 	spa->spa_state = POOL_STATE_IO_FAILURE;
 
-	/*
-	 * Abort the processing waiting for transaction group and
-	 * the processing waiting to get "RW_WRITER spa_config_lock"
-	 * when abort is set to failuremode. Additionally, I/O shall
-	 * not be registered on zio error list.
-	 */
-	if (spa->spa_failmode == ZIO_FAILURE_MODE_ABORT) {
-		txg_wait_abort(spa->spa_dsl_pool);
-		spa_config_abort(spa);
-	} else {
-		mutex_enter(&spa->spa_zio_lock);
-		list_insert_tail(&spa->spa_zio_list, zio);
+	mutex_enter(&spa->spa_zio_lock);
+	list_insert_tail(&spa->spa_zio_list, zio);
 
 #ifndef _KERNEL
-		/* Used to notify ztest that the pool has suspended */
-		cv_broadcast(&spa->spa_zio_cv);
+	/* Used to notify ztest that the pool has suspended */
+	cv_broadcast(&spa->spa_zio_cv);
 #endif
-		mutex_exit(&spa->spa_zio_lock);
-	}
+	mutex_exit(&spa->spa_zio_lock);
+
 	return (ZIO_PIPELINE_STOP);
+}
+
+static void
+zio_handle_io_failure(zio_t *zio, vdev_t *vd)
+{
+	spa_t *spa = zio->io_spa;
+	blkptr_t *bp = zio->io_bp;
+	char *blkbuf;
+
+#ifdef ZFS_DEBUG
+	blkbuf = kmem_alloc(BP_SPRINTF_LEN, KM_NOSLEEP);
+	if (blkbuf) {
+		sprintf_blkptr(blkbuf, BP_SPRINTF_LEN,
+		    bp ? bp : &zio->io_bp_copy);
+	}
+	cmn_err(CE_WARN, "ZFS: %s (%s on %s off %llx: zio %p %s): error %d",
+	    zio->io_error == ECKSUM ? "bad checksum" : "I/O failure",
+	    zio_type_name[zio->io_type], vdev_description(vd),
+	    (u_longlong_t)zio->io_offset, (void *)zio,
+	    blkbuf ? blkbuf : "", zio->io_error);
+	if (blkbuf)
+		kmem_free(blkbuf, BP_SPRINTF_LEN);
+#endif
+
+	if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_PANIC) {
+		fm_panic("Pool '%s' has encountered an uncorrectable I/O "
+		    "failure and the failure mode property for this pool "
+		    "is set to panic.", spa_name(spa));
+	}
+	zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL, NULL, 0, 0);
+	vdev_set_state(vd, vd == spa->spa_root_vdev ? B_TRUE : B_FALSE,
+	    VDEV_STATE_FAULTED, VDEV_AUX_IO_FAILURE);
 }
 
 static int
@@ -1210,33 +1276,23 @@ zio_assess(zio_t *zio)
 		 * a result of vdev failures vs. a full pool.
 		 */
 		if (!(zio->io_flags & ZIO_FLAG_CANFAIL)) {
-			char *blkbuf;
+			int i;
 
-#ifdef ZFS_DEBUG
-			blkbuf = kmem_alloc(BP_SPRINTF_LEN, KM_NOSLEEP);
-			if (blkbuf) {
-				sprintf_blkptr(blkbuf, BP_SPRINTF_LEN,
-				    bp ? bp : &zio->io_bp_copy);
+			for (i = 0; i < zio->io_failed_vds_count; i++) {
+				zio_handle_io_failure(zio,
+				    zio->io_failed_vds[i]);
 			}
-			cmn_err(CE_WARN, "ZFS: %s (%s on %s off %llx: zio %p "
-			    "%s): error %d", zio->io_error == ECKSUM ?
-			    "bad checksum" : "I/O failure",
-			    zio_type_name[zio->io_type],
-			    vdev_description(vd),
-			    (u_longlong_t)zio->io_offset,
-			    (void *)zio, blkbuf ? blkbuf : "", zio->io_error);
-			kmem_free(blkbuf, BP_SPRINTF_LEN);
-#endif
-
-			if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_PANIC) {
-				fm_panic("Pool '%s' has encountered an "
-				    "uncorrectable I/O failure and the "
-				    "failure mode property for this pool "
-				    "is set to panic.", spa_name(spa));
+			if (zio->io_failed_vds_count == 0) {
+				zio_handle_io_failure(zio,
+				    vd ? vd : spa->spa_root_vdev);
 			}
-			cmn_err(CE_WARN, "Pool '%s' has encountered "
-			    "an uncorrectable I/O error. "
-			    "Manual intervention is required.", spa_name(spa));
+			if (zio->io_failed_vds != NULL) {
+				kmem_free(zio->io_failed_vds,
+				    zio->io_failed_vds_count *
+				    sizeof (vdev_t *));
+				zio->io_failed_vds = NULL;
+				zio->io_failed_vds_count = 0;
+			}
 			return (zio_vdev_suspend_io(zio));
 		}
 	}
@@ -1295,9 +1351,7 @@ zio_done(zio_t *zio)
 		cv_broadcast(&zio->io_cv);
 		mutex_exit(&zio->io_lock);
 	} else {
-		mutex_destroy(&zio->io_lock);
-		cv_destroy(&zio->io_cv);
-		kmem_cache_free(zio_cache, zio);
+		zio_destroy(zio);
 	}
 
 	return (ZIO_PIPELINE_STOP);
@@ -1582,7 +1636,7 @@ zio_write_allocate_gang_members(zio_t *zio, metaslab_class_t *mc)
 	dva_t *dva = bp->blk_dva;
 	spa_t *spa = zio->io_spa;
 	zio_gbh_phys_t *gbh;
-	txg_t txg = zio->io_txg;
+	uint64_t txg = zio->io_txg;
 	uint64_t resid = zio->io_size;
 	uint64_t maxalloc = P2ROUNDUP(zio->io_size >> 1, SPA_MINBLOCKSIZE);
 	uint64_t gsize, loff, lsize;
@@ -1756,9 +1810,8 @@ zio_vdev_io_start(zio_t *zio)
 	 * this IO until the problem is resolved. We will reissue them
 	 * at that time.
 	 */
-	if ((spa_state(spa) == POOL_STATE_IO_FAILURE &&
-	    zio->io_type == ZIO_TYPE_WRITE) &&
-	    spa_get_failmode(spa) != ZIO_FAILURE_MODE_ABORT)
+	if (spa_state(spa) == POOL_STATE_IO_FAILURE &&
+	    zio->io_type == ZIO_TYPE_WRITE)
 		return (zio_vdev_suspend_io(zio));
 
 	/*
@@ -2064,7 +2117,7 @@ zio_io_should_fail(uint16_t range)
  */
 int
 zio_alloc_blk(spa_t *spa, uint64_t size, blkptr_t *new_bp, blkptr_t *old_bp,
-    txg_t txg)
+    uint64_t txg)
 {
 	int error;
 
@@ -2107,7 +2160,7 @@ zio_alloc_blk(spa_t *spa, uint64_t size, blkptr_t *new_bp, blkptr_t *old_bp,
  * nothing to do except metaslab_free() it.
  */
 void
-zio_free_blk(spa_t *spa, blkptr_t *bp, txg_t txg)
+zio_free_blk(spa_t *spa, blkptr_t *bp, uint64_t txg)
 {
 	ASSERT(!BP_IS_GANG(bp));
 

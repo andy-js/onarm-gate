@@ -374,6 +374,7 @@ DRV_KMODS	+= rge
 DRV_KMODS	+= sfe
 DRV_KMODS	+= amd8111s
 DRV_KMODS	+= igb
+DRV_KMODS	+= ixgbe
 $(CLOSED_BUILD)CLOSED_DRV_KMODS	+= ixgb
 
 #
@@ -531,6 +532,7 @@ MISC_KMODS	+= acpica
 MISC_KMODS	+= agpmaster
 MISC_KMODS	+= amsrc2
 MISC_KMODS	+= audiosup
+MISC_KMODS	+= bignum
 MISC_KMODS	+= bootdev
 MISC_KMODS	+= busra
 MISC_KMODS	+= cmlb

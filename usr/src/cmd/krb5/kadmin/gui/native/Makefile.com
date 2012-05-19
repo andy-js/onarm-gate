@@ -20,7 +20,7 @@
 #
 # Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
 #
-# Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -34,7 +34,7 @@ OBJECTS=	$(CLASSES:%=%.o)
 
 include $(SRC)/lib/Makefile.lib
 #
-# Need this makefile to find the KRUNPATH and KMECHLIB definitions
+# Need this makefile to find the KRUNPATH, KERBRUNPATH and KMECHLIB definitions
 #
 include $(SRC)/lib/gss_mechs/mech_krb5/Makefile.mech_krb5
 
@@ -52,7 +52,7 @@ CPPFLAGS += -I../ -I$(SRC)/lib/krb5 \
 $(__GNUC)CPPFLAGS += -_gcc=-Wno-sequence-point
 
 LDLIBS += $(KMECHLIB) -L$(ROOT)/$(KERBLIBDIR) -lkadm5clnt -lsocket -lc
-DYNFLAGS += $(KRUNPATH)
+DYNFLAGS += $(KRUNPATH) $(KERBRUNPATH)
 
 #
 # This library is not directly linked against by any C applications

@@ -20,7 +20,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -67,6 +67,7 @@ TFTPDOBJS=	in.tftpd.o tftpsubs.o
 OTHERSRC=	../usr.bin/tftp/tftpsubs.c
 K5RLOGINOBJS=	in.rlogind.o
 K5RSHDOBJS=	in.rshd.o
+K5TELNETOBJS=	in.telnetd.o
 SRCS=		$(PROGSRCS) $(OTHERSRC)
 
 SUBDIRS-common=	bootconfchk htable ifconfig in.ftpd in.rdisc in.routed \
@@ -107,7 +108,32 @@ include ../Makefile.cmd-inet
 ROOTSBINPROG = $(ROOTFS_PROG:%=$(ROOTSBIN)/%)
 ROOTUSRSBINLINKS = $(SBINLINKS:%=$(ROOTUSRSBIN)/%)
 
-COMMONOBJS=	addr_match.o kcmd.o
+KWARN_OBJS = kwarnd_clnt_stubs.o kwarnd_clnt.o kwarnd_handle.o kwarnd_xdr.o
+KWARN_SRC  = $(KWARN_OBJS:%.o=%.c)
+KWARN_SRC += kwarnd.h
+kwarnd.h:	$(SRC)/cmd/krb5/kwarn/kwarnd.x
+	$(RM) $@
+	$(RPCGEN) -M -h $(SRC)/cmd/krb5/kwarn/kwarnd.x | \
+	$(SED) -e 's!$(SRC)/cmd/krb5/kwarn/kwarnd.h!kwarnd.h!' > $@
+
+kwarnd_xdr.c:	kwarnd.h $(SRC)/cmd/krb5/kwarn/kwarnd.x
+	$(RM) $@
+	$(RPCGEN) -M -c $(SRC)/cmd/krb5/kwarn/kwarnd.x | \
+	$(SED) -e 's!$(SRC)/cmd/krb5/kwarn/kwarnd.h!kwarnd.h!' > $@
+
+kwarnd_clnt.c:   kwarnd.h $(SRC)/cmd/krb5/kwarn/kwarnd.x
+	$(RM) $@
+	$(RPCGEN) -M -l $(SRC)/cmd/krb5/kwarn/kwarnd.x | \
+	$(SED) -e 's!$(SRC)/cmd/krb5/kwarn/kwarnd.h!kwarnd.h!' > $@
+kwarnd_clnt_stubs.c: kwarnd.h $(SRC)/cmd/krb5/kwarn/kwarnd_clnt_stubs.c
+	$(RM) $@
+	$(CP) $(SRC)/cmd/krb5/kwarn/kwarnd_clnt_stubs.c $@
+
+kwarnd_handle.c: $(SRC)/cmd/krb5/kwarn/kwarnd_handle.c
+	$(RM) $@
+	$(CP) $(SRC)/cmd/krb5/kwarn/kwarnd_handle.c $@
+
+COMMONOBJS=	addr_match.o kcmd.o store_forw_creds.o
 COMMONSRCS=	$(COMMONOBJS:%.o=$(CMDINETCOMMONDIR)/%.c)
 SRCS+=		$(COMMONSRCS)
 
@@ -124,8 +150,9 @@ clobber:=	TARGET= clobber
 lint:=		TARGET= lint
 _msg:=		TARGET= _msg
 
-CLOBBERFILES +=	$(ROOTFS_PROG) $(PROG)
+CLOBBERFILES +=	$(ROOTFS_PROG) $(PROG) $(KWARN_SRC)
 CLEANFILES += $(COMMONOBJS) $(K5RLOGINOBJS) $(K5RSHDOBJS) $(TFTPDOBJS)
+CLEANFILES += $(KWARN_OBJS)
 
 CPPFLAGS +=	-DSYSV -DBSD_COMP -I$(CMDINETCOMMONDIR) -I
 
@@ -146,7 +173,7 @@ $(SOCKETPROG)		:=	LDLIBS += -lsocket
 $(NSLPROG)		:=	LDLIBS += -lnsl
 $(__ARLIB)$(ARM_BLD)$(NSLPROG)		:=	LDLIBS += -lmd
 $(RPCSVCPROG)		:=	LDLIBS += -lrpcsvc
-$(K5PROGS)		:=	LDFLAGS += $(ZLAZYLOAD) $(KRUNPATH) \
+$(K5PROGS)		:=	LDFLAGS += $(KRUNPATH) \
 				-L$(ROOT)$(KLIBDIR_DO) -L$(ROOT)$(KLIBDIR_GL)
 $(K5PROGS)		:=	K5LIBS=  -lmech_krb5
 $(K5PROGS)		:=	CPPFLAGS += -I$(SRC)/head \
@@ -155,10 +182,11 @@ $(K5PROGS)		:=	CPPFLAGS += -I$(SRC)/head \
 				-I$(SRC)/lib/gss_mechs/mech_krb5/include \
 				-I$(SRC)/lib/pam_modules/krb5
 LDLIBS +=	$(K5LIBS)
-$(TSNETPROG)		:=	LDLIBS += $(ZLAZYLOAD) -ltsnet $(ZNOLAZYLOAD)
+$(TSNETPROG)		:=	LDLIBS += -ltsnet
 
 in.rarpd		:=	LDLIBS += -linetutil -ldlpi
 route			:=	CPPFLAGS += -DNDEBUG
+ndd			:=	LDLIBS += -ldladm
 gettable in.comsat	:=	LDFLAGS += $(MAPFILE.NGB:%=-M%)
 
 .KEEP_STATE:
@@ -181,12 +209,16 @@ $(POFILE): $(POFILES)
 %.o: $(CMDINETCOMMONDIR)/%.c
 	$(COMPILE.c) -o $@ $<
 
-in.rlogind: $(K5RLOGINOBJS) $(COMMONOBJS)
-	$(LINK.c) $(K5RLOGINOBJS) $(COMMONOBJS) -o $@ $(LDLIBS)
+in.telnetd: $(K5TELNETOBJS) $(KWARN_OBJS)
+	$(LINK.c) $(K5TELNETOBJS) $(KWARN_OBJS) -o $@ $(LDLIBS)
 	$(POST_PROCESS)
 
-in.rshd: $(K5RSHDOBJS) $(COMMONOBJS)
-	$(LINK.c) $(K5RSHDOBJS) $(COMMONOBJS) -o $@ $(LDLIBS)
+in.rlogind: $(K5RLOGINOBJS) $(COMMONOBJS) $(KWARN_OBJS)
+	$(LINK.c) $(K5RLOGINOBJS) $(COMMONOBJS) $(KWARN_OBJS) -o $@ $(LDLIBS)
+	$(POST_PROCESS)
+
+in.rshd: $(K5RSHDOBJS) $(COMMONOBJS) $(KWARN_OBJS)
+	$(LINK.c) $(K5RSHDOBJS) $(COMMONOBJS) $(KWARN_OBJS) -o $@ $(LDLIBS)
 	$(POST_PROCESS)
 
 in.tftpd: $(TFTPDOBJS)

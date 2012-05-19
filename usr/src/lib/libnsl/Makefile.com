@@ -19,13 +19,10 @@
 # CDDL HEADER END
 #
 #
-# Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
-#
-#
 # Copyright (c) 2007-2008 NEC Corporation
-#
 #
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
@@ -115,68 +112,68 @@ OBJECTS= $(COMMON) $(DES) $(DIAL) $(IPSEC) $(NETDIR) $(NSS) $(NETSELECT) \
 	 $(NSL) $(WRAPPERS) $(RPC) $(SAF) $(YP) $(NIS) $(KEY) $(STRADDR)
 
 # libnsl build rules
-objs/%.o pics/%.o: ../common/%.c
+pics/%.o: ../common/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../des/%.c
+pics/%.o: ../des/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../dial/%.c
+pics/%.o: ../dial/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../ipsec/%.c
+pics/%.o: ../ipsec/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../netdir/%.c
+pics/%.o: ../netdir/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../nss/%.c
+pics/%.o: ../nss/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../netselect/%.c
+pics/%.o: ../netselect/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../nsl/%.c
+pics/%.o: ../nsl/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../rpc/%.c
+pics/%.o: ../rpc/%.c
 	$(COMPILE.c) -DPORTMAP -DNIS  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../saf/%.c
+pics/%.o: ../saf/%.c
 	$(COMPILE.c)  -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../yp/%.c
+pics/%.o: ../yp/%.c
 	$(COMPILE.c)   -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../key/%.c
+pics/%.o: ../key/%.c
 	$(COMPILE.c)   -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../nis/gen/%.c ../nis/gen/nis_clnt.h
+pics/%.o: ../nis/gen/%.c ../nis/gen/nis_clnt.h
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../nis/cache/%.c ../nis/cache/nis_clnt.h
+pics/%.o: ../nis/cache/%.c ../nis/cache/nis_clnt.h
 	$(COMPILE.c) -o $@ $<
 	$(POST_PROCESS_O)
 
-objs/%.o pics/%.o: ../nis/cache/%.cc ../nis/gen/nis_clnt.h \
+pics/%.o: ../nis/cache/%.cc ../nis/gen/nis_clnt.h \
 	../nis/cache/nis_clnt.h ../nis/cache/nis_cache.h
 	$(COMPILE.cc) -o $@ $<
 	$(POST_PROCESS_O)
 
-$(__ARLIB)$(ARM_BLD)objs/%.o pics/%.o: ../../nametoaddr/straddr/common/%.c
+$(__ARLIB)$(ARM_BLD)pics/%.o: ../../nametoaddr/straddr/common/%.c
 $(__ARLIB)$(ARM_BLD)	$(COMPILE.c) -o $@ $<
 $(__ARLIB)$(ARM_BLD)	$(POST_PROCESS_O)
 
@@ -248,7 +245,6 @@ SRCS=	$(DES:%.o=../des/%.c)			\
 	$(STRADDR:%.o=../../nametoaddr/straddr/common/%.c)
 
 lint:
-	@echo $(LINT.c) ...
 	@$(LINT.c) $(SRCS) $(LDLIBS)
 
 # include library targets

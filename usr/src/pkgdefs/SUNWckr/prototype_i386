@@ -68,8 +68,8 @@ f none kernel/dacf/net_dacf 755 root sys
 f none kernel/devname/sdev_nsconfig_mod 755 root sys
 f none kernel/drv/aggr 755 root sys
 f none kernel/drv/arp 755 root sys
-f none kernel/drv/battery 755 root sys
-f none kernel/drv/battery.conf 644 root sys
+f none kernel/drv/acpi_drv 755 root sys
+f none kernel/drv/acpi_drv.conf 644 root sys
 f none kernel/drv/bl 755 root sys
 f none kernel/drv/bmc 755 root sys
 f none kernel/drv/bmc.conf 644 root sys
@@ -184,6 +184,7 @@ f none kernel/misc/scsi_vhci/scsi_vhci_f_sym_hds 755 root sys
 f none kernel/misc/scsi_vhci/scsi_vhci_f_tpgs 755 root sys
 f none kernel/misc/acpica 755 root sys
 f none kernel/misc/agpmaster 755 root sys
+f none kernel/misc/bignum 755 root sys
 f none kernel/misc/bootdev 755 root sys
 f none kernel/misc/busra 755 root sys
 f none kernel/misc/cardbus 755 root sys
@@ -278,7 +279,7 @@ f none kernel/devname/amd64/sdev_nsconfig_mod 755 root sys
 d none kernel/drv/amd64 755 root sys
 f none kernel/drv/amd64/aggr 755 root sys
 f none kernel/drv/amd64/arp 755 root sys
-f none kernel/drv/amd64/battery 755 root sys
+f none kernel/drv/amd64/acpi_drv 755 root sys
 f none kernel/drv/amd64/bl 755 root sys
 f none kernel/drv/amd64/bmc 755 root sys
 f none kernel/drv/amd64/bscbus 755 root sys
@@ -388,6 +389,7 @@ f none kernel/misc/scsi_vhci/amd64/scsi_vhci_f_tpgs 755 root sys
 d none kernel/misc/amd64 755 root sys
 f none kernel/misc/amd64/acpica 755 root sys
 f none kernel/misc/amd64/agpmaster 755 root sys
+f none kernel/misc/amd64/bignum 755 root sys
 f none kernel/misc/amd64/bootdev 755 root sys
 f none kernel/misc/amd64/busra 755 root sys
 f none kernel/misc/amd64/cardbus 755 root sys

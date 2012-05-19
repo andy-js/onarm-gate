@@ -21,6 +21,8 @@
 /*
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ *
+ * Portions Copyright 2008 Denis Cheng
  */
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
@@ -233,7 +235,7 @@ flowoplib_init()
 		fl = &flowoplib_funcs[i];
 
 		if ((flowop = flowop_define(NULL,
-		    fl->fl_name, NULL, 0, fl->fl_type)) == 0) {
+		    fl->fl_name, NULL, NULL, 0, fl->fl_type)) == 0) {
 			filebench_log(LOG_ERROR,
 			    "failed to create flowop %s\n",
 			    fl->fl_name);
@@ -789,8 +791,7 @@ flowoplib_aiowait(threadflow_t *threadflow, flowop_t *flowop)
 		for (ncompleted = 0, inprogress = 0,
 		    aio = flowop->fo_thread->tf_aiolist;
 		    ncompleted < todo, aio != NULL; aio = aio->al_next) {
-
-			result = aio_error64(&aio->al_aiocb);
+			int result = aio_error64(&aio->al_aiocb);
 
 			if (result == EINPROGRESS) {
 				inprogress++;
@@ -1503,7 +1504,7 @@ flowoplib_sempost(threadflow_t *threadflow, flowop_t *flowop)
 		int i;
 #endif /* HAVE_SYSV_SEM */
 		struct timespec timeout;
-		int value = avd_get_int(flowop->fo_value);
+		int value = (int)avd_get_int(flowop->fo_value);
 
 		if (target->fo_instance == FLOW_MASTER) {
 			target = target->fo_targetnext;

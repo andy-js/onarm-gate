@@ -62,7 +62,7 @@ INSTALL_TARGET	= $(BINARY) $(ROOTMODULE)
 #
 # Linkage dependencies
 #
-LDFLAGS += -dy -Ncrypto/md5 -Ncrypto/sha2
+LDFLAGS += -dy -Ncrypto/md5 -Ncrypto/sha2 -Nmisc/bignum
 
 #
 # lint pass one enforcement

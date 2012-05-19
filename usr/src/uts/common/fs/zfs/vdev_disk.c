@@ -304,7 +304,7 @@ vdev_disk_probe_io(vdev_t *vd, caddr_t data, size_t size, uint64_t offset,
     int flags)
 {
 	int error = 0;
-	vdev_disk_t *dvd = vd->vdev_tsd;
+	vdev_disk_t *dvd = vd ? vd->vdev_tsd : NULL;
 
 	if (vd == NULL || dvd == NULL || dvd->vd_lh == NULL)
 		return (EINVAL);
@@ -569,6 +569,9 @@ vdev_disk_io_done(zio_t *zio)
 			vd->vdev_is_failing = B_TRUE;
 		}
 	}
+
+	if (zio_injection_enabled && zio->io_error == 0)
+		zio->io_error = zio_handle_label_injection(zio, EIO);
 
 	return (ZIO_PIPELINE_CONTINUE);
 }

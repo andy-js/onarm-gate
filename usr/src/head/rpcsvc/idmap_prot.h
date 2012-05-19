@@ -192,6 +192,50 @@ typedef struct {
 	u_int idmap_update_batch_len;
 	idmap_update_op *idmap_update_batch_val;
 } idmap_update_batch;
+#define	AD_DISC_MAXHOSTNAME 256
+
+struct idmap_ad_disc_ds_t {
+	int port;
+	int priority;
+	int weight;
+	char host[AD_DISC_MAXHOSTNAME];
+};
+typedef struct idmap_ad_disc_ds_t idmap_ad_disc_ds_t;
+
+enum idmap_prop_type {
+	PROP_UNKNOWN = 0,
+	PROP_LIST_SIZE_LIMIT = 1,
+	PROP_DEFAULT_DOMAIN = 2,
+	PROP_DOMAIN_NAME = 3,
+	PROP_MACHINE_SID = 4,
+	PROP_DOMAIN_CONTROLLER = 5,
+	PROP_FOREST_NAME = 6,
+	PROP_SITE_NAME = 7,
+	PROP_GLOBAL_CATALOG = 8,
+	PROP_AD_UNIXUSER_ATTR = 9,
+	PROP_AD_UNIXGROUP_ATTR = 10,
+	PROP_NLDAP_WINNAME_ATTR = 11,
+	PROP_DS_NAME_MAPPING_ENABLED = 12
+};
+typedef enum idmap_prop_type idmap_prop_type;
+
+struct idmap_prop_val {
+	idmap_prop_type prop;
+	union {
+		uint64_t intval;
+		idmap_utf8str utf8val;
+		bool_t boolval;
+		idmap_ad_disc_ds_t dsval;
+	} idmap_prop_val_u;
+};
+typedef struct idmap_prop_val idmap_prop_val;
+
+struct idmap_prop_res {
+	idmap_retcode retcode;
+	idmap_prop_val value;
+	bool_t auto_discovered;
+};
+typedef struct idmap_prop_res idmap_prop_res;
 
 struct idmap_list_mappings_1_argument {
 	int64_t lastrowid;
@@ -229,6 +273,9 @@ extern  bool_t idmap_update_1_svc(idmap_update_batch , idmap_update_res *, struc
 #define	IDMAP_GET_MAPPED_ID_BY_NAME	5
 extern  enum clnt_stat idmap_get_mapped_id_by_name_1(idmap_mapping , idmap_mappings_res *, CLIENT *);
 extern  bool_t idmap_get_mapped_id_by_name_1_svc(idmap_mapping , idmap_mappings_res *, struct svc_req *);
+#define	IDMAP_GET_PROP	6
+extern  enum clnt_stat idmap_get_prop_1(idmap_prop_type , idmap_prop_res *, CLIENT *);
+extern  bool_t idmap_get_prop_1_svc(idmap_prop_type , idmap_prop_res *, struct svc_req *);
 extern int idmap_prog_1_freeresult(SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -250,6 +297,9 @@ extern  bool_t idmap_update_1_svc();
 #define	IDMAP_GET_MAPPED_ID_BY_NAME	5
 extern  enum clnt_stat idmap_get_mapped_id_by_name_1();
 extern  bool_t idmap_get_mapped_id_by_name_1_svc();
+#define	IDMAP_GET_PROP	6
+extern  enum clnt_stat idmap_get_prop_1();
+extern  bool_t idmap_get_prop_1_svc();
 extern int idmap_prog_1_freeresult();
 #endif /* K&R C */
 
@@ -277,6 +327,10 @@ extern  bool_t xdr_idmap_update_res(XDR *, idmap_update_res*);
 extern  bool_t xdr_idmap_opnum(XDR *, idmap_opnum*);
 extern  bool_t xdr_idmap_update_op(XDR *, idmap_update_op*);
 extern  bool_t xdr_idmap_update_batch(XDR *, idmap_update_batch*);
+extern  bool_t xdr_idmap_ad_disc_ds_t(XDR *, idmap_ad_disc_ds_t*);
+extern  bool_t xdr_idmap_prop_type(XDR *, idmap_prop_type*);
+extern  bool_t xdr_idmap_prop_val(XDR *, idmap_prop_val*);
+extern  bool_t xdr_idmap_prop_res(XDR *, idmap_prop_res*);
 extern  bool_t xdr_idmap_list_mappings_1_argument(XDR *, idmap_list_mappings_1_argument*);
 extern  bool_t xdr_idmap_list_namerules_1_argument(XDR *, idmap_list_namerules_1_argument*);
 
@@ -302,6 +356,10 @@ extern bool_t xdr_idmap_update_res();
 extern bool_t xdr_idmap_opnum();
 extern bool_t xdr_idmap_update_op();
 extern bool_t xdr_idmap_update_batch();
+extern bool_t xdr_idmap_ad_disc_ds_t();
+extern bool_t xdr_idmap_prop_type();
+extern bool_t xdr_idmap_prop_val();
+extern bool_t xdr_idmap_prop_res();
 extern bool_t xdr_idmap_list_mappings_1_argument();
 extern bool_t xdr_idmap_list_namerules_1_argument();
 

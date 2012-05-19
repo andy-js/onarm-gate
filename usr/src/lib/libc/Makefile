@@ -19,7 +19,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 
@@ -46,9 +46,9 @@ ROOTFS_LIB64=	$(ROOTFS_LIB)/$(MACH64)
 
 ROOTVARIANTDIR=	$(ROOTLIB)/libc
 
-$(__LINT)ROOTFS_LINTDIR=		$(ROOTFS_LIB)
+$(__LINT)ROOTFS_LINTDIR=	$(ROOTFS_LIB)
 $(__LINT)ROOTFS_LINTDIR64=	$(ROOTFS_LIB64)
-$(__LINT)ROOTFS_LINTLIB=		$(ROOTFS_LINTDIR)/$(LINTLIB)
+$(__LINT)ROOTFS_LINTLIB=	$(ROOTFS_LINTDIR)/$(LINTLIB)
 $(__LINT)ROOTFS_LINTLIB64=	$(ROOTFS_LINTDIR64)/$(LINTLIB)
 
 # include common library definitions
@@ -116,8 +116,6 @@ $(ARM_BLD)SETUP_I18N	= setup_i18n
 
 all:	check_i18n .WAIT lib32 $(UNICODEDIR) $(BUILD64) .WAIT lib64 .WAIT etc
 
-# check_i18n:	$(SETUP_I18N)
-
 check_i18n:
 	@if [ ! -f $(ROOTFS_LIBDIR)/libc_i18n.a -o \
 	      \( -z "$(BUILD64)" -a \
@@ -142,19 +140,13 @@ etc:	$($(MACH)_ETC)
 lib32:	$(MACHLIBS) $(MACH)/$(LIB_PIC) $(VARIANTLIBS)
 	mkdir -p $(MACH)/i18n_pics
 	cd $(MACH)/i18n_pics ; $(AR) -x $(ROOTFS_LIBDIR)/libc_i18n.a
-	$(CHECK_FNAMES) -s $(C_SYNONYMS_H) -l $(MACH)/$(DYNLIB) $(MACH)/pics/*.o $(MACH)/i18n_pics/*.o
-	$(CHECK_FNAMES) -s $(C_SYNONYMS_H) -l $(MACH)/$(DYNLIB) \
-		$(MACH)/pics/*.o $(MACH)/i18n_pics/*.o
 
 lib64:	$(MACHLIBS64) $(MACH64)/$(LIB_PIC) $(VARIANTLIBS)
 	mkdir -p $(MACH64)/i18n_pics
 	cd $(MACH64)/i18n_pics ; $(AR) -x $(ROOTFS_LIBDIR64)/libc_i18n.a
-	$(CHECK_FNAMES) -s $(C_SYNONYMS_H) -l $(MACH64)/$(DYNLIB) \
-		$(MACH64)/pics/*.o $(MACH64)/i18n_pics/*.o
 
 $(VARIANTLIBS): FRC
 	@cd $(@D); pwd; VERSION='$(VERSION)' $(MAKE) $(@F)
-	$(CHECK_FNAMES) -s $(C_SYNONYMS_H) -l $(@D)/$(@F) $(@D)/pics/*.o
 
 $($(MACH)_ETC): FRC
 	@cd $(@); pwd; $(MAKE) $(TARGET)

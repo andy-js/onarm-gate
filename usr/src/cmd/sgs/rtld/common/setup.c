@@ -757,7 +757,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 	argsinfo.dla_envp = envp;
 	argsinfo.dla_auxv = auxv;
 
-	(void) enter();
+	(void) enter(0);
 
 	/*
 	 * Add our two main link-maps to the dynlm_list
@@ -1055,7 +1055,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 	 * now that the auditing step has been called.
 	 */
 	if (rtld_flags & RT_FL_CONFGEN) {
-		leave(LIST(mlmp));
+		leave(LIST(mlmp), 0);
 		return (mlmp);
 	}
 
@@ -1158,7 +1158,7 @@ setup(char **envp, auxv_t *auxv, Word _flags, char *_platform, int _syspagsz,
 	DBG_CALL(Dbg_util_call_main(mlmp));
 
 	rtld_flags |= RT_FL_OPERATION;
-	leave(LIST(mlmp));
+	leave(LIST(mlmp), 0);
 
 	return (mlmp);
 }

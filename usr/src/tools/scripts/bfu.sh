@@ -6834,6 +6834,11 @@ mondo_loop() {
 		rm -rf $usr/lib/mail
 	fi
 
+	# local.cf no longer needed with the advent of sendmail -bl
+	rm -f $root/etc/mail/cf/cf/local.cf
+	rm -f $root/etc/mail/cf/cf/local.mc
+	rm -f $root/etc/mail/local.cf
+
 	#
 	# Remove drivers and header files for EOF of Lance Ethernet
 	# driver(le) as per PSARC/2003/335.
@@ -7390,6 +7395,12 @@ mondo_loop() {
 		rm -f $root/platform/sun4u-us3/kernel/crypto/sparcv9/aes
 		rm -f $root/platform/sun4u-us3/kernel/crypto/sparcv9/aes256
 	fi
+
+	#
+	# remove platform specific rsa module obsoleted by the bignum module
+	#
+
+	rm -f $root/platform/sun4u/kernel/crypto/sparcv9/rsa
 
 	if [ $zone = global ]; then
 		print "\nRemoving duplicate kernel binaries ..."

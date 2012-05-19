@@ -24,6 +24,8 @@
  */
 
 /*
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright 1992-2003 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
@@ -161,7 +163,7 @@ ptrace(int request, pid_t pid, int addr, int data)
 		map(request), pid, addr, data);
 #endif
 
-	(void) _private_mutex_lock(&pt_lock);
+	(void) mutex_lock(&pt_lock);
 
 	if (request == 0) {	/* PTRACE_TRACEME, executed by traced process */
 		/*
@@ -209,7 +211,7 @@ ptrace(int request, pid_t pid, int addr, int data)
 		if (close(fd) != 0)
 			exit(255);
 
-		(void) _private_mutex_unlock(&pt_lock);
+		(void) mutex_unlock(&pt_lock);
 		return (0);
 	}
 
@@ -241,7 +243,7 @@ again:
 			goto eio;
 		if (pread(cp->asfd, (char *)&data, sizeof (data), (off_t)addr)
 		    == sizeof (data)) {
-			(void) _private_mutex_unlock(&pt_lock);
+			(void) mutex_unlock(&pt_lock);
 			return (data);
 		}
 		goto eio;
@@ -259,7 +261,7 @@ again:
 		if ((int)xaddr >= 0 && xaddr < U_END) {
 			/* LINTED pointer alignment */
 			data = *((int *)((caddr_t)(&cp->user) + xaddr));
-			(void) _private_mutex_unlock(&pt_lock);
+			(void) mutex_unlock(&pt_lock);
 			return (data);
 		}
 		goto eio;
@@ -270,7 +272,7 @@ again:
 			goto eio;
 		if (pwrite(cp->asfd, (char *)&data, sizeof (data), (off_t)addr)
 		    == sizeof (data)) {
-			(void) _private_mutex_unlock(&pt_lock);
+			(void) mutex_unlock(&pt_lock);
 			return (data);
 		}
 		goto eio;
@@ -288,7 +290,7 @@ again:
 				    ~PSR_USERMASK) | (data & PSR_USERMASK);
 			cp->user.u_reg[rx] = data;
 			cp->flags |= CS_SETREGS;
-			(void) _private_mutex_unlock(&pt_lock);
+			(void) mutex_unlock(&pt_lock);
 			return (data);
 		}
 		goto eio;
@@ -358,14 +360,14 @@ again:
 			if (errno == ENOENT) {
 				/* current signal must have killed it */
 				ReleaseProc(cp);
-				(void) _private_mutex_unlock(&pt_lock);
+				(void) mutex_unlock(&pt_lock);
 				return (data);
 			}
 			goto tryagain;
 		}
 		(void) memset((char *)ps, 0, sizeof (pstatus_t));
 		cp->flags = 0;
-		(void) _private_mutex_unlock(&pt_lock);
+		(void) mutex_unlock(&pt_lock);
 		return (data);
 	    }
 
@@ -378,7 +380,7 @@ again:
 		    sizeof (long)+sizeof (siginfo_t));
 		(void) kill(pid, SIGKILL);
 		ReleaseProc(cp);
-		(void) _private_mutex_unlock(&pt_lock);
+		(void) mutex_unlock(&pt_lock);
 		return (0);
 
 	default:
@@ -393,11 +395,11 @@ tryagain:
 	}
 eio:
 	errno = EIO;
-	(void) _private_mutex_unlock(&pt_lock);
+	(void) mutex_unlock(&pt_lock);
 	return (-1);
 esrch:
 	errno = ESRCH;
-	(void) _private_mutex_unlock(&pt_lock);
+	(void) mutex_unlock(&pt_lock);
 	return (-1);
 }
 

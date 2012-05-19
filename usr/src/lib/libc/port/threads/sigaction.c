@@ -35,8 +35,9 @@
 #include "asyncio.h"
 #include <signal.h>
 #include <siginfo.h>
-#include <ucontext.h>
 #include <sys/systm.h>
+
+extern int _setcontext(const ucontext_t *);
 
 const sigset_t maskset = {MASKSET0, MASKSET1, 0, 0};	/* maskable signals */
 
@@ -108,11 +109,11 @@ call_user_handler(int sig, siginfo_t *sip, ucontext_t *ucp)
 	    ((sig == SIGPROF && sip->si_code == PROF_SIG) ||
 	    (sig == SIGEMT && sip->si_code == EMT_CPCOVF)))) {
 		/* we wish this assignment could be atomic */
-		(void) _private_memcpy(&uact, (void *)sap, sizeof (uact));
+		(void) memcpy(&uact, (void *)sap, sizeof (uact));
 	} else {
 		rwlock_t *rwlp = &udp->siguaction[sig].sig_lock;
 		lrw_rdlock(rwlp);
-		(void) _private_memcpy(&uact, (void *)sap, sizeof (uact));
+		(void) memcpy(&uact, (void *)sap, sizeof (uact));
 		if ((sig == SIGCANCEL || sig == SIGAIOCANCEL) &&
 		    (sap->sa_flags & SA_RESETHAND))
 			sap->sa_sigaction = SIG_DFL;
@@ -145,7 +146,7 @@ call_user_handler(int sig, siginfo_t *sip, ucontext_t *ucp)
 		sigorset(&uact.sa_mask, &ucp->uc_sigmask);
 	}
 	if (!(uact.sa_flags & SA_NODEFER))	/* add current signal */
-		(void) _private_sigaddset(&uact.sa_mask, sig);
+		(void) sigaddset(&uact.sa_mask, sig);
 	self->ul_sigmask = uact.sa_mask;
 	self->ul_siglink = ucp;
 	(void) __lwp_sigmask(SIG_SETMASK, &uact.sa_mask, NULL);
@@ -209,7 +210,7 @@ call_user_handler(int sig, siginfo_t *sip, ucontext_t *ucp)
 #endif	/* sparc */
 
 out:
-	(void) _private_setcontext(ucp);
+	(void) _setcontext(ucp);
 	thr_panic("call_user_handler(): _setcontext() returned");
 }
 
@@ -314,7 +315,7 @@ sigacthandler(int sig, siginfo_t *sip, void *uvp)
 	ASSERT(self->ul_cursig == 0);
 	self->ul_cursig = (char)sig;
 	if (sip != NULL)
-		(void) _private_memcpy(&self->ul_siginfo,
+		(void) memcpy(&self->ul_siginfo,
 		    sip, sizeof (siginfo_t));
 	else
 		self->ul_siginfo.si_signo = 0;
@@ -334,14 +335,13 @@ sigacthandler(int sig, siginfo_t *sip, void *uvp)
 	 * thread's ul_sigmask by this operation.
 	 */
 	ucp->uc_sigmask = maskset;
-	(void) __setcontext_syscall(ucp);
+	(void) __setcontext(ucp);
 	thr_panic("sigacthandler(): __setcontext() returned");
 }
 
-#pragma weak sigaction = _libc_sigaction
-#pragma weak _sigaction = _libc_sigaction
+#pragma weak sigaction = _sigaction
 int
-_libc_sigaction(int sig, const struct sigaction *nact, struct sigaction *oact)
+_sigaction(int sig, const struct sigaction *nact, struct sigaction *oact)
 {
 	ulwp_t *self = curthread;
 	uberdata_t *udp = self->ul_uberdata;
@@ -349,6 +349,11 @@ _libc_sigaction(int sig, const struct sigaction *nact, struct sigaction *oact)
 	struct sigaction tact;
 	struct sigaction *tactp = NULL;
 	int rv;
+
+	if (nact != NULL && !primary_link_map) {
+		errno = ENOTSUP;
+		return (-1);
+	}
 
 	if (sig <= 0 || sig >= NSIG) {
 		errno = EINVAL;
@@ -438,6 +443,9 @@ _libc_sigaction(int sig, const struct sigaction *nact, struct sigaction *oact)
 	return (rv);
 }
 
+/*
+ * This is a private interface for the linux brand interface.
+ */
 void
 setsigacthandler(void (*nsigacthandler)(int, siginfo_t *, void *),
     void (**osigacthandler)(int, siginfo_t *, void *))
@@ -477,7 +485,7 @@ block_all_signals(ulwp_t *self)
 }
 
 /*
- * _private_setcontext has code that forcibly restores the curthread
+ * setcontext() has code that forcibly restores the curthread
  * pointer in a context passed to the setcontext(2) syscall.
  *
  * Certain processes may need to disable this feature, so these routines
@@ -495,10 +503,9 @@ set_setcontext_enforcement(int on)
 	setcontext_enforcement = on;
 }
 
-#pragma weak setcontext = _private_setcontext
-#pragma weak _setcontext = _private_setcontext
+#pragma weak setcontext = _setcontext
 int
-_private_setcontext(const ucontext_t *ucp)
+_setcontext(const ucontext_t *ucp)
 {
 	ulwp_t *self = curthread;
 	int ret;
@@ -510,7 +517,7 @@ _private_setcontext(const ucontext_t *ucp)
 	 */
 	if (ucp == NULL)
 		_thr_exit(NULL);
-	(void) _private_memcpy(&uc, ucp, sizeof (uc));
+	(void) memcpy(&uc, ucp, sizeof (uc));
 
 	/*
 	 * Restore previous signal mask and context link.
@@ -559,7 +566,7 @@ _private_setcontext(const ucontext_t *ucp)
 	 */
 	set_parking_flag(self, 0);
 	self->ul_sp = 0;
-	ret = __setcontext_syscall(&uc);
+	ret = __setcontext(&uc);
 
 	/*
 	 * It is OK for setcontext() to return if the user has not specified

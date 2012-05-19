@@ -954,10 +954,8 @@ zfs_mountroot(vfs_t *vfsp, enum whymountroot why)
 		rootvp = vp;
 
 		/*
-		 * The zfs_zget call above returns with a hold on vp, we release
-		 * it here.
+		 * Leave rootvp held.  The root file system is never unmounted.
 		 */
-		VN_RELE(vp);
 
 		/*
 		 * Mount root as readonly initially, it will be remouted

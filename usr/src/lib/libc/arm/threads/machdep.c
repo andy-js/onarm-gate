@@ -20,6 +20,8 @@
  * CDDL HEADER END
  */
 /*
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
@@ -77,7 +79,7 @@ _thr_setup(ulwp_t *self)
 	self->ul_ustack.ss_sp = (void *)(self->ul_stktop - self->ul_stksiz);
 	self->ul_ustack.ss_size = self->ul_stksiz;
 	self->ul_ustack.ss_flags = 0;
-	(void) _private_setustack(&self->ul_ustack);
+	(void) setustack(&self->ul_ustack);
 	tls_setup();
 
 	/* signals have been deferred until now */

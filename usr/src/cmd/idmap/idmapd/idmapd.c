@@ -55,6 +55,7 @@
 #include <sys/resource.h>
 #include <sys/sid.h>
 #include <sys/idmap.h>
+#include <pthread.h>
 
 static void	term_handler(int);
 static void	init_idmapd();
@@ -71,6 +72,73 @@ SVCXPRT *xprt = NULL;
 
 static int dfd = -1;		/* our door server fildes, for unregistration */
 static int degraded = 0;	/* whether the FMRI has been marked degraded */
+
+
+static uint32_t		num_threads = 0;
+static pthread_key_t	create_threads_key;
+static uint32_t		max_threads = 40;
+
+/*
+ * Server door thread start routine.
+ *
+ * Set a TSD value to the door thread. This enables the destructor to
+ * be called when this thread exits.
+ */
+/*ARGSUSED*/
+static void *
+idmapd_door_thread_start(void *arg)
+{
+	static void *value = 0;
+
+	/*
+	 * Disable cancellation to avoid memory leaks from not running
+	 * the thread cleanup code.
+	 */
+	(void) pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	(void) pthread_setspecific(create_threads_key, value);
+	(void) door_return(NULL, 0, NULL, 0);
+
+	/* make lint happy */
+	return (NULL);
+}
+
+/*
+ * Server door threads creation
+ */
+/*ARGSUSED*/
+static void
+idmapd_door_thread_create(door_info_t *dip)
+{
+	int		num;
+	pthread_t	thread_id;
+
+	if ((num = atomic_inc_32_nv(&num_threads)) > max_threads) {
+		atomic_dec_32(&num_threads);
+		idmapdlog(LOG_DEBUG,
+		    "thread creation refused - %d threads currently active",
+		    num - 1);
+		return;
+	}
+	(void) pthread_create(&thread_id, NULL, idmapd_door_thread_start, NULL);
+	idmapdlog(LOG_DEBUG,
+	    "created thread ID %d - %d threads currently active",
+	    thread_id, num);
+}
+
+/*
+ * Server door thread cleanup
+ */
+/*ARGSUSED*/
+static void
+idmapd_door_thread_cleanup(void *arg)
+{
+	int num;
+
+	num = atomic_dec_32_nv(&num_threads);
+	idmapdlog(LOG_DEBUG,
+	    "exiting thread ID %d - %d threads currently active",
+	    pthread_self(), num);
+}
 
 /*
  * This is needed for mech_krb5 -- we run as daemon, yes, but we want
@@ -118,8 +186,13 @@ usr1_handler(int sig)
 	bool_t saved_debug_mode = _idmapdstate.debug_mode;
 
 	_idmapdstate.debug_mode = TRUE;
+	idmap_log_stderr(LOG_DEBUG);
+
 	print_idmapdstate();
+
 	_idmapdstate.debug_mode = saved_debug_mode;
+	idmap_log_stderr(_idmapdstate.daemon_mode ? -1 : LOG_DEBUG);
+
 }
 
 static int pipe_fd = -1;
@@ -179,6 +252,7 @@ daemonize_start(void)
 	(void) setsid();
 	(void) umask(0077);
 	openlog("idmap", LOG_PID, LOG_DAEMON);
+
 	return (0);
 }
 
@@ -206,6 +280,9 @@ main(int argc, char **argv)
 	/* set locale and domain for internationalization */
 	(void) setlocale(LC_ALL, "");
 	(void) textdomain(TEXT_DOMAIN);
+
+	idmap_log_syslog(TRUE);
+	idmap_log_stderr(_idmapdstate.daemon_mode ? -1 : LOG_DEBUG);
 
 	if (is_system_labeled() && getzoneid() != GLOBAL_ZONEID) {
 		idmapdlog(LOG_ERR,
@@ -269,7 +346,8 @@ static void
 init_idmapd()
 {
 	int	error;
-	int connmaxrec = IDMAP_MAX_DOOR_RPC;
+	int	connmaxrec = IDMAP_MAX_DOOR_RPC;
+
 
 	/* create directories as root and chown to daemon uid */
 	if (create_directory(IDMAP_DBDIR, DAEMON_UID, DAEMON_GID) < 0)
@@ -296,6 +374,14 @@ init_idmapd()
 	if ((error = init_mapping_system()) < 0) {
 		idmapdlog(LOG_ERR, "unable to initialize mapping system");
 		exit(error < -2 ? SMF_EXIT_ERR_CONFIG : 1);
+	}
+
+	(void) door_server_create(idmapd_door_thread_create);
+	if ((error = pthread_key_create(&create_threads_key,
+	    idmapd_door_thread_cleanup)) != 0) {
+		idmapdlog(LOG_ERR, "unable to create threads key (%s)",
+		    strerror(error));
+		goto errout;
 	}
 
 	xprt = svc_door_create(idmap_prog_1, IDMAP_PROG, IDMAP_V1, connmaxrec);
@@ -405,6 +491,7 @@ degrade_svc(int poke_discovery, const char *reason)
 
 	membar_producer();
 	degraded = 1;
+	idmap_log_degraded(TRUE);
 
 	if ((fmri = get_fmri()) != NULL)
 		(void) smf_degrade_instance(fmri, 0);
@@ -424,9 +511,12 @@ restore_svc(void)
 
 	membar_producer();
 	degraded = 0;
+	idmap_log_degraded(FALSE);
+
 	idmapdlog(LOG_NOTICE, "Normal operation restored");
 }
 
+#if 0
 void
 idmapdlog(int pri, const char *format, ...)
 {
@@ -450,3 +540,4 @@ idmapdlog(int pri, const char *format, ...)
 	(void) vsyslog(pri, format, args);
 	va_end(args);
 }
+#endif

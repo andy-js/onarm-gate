@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -51,6 +51,7 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dnode.h>
+#include <sys/vdev_impl.h>
 
 #include <sys/mkdev.h>
 
@@ -437,7 +438,8 @@ translate_raw(const char *str, zinject_record_t *record)
 }
 
 int
-translate_device(const char *pool, const char *device, zinject_record_t *record)
+translate_device(const char *pool, const char *device, err_type_t label_type,
+    zinject_record_t *record)
 {
 	char *end;
 	zpool_handle_t *zhp;
@@ -465,5 +467,15 @@ translate_device(const char *pool, const char *device, zinject_record_t *record)
 		    &record->zi_guid) == 0);
 	}
 
+	switch (label_type) {
+	case TYPE_LABEL_UBERBLOCK:
+		record->zi_start = offsetof(vdev_label_t, vl_uberblock[0]);
+		record->zi_end = record->zi_start + VDEV_UBERBLOCK_RING - 1;
+		break;
+	case TYPE_LABEL_NVLIST:
+		record->zi_start = offsetof(vdev_label_t, vl_vdev_phys);
+		record->zi_end = record->zi_start + VDEV_PHYS_SIZE - 1;
+		break;
+	}
 	return (0);
 }

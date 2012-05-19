@@ -20,6 +20,8 @@
  */
 
 /*
+ * Copyright (c) 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright (c) 2006-2008 NEC Corporation
  * All rights reserved.
  */
@@ -191,7 +193,7 @@
 	bne	__cerror		/* if not, return the error */
 
 	stmdb	sp!, {r3, lr}
-	bl	_private_getpid		/* get current process id */
+	bl	getpid			/* get current process id */
 	GSYM_REF(label2, door_create_pid, r2, r3)
 	ldr	r1, [r2]
 	ldmia	sp!, {r3, lr}

@@ -122,7 +122,7 @@ _dlerrorf(caddr_t callerpc)
 	Rt_map	*clmp;
 	int	entry;
 
-	entry = enter();
+	entry = enter(0);
 
 #if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
@@ -134,7 +134,7 @@ _dlerrorf(caddr_t callerpc)
 	lasterr = (char *)0;
 
 	if (entry)
-		leave(LIST(clmp));
+		leave(LIST(clmp), 0);
 	return (error);
 }
 
@@ -551,7 +551,7 @@ _dlclosef(void *handle, caddr_t callerpc)
 	int		error, entry;
 	Rt_map		*clmp;
 
-	entry = enter();
+	entry = enter(0);
 
 #if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
@@ -562,7 +562,7 @@ _dlclosef(void *handle, caddr_t callerpc)
 	error = dlclose_check(handle, clmp);
 
 	if (entry)
-		leave(LIST(clmp));
+		leave(LIST(clmp), 0);
 	return (error);
 }
 
@@ -973,7 +973,7 @@ _dlopenf(const char *path, int mode, caddr_t callerpc)
 	Grp_hdl	*ghp;
 	Lm_list	*lml;
 
-	entry = enter();
+	entry = enter(0);
 
 #if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
@@ -985,7 +985,7 @@ _dlopenf(const char *path, int mode, caddr_t callerpc)
 	ghp = dlmopen_check(lml, path, mode, clmp);
 
 	if (entry)
-		leave(lml);
+		leave(lml, 0);
 	return ((void *)ghp);
 }
 
@@ -1006,7 +1006,7 @@ _dlmopenf(Lmid_t lmid, const char *path, int mode, caddr_t callerpc)
 	Rt_map	*clmp;
 	Grp_hdl	*ghp;
 
-	entry = enter();
+	entry = enter(0);
 
 #if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
@@ -1017,7 +1017,7 @@ _dlmopenf(Lmid_t lmid, const char *path, int mode, caddr_t callerpc)
 	ghp = dlmopen_check((Lm_list *)lmid, path, mode, clmp);
 
 	if (entry)
-		leave(LIST(clmp));
+		leave(LIST(clmp), 0);
 	return ((void *)ghp);
 }
 
@@ -1484,7 +1484,7 @@ _dlsymf(void *handle, const char *name, caddr_t callerpc)
 	Rt_map	*clmp, *dlmp = 0;
 	void	*addr;
 
-	entry = enter();
+	entry = enter(0);
 
 #if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
@@ -1501,7 +1501,7 @@ _dlsymf(void *handle, const char *name, caddr_t callerpc)
 		is_dep_init(dlmp, clmp);
 
 	if (entry)
-		leave(LIST(clmp));
+		leave(LIST(clmp), 0);
 	return (addr);
 }
 
@@ -1538,7 +1538,7 @@ _dladdr(void *addr, Dl_info *dlip)
 	int	entry, error;
 	Rt_map	*clmp;
 
-	entry = enter();
+	entry = enter(0);
 
 	/*
 	 * Use our calling technique to determine what object is associated
@@ -1555,7 +1555,7 @@ _dladdr(void *addr, Dl_info *dlip)
 	}
 
 	if (entry)
-		leave(0);
+		leave(0, 0);
 	return (error);
 }
 
@@ -1585,7 +1585,7 @@ _dladdr1(void *addr, Dl_info *dlip, void **info, int flags)
 		}
 	}
 
-	entry = enter();
+	entry = enter(0);
 
 	/*
 	 * Use our calling technique to determine what object is associated
@@ -1602,7 +1602,7 @@ _dladdr1(void *addr, Dl_info *dlip, void **info, int flags)
 	}
 
 	if (entry)
-		leave(0);
+		leave(0, 0);
 	return (error);
 }
 
@@ -1690,7 +1690,7 @@ _dldumpf(const char *ipath, const char *opath, int flags, caddr_t callerpc)
 	int	error, entry;
 	Rt_map	*clmp;
 
-	entry = enter();
+	entry = enter(0);
 
 #if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
@@ -1701,7 +1701,7 @@ _dldumpf(const char *ipath, const char *opath, int flags, caddr_t callerpc)
 	error = dldump_core(LIST(clmp), ipath, opath, flags);
 
 	if (entry)
-		leave(LIST(clmp));
+		leave(LIST(clmp), 0);
 	return (error);
 }
 
@@ -1973,7 +1973,7 @@ _dlinfof(void *handle, int request, void *p, caddr_t callerpc)
 	int	error, entry;
 	Rt_map	*clmp;
 
-	entry = enter();
+	entry = enter(0);
 
 #if	!defined(__arm)
 	clmp = _caller(caller(), CL_EXECDEF);
@@ -1984,6 +1984,6 @@ _dlinfof(void *handle, int request, void *p, caddr_t callerpc)
 	error = dlinfo_core(handle, request, p, clmp);
 
 	if (entry)
-		leave(LIST(clmp));
+		leave(LIST(clmp), 0);
 	return (error);
 }

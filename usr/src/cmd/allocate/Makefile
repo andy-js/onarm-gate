@@ -20,7 +20,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 #
@@ -113,6 +113,7 @@ LAZYLIBS =	$(ZLAZYLOAD) -ltsol $(ZNOLAZYLOAD)
 LIBSEC =	 -lsec
 $(ARM_BLD)LIBSEC =
 lint :=		LDLIBS += -lbsm $(LIBSEC) -lsecdb -ltsol -ldevinfo
+
 $(PROGalloc) :=		LDLIBS += -lbsm $(LIBSEC) -lsecdb -ldevinfo $(LAZYLIBS)
 $(PROGmkdevalloc) :=	LDLIBS += -lbsm
 $(PROGdminfo) :=	LDLIBS += -lbsm

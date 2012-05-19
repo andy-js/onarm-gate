@@ -20,6 +20,8 @@
  * CDDL HEADER END
  */
 /*
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ *
  * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
@@ -100,7 +102,7 @@
 	/* call setcontext */
 	str	lr, [sp, #-8]!
 	mov	r0, r2				/* %r0 <-- second arg: ucp */
-	bl	_fref_(_private_setcontext)	/* call setcontext */
+	bl	_fref_(setcontext)		/* call setcontext */
 	ldr	lr, [sp], #8	
 2:
 	bx	lr

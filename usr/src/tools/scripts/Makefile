@@ -20,15 +20,15 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
+#
+# Copyright (c) 2006-2008 NEC Corporation
 #
 # ident	"%Z%%M%	%I%	%E% SMI"
 #
 
-#
-# Copyright (c) 2006-2008 NEC Corporation
-#
+SHELL=/usr/bin/ksh93
 
 SHFILES= \
 	Install \
@@ -112,12 +112,12 @@ MAKEFILES= \
 	xref.mk
 
 POD2MANFILES	= 	\
+	bldenv.1 	\
 	cddlchk.1	\
 	genconst.1	\
 	subdirfix.1	\
 	xheader.1
 
-CLEANFILES = $(SHFILES) $(PERLFILES) $(PYFILES)
 CLEANFILES = $(SHFILES) $(PERLFILES) $(PYFILES) $(POD2MANFILES)
 
 include ../Makefile.tools
@@ -138,14 +138,23 @@ clean:
 	$(RM) $(CLEANFILES)
 
 bldenv: bldenv.sh stdenv.sh
-	$(RM) $@
-	sed -e '/# STDENV_START/ r stdenv.sh' bldenv.sh > bldenv
-	$(CHMOD) +x $@ 
+	$(RM) "$@"
+	sed -e '/# STDENV_START/ r stdenv.sh' bldenv.sh > "$@"
+	# Check for shell lint and fail if we hit warings
+	shlintout="$$( /usr/bin/ksh93 -n "$@" 2>&1 )" ; \
+		[[ "$${shlintout}" != "" ]] && \
+		{ print -r -- "$${shlintout}" ;	false ; } || true
+	$(CHMOD) +x "$@" 
+
+bldenv.1: bldenv
+	$(RM) "$@"
+	(set +o errexit ; ksh93 $? --nroff ; true) 2>&1 | \
+	sed 's/\.DS/.nf/g;s/\.DE/.fi/' > "$@"
 
 nightly: nightly.sh stdenv.sh
-	$(RM) $@
+	$(RM) "$@"
 	sed -e '/# STDENV_START/ r stdenv.sh' nightly.sh > nightly
-	$(CHMOD) +x $@ 
+	$(CHMOD) +x "$@" 
 
 cddlchk.1:	cddlchk.pl
 	$(POD2MAN_BUILD)
@@ -160,3 +169,4 @@ xheader.1:	xheader.pl
 	$(POD2MAN_BUILD)
 
 include ../Makefile.targ
+

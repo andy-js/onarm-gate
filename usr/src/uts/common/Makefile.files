@@ -619,7 +619,7 @@ DLS_OBJS +=	dls.o dls_link.o dls_mod.o dls_stat.o dls_vlan.o \
 
 GLD_OBJS +=     gld.o gldutil.o
 
-MAC_OBJS +=     mac.o mac_mod.o mac_stat.o
+MAC_OBJS +=     mac.o mac_mod.o mac_stat.o mac_ndd.o
 
 MAC_ETHER_OBJS +=	mac_ether.o
 
@@ -973,7 +973,6 @@ SMBSRV_OBJS +=	$(SMBSRV_SHARED_OBJS)			\
 		smb_books.o				\
 		smb_check_directory.o			\
 		smb_close.o				\
-		smb_common_lock.o			\
 		smb_common_open.o			\
 		smb_common_search.o			\
 		smb_common_transact.o			\
@@ -1015,6 +1014,7 @@ SMBSRV_OBJS +=	$(SMBSRV_SHARED_OBJS)			\
                 smb_odir.o				\
 		smb_ofile.o				\
 		smb_open_andx.o				\
+		smb_oplock.o				\
 		smb_path_name_reduction.o		\
 		smb_print.o				\
 		smb_process_exit.o			\
@@ -1321,6 +1321,13 @@ IPCSEM_OBJS +=	sem.o
 IPCSHM_OBJS +=	shm.o
 
 #
+#			bignum module
+#
+COMMON_BIGNUM_OBJS += bignum_mod.o bignumimpl.o
+
+BIGNUM_OBJS += $(COMMON_BIGNUM_OBJS) $(BIGNUM_PSR_OBJS)
+
+#
 #			kernel cryptographic framework
 #
 KCF_OBJS +=	kcf.o kcf_callprov.o kcf_cbufcall.o kcf_cipher.o kcf_crypto.o \
@@ -1351,9 +1358,7 @@ ECCPROV_OBJS += ecc.o ec.o ec2_163.o ec2_mont.o ecdecode.o ecl_mult.o \
 		mpi.o mplogic.o mpmontg.o mpprime.o oid.o \
 		secitem.o ec2_test.o ecp_test.o
 
-COMMON_RSAPROV_OBJS += rsa.o bignumimpl.o rsa_impl.o
-
-RSAPROV_OBJS += $(COMMON_RSAPROV_OBJS) $(RSAPROV_PSR_OBJS)
+RSAPROV_OBJS += rsa.o rsa_impl.o
 
 SWRANDPROV_OBJS += swrand.o
 
@@ -1642,7 +1647,7 @@ E1000G_OBJS +=	e1000_80003es2lan.o e1000_82540.o e1000_82541.o e1000_82542.o \
 		e1000_82543.o e1000_82571.o e1000_api.o e1000_ich8lan.o \
 		e1000_mac.o e1000_manage.o e1000_nvm.o e1000_osdep.o \
 		e1000_phy.o e1000g_debug.o e1000g_main.o e1000g_alloc.o \
-		e1000g_tx.o e1000g_rx.o e1000g_stat.o e1000g_ndd.o
+		e1000g_tx.o e1000g_rx.o e1000g_stat.o
 
 #
 #	Intel 82575 1G NIC driver module
@@ -1651,6 +1656,16 @@ IGB_OBJS =	igb_82575.o igb_api.o igb_mac.o igb_manage.o \
 		igb_nvm.o igb_osdep.o igb_phy.o igb_buf.o \
 		igb_debug.o igb_gld.o igb_log.o igb_main.o \
 		igb_ndd.o igb_rx.o igb_stat.o igb_tx.o
+
+#
+#       Intel 10GbE PCIE NIC driver module
+#
+IXGBE_OBJS =    ixgbe_82598.o ixgbe_api.o ixgbe_common.o        \
+                ixgbe_phy.o                                     \
+                ixgbe_buf.o ixgbe_debug.o ixgbe_gld.o           \
+                ixgbe_log.o ixgbe_main.o ixgbe_ndd.o            \
+                ixgbe_osdep.o ixgbe_rx.o ixgbe_stat.o           \
+                ixgbe_tx.o
 
 #
 #	NIU 10G/1G driver module

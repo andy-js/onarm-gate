@@ -158,6 +158,7 @@ NM=		/usr/ccs/bin/nm
 DIFF=		/usr/bin/diff
 GREP=		/usr/bin/grep
 EGREP=		/usr/bin/egrep
+KSH93=		/usr/bin/ksh93
 SED=		/usr/bin/sed
 NAWK=		/usr/bin/nawk
 DD=		/usr/bin/dd
@@ -329,8 +330,8 @@ sparc_XARCH=		-xarch=v8
 sparcv9_XARCH=		-xarch=v9
 i386_XARCH=
 amd64_XARCH=		-xarch=amd64 -Ui386 -U__i386
-arm_XARCH_FPU	= -xarch=mpcore -_gcc=-mhard-float -_gcc=-mfpu=vfp
-arm_XARCH	= $(arm_XARCH_FPU) -D__arm
+arm_XARCH_FPU=		-xarch=mpcore -_gcc=-mhard-float -_gcc=-mfpu=vfp
+arm_XARCH=			$(arm_XARCH_FPU) -D__arm
 
 
 # assembler '-xarch' flag.  Different from compiler '-xarch' flag.
@@ -530,9 +531,6 @@ CFLAGS64=       $(COPTFLAG64) $($(MACH64)_CFLAGS) $(SPACEFLAG64) $(CCMODE64) \
 # Flags that are used to build parts of the code that are subsequently
 # run on the build machine (also known as the NATIVE_BUILD).
 #
-# NATIVE_CFLAGS=	$(COPTFLAG) $($(NATIVE_MACH)_CFLAGS) $(CCMODE) \
-#		$(ILDOFF) $(CERRWARN) $(C99MODE) $($(NATIVE_MACH)_CCUNBOUND) \
-#		$(IROPTFLAG) $(CGLOBALSTATIC)
 NATIVE_CFLAGS=	$($(NATIVE_MACH)_COPTFLAG) $($(NATIVE_MACH)_CFLAGS) $(CCMODE) \
 		$(ILDOFF) $(CERRWARN) $(C99MODE) $($(NATIVE_MACH)_CCUNBOUND) \
 		$($(NATIVE_MACH)_IROPTFLAG) $(CGLOBALSTATIC)
